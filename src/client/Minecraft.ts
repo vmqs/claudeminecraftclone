@@ -8,6 +8,7 @@ import { EnumMovingObjectType, type MovingObjectPosition } from '../core/MovingO
 import type { EntityLiving } from '../entity/EntityLiving';
 import { FontRenderer } from '../gui/FontRenderer';
 import { GuiDownloadTerrain } from '../gui/GuiDownloadTerrain';
+import { GuiGameStopped } from '../gui/GuiGameStopped';
 import { GuiIngame } from '../gui/GuiIngame';
 import { GuiIngameMenu } from '../gui/GuiIngameMenu';
 import { GuiMainMenu } from '../gui/GuiMainMenu';
@@ -271,6 +272,7 @@ export class Minecraft implements SettingsListener {
     this.chunkProvider?.processIncoming(4);
     RenderBlocks.fancyGrass = this.gameSettings.fancyGraphics;
     this.sndManager.setListener(this.thePlayer, this.timer.renderPartialTicks);
+    if (!this.isGamePaused) this.sndManager.updateScheduledSounds();
     GL.enable(GL.TEXTURE_2D);
     if (this.thePlayer && this.thePlayer.isEntityInsideOpaqueBlock()) this.gameSettings.thirdPersonView = 0;
     GL.beginFrame();
@@ -528,6 +530,8 @@ export class Minecraft implements SettingsListener {
     if (!this.isDisplayActive()) return;
     if (!this.inGameHasFocus) {
       this.inGameHasFocus = true;
+      // The pause menu paused the looping entity sounds; any way back into the game resumes them.
+      this.sndManager.resumeAllSounds();
       this.mouseHelper.grabMouseCursor();
       this.displayGuiScreen(null);
       this.leftClickCounter = 10000;
@@ -588,13 +592,13 @@ export class Minecraft implements SettingsListener {
     this.sndManager.onSoundOptionsChanged();
   }
 
+  /** Quit Game: closes the tab when the page was opened by a script, otherwise says it stopped. */
   shutdown(): void {
     this.loadWorld(null);
-    this.running = false;
-    GL.clearColor(0, 0, 0, 1);
-    GL.clear(GL.COLOR_BUFFER_BIT | GL.DEPTH_BUFFER_BIT);
+    this.sndManager.stopAllSounds();
     document.exitPointerLock?.();
     window.close();
+    this.displayGuiScreen(new GuiGameStopped());
   }
 
   // ------------------------------------------------------------------ worlds
@@ -635,9 +639,8 @@ export class Minecraft implements SettingsListener {
     const cx = info.spawnX >> 4;
     const cz = info.spawnZ >> 4;
     for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) if (pw.world.chunkExists(cx + dx, cz + dz)) have++;
-    const total = (2 * r + 1) * (2 * r + 1);
-    this.loadingScreen.setLoadingProgress(Math.trunc((have * 100) / total));
-    if (have < total) return;
+    // No progress bar: 1.5.2's integrated server never reports a percentage on this screen.
+    if (have < (2 * r + 1) * (2 * r + 1)) return;
     this.pendingWorld = null;
     this.loadingScreen.onNoMoreProgress();
     this.loadWorld(pw.world);

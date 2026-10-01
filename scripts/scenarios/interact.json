@@ -9,7 +9,7 @@
   { "eval": "(() => { mc.dev.look(0, 70); mc.dev.ticks(1); const m = mc.objectMouseOver; if (!m) return 'no target'; const w = mc.theWorld; const pos = [m.blockX, m.blockY, m.blockZ]; const before = w.getBlockId(pos[0], pos[1], pos[2]); mc.dev.click(0); return { pos, before, after: w.getBlockId(pos[0], pos[1], pos[2]) }; })()" },
   { "wait": 1000 },
   { "shot": "interact_broken.png" },
-  { "eval": "(() => { mc.dev.select(0); mc.dev.ticks(1); const m = mc.objectMouseOver; if (!m) return 'no target'; const w = mc.theWorld; const side = m.sideHit; const tgt = [m.blockX, m.blockY, m.blockZ]; const above = [m.blockX, m.blockY + 1, m.blockZ]; mc.dev.click(1); return { side, tgt, placed: w.getBlockId(above[0], above[1], above[2]) }; })()" },
+  { "eval": "(() => { mc.dev.select(0); mc.dev.ticks(1); const m = mc.objectMouseOver; if (!m) return 'no target'; const w = mc.theWorld; const side = m.sideHit; const tgt = [m.blockX, m.blockY, m.blockZ]; const off = [[0,-1,0],[0,1,0],[0,0,-1],[0,0,1],[-1,0,0],[1,0,0]][side]; const at = [tgt[0] + off[0], tgt[1] + off[1], tgt[2] + off[2]]; mc.dev.click(1); return { side, tgt, at, placed: w.getBlockId(at[0], at[1], at[2]) }; })()" },
   { "wait": 1000 },
   { "shot": "interact_placed.png" }
 ]

@@ -660,8 +660,11 @@ export class World implements IWorld, IBlockAccess {
   }
 
   /** Client-only sound with optional distance delay (WorldClient.playSound). */
-  playSound(x: number, y: number, z: number, name: string, volume: number, pitch: number, _distanceDelay: boolean): void {
-    this.playSoundEffect(x, y, z, name, volume, pitch);
+  playSound(x: number, y: number, z: number, name: string, volume: number, pitch: number, distanceDelay: boolean): void {
+    for (const a of this.worldAccesses) {
+      if (a.playSoundWithDistanceDelay) a.playSoundWithDistanceDelay(name, x, y, z, volume, pitch, distanceDelay);
+      else a.playSound(name, x, y, z, volume, pitch);
+    }
   }
 
   spawnParticle(name: string, x: number, y: number, z: number, vx: number, vy: number, vz: number): void {

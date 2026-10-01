@@ -72,7 +72,8 @@ if (serverMode === 'preview' && !(await waitForServer(baseUrl, 300))) {
     console.error('dist/ is missing: run `npm run build` first');
     process.exit(1);
   }
-  server = spawn(path.join(root, 'node_modules/.bin/vite'), ['preview', '--port', '4173', '--strictPort'], { cwd: root, stdio: 'ignore' });
+  const port = new URL(baseUrl).port || '4173';
+  server = spawn(path.join(root, 'node_modules/.bin/vite'), ['preview', '--port', port, '--strictPort'], { cwd: root, stdio: 'ignore' });
   if (!(await waitForServer(baseUrl, 20000))) {
     console.error('vite preview did not start');
     server.kill();

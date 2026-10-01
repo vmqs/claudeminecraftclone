@@ -66,7 +66,7 @@ void main() {
   if (u_useLightmap != 0) c.rgb *= texture(u_lightmap, v_light).rgb;
   if (c.a <= u_alphaRef) discard;
   if (u_fogMode != 0) {
-    float dist = length(v_eye);
+    float dist = abs(v_eye.z); // eye-plane depth, as fixed-function GL computes fog
     float f;
     if (u_fogMode == 1) f = (u_fogParams.y - dist) / (u_fogParams.y - u_fogParams.x);
     else f = exp(-u_fogParams.z * dist);

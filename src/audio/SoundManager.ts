@@ -2,6 +2,7 @@ import type { ResourceManager } from '../assets/ResourceManager';
 import type { GameSettings } from '../client/GameSettings';
 import { JavaRandom } from '../core/JavaRandom';
 import { MathHelper } from '../core/MathHelper';
+import type { Entity } from '../entity/Entity';
 import type { EntityLiving } from '../entity/EntityLiving';
 
 const f = Math.fround;
@@ -33,10 +34,32 @@ class SoundPool {
   }
 }
 
+/** A looping sound attached to an entity (minecarts); the only kind pause/resume touches. */
+interface EntitySound {
+  src: AudioBufferSourceNode | null;
+  gain: GainNode;
+  panner: PannerNode;
+  volume: number;
+  paused: boolean;
+}
+
+/** A sound waiting for its delay (thunder far away: WorldClient.playSound with distance delay). */
+interface ScheduledSound {
+  name: string;
+  x: number;
+  y: number;
+  z: number;
+  volume: number;
+  pitch: number;
+  ticks: number;
+}
+
 /**
  * SoundManager over Web Audio: positional one-shots with the original's linear fall-off over
- * 16 * max(1, volume) blocks, UI sounds at a quarter volume, and background music after a
- * random 0-12000 tick delay (then 12000-24000 ticks between tracks).
+ * 16 * max(1, volume) blocks, UI sounds at a quarter volume, looping entity sounds, delayed
+ * sounds, and background music after a random 0-12000 tick delay (then 12000-24000 ticks
+ * between tracks). As in 1.5.2, pausing the game only pauses the looping entity sounds: one-shots,
+ * UI clicks and music keep playing.
  */
 export class SoundManager {
   private ctx: AudioContext | null = null;
@@ -49,7 +72,8 @@ export class SoundManager {
   private music: HTMLAudioElement | null = null;
   private musicGain: GainNode | null = null;
   private readonly playing = new Set<AudioBufferSourceNode>();
-  private paused = false;
+  private readonly entitySounds = new Map<number, EntitySound>();
+  private readonly scheduled: ScheduledSound[] = [];
   loaded = false;
 
   constructor(
@@ -162,9 +186,20 @@ export class SoundManager {
     }
   }
 
+  private makePanner(ctx: AudioContext, x: number, y: number, z: number, range: number): PannerNode {
+    const p = ctx.createPanner();
+    p.panningModel = 'equalpower';
+    p.distanceModel = 'linear';
+    p.refDistance = 0;
+    p.maxDistance = range;
+    p.rolloffFactor = 1;
+    setPannerPosition(p, x, y, z);
+    return p;
+  }
+
   private start(path: string, volume: number, pitch: number, pos: [number, number, number] | null, range: number): void {
     const ctx = this.ensureContext();
-    if (!ctx || this.paused) return;
+    if (!ctx) return;
     void this.load(path).then((buf) => {
       if (!buf || !this.ctx || !this.master) return;
       const src = ctx.createBufferSource();
@@ -174,17 +209,7 @@ export class SoundManager {
       gain.gain.value = volume;
       src.connect(gain);
       if (pos) {
-        const p = ctx.createPanner();
-        p.panningModel = 'equalpower';
-        p.distanceModel = 'linear';
-        p.refDistance = 0;
-        p.maxDistance = range;
-        p.rolloffFactor = 1;
-        if (p.positionX) {
-          p.positionX.value = pos[0];
-          p.positionY.value = pos[1];
-          p.positionZ.value = pos[2];
-        } else p.setPosition(pos[0], pos[1], pos[2]);
+        const p = this.makePanner(ctx, pos[0], pos[1], pos[2], range);
         gain.connect(p);
         p.connect(this.master);
       } else {
@@ -217,22 +242,114 @@ export class SoundManager {
     this.start(path, volume * this.options.soundVolume, pitch, null, 0);
   }
 
+  /** Queues a positional sound that starts after `ticks` game ticks (func_92070_a). */
+  playSoundWithDelay(name: string, x: number, y: number, z: number, volume: number, pitch: number, ticks: number): void {
+    this.scheduled.push({ name, x, y, z, volume, pitch, ticks });
+  }
+
+  /** Counts the delayed sounds down; called once per frame while the game is not paused. */
+  updateScheduledSounds(): void {
+    for (let i = this.scheduled.length - 1; i >= 0; i--) {
+      const s = this.scheduled[i];
+      if (--s.ticks > 0) continue;
+      this.scheduled.splice(i, 1);
+      this.playSound(s.name, s.x, s.y, s.z, s.volume, s.pitch);
+    }
+  }
+
+  /** Starts a looping sound that follows the entity, unless one already plays for it. */
+  playEntitySound(name: string, e: Entity, volume: number, pitch: number): void {
+    if (!this.loaded || this.options.soundVolume === 0) return;
+    if (this.entitySounds.has(e.entityId)) {
+      this.updateSoundLocation(e);
+      return;
+    }
+    const path = this.soundPoolSounds.getRandomSoundFromSoundPool(name, this.rand);
+    const ctx = this.ensureContext();
+    if (!path || volume <= 0 || !ctx || !this.master) return;
+    const range = volume > 1 ? 16 * volume : 16;
+    const gain = ctx.createGain();
+    const panner = this.makePanner(ctx, e.posX, e.posY, e.posZ, range);
+    gain.connect(panner);
+    panner.connect(this.master);
+    const v = Math.min(1, volume) * this.options.soundVolume;
+    gain.gain.value = v;
+    const es: EntitySound = { src: null, gain, panner, volume: v, paused: false };
+    this.entitySounds.set(e.entityId, es);
+    void this.load(path).then((buf) => {
+      if (!buf || this.entitySounds.get(e.entityId) !== es) return;
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+      src.playbackRate.value = Math.max(0.5, Math.min(2, pitch));
+      src.connect(gain);
+      src.start();
+      es.src = src;
+    });
+  }
+
+  updateSoundLocation(e: Entity): void {
+    const es = this.entitySounds.get(e.entityId);
+    if (es) setPannerPosition(es.panner, e.posX, e.posY, e.posZ);
+  }
+
+  isEntitySoundPlaying(e: Entity): boolean {
+    return this.entitySounds.has(e.entityId);
+  }
+
+  stopEntitySound(e: Entity): void {
+    const es = this.entitySounds.get(e.entityId);
+    if (!es) return;
+    this.entitySounds.delete(e.entityId);
+    es.src?.stop();
+    es.gain.disconnect();
+  }
+
+  setEntitySoundVolume(e: Entity, volume: number): void {
+    const es = this.entitySounds.get(e.entityId);
+    if (!es) return;
+    es.volume = volume * this.options.soundVolume;
+    if (!es.paused) es.gain.gain.value = es.volume;
+  }
+
+  setEntitySoundPitch(e: Entity, pitch: number): void {
+    const es = this.entitySounds.get(e.entityId);
+    if (es?.src) es.src.playbackRate.value = Math.max(0.5, Math.min(2, pitch));
+  }
+
+  /** Pauses the looping entity sounds (opening the pause menu). */
   pauseAllSounds(): void {
-    this.paused = true;
-    void this.ctx?.suspend();
-    this.music?.pause();
+    for (const es of this.entitySounds.values()) {
+      es.paused = true;
+      es.gain.gain.value = 0;
+    }
   }
 
   resumeAllSounds(): void {
-    this.paused = false;
-    void this.ctx?.resume();
-    if (this.music && !this.music.ended) void this.music.play().catch(() => undefined);
+    for (const es of this.entitySounds.values()) {
+      es.paused = false;
+      es.gain.gain.value = es.volume;
+    }
   }
 
   stopAllSounds(): void {
     for (const s of this.playing) s.stop();
     this.playing.clear();
+    for (const es of this.entitySounds.values()) {
+      es.src?.stop();
+      es.gain.disconnect();
+    }
+    this.entitySounds.clear();
+    this.scheduled.length = 0;
     if (this.music) this.music.pause();
     this.music = null;
   }
+}
+
+function setPannerPosition(p: PannerNode, x: number, y: number, z: number): void {
+  if (p.positionX) {
+    p.positionX.value = x;
+    p.positionY.value = y;
+    p.positionZ.value = z;
+  } else p.setPosition(x, y, z);
 }

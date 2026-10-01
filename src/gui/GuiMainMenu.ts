@@ -67,11 +67,15 @@ export class GuiMainMenu extends GuiScreen {
     const t = (k: string) => I18n.translateToLocal(k);
     const y = Math.trunc(this.height / 4) + 48;
     this.buttonList.push(new GuiButton(1, Math.trunc(this.width / 2) - 100, y, t('menu.singleplayer')));
+    // There is no multiplayer and English is the only language: both stay visible but inert.
     const mp = new GuiButton(2, Math.trunc(this.width / 2) - 100, y + 24, t('menu.multiplayer'));
+    mp.enabled = false;
     this.buttonList.push(mp);
     this.buttonList.push(new GuiButton(0, Math.trunc(this.width / 2) - 100, y + 72 + 12, 98, 20, t('menu.options')));
     this.buttonList.push(new GuiButton(4, Math.trunc(this.width / 2) + 2, y + 72 + 12, 98, 20, t('menu.quit')));
-    this.buttonList.push(new GuiButtonLanguage(5, Math.trunc(this.width / 2) - 124, y + 72 + 12));
+    const lang = new GuiButtonLanguage(5, Math.trunc(this.width / 2) - 124, y + 72 + 12);
+    lang.enabled = false;
+    this.buttonList.push(lang);
   }
 
   protected override actionPerformed(b: GuiButton): void {

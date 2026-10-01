@@ -16,14 +16,11 @@ export class GuiIngameMenu extends GuiScreen {
     this.buttonList.push(new GuiButton(1, cx - 100, h4 + 120 + off, t('menu.returnToMenu')));
     this.buttonList.push(new GuiButton(4, cx - 100, h4 + 24 + off, t('menu.returnToGame')));
     this.buttonList.push(new GuiButton(0, cx - 100, h4 + 96 + off, 98, 20, t('menu.options')));
-    const lan = new GuiButton(7, cx + 2, h4 + 96 + off, 98, 20, t('menu.shareToLan'));
-    lan.enabled = false;
-    this.buttonList.push(lan);
-    const ach = new GuiButton(5, cx - 100, h4 + 48 + off, 98, 20, t('gui.achievements'));
-    const stats = new GuiButton(6, cx + 2, h4 + 48 + off, 98, 20, t('gui.stats'));
-    ach.enabled = false;
-    stats.enabled = false;
-    this.buttonList.push(ach, stats);
+    // Achievements, Statistics and Open to LAN are enabled in 1.5.2 singleplayer; they are
+    // out of scope here, so they look the same but do nothing.
+    this.buttonList.push(new GuiButton(7, cx + 2, h4 + 96 + off, 98, 20, t('menu.shareToLan')));
+    this.buttonList.push(new GuiButton(5, cx - 100, h4 + 48 + off, 98, 20, t('gui.achievements')));
+    this.buttonList.push(new GuiButton(6, cx + 2, h4 + 48 + off, 98, 20, t('gui.stats')));
   }
 
   protected override actionPerformed(b: GuiButton): void {

@@ -1,4 +1,6 @@
 import { Block } from '../block/Block';
+import type { BlockLeaves } from '../block/BlockLeaves';
+import { Blocks } from '../block/Blocks';
 import type { Minecraft } from '../client/Minecraft';
 import { AxisAlignedBB } from '../core/AxisAlignedBB';
 import { JavaRandom } from '../core/JavaRandom';
@@ -117,6 +119,7 @@ export class RenderGlobal implements IWorldAccess {
   /** Sends the atlas layout, colormaps and settings to the meshers (after stitching). */
   initMeshers(): void {
     const settings = { aoLevel: this.mc.gameSettings.ambientOcclusion, fancyGraphics: this.mc.gameSettings.fancyGraphics };
+    (Blocks.leaves as BlockLeaves).setGraphicsLevel(settings.fancyGraphics);
     const icons = this.mc.renderEngine.textureMapBlocks.getIconTable();
     for (const w of this.workers) {
       const msg: MesherRequest = { type: 'init', icons, grass: ColorizerGrass.buffer.slice(), foliage: ColorizerFoliage.buffer.slice(), settings };
@@ -166,6 +169,7 @@ export class RenderGlobal implements IWorldAccess {
     const wide = Math.trunc(width / 16) + 1;
     this.renderRadius = Math.trunc((wide - 1) / 2);
     const settings = { aoLevel: gs.ambientOcclusion, fancyGraphics: gs.fancyGraphics };
+    (Blocks.leaves as BlockLeaves).setGraphicsLevel(gs.fancyGraphics);
     for (const w of this.workers) w.worker.postMessage({ type: 'settings', settings } satisfies MesherRequest);
     this.markAllDirty();
   }
@@ -907,6 +911,16 @@ export class RenderGlobal implements IWorldAccess {
     let range = 16;
     if (volume > 1) range *= volume;
     if (viewer.getDistanceSq(x, y, z) < range * range) this.mc.sndManager.playSound(name, x, y, z, volume, pitch);
+  }
+
+  playSoundWithDistanceDelay(name: string, x: number, y: number, z: number, volume: number, pitch: number, distanceDelay: boolean): void {
+    const viewer = this.mc.renderViewEntity;
+    if (!viewer) return;
+    const range = volume > 1 ? 16 * volume : 16;
+    const d2 = viewer.getDistanceSq(x, y, z);
+    if (d2 >= range * range) return;
+    if (distanceDelay && d2 > 100) this.mc.sndManager.playSoundWithDelay(name, x, y, z, volume, pitch, Math.round((Math.sqrt(d2) / 40) * 20));
+    else this.mc.sndManager.playSound(name, x, y, z, volume, pitch);
   }
 
   spawnParticle(name: string, x: number, y: number, z: number, vx: number, vy: number, vz: number): void {

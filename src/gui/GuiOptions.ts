@@ -119,7 +119,8 @@ export class GuiVideoSettings extends GuiScreen {
 
   override drawScreen(mx: number, my: number, pt: number): void {
     this.drawDefaultBackground();
-    this.drawCenteredString(this.fontRenderer, this.screenTitle, Math.trunc(this.width / 2), 15, 0xffffff);
+    // 1.5.2 draws this title at y=20 on 64-bit JVMs (y=5 otherwise); the buttons follow that layout.
+    this.drawCenteredString(this.fontRenderer, this.screenTitle, Math.trunc(this.width / 2), 20, 0xffffff);
     super.drawScreen(mx, my, pt);
   }
 }

@@ -47,9 +47,11 @@ node scripts/shot.mjs interact               # walk, fly, break and place, with 
 node scripts/shot.mjs path/to/scenario.json --url http://localhost:5173/ --server none
 ```
 
-The harness starts `vite preview` on port 4173 when nothing answers there (and stops it at the
-end unless `--keep`), launches the Chromium in `/opt/pw-browsers` with SwiftShader WebGL, and
-runs the steps at 854x480 (`--size WxH` to change), the size of the reference captures.
+The harness starts `vite preview` on the port of `--url` (default `http://localhost:4173/`) when
+nothing answers there (and stops it at the end unless `--keep`), so an agent assigned another
+preview port passes e.g. `--url http://localhost:4175/`. It launches the Chromium in
+`/opt/pw-browsers` with SwiftShader WebGL and runs the steps at 854x480 (`--size WxH` to change),
+the size of the reference captures.
 
 Scenario steps (JSON array):
 
