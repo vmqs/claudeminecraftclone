@@ -5,3 +5,5 @@ dist/
 public/assets/
 *.log
 .DS_Store
+# Screenshot harness output
+shots/

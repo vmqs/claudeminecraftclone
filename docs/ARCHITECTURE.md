@@ -143,7 +143,9 @@ skylight), `heightMap: Int32Array(256)` (lowest y with full skylight), `biomes: 
 
 ### 5.2 World generation (worker)
 
-The main thread posts `{type:'request', cx, cz}` and `{type:'player', cx, cz}`. Chunk `(x,z)` is
+The main thread (`world/ChunkProviderClient`) posts `{type:'request', cx, cz}`, `{type:'cancel'}`,
+`{type:'player', cx, cz, radius}` and, once per world, `{type:'findSpawn'}` (answered with the
+`WorldServer.createSpawnPosition` result). Chunk `(x,z)` is
 **finalized** when population has run for `(x-1..x, z-1..z)`, the original's +8 offset rule, and
 its light has been computed from the populated 3×3 neighbourhood. Light can travel at most 15
 blocks, so the result is exact and seam-free. The worker transfers section arrays (as
@@ -151,6 +153,15 @@ transferables), the height map, the biomes, and the tile-entity descriptors, suc
 type and chest contents. The main thread never receives an unfinalized chunk, and the worker never
 mutates a chunk after sending it. The worker evicts its own copies far from the player. Generation
 is deterministic for `(seed, worldType, generateStructures)`.
+
+`ChunkProviderClient` keeps the chunks within `RenderGlobal.renderRadius + 1` of the player
+loaded, adds arriving chunks within a per-frame time budget, unloads chunks two beyond the radius,
+and keeps unloaded chunks in memory when they were modified or hold mobs. World creation
+(`Minecraft.launchIntegratedServer`) shows "Loading world / Building terrain" until the 5x5
+chunks around the spawn are present, places the player like `EntityPlayerMP` (random offset of up
+to 10 blocks, on `getTopSolidOrLiquidBlock`), then shows "Downloading terrain" until the area
+around the player is meshed. `Chunk` only needs a `ChunkHost` (an `IWorld` plus light and
+render-update hooks), which both the client `World` and the worker's `GenWorld` implement.
 
 ### 5.3 Lighting (main thread)
 
@@ -285,7 +296,8 @@ picks the block. Reach is 5 blocks.
 `ScaledResolution` uses the original algorithm: grow the scale while
 `w/(s+1) >= 320 && h/(s+1) >= 240`, capped by `guiScale` (0 = auto). Every screen renders through
 the GL facade in GUI space (`ortho(0, w, h, 0, 1000, 3000)` with a translate of −2000), so 3D item
-icons work naturally. `FontRenderer` measures glyph widths from `font/default.png` (HD-aware). It
+icons work naturally. `FontRenderer` measures glyph widths from the *vanilla* `font/default.png`, as
+the original did (it read the font image from the jar), and draws with the selected pack's image. It
 supports shadows (offset 1, colour ×0.25), `§` colour and format codes, and unicode fallback
 through `font/glyph_XX.png` and `glyph_sizes.bin`. Screens: main menu (rotating panorama, logo,
 random splash, version string), select world (in-memory worlds), create world (with "More World
@@ -316,11 +328,14 @@ for F5, F3, F11, Tab, Space, and `/` are suppressed while the game has focus.
 
 ## 12. Testing and dev hooks
 
-- `?dev=1` exposes `window.mc`, the `Minecraft` instance, for automation.
+See `docs/TESTING.md` for details.
+
+- `?dev=1` exposes `window.mc`, the `Minecraft` instance, with automation helpers on `mc.dev`
+  (`src/client/DevTools.ts`).
 - `?autostart=1&seed=<s>&type=<default|flat|largeBiomes>` skips the menus straight into a new
-  world.
+  world; `?hotbar=1`, `?time=<t>`, `?pos=x,y,z[,yaw,pitch]` and `?fly=1` set up the scene.
 - `scripts/shot.mjs` drives headless Chromium (`/opt/pw-browsers`, SwiftShader WebGL) against
-  `vite preview` or `vite dev`. It runs small scenario scripts (set time, teleport, look, select a
-  hotbar slot, open a screen, wait N ticks, capture) and writes PNGs, which can be compared with
-  reference screenshots of the original game.
+  `vite preview` or `vite dev`. It runs JSON scenarios (`scripts/scenarios/`: load, wait for a
+  condition, evaluate JS, run ticks, press keys, capture) and writes PNGs, which can be compared
+  with reference screenshots of the original game.
 - `npm run typecheck` and `npm run build` must stay green on every commit.
