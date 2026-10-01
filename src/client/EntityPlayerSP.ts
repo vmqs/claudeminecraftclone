@@ -1,0 +1,180 @@
+import { MathHelper } from '../core/MathHelper';
+import { EntityPlayer } from '../entity/EntityPlayer';
+import type { World } from '../world/World';
+import { MovementInput } from './MovementInput';
+
+const f = Math.fround;
+
+/** What the local player needs from the game client. */
+export interface PlayerClient {
+  displayGuiScreen(screen: null): void;
+  playSoundFX(name: string, volume: number, pitch: number): void;
+}
+
+/** The local player: input-driven movement, sprint/fly double-taps, FOV modifier. */
+export class EntityPlayerSP extends EntityPlayer {
+  movementInput: MovementInput = new MovementInput();
+  protected sprintToggleTimer = 0;
+  sprintingTicksLeft = 0;
+  renderArmYaw = 0;
+  renderArmPitch = 0;
+  prevRenderArmYaw = 0;
+  prevRenderArmPitch = 0;
+  timeInPortal = 0;
+  prevTimeInPortal = 0;
+
+  constructor(
+    readonly mc: PlayerClient,
+    world: World,
+    username: string,
+  ) {
+    super(world);
+    this.username = username;
+  }
+
+  protected override updateEntityActionState(): void {
+    super.updateEntityActionState();
+    this.moveStrafing = this.movementInput.moveStrafe;
+    this.moveForward = this.movementInput.moveForward;
+    this.isJumping = this.movementInput.jump;
+    this.prevRenderArmYaw = this.renderArmYaw;
+    this.prevRenderArmPitch = this.renderArmPitch;
+    this.renderArmPitch = f(this.renderArmPitch + (this.rotationPitch - this.renderArmPitch) * 0.5);
+    this.renderArmYaw = f(this.renderArmYaw + (this.rotationYaw - this.renderArmYaw) * 0.5);
+  }
+
+  protected override isClientWorld(): boolean {
+    return true;
+  }
+
+  /** EntityClientPlayerMP.onUpdate: the player only updates once its chunk is present. */
+  override onUpdate(): void {
+    if (this.worldObj.blockExists(MathHelper.floor_double(this.posX), 0, MathHelper.floor_double(this.posZ))) super.onUpdate();
+  }
+
+  override onLivingUpdate(): void {
+    if (this.sprintingTicksLeft > 0) {
+      this.sprintingTicksLeft--;
+      if (this.sprintingTicksLeft === 0) this.setSprinting(false);
+    }
+    if (this.sprintToggleTimer > 0) this.sprintToggleTimer--;
+    this.prevTimeInPortal = this.timeInPortal;
+    if (this.inPortal) {
+      this.mc.displayGuiScreen(null);
+      if (this.timeInPortal === 0) this.mc.playSoundFX('portal.trigger', 1, this.rand.nextFloat() * 0.4 + 0.8);
+      this.timeInPortal = f(this.timeInPortal + f(0.0125));
+      if (this.timeInPortal >= 1) this.timeInPortal = 1;
+      this.inPortal = false;
+    } else {
+      if (this.timeInPortal > 0) this.timeInPortal = f(this.timeInPortal - f(0.05));
+      if (this.timeInPortal < 0) this.timeInPortal = 0;
+    }
+    if (this.timeUntilPortal > 0) this.timeUntilPortal--;
+
+    const wasJumping = this.movementInput.jump;
+    const threshold = f(0.8);
+    const wasForward = this.movementInput.moveForward >= threshold;
+    this.movementInput.updatePlayerMoveState();
+    if (this.isUsingItem()) {
+      this.movementInput.moveStrafe = f(this.movementInput.moveStrafe * f(0.2));
+      this.movementInput.moveForward = f(this.movementInput.moveForward * f(0.2));
+      this.sprintToggleTimer = 0;
+    }
+    if (this.movementInput.sneak && this.ySize < f(0.2)) this.ySize = f(0.2);
+    const hw = this.width * 0.35;
+    this.pushOutOfBlocks(this.posX - hw, this.boundingBox.minY + 0.5, this.posZ + hw);
+    this.pushOutOfBlocks(this.posX - hw, this.boundingBox.minY + 0.5, this.posZ - hw);
+    this.pushOutOfBlocks(this.posX + hw, this.boundingBox.minY + 0.5, this.posZ - hw);
+    this.pushOutOfBlocks(this.posX + hw, this.boundingBox.minY + 0.5, this.posZ + hw);
+    // Food level is always full in Creative, so sprinting is always allowed.
+    const canSprint = true;
+    if (this.onGround && !wasForward && this.movementInput.moveForward >= threshold && !this.isSprinting() && canSprint && !this.isUsingItem()) {
+      if (this.sprintToggleTimer === 0) {
+        this.sprintToggleTimer = 7;
+      } else {
+        this.setSprinting(true);
+        this.sprintToggleTimer = 0;
+      }
+    }
+    if (this.isSneaking()) this.sprintToggleTimer = 0;
+    if (this.isSprinting() && (this.movementInput.moveForward < threshold || this.isCollidedHorizontally || !canSprint)) this.setSprinting(false);
+    if (this.capabilities.allowFlying && !wasJumping && this.movementInput.jump) {
+      if (this.flyToggleTimer === 0) {
+        this.flyToggleTimer = 7;
+      } else {
+        this.capabilities.isFlying = !this.capabilities.isFlying;
+        this.sendPlayerAbilities();
+        this.flyToggleTimer = 0;
+      }
+    }
+    if (this.capabilities.isFlying) {
+      if (this.movementInput.sneak) this.motionY -= 0.15;
+      if (this.movementInput.jump) this.motionY += 0.15;
+    }
+    super.onLivingUpdate();
+    if (this.onGround && this.capabilities.isFlying) {
+      this.capabilities.isFlying = false;
+      this.sendPlayerAbilities();
+    }
+  }
+
+  getFOVMultiplier(): number {
+    let m = 1;
+    if (this.capabilities.isFlying) m = f(m * f(1.1));
+    m = f(m * f(f(f(f(this.landMovementFactor * this.getSpeedModifier()) / this.speedOnGround) + 1) / 2));
+    return m;
+  }
+
+  /** Client-side push: nudges sideways out of full cubes at head/feet height. */
+  protected override pushOutOfBlocks(px: number, py: number, pz: number): boolean {
+    const x = MathHelper.floor_double(px);
+    const y = MathHelper.floor_double(py);
+    const z = MathHelper.floor_double(pz);
+    const fx = px - x;
+    const fz = pz - z;
+    const solid = (a: number, b: number, c: number) => this.worldObj.isBlockNormalCube(a, b, c);
+    if (solid(x, y, z) || solid(x, y + 1, z)) {
+      const west = !solid(x - 1, y, z) && !solid(x - 1, y + 1, z);
+      const east = !solid(x + 1, y, z) && !solid(x + 1, y + 1, z);
+      const north = !solid(x, y, z - 1) && !solid(x, y + 1, z - 1);
+      const south = !solid(x, y, z + 1) && !solid(x, y + 1, z + 1);
+      let dir = -1;
+      let best = 9999;
+      if (west && fx < best) {
+        best = fx;
+        dir = 0;
+      }
+      if (east && 1 - fx < best) {
+        best = 1 - fx;
+        dir = 1;
+      }
+      if (north && fz < best) {
+        best = fz;
+        dir = 4;
+      }
+      if (south && 1 - fz < best) {
+        best = 1 - fz;
+        dir = 5;
+      }
+      const v = f(0.1);
+      if (dir === 0) this.motionX = -v;
+      if (dir === 1) this.motionX = v;
+      if (dir === 4) this.motionZ = -v;
+      if (dir === 5) this.motionZ = v;
+    }
+    return false;
+  }
+
+  override setSprinting(v: boolean): void {
+    super.setSprinting(v);
+    this.sprintingTicksLeft = v ? 600 : 0;
+  }
+
+  override isSneaking(): boolean {
+    return this.movementInput.sneak;
+  }
+
+  override playSound(name: string, volume: number, pitch: number): void {
+    this.worldObj.playSound(this.posX, this.posY - this.yOffset, this.posZ, name, volume, pitch, false);
+  }
+}
