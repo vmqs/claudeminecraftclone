@@ -42,6 +42,18 @@ export const TERRAIN_STRIDE = 16;
 /** Terrain positions are int16 in 1/1024 block units relative to the section origin. */
 export const TERRAIN_POS_SCALE = 1 / 1024;
 
+/** A recorded glNewList/glEndList block: static VBOs replayed with the current state. */
+export class DisplayList {
+  draws: { vao: WebGLVertexArrayObject; vbo: WebGLBuffer; mode: number; count: number; flags: DrawFlags }[] = [];
+}
+
+/** One uploaded terrain mesh (a section's pass). */
+export interface TerrainMesh {
+  vao: WebGLVertexArrayObject;
+  vbo: WebGLBuffer;
+  vertexCount: number;
+}
+
 export interface DrawFlags {
   hasTexture: boolean;
   hasColor: boolean;
@@ -508,6 +520,15 @@ class GLFacade {
     this.boundTex0 = tex;
   }
 
+  /**
+   * glCopyTexSubImage2D into the texture bound on unit 0, from the framebuffer's lower-left
+   * corner. The default framebuffer has no alpha, so the texture is (re)specified as RGB.
+   */
+  copyFramebufferToTexture(w: number, h: number): void {
+    const gl = this.gl;
+    gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGB, 0, 0, w, h, 0);
+  }
+
   /** OpenGlHelper.setLightmapTextureCoords(lightmapTexUnit, u, v) */
   setLightmapTextureCoords(u: number, v: number): void {
     this.lightCoord[0] = u;
@@ -611,6 +632,10 @@ class GLFacade {
    */
   drawDynamic(mode: number, data: ArrayBuffer, vertexCount: number, flags: DrawFlags): void {
     if (vertexCount === 0) return;
+    if (this.recording) {
+      this.recordDraw(mode, data, vertexCount, flags);
+      return;
+    }
     if ((mode === this.LINES || mode === this.LINE_STRIP || mode === this.LINE_LOOP) && this.lineWidthValue * this.pixelRatio > 1.5) {
       this.drawWideLines(mode, data, vertexCount, flags);
       return;
@@ -718,7 +743,6 @@ class GLFacade {
         out[o] = v[0] + (px * side + ex * along) * v[3];
         out[o + 1] = v[1] + (py * side + ey * along) * v[3];
         out[o + 2] = v[2];
-        // Stash w in the UV slot's place? No: we draw with identity matrices and pass w via a homogeneous trick below.
         out[o + 3] = f[src * 8 + 3];
         out[o + 4] = f[src * 8 + 4];
         outU[o + 5] = u32[src * 8 + 5];
@@ -742,13 +766,142 @@ class GLFacade {
     this.fog = false;
     const savedWidth = this.lineWidthValue;
     this.lineWidthValue = 1;
+    // Lines have no facing; the generated quads may wind either way.
+    const savedCull = this.cull;
+    this.setCap(this.CULL_FACE, false);
     this.drawDynamic(this.QUADS, out.buffer as ArrayBuffer, n, flags);
+    this.setCap(this.CULL_FACE, savedCull);
     this.lineWidthValue = savedWidth;
     this.fog = savedFog;
     this.popMatrix();
     this.matrixMode(this.PROJECTION);
     this.popMatrix();
     this.matrixMode(this.MODELVIEW);
+  }
+
+  // ------------------------------------------------------------------ display lists
+
+  private recording: DisplayList | null = null;
+
+  genList(): DisplayList {
+    return new DisplayList();
+  }
+
+  /** glNewList(list, GL_COMPILE): Tessellator draws are captured instead of drawn. */
+  newList(list: DisplayList): void {
+    this.deleteList(list);
+    this.recording = list;
+  }
+
+  endList(): void {
+    this.recording = null;
+  }
+
+  deleteList(list: DisplayList): void {
+    for (const d of list.draws) {
+      this.gl.deleteVertexArray(d.vao);
+      this.gl.deleteBuffer(d.vbo);
+    }
+    list.draws = [];
+  }
+
+  private recordDraw(mode: number, data: ArrayBuffer, vertexCount: number, flags: DrawFlags): void {
+    const gl = this.gl;
+    if (mode === this.QUADS) this.getQuadIndexBuffer(vertexCount >> 2);
+    const vao = gl.createVertexArray()!;
+    const vbo = gl.createBuffer()!;
+    gl.bindVertexArray(vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+    gl.bufferData(gl.ARRAY_BUFFER, new Uint8Array(data, 0, vertexCount * DYNAMIC_STRIDE), gl.STATIC_DRAW);
+    gl.vertexAttribPointer(ATTR_POS, 3, gl.FLOAT, false, DYNAMIC_STRIDE, 0);
+    gl.vertexAttribPointer(ATTR_UV, 2, gl.FLOAT, false, DYNAMIC_STRIDE, 12);
+    gl.vertexAttribPointer(ATTR_COLOR, 4, gl.UNSIGNED_BYTE, true, DYNAMIC_STRIDE, 20);
+    gl.vertexAttribPointer(ATTR_NORMAL, 3, gl.BYTE, true, DYNAMIC_STRIDE, 24);
+    gl.vertexAttribPointer(ATTR_LIGHT, 2, gl.SHORT, false, DYNAMIC_STRIDE, 28);
+    gl.enableVertexAttribArray(ATTR_POS);
+    const toggle = (loc: number, on: boolean) => (on ? gl.enableVertexAttribArray(loc) : gl.disableVertexAttribArray(loc));
+    toggle(ATTR_UV, flags.hasTexture);
+    toggle(ATTR_COLOR, flags.hasColor);
+    toggle(ATTR_NORMAL, flags.hasNormals);
+    toggle(ATTR_LIGHT, flags.hasBrightness);
+    if (mode === this.QUADS) gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
+    gl.bindVertexArray(null);
+    this.recording!.draws.push({ vao, vbo, mode, count: vertexCount, flags: { ...flags } });
+  }
+
+  /** glCallList: replays the recorded draws with the current matrices and state. */
+  callList(list: DisplayList): void {
+    const gl = this.gl;
+    for (const d of list.draws) {
+      this.applyState(1, d.flags.hasTexture);
+      gl.bindVertexArray(d.vao);
+      this.applyConstantAttribs(d.flags);
+      if (d.mode === this.QUADS) {
+        const quads = d.count >> 2;
+        if (quads > this.quadIndexCapacity) {
+          gl.bindVertexArray(null);
+          this.ensureQuadIndices(quads);
+          gl.bindVertexArray(d.vao);
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
+        }
+        gl.drawElements(gl.TRIANGLES, quads * 6, gl.UNSIGNED_INT, 0);
+      } else {
+        gl.drawArrays(d.mode, 0, d.count);
+      }
+      this.drawCalls++;
+    }
+    gl.bindVertexArray(null);
+  }
+
+  // ------------------------------------------------------------------ terrain meshes
+
+  private static readonly TERRAIN_FLAGS: DrawFlags = { hasTexture: true, hasColor: true, hasNormals: false, hasBrightness: true };
+
+  /** Uploads compact terrain vertices (see SectionMesher) into a new or reused mesh. */
+  uploadTerrain(mesh: TerrainMesh | null, data: ArrayBuffer, vertexCount: number): TerrainMesh {
+    const gl = this.gl;
+    this.getQuadIndexBuffer(vertexCount >> 2);
+    if (!mesh) {
+      const vao = gl.createVertexArray()!;
+      const vbo = gl.createBuffer()!;
+      gl.bindVertexArray(vao);
+      gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+      gl.vertexAttribPointer(ATTR_POS, 3, gl.SHORT, false, TERRAIN_STRIDE, 0);
+      gl.vertexAttribPointer(ATTR_LIGHT, 2, gl.UNSIGNED_BYTE, false, TERRAIN_STRIDE, 6);
+      gl.vertexAttribPointer(ATTR_UV, 2, gl.UNSIGNED_SHORT, true, TERRAIN_STRIDE, 8);
+      gl.vertexAttribPointer(ATTR_COLOR, 4, gl.UNSIGNED_BYTE, true, TERRAIN_STRIDE, 12);
+      gl.enableVertexAttribArray(ATTR_POS);
+      gl.enableVertexAttribArray(ATTR_LIGHT);
+      gl.enableVertexAttribArray(ATTR_UV);
+      gl.enableVertexAttribArray(ATTR_COLOR);
+      gl.disableVertexAttribArray(ATTR_NORMAL);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.quadIndexBuffer);
+      gl.bindVertexArray(null);
+      mesh = { vao, vbo, vertexCount: 0 };
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, mesh.vbo);
+    gl.bufferData(gl.ARRAY_BUFFER, new Uint8Array(data, 0, vertexCount * TERRAIN_STRIDE), gl.STATIC_DRAW);
+    mesh.vertexCount = vertexCount;
+    return mesh;
+  }
+
+  deleteTerrain(mesh: TerrainMesh): void {
+    this.gl.deleteVertexArray(mesh.vao);
+    this.gl.deleteBuffer(mesh.vbo);
+  }
+
+  /** Draws a terrain mesh with the current matrices (translate to the section origin first). */
+  drawTerrain(mesh: TerrainMesh): void {
+    if (mesh.vertexCount === 0) return;
+    const gl = this.gl;
+    const quads = mesh.vertexCount >> 2;
+    if (quads > this.quadIndexCapacity) this.getQuadIndexBuffer(quads);
+    this.applyState(TERRAIN_POS_SCALE, true);
+    gl.bindVertexArray(mesh.vao);
+    gl.vertexAttrib3fv(ATTR_NORMAL, this.normalValue);
+    gl.drawElements(gl.TRIANGLES, quads * 6, gl.UNSIGNED_INT, 0);
+    this.drawCalls++;
+    gl.bindVertexArray(null);
   }
 
   /** Called at the start of each frame. */

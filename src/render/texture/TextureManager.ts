@@ -180,10 +180,11 @@ export class TextureManager {
     return type === 0 ? this.textureMapBlocks.getMissingIcon() : this.textureMapItems.getMissingIcon();
   }
 
-  /** Forgets the cached unit-0 binding (RenderEngine.resetBoundTexture). */
-  resetBoundTexture(): void {
-    GL.noteTextureBinding(null);
-  }
+  /**
+   * RenderEngine.resetBoundTexture. The original cached the last bound id and needed this
+   * after binding behind its back; the GL facade tracks the real binding, so nothing to do.
+   */
+  resetBoundTexture(): void {}
 }
 
 /** The 64x64 "missing texture" image: white with "missing"/"texture" lines of black text. */
