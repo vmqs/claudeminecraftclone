@@ -2,7 +2,8 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    # The development branch deploys too, so work in progress is playable before merging.
+    branches: [main, claude/minecraft-1-5-html-clone-wyzct1]
   workflow_dispatch:
 
 permissions:
