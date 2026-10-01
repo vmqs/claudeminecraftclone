@@ -131,6 +131,10 @@ export class World implements IWorld, IBlockAccess {
     for (const t of chunk.pendingTicks) this.scheduleBlockUpdate(t[0], t[1], t[2], t[3], t[4]);
     chunk.pendingTicks = [];
     for (const list of chunk.entityLists) for (const e of list) this.addLoadedEntity(e);
+    for (const a of this.worldAccesses) a.onChunkLoaded?.(chunk.xPosition, chunk.zPosition);
+    const x0 = chunk.xPosition * 16;
+    const z0 = chunk.zPosition * 16;
+    this.markBlockRangeForRenderUpdate(x0, 0, z0, x0 + 15, 255, z0 + 15);
   }
 
   /** Removes a chunk; its entities and scheduled ticks are kept on the chunk. */
@@ -146,6 +150,7 @@ export class World implements IWorld, IBlockAccess {
       c.pendingTicks.push([t.xCoord, t.yCoord, t.zCoord, t.blockID, Math.max(0, t.scheduledTime - this.worldInfo.totalTime)]);
     }
     for (const list of c.entityLists) for (const e of list) if (!(e as unknown as EntityPlayer).isPlayerEntity) this.unloadedEntityList.push(e);
+    for (const a of this.worldAccesses) a.onChunkUnloaded?.(cx, cz);
     return c;
   }
 
@@ -244,6 +249,22 @@ export class World implements IWorld, IBlockAccess {
     this.playAuxSFX(2001, x, y, z, id + (meta << 12));
     if (drop) Block.blocksList[id]!.dropBlockAsItem(this, x, y, z, meta, 0);
     return this.setBlock(x, y, z, 0, 0, 3);
+  }
+
+  /** Puts out fire on the clicked face of a block (World.extinguishFire). */
+  extinguishFire(player: EntityPlayer | null, x: number, y: number, z: number, side: number): boolean {
+    if (side === 0) y--;
+    if (side === 1) y++;
+    if (side === 2) z--;
+    if (side === 3) z++;
+    if (side === 4) x--;
+    if (side === 5) x++;
+    if (this.getBlockId(x, y, z) === BlockIds.fire) {
+      this.playAuxSFXAtEntity(player, 1004, x, y, z, 0);
+      this.setBlockToAir(x, y, z);
+      return true;
+    }
+    return false;
   }
 
   markBlockForUpdate(x: number, y: number, z: number): void {

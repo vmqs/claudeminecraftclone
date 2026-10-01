@@ -25,7 +25,9 @@ export abstract class Entity {
   /** Spawn even when chunks are missing (World.spawnEntityInWorld). */
   forceSpawn = false;
   /** True for EntityPlayer instances; avoids a runtime import cycle. */
-  readonly isPlayerEntity: boolean = false;
+  get isPlayerEntity(): boolean {
+    return false;
+  }
   worldObj: World;
   prevPosX = 0;
   prevPosY = 0;

@@ -13,7 +13,6 @@ const f = Math.fround;
 
 /** A player: inventory, capabilities (creative flying), camera bob and eye height. */
 export abstract class EntityPlayer extends EntityLiving {
-  override readonly isPlayerEntity: boolean = true;
   inventory: InventoryPlayer;
   protected flyToggleTimer = 0;
   prevCameraYaw = 0;
@@ -31,6 +30,10 @@ export abstract class EntityPlayer extends EntityLiving {
   protected speedInAir = f(0.02);
   private itemInUse: ItemStack | null = null;
   private itemInUseCount = 0;
+
+  override get isPlayerEntity(): boolean {
+    return true;
+  }
 
   constructor(world: World) {
     super(world);

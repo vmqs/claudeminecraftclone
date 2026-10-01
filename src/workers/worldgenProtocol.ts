@@ -3,7 +3,9 @@ export type WorldGenRequest =
   | { type: 'init'; seed: string; worldType: string; mapFeatures: boolean }
   | { type: 'request'; cx: number; cz: number }
   | { type: 'cancel'; cx: number; cz: number }
-  | { type: 'player'; cx: number; cz: number; radius: number };
+  | { type: 'player'; cx: number; cz: number; radius: number }
+  /** WorldServer.createSpawnPosition: answered with a 'spawn' message. */
+  | { type: 'findSpawn' };
 
 export interface SectionPayload {
   y: number;
@@ -26,4 +28,4 @@ export interface ChunkPayload {
   tileEntities: unknown[];
 }
 
-export type WorldGenResponse = { type: 'ready' } | ChunkPayload;
+export type WorldGenResponse = { type: 'ready' } | { type: 'spawn'; x: number; y: number; z: number } | ChunkPayload;

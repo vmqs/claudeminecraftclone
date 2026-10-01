@@ -12,4 +12,6 @@ export interface IWorldAccess {
   onEntityDestroy(e: Entity): void;
   playAuxSFX(player: EntityPlayer | null, type: number, x: number, y: number, z: number, data: number): void;
   destroyBlockPartially(entityId: number, x: number, y: number, z: number, progress: number): void;
+  onChunkLoaded?(cx: number, cz: number): void;
+  onChunkUnloaded?(cx: number, cz: number): void;
 }

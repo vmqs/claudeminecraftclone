@@ -1,7 +1,10 @@
 /// <reference lib="webworker" />
 import '../block/Blocks';
+import { BlockIds } from '../block/BlockIds';
 import { Chunk } from '../world/Chunk';
 import { ChunkSection } from '../world/ChunkSection';
+import { JavaRandom } from '../core/JavaRandom';
+import { Biomes, type BiomeGenBase } from '../world/biome/BiomeGenBase';
 import { ChunkProviderGenerate } from '../world/gen/ChunkProviderGenerate';
 import { computeChunkLight } from '../world/gen/GenLighting';
 import { GenWorld } from '../world/gen/GenWorld';
@@ -10,6 +13,7 @@ import type { ChunkPayload, SectionPayload, WorldGenRequest } from './worldgenPr
 declare const self: DedicatedWorkerGlobalScope;
 
 let provider: ChunkProviderGenerate | null = null;
+let worldSeed = 0n;
 let world: GenWorld | null = null;
 const populated = new Set<number>();
 const requested = new Map<number, [number, number]>();
@@ -93,6 +97,49 @@ function finalizeChunk(cx: number, cz: number): ChunkPayload {
   return { type: 'chunk', cx, cz, sections, heightMap: c.heightMap.slice(), biomes: c.biomes.slice(), pendingTicks: ticks, tileEntities: [] };
 }
 
+/** WorldChunkManager.findBiomePosition over the 1:4 biome grid (reservoir pick). */
+function findBiomePosition(x: number, z: number, range: number, allowed: BiomeGenBase[], rand: JavaRandom): [number, number] | null {
+  const x0 = (x - range) >> 2;
+  const z0 = (z - range) >> 2;
+  const w = ((x + range) >> 2) - x0 + 1;
+  const h = ((z + range) >> 2) - z0 + 1;
+  const biomes = provider!.biomeSource.getBiomesForGeneration(x0, z0, w, h);
+  let pos: [number, number] | null = null;
+  let n = 0;
+  for (let i = 0; i < w * h; i++) {
+    if (allowed.includes(biomes[i]) && (pos === null || rand.nextInt(n + 1) === 0)) {
+      pos = [(x0 + (i % w)) << 2, (z0 + Math.trunc(i / w)) << 2];
+      n++;
+    }
+  }
+  return pos;
+}
+
+/** World.getFirstUncoveredBlock on generated (unpopulated) terrain. */
+function getFirstUncoveredBlock(x: number, z: number): number {
+  ensureTerrain(x >> 4, z >> 4);
+  const w = world!;
+  let y = 63;
+  while (w.getBlockId(x, y + 1, z) !== 0) y++;
+  return w.getBlockId(x, y, z);
+}
+
+/** WorldServer.createSpawnPosition: a spawn biome near the origin, then a random walk to grass. */
+function createSpawnPosition(seed: bigint): [number, number, number] {
+  const rand = new JavaRandom(seed);
+  const allowed = [Biomes.forest, Biomes.plains, Biomes.taiga, Biomes.taigaHills, Biomes.forestHills, Biomes.jungle, Biomes.jungleHills];
+  const pos = findBiomePosition(0, 0, 256, allowed, rand);
+  let x = pos ? pos[0] : 0;
+  let z = pos ? pos[1] : 0;
+  let tries = 0;
+  while (getFirstUncoveredBlock(x, z) !== BlockIds.grass) {
+    x += rand.nextInt(64) - rand.nextInt(64);
+    z += rand.nextInt(64) - rand.nextInt(64);
+    if (++tries === 1000) break;
+  }
+  return [x, 64, z];
+}
+
 function evict(): void {
   const w = world!;
   const far = (k: number, c: Chunk) => Math.max(Math.abs(c.xPosition - playerCX), Math.abs(c.zPosition - playerCZ)) > keepRadius && !requested.has(k);
@@ -161,6 +208,7 @@ self.onmessage = (e: MessageEvent<WorldGenRequest>) => {
   switch (m.type) {
     case 'init': {
       const seed = BigInt(m.seed);
+      worldSeed = seed;
       provider = new ChunkProviderGenerate(seed, m.mapFeatures);
       world = new GenWorld(provider.biomeSource);
       populated.clear();
@@ -175,6 +223,14 @@ self.onmessage = (e: MessageEvent<WorldGenRequest>) => {
     case 'cancel':
       requested.delete(key(m.cx, m.cz));
       break;
+    case 'findSpawn': {
+      const [x, y, z] = createSpawnPosition(worldSeed);
+      self.postMessage({ type: 'spawn', x, y, z });
+      playerCX = x >> 4;
+      playerCZ = z >> 4;
+      evict();
+      break;
+    }
     case 'player':
       playerCX = m.cx;
       playerCZ = m.cz;
