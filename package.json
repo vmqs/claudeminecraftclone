@@ -1,0 +1,20 @@
+{
+  "name": "minecraft-1-5-html",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A browser recreation of Minecraft 1.5.2 (Creative mode) in TypeScript and WebGL2.",
+  "scripts": {
+    "fetch-assets": "node scripts/fetch-assets.mjs",
+    "dev": "npm run fetch-assets && vite",
+    "build": "npm run fetch-assets && tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "fflate": "^0.8.3",
+    "playwright-core": "^1.63.0",
+    "typescript": "~5.9.3",
+    "vite": "^8.3.2"
+  }
+}
