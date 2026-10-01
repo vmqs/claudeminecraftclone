@@ -12,6 +12,8 @@
 //   {"ticks": 20}                               run game ticks immediately
 //   {"wait": 500}                               wait milliseconds (real time)
 //   {"key": "F3"}                               press a key (Playwright key name)
+//   {"type": "text"}                            type text
+//   {"click": [x, y]} / {"move": [x, y]}        mouse click / move in page pixels
 //   {"shot": "spawn_noon.png"}                  screenshot the page
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
@@ -109,6 +111,12 @@ try {
       await page.waitForTimeout(step.wait);
     } else if (step.key) {
       await page.keyboard.press(step.key);
+    } else if (step.type) {
+      await page.keyboard.type(step.type, { delay: 30 });
+    } else if (step.click) {
+      await page.mouse.click(step.click[0], step.click[1]);
+    } else if (step.move) {
+      await page.mouse.move(step.move[0], step.move[1]);
     } else if (step.shot) {
       const file = path.join(outDir, step.shot);
       await page.screenshot({ path: file });

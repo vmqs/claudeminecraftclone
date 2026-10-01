@@ -672,9 +672,14 @@ export class RenderGlobal implements IWorldAccess {
     GL.depthMask(true);
   }
 
-  /** Flat cloud layer (the fast-graphics clouds; fancy 3D clouds are not ported yet). */
+  /** Clouds: 3D boxes with fancy graphics, otherwise the flat layer. */
   renderClouds(pt: number): void {
     const w = this.theWorld!;
+    if (!w.provider.isSurfaceWorld()) return;
+    if (this.mc.gameSettings.fancyGraphics) {
+      this.renderCloudsFancy(pt);
+      return;
+    }
     const viewer = this.mc.renderViewEntity!;
     GL.disable(GL.CULL_FACE);
     const eyeY = f(viewer.lastTickPosY + (viewer.posY - viewer.lastTickPosY) * pt);
@@ -705,6 +710,124 @@ export class RenderGlobal implements IWorldAccess {
       }
     }
     t.draw();
+    GL.color(1, 1, 1, 1);
+    GL.disable(GL.BLEND);
+    GL.enable(GL.CULL_FACE);
+  }
+
+  /**
+   * renderCloudsFancy: each clouds.png texel is a 12x4x12 box. Drawn in 8x8-cell tiles around
+   * the viewer, first into depth only, then in colour, so inner faces don't double-blend.
+   */
+  renderCloudsFancy(pt: number): void {
+    const w = this.theWorld!;
+    const viewer = this.mc.renderViewEntity!;
+    GL.disable(GL.CULL_FACE);
+    const eyeY = f(viewer.lastTickPosY + (viewer.posY - viewer.lastTickPosY) * pt);
+    const t = Tessellator.instance;
+    const scale = 12;
+    const height = 4;
+    const ticks = this.cloudTickCounter + pt;
+    let cx = (viewer.prevPosX + (viewer.posX - viewer.prevPosX) * pt + ticks * f(0.03)) / scale;
+    let cz = (viewer.prevPosZ + (viewer.posZ - viewer.prevPosZ) * pt) / scale + f(0.33);
+    const y = f(f(w.provider.getCloudHeight() - eyeY) + f(0.33));
+    cx -= MathHelper.floor_double(cx / 2048) * 2048;
+    cz -= MathHelper.floor_double(cz / 2048) * 2048;
+    this.mc.renderEngine.bindTexture('/environment/clouds.png');
+    GL.enable(GL.BLEND);
+    GL.blendFunc(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA);
+    const col = w.getCloudColour(pt);
+    const r = f(col.xCoord);
+    const g = f(col.yCoord);
+    const b = f(col.zCoord);
+    const k = f(0.00390625);
+    const u0 = f(MathHelper.floor_double(cx) * k);
+    const v0 = f(MathHelper.floor_double(cz) * k);
+    const fx = f(cx - MathHelper.floor_double(cx));
+    const fz = f(cz - MathHelper.floor_double(cz));
+    const tile = 8;
+    const range = 4;
+    const eps = f(9.765625e-4);
+    GL.scale(scale, 1, scale);
+    for (let pass = 0; pass < 2; pass++) {
+      if (pass === 0) GL.colorMask(false, false, false, false);
+      else GL.colorMask(true, true, true, true);
+      for (let tx = -range + 1; tx <= range; tx++) {
+        for (let tz = -range + 1; tz <= range; tz++) {
+          t.startDrawingQuads();
+          const ox = f(tx * tile);
+          const oz = f(tz * tile);
+          const x0 = f(ox - fx);
+          const z0 = f(oz - fz);
+          const U = (c: number) => f(f(f(ox + c) * k) + u0);
+          const V = (c: number) => f(f(f(oz + c) * k) + v0);
+          if (y > -height - 1) {
+            t.setColorRGBA_F(f(r * f(0.7)), f(g * f(0.7)), f(b * f(0.7)), f(0.8));
+            t.setNormal(0, -1, 0);
+            t.addVertexWithUV(x0, y, z0 + tile, U(0), V(tile));
+            t.addVertexWithUV(x0 + tile, y, z0 + tile, U(tile), V(tile));
+            t.addVertexWithUV(x0 + tile, y, z0, U(tile), V(0));
+            t.addVertexWithUV(x0, y, z0, U(0), V(0));
+          }
+          if (y <= height + 1) {
+            const top = f(f(y + height) - eps);
+            t.setColorRGBA_F(r, g, b, f(0.8));
+            t.setNormal(0, 1, 0);
+            t.addVertexWithUV(x0, top, z0 + tile, U(0), V(tile));
+            t.addVertexWithUV(x0 + tile, top, z0 + tile, U(tile), V(tile));
+            t.addVertexWithUV(x0 + tile, top, z0, U(tile), V(0));
+            t.addVertexWithUV(x0, top, z0, U(0), V(0));
+          }
+          t.setColorRGBA_F(f(r * f(0.9)), f(g * f(0.9)), f(b * f(0.9)), f(0.8));
+          if (tx > -1) {
+            t.setNormal(-1, 0, 0);
+            for (let i = 0; i < tile; i++) {
+              const xi = f(x0 + i);
+              const u = U(i + 0.5);
+              t.addVertexWithUV(xi, y, z0 + tile, u, V(tile));
+              t.addVertexWithUV(xi, y + height, z0 + tile, u, V(tile));
+              t.addVertexWithUV(xi, y + height, z0, u, V(0));
+              t.addVertexWithUV(xi, y, z0, u, V(0));
+            }
+          }
+          if (tx <= 1) {
+            t.setNormal(1, 0, 0);
+            for (let i = 0; i < tile; i++) {
+              const xi = f(f(f(x0 + i) + 1) - eps);
+              const u = U(i + 0.5);
+              t.addVertexWithUV(xi, y, z0 + tile, u, V(tile));
+              t.addVertexWithUV(xi, y + height, z0 + tile, u, V(tile));
+              t.addVertexWithUV(xi, y + height, z0, u, V(0));
+              t.addVertexWithUV(xi, y, z0, u, V(0));
+            }
+          }
+          t.setColorRGBA_F(f(r * f(0.8)), f(g * f(0.8)), f(b * f(0.8)), f(0.8));
+          if (tz > -1) {
+            t.setNormal(0, 0, -1);
+            for (let i = 0; i < tile; i++) {
+              const zi = f(z0 + i);
+              const v = V(i + 0.5);
+              t.addVertexWithUV(x0, y + height, zi, U(0), v);
+              t.addVertexWithUV(x0 + tile, y + height, zi, U(tile), v);
+              t.addVertexWithUV(x0 + tile, y, zi, U(tile), v);
+              t.addVertexWithUV(x0, y, zi, U(0), v);
+            }
+          }
+          if (tz <= 1) {
+            t.setNormal(0, 0, 1);
+            for (let i = 0; i < tile; i++) {
+              const zi = f(f(f(z0 + i) + 1) - eps);
+              const v = V(i + 0.5);
+              t.addVertexWithUV(x0, y + height, zi, U(0), v);
+              t.addVertexWithUV(x0 + tile, y + height, zi, U(tile), v);
+              t.addVertexWithUV(x0 + tile, y, zi, U(tile), v);
+              t.addVertexWithUV(x0, y, zi, U(0), v);
+            }
+          }
+          t.draw();
+        }
+      }
+    }
     GL.color(1, 1, 1, 1);
     GL.disable(GL.BLEND);
     GL.enable(GL.CULL_FACE);

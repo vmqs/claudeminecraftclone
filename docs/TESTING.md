@@ -61,6 +61,8 @@ Scenario steps (JSON array):
 | `{"ticks": 20}` | run game ticks immediately |
 | `{"wait": 500}` | wait in real time |
 | `{"key": "F3"}` | press a key through Playwright |
+| `{"type": "text"}` | type text |
+| `{"click": [x, y]}`, `{"move": [x, y]}` | mouse click or move, in page pixels |
 | `{"shot": "name.png"}` | write a screenshot into the output directory (default `shots/`) |
 
 SwiftShader renders on the CPU, so expect 1 to 5 fps in the harness while terrain streams in

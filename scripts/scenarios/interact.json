@@ -1,7 +1,7 @@
 [
   { "goto": "?dev=1&autostart=1&seed=-1357935714&hotbar=1&time=6000" },
   { "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0", "timeout": 240000 },
-  { "eval": "(() => { const p = mc.thePlayer; const x0 = p.posX, z0 = p.posZ; mc.dev.look(0, 0); mc.dev.press(17, 20); mc.dev.ticks(5); return { walked: Math.hypot(p.posX - x0, p.posZ - z0).toFixed(3), onGround: p.onGround }; })()" },
+  { "eval": "(() => { const p = mc.thePlayer; let best = 0; for (const yaw of [0, 90, 180, 270]) { const x0 = p.posX, z0 = p.posZ; mc.dev.look(yaw, 0); mc.dev.press(17, 20); mc.dev.ticks(5); best = Math.max(best, Math.hypot(p.posX - x0, p.posZ - z0)); } return { walkedBest: best.toFixed(3), expected: '~4.3 blocks in 20 ticks + 5 coasting', onGround: p.onGround }; })()" },
   { "eval": "(() => { const p = mc.thePlayer; mc.dev.press(57); mc.dev.press(57); const y0 = p.posY; mc.dev.key(57, true); mc.dev.ticks(10); mc.dev.key(57, false); mc.dev.ticks(1); return { flying: p.capabilities.isFlying, rose: (p.posY - y0).toFixed(3) }; })()" },
   { "wait": 500 },
   { "shot": "interact_flying.png" },

@@ -6,6 +6,9 @@ export interface InputHost {
   readonly canvas: HTMLCanvasElement;
   /** In game with no screen open: clicks should grab the mouse right away. */
   wantsPointerLock(): boolean;
+  /** Requests Pointer Lock (called from inside the click's event handler). */
+  requestPointerLock(): void;
+  onPointerLockGained(): void;
   onPointerLockLost(): void;
 }
 
@@ -65,14 +68,7 @@ export function installInput(host: InputHost): void {
     e.preventDefault();
     canvas.focus();
     toDisplay(e.clientX, e.clientY);
-    if (host.wantsPointerLock() && document.pointerLockElement !== canvas) {
-      try {
-        const r = canvas.requestPointerLock() as unknown as Promise<void> | undefined;
-        if (r && typeof r.catch === 'function') r.catch(() => undefined);
-      } catch {
-        // The game retries from setIngameFocus.
-      }
-    }
+    if (host.wantsPointerLock()) host.requestPointerLock();
     Mouse.push({ button: lwjglButton(e.button), state: true, dWheel: 0, x: Mouse.x, y: Mouse.y });
   });
   window.addEventListener('mouseup', (e) => {
@@ -106,7 +102,8 @@ export function installInput(host: InputHost): void {
   );
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   document.addEventListener('pointerlockchange', () => {
-    if (document.pointerLockElement !== canvas) host.onPointerLockLost();
+    if (document.pointerLockElement === canvas) host.onPointerLockGained();
+    else host.onPointerLockLost();
   });
   window.addEventListener('blur', () => {
     Keyboard.releaseAll();

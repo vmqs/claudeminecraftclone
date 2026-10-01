@@ -131,6 +131,10 @@ export class Minecraft implements SettingsListener {
     installInput({
       canvas: this.canvas,
       wantsPointerLock: () => this.theWorld !== null && this.currentScreen === null && !this.loadingScreen.active,
+      requestPointerLock: () => this.mouseHelper.requestLock(),
+      onPointerLockGained: () => {
+        if (this.theWorld && this.currentScreen === null && !this.inGameHasFocus) this.setIngameFocus();
+      },
       onPointerLockLost: () => this.onPointerLockLost(),
     });
     Tessellator.drawHandler = (mode, data, count, flags) => GL.drawDynamic(mode, data, count, flags);

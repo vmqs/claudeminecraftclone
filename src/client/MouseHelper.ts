@@ -6,13 +6,38 @@ export class MouseHelper {
   deltaY = 0;
   /** Called when the browser refuses the lock (no user gesture, or unsupported). */
   onGrabFailed: (() => void) | null = null;
+  private lockPending = false;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
-    document.addEventListener('pointerlockerror', () => this.onGrabFailed?.());
+    document.addEventListener('pointerlockchange', () => {
+      this.lockPending = false;
+    });
+    document.addEventListener('pointerlockerror', () => {
+      this.lockPending = false;
+      if (!this.isLocked) this.onGrabFailed?.();
+    });
   }
 
   get isLocked(): boolean {
     return document.pointerLockElement === this.canvas;
+  }
+
+  /** Asks for Pointer Lock unless it is held or already requested. */
+  requestLock(): void {
+    if (this.isLocked || this.lockPending) return;
+    this.lockPending = true;
+    try {
+      const r = this.canvas.requestPointerLock() as unknown as Promise<void> | undefined;
+      if (r && typeof r.catch === 'function') {
+        r.catch(() => {
+          this.lockPending = false;
+          if (!this.isLocked) this.onGrabFailed?.();
+        });
+      }
+    } catch {
+      this.lockPending = false;
+      this.onGrabFailed?.();
+    }
   }
 
   grabMouseCursor(): void {
@@ -21,13 +46,7 @@ export class MouseHelper {
     Mouse.getDY();
     this.deltaX = 0;
     this.deltaY = 0;
-    if (this.isLocked) return;
-    try {
-      const r = this.canvas.requestPointerLock() as unknown as Promise<void> | undefined;
-      if (r && typeof r.catch === 'function') r.catch(() => this.onGrabFailed?.());
-    } catch {
-      this.onGrabFailed?.();
-    }
+    this.requestLock();
   }
 
   ungrabMouseCursor(): void {
