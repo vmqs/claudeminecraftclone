@@ -42,7 +42,7 @@ agent resumes from the first item that is not marked done or skipped. Status val
 | m10 | ModelBase texture offset map, named addBox | done |
 | m11 | playAuxSFX remaining cases | done (ghast/zombie/wither/bat/anvil sounds, records with "Now playing" and SoundManager.playStreaming, potion splash, eye of ender, bone meal; broadcastSound 1013/1018) |
 | m12 | Weather: addWeatherEffect, lightning roll consuming RNG, hook | done (thunder roll before the ice/snow roll, World.lightningBoltFactory hook, weather effects rendered first in renderEntities) |
-| m13 | GuiSlot widget | todo |
+| m13 | GuiSlot widget | done (src/gui/GuiSlot.ts: dirt list, selection box, drag/wheel/scroll-bar scrolling, double click, header hooks; checked with a throwaway demo screen) |
 | m14 | pendingNear counts only results inside the radius | done |
 | m15 | Superflat world type | done (FlatGeneratorInfo presets, ChunkProviderFlat with the default 2;7,2x3,2;1;village layers, SingleBiomeSource, spawn at y=4; villages not generated yet) |
 | m16 | Render distance change applies without crossing a chunk border | done |
