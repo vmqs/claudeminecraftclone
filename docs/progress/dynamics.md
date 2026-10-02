@@ -16,6 +16,9 @@ falling blocks, growth, spreading, decay, fire, melting, farmland, golems, sapli
       src/world/BlockDynamicsInstall.ts (import.meta.glob of world/gen/feature/WorldGen*.ts).
 - [x] tests/dynamics.test.ts (node, real World): water/lava flow shapes, infinite source,
       lava+water, sand/gravel, leaf decay, saplings, fire, crops, farmland, stems, flood perf.
-- [ ] Remaining review: cactus, reed, flowers, torch, redstone ore, TNT, cauldron rain,
-      snow/ice forming, weather interplay, anvil landing.
-- [ ] scripts/scenarios/dynamics.json + screenshots.
+- [x] Reviewed against 1.5.2: cactus, reed, flowers, torch, redstone ore, TNT, cauldron rain,
+      snow/ice forming (World.tickBlocksAndAmbiance), anvil landing; all match.
+- [x] Node tests extended (weather, melting, cactus/reed/vines, portal, golem patterns, cocoa, wart).
+- [x] Vanilla reference: ref/extra/dynamics/dyn_fluids_t{12,50,700}.png (scenario + block list in
+      scratchpad/dyn/, run with vanilla-rb/run-scenario.sh which has `setblocks`).
+- [ ] scripts/scenarios/dynamics.json browser run + compare (run 1 in progress).
