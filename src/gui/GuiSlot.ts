@@ -193,9 +193,17 @@ export abstract class GuiSlot {
   /** Press inside the list selects (double-click within 250 ms), on the bar drags it; the wheel scrolls. */
   private handleInput(mx: number, my: number, size: number, barX0: number, barX1: number): void {
     if (!Mouse.isButtonDown(0)) {
-      while (!this.mc.gameSettings.touchscreen && Mouse.next()) {
-        const wheel = Mouse.getEventDWheel();
-        if (wheel !== 0) this.amountScrolled = f(this.amountScrolled + Math.trunc(((wheel > 0 ? -1 : 1) * this.slotHeight) / 2));
+      // The original drained every queued mouse event here for the wheel. Browser button events
+      // are queued the moment they happen, so a quick click could be swallowed before the screen
+      // sees it: only wheel events are taken.
+      if (!this.mc.gameSettings.touchscreen) {
+        const rest = Mouse.queue.filter((e) => {
+          if (e.button !== -1 || e.dWheel === 0) return true;
+          this.amountScrolled = f(this.amountScrolled + Math.trunc(((e.dWheel > 0 ? -1 : 1) * this.slotHeight) / 2));
+          return false;
+        });
+        Mouse.queue.length = 0;
+        Mouse.queue.push(...rest);
       }
       this.initialClickY = -1;
       return;

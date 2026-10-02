@@ -1,34 +1,55 @@
 import { I18n } from '../core/I18n';
 import { javaStringHash } from '../core/JavaRandom';
 import { Keyboard } from '../client/Keyboard';
+import type { WorldInfo } from '../world/World';
+import { SaveFormatMemory } from '../world/storage/SaveFormatMemory';
 import { GuiButton } from './GuiButton';
+import { GuiCreateFlatWorld } from './GuiCreateFlatWorld';
 import { GuiScreen } from './GuiScreen';
 import { GuiTextField } from './GuiTextField';
 
+/** WorldType.worldTypes that can be created, in their cycling order (name, translation key). */
 const WORLD_TYPES = ['default', 'flat', 'largeBiomes'];
 const WORLD_TYPE_KEYS = ['generator.default', 'generator.flat', 'generator.largeBiomes'];
 
-/** "Create New World": name, seed (More World Options), structures and world type. Creative only. */
+/** ChatAllowedCharacters.allowedCharactersArray: replaced by '_' in folder names. */
+const ILLEGAL_FILE_CHARS = /[/\n\r\t\0\f`?*\\<>|":]/g;
+const ILLEGAL_WORLD_NAMES = ['CON', 'COM', 'PRN', 'AUX', 'CLOCK$', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2', 'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'];
+
+/**
+ * "Create New World" (GuiCreateWorld) with "More World Options..." (seed, structures, world
+ * type and its Customize screen, cheats, bonus chest). Only Creative is playable here: the
+ * Game Mode button keeps its place and look but stays on Creative.
+ */
 export class GuiCreateWorld extends GuiScreen {
   private textboxWorldName!: GuiTextField;
   private textboxSeed!: GuiTextField;
   private folderName = 'World';
   private readonly gameMode = 'creative';
   private generateStructures = true;
-  private moreOptions = false;
+  private commandsAllowed = true;
+  private bonusItems = false;
+  private readonly isHardcore = false;
   private createClicked = false;
+  private moreOptions = false;
   private worldTypeId = 0;
   private seed = '';
-  private localizedNewWorldText = I18n.translateToLocal('selectWorld.newWorld');
+  private localizedNewWorldText: string;
+  /** The superflat preset chosen with Customize (func_82750_a). */
+  generatorOptionsToUse = '';
   private buttonGameMode!: GuiButton;
   private moreWorldOptions!: GuiButton;
   private buttonGenerateStructures!: GuiButton;
   private buttonBonusItems!: GuiButton;
   private buttonWorldType!: GuiButton;
   private buttonAllowCommands!: GuiButton;
+  private buttonCustomize!: GuiButton;
+  private gameModeDescriptionLine1 = '';
+  private gameModeDescriptionLine2 = '';
 
   constructor(private readonly parentGuiScreen: GuiScreen) {
     super();
+    this.localizedNewWorldText = I18n.translateToLocal('selectWorld.newWorld');
   }
 
   override updateScreen(): void {
@@ -39,17 +60,22 @@ export class GuiCreateWorld extends GuiScreen {
   override initGui(): void {
     const t = (k: string) => I18n.translateToLocal(k);
     Keyboard.enableRepeatEvents(true);
+    this.buttonList = [];
     const cx = Math.trunc(this.width / 2);
     this.buttonList.push(new GuiButton(0, cx - 155, this.height - 28, 150, 20, t('selectWorld.create')));
     this.buttonList.push(new GuiButton(1, cx + 5, this.height - 28, 150, 20, t('gui.cancel')));
     this.buttonList.push((this.buttonGameMode = new GuiButton(2, cx - 75, 115, 150, 20, t('selectWorld.gameMode'))));
     this.buttonList.push((this.moreWorldOptions = new GuiButton(3, cx - 75, 187, 150, 20, t('selectWorld.moreWorldOptions'))));
     this.buttonList.push((this.buttonGenerateStructures = new GuiButton(4, cx - 155, 100, 150, 20, t('selectWorld.mapFeatures'))));
+    this.buttonGenerateStructures.drawButton = false;
     this.buttonList.push((this.buttonBonusItems = new GuiButton(7, cx + 5, 151, 150, 20, t('selectWorld.bonusItems'))));
+    this.buttonBonusItems.drawButton = false;
     this.buttonList.push((this.buttonWorldType = new GuiButton(5, cx + 5, 100, 150, 20, t('selectWorld.mapType'))));
+    this.buttonWorldType.drawButton = false;
     this.buttonList.push((this.buttonAllowCommands = new GuiButton(6, cx - 155, 151, 150, 20, t('selectWorld.allowCommands'))));
-    this.buttonBonusItems.enabled = false;
-    this.buttonAllowCommands.enabled = false;
+    this.buttonAllowCommands.drawButton = false;
+    this.buttonList.push((this.buttonCustomize = new GuiButton(8, cx + 5, 120, 150, 20, t('selectWorld.customizeType'))));
+    this.buttonCustomize.drawButton = false;
     this.textboxWorldName = new GuiTextField(this.fontRenderer, cx - 100, 60, 200, 20);
     this.textboxWorldName.setFocused(true);
     this.textboxWorldName.setText(this.localizedNewWorldText);
@@ -61,27 +87,33 @@ export class GuiCreateWorld extends GuiScreen {
   }
 
   private makeUseableName(): void {
-    this.folderName = this.textboxWorldName.getText().trim().replace(/[/\n\r\t\0\f`?*\\<>|":]/g, '_');
+    this.folderName = this.textboxWorldName.getText().trim().replace(ILLEGAL_FILE_CHARS, '_');
     if (this.folderName.length === 0) this.folderName = 'World';
+    this.folderName = GuiCreateWorld.makeUniqueFolderName(this.folderName);
+  }
+
+  /** func_73913_a: no dots, slashes or quotes, no reserved DOS names, and not an existing folder. */
+  static makeUniqueFolderName(name: string): string {
+    name = name.replace(/[./"]/g, '_');
+    for (const n of ILLEGAL_WORLD_NAMES) if (name.toUpperCase() === n) name = '_' + name + '_';
+    while (SaveFormatMemory.instance.getWorldInfo(name) !== null) name += '-';
+    return name;
   }
 
   private updateButtonText(): void {
     const t = (k: string) => I18n.translateToLocal(k);
+    const onOff = (v: boolean) => t(v ? 'options.on' : 'options.off');
     this.buttonGameMode.displayString = t('selectWorld.gameMode') + ' ' + t('selectWorld.gameMode.' + this.gameMode);
-    this.buttonGenerateStructures.displayString = t('selectWorld.mapFeatures') + ' ' + t(this.generateStructures ? 'options.on' : 'options.off');
-    this.buttonBonusItems.displayString = t('selectWorld.bonusItems') + ' ' + t('options.off');
+    this.gameModeDescriptionLine1 = t('selectWorld.gameMode.' + this.gameMode + '.line1');
+    this.gameModeDescriptionLine2 = t('selectWorld.gameMode.' + this.gameMode + '.line2');
+    this.buttonGenerateStructures.displayString = t('selectWorld.mapFeatures') + ' ' + onOff(this.generateStructures);
+    this.buttonBonusItems.displayString = t('selectWorld.bonusItems') + ' ' + onOff(this.bonusItems && !this.isHardcore);
     this.buttonWorldType.displayString = t('selectWorld.mapType') + ' ' + t(WORLD_TYPE_KEYS[this.worldTypeId]);
-    this.buttonAllowCommands.displayString = t('selectWorld.allowCommands') + ' ' + t('options.on');
+    this.buttonAllowCommands.displayString = t('selectWorld.allowCommands') + ' ' + onOff(this.commandsAllowed && !this.isHardcore);
   }
 
-  private showMoreOptions(v: boolean): void {
-    this.moreOptions = v;
-    this.buttonGameMode.drawButton = !v;
-    this.buttonGenerateStructures.drawButton = v;
-    this.buttonBonusItems.drawButton = v;
-    this.buttonWorldType.drawButton = v;
-    this.buttonAllowCommands.drawButton = v;
-    this.moreWorldOptions.displayString = I18n.translateToLocal(v ? 'gui.done' : 'selectWorld.moreWorldOptions');
+  override onGuiClosed(): void {
+    Keyboard.enableRepeatEvents(false);
   }
 
   /** The original's seed rule: a non-zero long, else the string's hashCode, else random. */
@@ -96,8 +128,9 @@ export class GuiCreateWorld extends GuiScreen {
 
   protected override actionPerformed(b: GuiButton): void {
     if (!b.enabled) return;
-    if (b.id === 1) this.mc.displayGuiScreen(this.parentGuiScreen);
-    else if (b.id === 0) {
+    if (b.id === 1) {
+      this.mc.displayGuiScreen(this.parentGuiScreen);
+    } else if (b.id === 0) {
       this.mc.displayGuiScreen(null);
       if (this.createClicked) return;
       this.createClicked = true;
@@ -106,15 +139,43 @@ export class GuiCreateWorld extends GuiScreen {
         seed,
         terrainType: WORLD_TYPES[this.worldTypeId],
         mapFeatures: this.generateStructures,
+        generatorOptions: this.generatorOptionsToUse,
+        bonusChest: this.bonusItems && !this.isHardcore,
+        allowCommands: this.commandsAllowed && !this.isHardcore,
       });
-    } else if (b.id === 3) this.showMoreOptions(!this.moreOptions);
-    else if (b.id === 4) {
+    } else if (b.id === 3) {
+      this.showMoreOptions(!this.moreOptions);
+    } else if (b.id === 2) {
+      // Survival and Hardcore are not part of this game: the mode stays Creative.
+      this.updateButtonText();
+    } else if (b.id === 4) {
       this.generateStructures = !this.generateStructures;
+      this.updateButtonText();
+    } else if (b.id === 7) {
+      this.bonusItems = !this.bonusItems;
       this.updateButtonText();
     } else if (b.id === 5) {
       this.worldTypeId = (this.worldTypeId + 1) % WORLD_TYPES.length;
+      this.generatorOptionsToUse = '';
       this.updateButtonText();
+      this.showMoreOptions(this.moreOptions);
+    } else if (b.id === 6) {
+      this.commandsAllowed = !this.commandsAllowed;
+      this.updateButtonText();
+    } else if (b.id === 8) {
+      this.mc.displayGuiScreen(new GuiCreateFlatWorld(this, this.generatorOptionsToUse));
     }
+  }
+
+  private showMoreOptions(v: boolean): void {
+    this.moreOptions = v;
+    this.buttonGameMode.drawButton = !v;
+    this.buttonGenerateStructures.drawButton = v;
+    this.buttonBonusItems.drawButton = v;
+    this.buttonWorldType.drawButton = v;
+    this.buttonAllowCommands.drawButton = v;
+    this.buttonCustomize.drawButton = v && WORLD_TYPES[this.worldTypeId] === 'flat';
+    this.moreWorldOptions.displayString = I18n.translateToLocal(v ? 'gui.done' : 'selectWorld.moreWorldOptions');
   }
 
   protected override keyTyped(ch: string, key: number): void {
@@ -136,10 +197,6 @@ export class GuiCreateWorld extends GuiScreen {
     else this.textboxWorldName.mouseClicked(x, y, button);
   }
 
-  override onGuiClosed(): void {
-    Keyboard.enableRepeatEvents(false);
-  }
-
   override drawScreen(mx: number, my: number, pt: number): void {
     const t = (k: string) => I18n.translateToLocal(k);
     const cx = Math.trunc(this.width / 2);
@@ -155,9 +212,19 @@ export class GuiCreateWorld extends GuiScreen {
       this.drawString(this.fontRenderer, t('selectWorld.enterName'), cx - 100, 47, 0xa0a0a0);
       this.drawString(this.fontRenderer, t('selectWorld.resultFolder') + ' ' + this.folderName, cx - 100, 85, 0xa0a0a0);
       this.textboxWorldName.drawTextBox();
-      this.drawString(this.fontRenderer, t('selectWorld.gameMode.' + this.gameMode + '.line1'), cx - 100, 137, 0xa0a0a0);
-      this.drawString(this.fontRenderer, t('selectWorld.gameMode.' + this.gameMode + '.line2'), cx - 100, 149, 0xa0a0a0);
+      this.drawString(this.fontRenderer, this.gameModeDescriptionLine1, cx - 100, 137, 0xa0a0a0);
+      this.drawString(this.fontRenderer, this.gameModeDescriptionLine2, cx - 100, 149, 0xa0a0a0);
     }
     super.drawScreen(mx, my, pt);
+  }
+
+  /** Re-Create (func_82286_a): starts from a listed world's settings. */
+  copyWorldInfo(info: WorldInfo): void {
+    this.localizedNewWorldText = I18n.translateToLocalFormatted('selectWorld.newWorld.copyOf', info.worldName);
+    this.seed = info.seed.toString();
+    this.worldTypeId = Math.max(0, WORLD_TYPES.indexOf(info.terrainType));
+    this.generatorOptionsToUse = info.generatorOptions;
+    this.generateStructures = info.mapFeaturesEnabled;
+    this.commandsAllowed = info.allowCommands;
   }
 }

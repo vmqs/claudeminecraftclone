@@ -223,7 +223,7 @@ self.onmessage = (e: MessageEvent<WorldGenRequest>) => {
     case 'init': {
       const seed = BigInt(m.seed);
       worldSeed = seed;
-      provider = m.worldType === 'flat' ? new ChunkProviderFlat(seed, null) : new ChunkProviderGenerate(seed, m.mapFeatures);
+      provider = m.worldType === 'flat' ? new ChunkProviderFlat(seed, m.generatorOptions || null) : new ChunkProviderGenerate(seed, m.mapFeatures);
       world = new GenWorld(provider.biomeSource);
       populated.clear();
       requested.clear();

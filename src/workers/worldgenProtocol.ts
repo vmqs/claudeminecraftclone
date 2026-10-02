@@ -3,7 +3,7 @@ import type { EntitySpawnDescriptor } from '../world/gen/WorldGenSpawning';
 
 /** Messages between the main thread and worldgen.worker.ts (see ARCHITECTURE.md §5.2). */
 export type WorldGenRequest =
-  | { type: 'init'; seed: string; worldType: string; mapFeatures: boolean }
+  | { type: 'init'; seed: string; worldType: string; mapFeatures: boolean; generatorOptions?: string }
   | { type: 'request'; cx: number; cz: number }
   | { type: 'cancel'; cx: number; cz: number }
   | { type: 'player'; cx: number; cz: number; radius: number }

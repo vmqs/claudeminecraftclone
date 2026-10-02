@@ -4,9 +4,11 @@ import { MathHelper } from '../core/MathHelper';
 import { GL } from '../render/gl/GL';
 import { Tessellator } from '../render/gl/Tessellator';
 import { GuiButton } from './GuiButton';
-import { GuiCreateWorld } from './GuiCreateWorld';
+import { GuiLanguage } from './GuiLanguage';
+import { GuiMultiplayer } from './GuiMultiplayer';
 import { GuiOptions } from './GuiOptions';
 import { GuiScreen } from './GuiScreen';
+import { GuiSelectWorld } from './GuiSelectWorld';
 
 const f = Math.fround;
 const rand = new JavaRandom();
@@ -67,20 +69,17 @@ export class GuiMainMenu extends GuiScreen {
     const t = (k: string) => I18n.translateToLocal(k);
     const y = Math.trunc(this.height / 4) + 48;
     this.buttonList.push(new GuiButton(1, Math.trunc(this.width / 2) - 100, y, t('menu.singleplayer')));
-    // There is no multiplayer and English is the only language: both stay visible but inert.
-    const mp = new GuiButton(2, Math.trunc(this.width / 2) - 100, y + 24, t('menu.multiplayer'));
-    mp.enabled = false;
-    this.buttonList.push(mp);
+    this.buttonList.push(new GuiButton(2, Math.trunc(this.width / 2) - 100, y + 24, t('menu.multiplayer')));
     this.buttonList.push(new GuiButton(0, Math.trunc(this.width / 2) - 100, y + 72 + 12, 98, 20, t('menu.options')));
     this.buttonList.push(new GuiButton(4, Math.trunc(this.width / 2) + 2, y + 72 + 12, 98, 20, t('menu.quit')));
-    const lang = new GuiButtonLanguage(5, Math.trunc(this.width / 2) - 124, y + 72 + 12);
-    lang.enabled = false;
-    this.buttonList.push(lang);
+    this.buttonList.push(new GuiButtonLanguage(5, Math.trunc(this.width / 2) - 124, y + 72 + 12));
   }
 
   protected override actionPerformed(b: GuiButton): void {
     if (b.id === 0) this.mc.displayGuiScreen(new GuiOptions(this, this.mc.gameSettings));
-    if (b.id === 1) this.mc.displayGuiScreen(new GuiCreateWorld(this));
+    if (b.id === 5) this.mc.displayGuiScreen(new GuiLanguage(this, this.mc.gameSettings));
+    if (b.id === 1) this.mc.displayGuiScreen(new GuiSelectWorld(this));
+    if (b.id === 2) this.mc.displayGuiScreen(new GuiMultiplayer(this));
     if (b.id === 4) this.mc.shutdown();
   }
 

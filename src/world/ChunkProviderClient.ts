@@ -37,11 +37,12 @@ export class ChunkProviderClient {
     seed: bigint,
     worldType: string,
     mapFeatures: boolean,
+    generatorOptions = '',
   ) {
     this.worker = new Worker(new URL('../workers/worldgen.worker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (e: MessageEvent<WorldGenResponse>) => this.onMessage(e.data);
     this.worker.onerror = (e) => console.error('[worldgen]', e.message);
-    this.post({ type: 'init', seed: seed.toString(), worldType, mapFeatures });
+    this.post({ type: 'init', seed: seed.toString(), worldType, mapFeatures, generatorOptions });
   }
 
   private post(m: WorldGenRequest): void {
@@ -192,6 +193,26 @@ export class ChunkProviderClient {
 
   makeString(): string {
     return `MultiplayerChunkCache: ${this.world.loadedChunkCount}`;
+  }
+
+  /**
+   * Leaving a world that stays in the session's world list: every chunk goes to the in-memory
+   * store (player-modified chunks whole, the others' entities) and the worker stops.
+   */
+  suspend(): void {
+    for (const c of [...this.world.getLoadedChunks()]) this.unloadChunk(c.xPosition, c.zPosition);
+    this.worker.terminate();
+    this.incoming.length = 0;
+    this.requested.clear();
+  }
+
+  /** Takes over the chunk store of a suspended provider for the same world. */
+  adoptStore(old: ChunkProviderClient): void {
+    for (const [k, c] of old.stored) this.stored.set(k, c);
+    for (const [k, e] of old.storedEntities) this.storedEntities.set(k, e);
+    for (const k of old.populatedOnce) this.populatedOnce.add(k);
+    old.stored.clear();
+    old.storedEntities.clear();
   }
 
   dispose(): void {

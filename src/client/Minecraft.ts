@@ -39,6 +39,7 @@ import { TextureManager } from '../render/texture/TextureManager';
 import { ChunkProviderClient } from '../world/ChunkProviderClient';
 import { ColorizerFoliage, ColorizerGrass, rgbaToIntBuffer } from '../world/biome/Colorizer';
 import { World, WorldInfo } from '../world/World';
+import { type PlayerSnapshot, SaveFormatMemory } from '../world/storage/SaveFormatMemory';
 import { EntityPlayerSP } from './EntityPlayerSP';
 import { EnumOptions, GameSettings, type SettingsListener } from './GameSettings';
 import { installInput } from './Input';
@@ -54,12 +55,19 @@ export interface WorldSettings {
   seed?: bigint;
   terrainType: string;
   mapFeatures: boolean;
+  /** Superflat preset text (FlatGeneratorInfo format). */
+  generatorOptions?: string;
+  /** "Allow Cheats" (default on: worlds are creative). */
+  allowCommands?: boolean;
+  bonusChest?: boolean;
 }
 
 interface PendingWorld {
   world: World;
   provider: ChunkProviderClient;
   phase: 'spawn' | 'terrain';
+  /** A world from the session's list: its player goes back where it was. */
+  restore?: PlayerSnapshot | null;
 }
 
 /**
@@ -645,15 +653,22 @@ export class Minecraft implements SettingsListener {
   // ------------------------------------------------------------------ worlds
 
   /** Creates a world and starts streaming its terrain (the integrated server start-up). */
-  launchIntegratedServer(folder: string, name: string, ws: WorldSettings): void {
+  launchIntegratedServer(folder: string, name: string, ws: WorldSettings | null): void {
     this.loadWorld(null);
+    if (ws === null) {
+      this.resumeIntegratedServer(folder);
+      return;
+    }
     const info = new WorldInfo();
     info.worldName = name || folder;
     info.seed = ws.seed ?? new JavaRandom().nextLong();
     info.terrainType = ws.terrainType;
     info.mapFeaturesEnabled = ws.mapFeatures;
+    info.generatorOptions = ws.generatorOptions ?? '';
+    info.allowCommands = ws.allowCommands ?? true;
+    SaveFormatMemory.instance.create(folder, info);
     const world = new World(info);
-    const provider = new ChunkProviderClient(world, info.seed, ws.terrainType, ws.mapFeatures);
+    const provider = new ChunkProviderClient(world, info.seed, ws.terrainType, ws.mapFeatures, info.generatorOptions);
     this.chunkProvider = provider;
     this.pendingWorld = { world, provider, phase: 'spawn' };
     this.loadingScreen.resetProgressAndMessage(I18n.translateToLocal('menu.loadingLevel'));
@@ -665,6 +680,22 @@ export class Minecraft implements SettingsListener {
       info.spawnZ = s.z;
       this.pendingWorld.phase = 'terrain';
     });
+  }
+
+  /** Play on a world of this session: the suspended world continues with a new generator worker. */
+  private resumeIntegratedServer(folder: string): void {
+    const saves = SaveFormatMemory.instance;
+    const e = saves.resume(folder);
+    if (!e || !e.world || !e.provider) return;
+    const info = e.info;
+    const provider = new ChunkProviderClient(e.world, info.seed, info.terrainType, info.mapFeaturesEnabled, info.generatorOptions);
+    provider.adoptStore(e.provider);
+    e.provider.dispose();
+    this.chunkProvider = provider;
+    this.pendingWorld = { world: e.world, provider, phase: 'terrain', restore: e.player };
+    saves.markResumed(e);
+    this.loadingScreen.resetProgressAndMessage(I18n.translateToLocal('menu.loadingLevel'));
+    this.loadingScreen.resetProgresAndWorkingMessage(I18n.translateToLocal('menu.generatingTerrain'));
   }
 
   /** Spawn-area loading (MinecraftServer.initialWorldChunkLoad, on a smaller radius). */
@@ -685,7 +716,8 @@ export class Minecraft implements SettingsListener {
     this.pendingWorld = null;
     this.loadingScreen.onNoMoreProgress();
     this.loadWorld(pw.world);
-    this.spawnPlayerAtWorldSpawn();
+    if (pw.restore && !pw.restore.dead) SaveFormatMemory.restorePlayer(this.thePlayer!, pw.restore);
+    else this.spawnPlayerAtWorldSpawn();
     const provider = pw.provider;
     this.displayGuiScreen(
       new GuiDownloadTerrain(() => {
@@ -716,7 +748,9 @@ export class Minecraft implements SettingsListener {
     if (world === null) {
       this.pendingWorld = null;
       this.loadingScreen.onNoMoreProgress();
-      this.chunkProvider?.dispose();
+      // The world stays in the session's world list (the integrated server's save on shutdown).
+      const kept = !!this.theWorld && !!this.chunkProvider && SaveFormatMemory.instance.saveAndSuspend(this.theWorld, this.chunkProvider, this.thePlayer);
+      if (!kept) this.chunkProvider?.dispose();
       this.chunkProvider = null;
       this.renderGlobal?.setWorldAndLoadRenderers(null);
       this.effectRenderer?.clearEffects(null);

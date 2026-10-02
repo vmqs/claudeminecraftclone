@@ -33,6 +33,15 @@ export class WorldInfo {
   seed = 0n;
   terrainType = 'default';
   mapFeaturesEnabled = true;
+  /** Superflat preset text (FlatGeneratorInfo format); empty for the default. */
+  generatorOptions = '';
+  /** EnumGameType id: 0 survival, 1 creative, 2 adventure (always creative here). */
+  gameType = 1;
+  hardcore = false;
+  /** "Allow Cheats": commands other than the chat ones need it. */
+  allowCommands = true;
+  /** For the world list (milliseconds since the epoch). */
+  lastTimePlayed = 0;
   worldTime = 0;
   totalTime = 0;
   spawnX = 0;

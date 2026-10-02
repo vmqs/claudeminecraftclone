@@ -14,6 +14,7 @@
 //   {"key": "F3"}                               press a key (Playwright key name)
 //   {"type": "text"}                            type text
 //   {"click": [x, y]} / {"move": [x, y]}        mouse click / move in page pixels
+//   {"down": [x, y]} / {"up": [x, y]}           press / release the left button (wait between them)
 //   {"shot": "spawn_noon.png"}                  screenshot the page
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
@@ -118,6 +119,13 @@ try {
       await page.mouse.click(step.click[0], step.click[1]);
     } else if (step.move) {
       await page.mouse.move(step.move[0], step.move[1]);
+    } else if (step.down) {
+      // A press held across frames (GuiSlot lists poll the button state while rendering).
+      await page.mouse.move(step.down[0], step.down[1]);
+      await page.mouse.down();
+    } else if (step.up) {
+      await page.mouse.move(step.up[0], step.up[1]);
+      await page.mouse.up();
     } else if (step.shot) {
       const file = path.join(outDir, step.shot);
       await page.screenshot({ path: file });

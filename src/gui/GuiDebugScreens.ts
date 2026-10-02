@@ -1,9 +1,12 @@
 import type { Minecraft } from '../client/Minecraft';
 import { GuiControls } from './GuiControls';
+import { GuiCreateWorld } from './GuiCreateWorld';
 import { GuiLanguage } from './GuiLanguage';
 import { GuiMainMenu } from './GuiMainMenu';
+import { GuiMultiplayer } from './GuiMultiplayer';
 import { GuiOptions, GuiVideoSettings } from './GuiOptions';
 import type { GuiScreen } from './GuiScreen';
+import { GuiSelectWorld } from './GuiSelectWorld';
 import { GuiSnooper } from './GuiSnooper';
 import { GuiTexturePacks } from './GuiTexturePacks';
 import { ScreenChatOptions } from './ScreenChatOptions';
@@ -16,6 +19,9 @@ import { ScreenChatOptions } from './ScreenChatOptions';
 export const screenFactories = new Map<string, (mc: Minecraft) => GuiScreen | null>([
   ['none', () => null],
   ['mainmenu', () => new GuiMainMenu()],
+  ['singleplayer', () => new GuiSelectWorld(new GuiMainMenu())],
+  ['createworld', () => new GuiCreateWorld(new GuiSelectWorld(new GuiMainMenu()))],
+  ['multiplayer', () => new GuiMultiplayer(new GuiMainMenu())],
   ['options', (mc) => new GuiOptions(new GuiMainMenu(), mc.gameSettings)],
   ['video', (mc) => new GuiVideoSettings(new GuiOptions(new GuiMainMenu(), mc.gameSettings), mc.gameSettings)],
   ['controls', (mc) => new GuiControls(new GuiOptions(new GuiMainMenu(), mc.gameSettings), mc.gameSettings)],

@@ -7,9 +7,9 @@ A restarted agent resumes from the first item not marked done. Status: todo, wip
 | G1 | Options sub-screens: GuiControls (rebinding, red duplicates), GuiSnooper, GuiScreenChatOptions | done |
 | G2 | GuiLanguage + language switching (en_US fallback, unicode font, re-translation) | done (bidi reorder for ar_SA/he_IL too) |
 | G3 | GuiTexturePacks (Default + bundled packs, pack.png icons, reload) | done |
-| G4 | Main menu: language/multiplayer buttons, GuiMultiplayer (empty list, add/direct connect graceful), Minceraft | todo |
-| G5 | In-memory world list: GuiSelectWorld, GuiWorldSlot, GuiRenameWorld, GuiYesNo, Re-Create | todo |
-| G6 | GuiCreateWorld complete (game mode locked creative, cheats, bonus chest, Customize -> GuiCreateFlatWorld + GuiFlatPresets) | todo |
+| G4 | Main menu: language/multiplayer buttons, GuiMultiplayer (empty list, add/direct connect graceful), Minceraft | done (Minceraft already ported) |
+| G5 | In-memory world list: GuiSelectWorld, GuiWorldSlot, GuiRenameWorld, GuiYesNo, Re-Create | done (src/world/storage/SaveFormatMemory.ts; ChunkProviderClient.suspend/adoptStore) |
+| G6 | GuiCreateWorld complete (game mode locked creative, cheats, bonus chest, Customize -> GuiCreateFlatWorld + GuiFlatPresets) | wip (bonus chest generation pending) |
 | G7 | Loading/transition screens (quit: shutting down / saving), GuiIngameMenu, GuiShareToLan | todo |
 | G8 | HUD / F3 vs references (all lines, profiler chart, record message, GUI scales) | todo |
 | G9 | Chat: links + GuiConfirmOpenLink, options, history | todo |
