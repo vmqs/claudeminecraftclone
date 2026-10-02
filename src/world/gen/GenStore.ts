@@ -5,9 +5,9 @@ import type { EntitySpawnDescriptor } from './WorldGenSpawning';
 
 /**
  * Generated chunks moved out of the worker's working set, kept compressed (the original saves
- * them to the region files and never generates a chunk twice). Only blocks, metadata, biomes,
- * generated tile entities, pending ticks and entity descriptors are kept; light is recomputed
- * when the chunk is finalized.
+ * them to the region files and never generates a chunk twice). Blocks, metadata, light, biomes,
+ * generated tile entities, pending ticks and entity descriptors are kept: population next to a
+ * stored chunk reads its light, as the original reads it back from the region file.
  */
 interface StoredChunk {
   sections: { y: number; data: Uint8Array }[];
@@ -62,11 +62,13 @@ export class GenStore {
   /** Compresses a chunk (and its generated tile-entity tags) into the store. */
   put(key: number, c: Chunk, tiles: Map<number, TagCompound> | undefined): void {
     const sections: StoredChunk['sections'] = [];
-    const buf = new Uint8Array(8192);
+    const buf = new Uint8Array(16384);
     for (const s of c.sections) {
       if (!s || s.isEmpty()) continue;
       buf.set(s.blocks, 0);
       buf.set(s.meta, 4096);
+      buf.set(s.skyLight, 8192);
+      buf.set(s.blockLight, 12288);
       const data = rleEncode(buf);
       sections.push({ y: s.yBase, data });
       this.bytes += data.length;
@@ -89,20 +91,27 @@ export class GenStore {
     if (!s) return null;
     this.chunks.delete(key);
     const c = new Chunk(host, cx, cz);
-    const buf = new Uint8Array(8192);
+    const buf = new Uint8Array(16384);
     for (const sec of s.sections) {
       this.bytes -= sec.data.length;
       rleDecode(sec.data, buf);
       const cs = new ChunkSection(sec.y);
       cs.blocks.set(buf.subarray(0, 4096));
-      cs.meta.set(buf.subarray(4096));
+      cs.meta.set(buf.subarray(4096, 8192));
       cs.recount();
       c.sections[sec.y >> 4] = cs;
     }
     c.biomes.set(s.biomes);
     c.pendingTicks = s.pendingTicks;
     c.pendingSpawns = s.pendingSpawns;
+    // Height maps come from the blocks; the light is the saved one.
     c.generateSkylightMap();
+    for (const sec of s.sections) {
+      rleDecode(sec.data, buf);
+      const cs = c.sections[sec.y >> 4]!;
+      cs.skyLight.set(buf.subarray(8192, 12288));
+      cs.blockLight.set(buf.subarray(12288));
+    }
     return { chunk: c, tiles: s.tiles };
   }
 }
