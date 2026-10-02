@@ -18,7 +18,7 @@ const SCALE = f(0.0625);
  * render passes (armour, saddles, sheep wool...) with optional enchantment glint, the red
  * hurt/death tint and the colour multiplier overlay, and name tags.
  *
- * Subclass hooks, as in 1.5.2: shouldRenderPass / func_82408_c (second layer) /
+ * Subclass hooks, as in 1.5.2: shouldRenderPass / renderOverlayPass (second layer) /
  * inheritRenderPass, preRenderCallback (scaling), renderEquippedItems, rotateCorpse,
  * renderLivingAt, getColorMultiplier, getDeathMaxRotation, handleRotationFloat.
  */
@@ -84,7 +84,7 @@ export class RenderLiving extends Render {
         pm.setLivingAnimations(e, limbSwing, limbAmount, pt);
         pm.render(e, limbSwing, limbAmount, age, netHead, pitch, SCALE);
         if ((flags & 0xf0) === 16) {
-          this.func_82408_c(e, pass, pt);
+          this.renderOverlayPass(e, pass, pt);
           pm.render(e, limbSwing, limbAmount, age, netHead, pitch, SCALE);
         }
         if ((flags & 15) === 15) this.renderGlint(e, pm, limbSwing, limbAmount, age, netHead, pitch, pt);
@@ -274,7 +274,7 @@ export class RenderLiving extends Render {
   }
 
   /** Second layer of a pass (dyed leather overlay). */
-  protected func_82408_c(_e: EntityLiving, _pass: number, _pt: number): void {}
+  protected renderOverlayPass(_e: EntityLiving, _pass: number, _pt: number): void {}
 
   protected getDeathMaxRotation(_e: EntityLiving): number {
     return 90;

@@ -11,7 +11,7 @@ agent resumes from the first item that is not marked done or skipped. Status val
 | B1 | Tile entities: TileEntity + registry, BlockContainer, Chunk/World wiring, TileEntityRenderer, worldgen payload | done (src/world/tileentity/, BlockContainer, World/Chunk/GenWorld wiring, payload descriptors, src/render/tileentity/) |
 | B2 | EntityList name/ID registry with egg table | done (src/entity/EntityList.ts + src/entity/Entities.ts) |
 | B3 | Container framework: IInventory, Slot, Container, ContainerPlayer, GuiContainer, displayGUI* hooks, inventory key | done (src/gui/inventory/: Container, Slot, SlotArmor, SlotCrafting, ContainerPlayer/Workbench/Chest, GuiContainer, GuiInventory/GuiCrafting/GuiChest; src/item/crafting/ CraftingManager; EntityPlayer displayGUI* hooks; E opens GuiInventory until GuiContainerCreative exists) |
-| B4 | RenderBlocks transliteration rewritten as original TypeScript (golden byte-equality test), SRG names renamed | todo |
+| B4 | RenderBlocks transliteration rewritten as original TypeScript (golden byte-equality test), SRG names renamed | done (face tables + renderFace/computeFaceLight; byte-identical to the old output over 103k random blocks, 440k quads and every item render; renderStandardBlockWithAmbientOcclusionPartial, renderOverlayPass, checkTorchAttachment, fillCreativeHotbarSlot) |
 
 ## Majors
 

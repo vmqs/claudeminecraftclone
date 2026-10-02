@@ -75,10 +75,10 @@ export class BlockTorch extends Block {
   }
 
   override onNeighborBlockChange(w: IWorld, x: number, y: number, z: number, id: number): void {
-    this.func_94397_d(w, x, y, z, id);
+    this.checkTorchAttachment(w, x, y, z, id);
   }
 
-  protected func_94397_d(w: IWorld, x: number, y: number, z: number, _id: number): boolean {
+  protected checkTorchAttachment(w: IWorld, x: number, y: number, z: number, _id: number): boolean {
     if (!this.dropTorchIfCantStay(w, x, y, z)) return true;
     const m = w.getBlockMetadata(x, y, z);
     let drop = false;

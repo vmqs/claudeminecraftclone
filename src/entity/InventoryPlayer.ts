@@ -69,7 +69,7 @@ export class InventoryPlayer implements IInventory {
     } else if (creative && id > 0) {
       const empty = this.getFirstEmptyStack();
       if (empty >= 0 && empty < 9) this.currentItem = empty;
-      this.func_70439_a(Item.itemsList[id], damage);
+      this.fillCreativeHotbarSlot(Item.itemsList[id], damage);
     }
   }
 
@@ -96,7 +96,7 @@ export class InventoryPlayer implements IInventory {
     return n;
   }
 
-  func_70439_a(item: Item | null, damage: number): void {
+  fillCreativeHotbarSlot(item: Item | null, damage: number): void {
     if (!item) return;
     const slot = this.getInventorySlotContainItemAndDamage(item.itemID, damage);
     if (slot >= 0) this.mainInventory[slot] = this.mainInventory[this.currentItem];

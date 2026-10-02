@@ -62,7 +62,7 @@ export class RenderPlayer extends RenderLiving {
     return setArmorModel(this, (e as EntityPlayer).inventory.armorItemInSlot(3 - pass), pass, this.modelArmorChestplate, this.modelArmor, this.modelBipedMain);
   }
 
-  protected override func_82408_c(e: EntityLiving, pass: number, _pt: number): void {
+  protected override renderOverlayPass(e: EntityLiving, pass: number, _pt: number): void {
     setArmorOverlay(this, (e as EntityPlayer).inventory.armorItemInSlot(3 - pass), pass);
   }
 

@@ -44,7 +44,7 @@ export function setArmorModel(r: RenderLiving & { bindTexture(path: string): voi
   return stack.isItemEnchanted() ? 15 : 1;
 }
 
-/** The leather overlay layer (func_82408_c / func_82439_b). */
+/** The leather overlay layer (func_82439_b). */
 export function setArmorOverlay(r: { bindTexture(path: string): void }, stack: ItemStack | null, pass: number): void {
   const info = stack?.getItem().getArmorInfo();
   if (!info) return;
@@ -161,7 +161,7 @@ export class RenderBiped extends RenderLiving {
     return setArmorModel(this, e.getCurrentArmor(3 - pass), pass, this.modelArmorChestplate, this.modelArmor, this.modelBipedMain);
   }
 
-  protected override func_82408_c(e: EntityLiving, pass: number, _pt: number): void {
+  protected override renderOverlayPass(e: EntityLiving, pass: number, _pt: number): void {
     setArmorOverlay(this, e.getCurrentArmor(3 - pass), pass);
   }
 
