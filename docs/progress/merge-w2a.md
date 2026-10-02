@@ -3,7 +3,7 @@
 Order: w2/renderblocks, w2/inventory, w2/mobshostile, w2/mobspassive, w2/dynamics -> claude/minecraft-1-5-html-clone-wyzct1
 (Merge current heads; a later pass merges newer fix commits.)
 
-- [ ] renderblocks
+- [x] renderblocks (clean)
 - [ ] inventory
 - [ ] mobshostile
 - [ ] mobspassive
