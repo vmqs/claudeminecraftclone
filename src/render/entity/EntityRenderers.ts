@@ -80,3 +80,6 @@ rm.register(EntityMinecartMobSpawner, new RenderMinecartMobSpawner());
 rm.register(EntityMinecart, new RenderMinecart());
 rm.register(EntityBoat, new RenderBoat());
 rm.register(EntityFishHook, new RenderFish());
+
+// Hostile and Nether mobs (mobshostile slice).
+import './HostileMobRenderers';
