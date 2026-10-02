@@ -33,7 +33,7 @@ URL parameters (any combination):
 `newEntity(name, ...ctorArgs)` / `spawn(name, ...ctorArgs)` (an EntityList name, or `'Egg'` /
 `'FishHook'` for the two unsaved classes; the world is passed first and `'@p'` stands for the
 player, e.g. `spawn('Arrow', '@p', 2)` or `spawn('FishHook', '@p')`), `entities(name?)`,
-and `lib` (`Block`, `Item`, `ItemStack`, `EntityList`). Setting `mc.timer.timerSpeed = 0` freezes
+and `lib` (`Block`, `Item`, `ItemStack`, `EntityList`, `DamageSource`, `EntityDamageSource`). Setting `mc.timer.timerSpeed = 0` freezes
 game time (and partial ticks) for a capture while `mc.dev.ticks(n)` still advances it.
 Key codes are LWJGL codes (`src/client/Keyboard.ts`, e.g. W = 17, space = 57, left shift = 42).
 A key or button must stay down for at least one tick to be seen by the player, which is what
@@ -52,7 +52,7 @@ node scripts/shot.mjs interact               # walk, fly, break and place, with 
 node scripts/shot.mjs inventory              # E, slot tooltip, pick up and put back a stack
 node scripts/shot.mjs chat                   # chat line, /time, /give @p, /help, Tab completion, /kill
 node scripts/shot.mjs flat                   # a Superflat world (bedrock, dirt, dirt, grass; spawn y=4)
-node scripts/shot.mjs entities               # items, arrows, orbs, paintings, frames, TNT, boat, minecarts (checks in the log)
+node scripts/shot.mjs entities               # items, arrows, orbs, paintings, frames, TNT, boat, minecarts, player damage rules (checks in the log)
 node scripts/shot.mjs path/to/scenario.json --url http://localhost:5173/ --server none
 ```
 
