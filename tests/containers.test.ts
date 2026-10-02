@@ -6,6 +6,7 @@
  */
 import '../src/block/Blocks';
 import '../src/item/Items';
+import '../src/gui/inventory/ContainerBindings';
 import { BlockIds as B, ItemIds as I } from '../src/block/BlockIds';
 import { JavaRandom } from '../src/core/JavaRandom';
 import type { EntityPlayer } from '../src/entity/EntityPlayer';
@@ -193,6 +194,29 @@ function makePlayer(creative: boolean): EntityPlayer & { dropped: ItemStack[] } 
   p.inventory.setInventorySlotContents(9, new ItemStack(I.netherStalkSeeds, 4));
   c.slotClick(4, 0, ClickMode.QUICK_MOVE, p);
   check('shift-click wart into the ingredient slot', stand.getStackInSlot(3)?.stackSize === 4);
+
+  // Brewing: water + nether wart -> awkward (16); awkward + sugar -> swiftness; + gunpowder -> splash.
+  const brew = (bottles: number[], ingredient: number): number[] => {
+    bottles.forEach((d, i) => stand.setInventorySlotContents(i, new ItemStack(I.potion, 1, d)));
+    stand.setInventorySlotContents(3, new ItemStack(ingredient, 1));
+    let ticks = 0;
+    while (stand.getStackInSlot(3) !== null && ticks < 1000) {
+      stand.updateEntity();
+      ticks++;
+    }
+    check(`brewing takes 400 ticks (+1 to start) with ${ingredient}`, ticks === 401, String(ticks));
+    return bottles.map((_, i) => stand.getStackInSlot(i)!.getItemDamage());
+  };
+  const awkward = brew([0, 0, 0], I.netherStalkSeeds);
+  check('water + nether wart = awkward potion', awkward.every((d) => d === 16), awkward.join(','));
+  const swift = brew([16], I.sugar);
+  check('awkward + sugar = swiftness', swift[0] === 8194, swift.join(','));
+  const splash = brew([8194], I.gunpowder);
+  check('swiftness + gunpowder = splash swiftness', splash[0] === 16386, splash.join(','));
+  stand.setInventorySlotContents(0, new ItemStack(I.potion, 1, 0));
+  stand.setInventorySlotContents(3, new ItemStack(B.dirt, 1));
+  stand.updateEntity();
+  check('dirt does not brew', stand.getBrewTime() === 0);
 }
 
 // --- Enchanting table and anvil ------------------------------------------------------------
