@@ -11,5 +11,11 @@ Branch `w2/renderblocks`, base 96e8639.
       (vanilla captures: scratchpad/ref/extra/renderblocks{,2}, made with a private harness copy
       scratchpad/vanilla-rb that adds a `setblocks FILE` command; generator scratchpad/rb/gen.py)
 - [x] End portal texgen fixed (s/t/r object-linear, q eye-linear); float-exact fluid heights
-- [ ] Scene 5 (fluids diamond, end portal, snow layers, glass/ice/leaves, sideways piston and
-      hopper): vanilla rb2 capture, then browser run 2 and comparison
+- [x] Scene 5 (fluids diamond, end portal, snow layers, glass/ice/leaves, sideways piston and
+      hopper): vanilla rb2 capture and browser runs 2-3 match (end portal grey blobs are the
+      block's smoke particles; the vanilla harness is frozen so it has none)
+- [x] Run 3 had no beacon beam: the unpowered sticky piston beside the pyramid retracts on its
+      first update and pulls the corner iron block (reproduced in Node); the scenario now
+      restores it and asserts the beacon is active. Browser budget (3 runs) is used up.
+- Remaining differences vs vanilla are outside this slice: spawner mob needs the Pig class
+  (mobspassive), cocoa grew by random ticks in the vanilla capture, sky/fog colours.

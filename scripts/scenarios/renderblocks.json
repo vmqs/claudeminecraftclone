@@ -29,6 +29,10 @@
   "eval": "(() => { const w = mc.theWorld; const b = w.getBlockTileEntity(7, 5, 55); const s = JSON.stringify({ te: b && b.constructor.name, active: b && b.isBeaconActive, levels: b && b.levels, time: w.getTotalWorldTime(), listed: w.loadedTileEntityList.includes(b), sky: w.canBlockSeeTheSky(7, 6, 55), chunk: w.chunkExists(0, 3) }); if (b && !b.isBeaconActive) b.updateState(); return s + ' -> ' + (b && b.isBeaconActive); })()"
  },
  {
+  "waitFor": "mc.theWorld.getBlockTileEntity(7, 5, 55).isBeaconActive === true",
+  "timeout": 5000
+ },
+ {
   "eval": "[[1,4,8],[6,4,8],[9,4,8],[1,4,15],[3,4,15],[3,4,37],[6,4,58]].map(([x,y,z]) => mc.theWorld.getBlockId(x,y,z) + ':' + mc.theWorld.getBlockMetadata(x,y,z)).join(' ')"
  },
  {
