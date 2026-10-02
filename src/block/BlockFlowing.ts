@@ -154,7 +154,7 @@ export class BlockFlowing extends BlockFluid {
     if (w.getBlockId(x, y, z) === this.blockID) w.scheduleBlockUpdate(x, y, z, this.blockID, this.tickRate(w));
   }
 
-  override func_82506_l(): boolean {
+  override isUpdateTickImmediate(): boolean {
     return false;
   }
 }

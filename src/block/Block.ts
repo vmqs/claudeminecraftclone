@@ -12,6 +12,7 @@ import { ItemStack } from '../item/ItemStack';
 import type { Icon, IconRegister } from '../render/texture/Icon';
 import type { IBlockAccess } from '../world/IBlockAccess';
 import type { IWorld } from '../world/IWorld';
+import type { Explosion } from '../world/Explosion';
 import { Material } from './Material';
 import { StepSounds, type StepSound } from './StepSound';
 
@@ -209,10 +210,11 @@ export class Block {
   isLadder(_w: IBlockAccess, _x: number, _y: number, _z: number): boolean {
     return this.blockID === 65 || this.blockID === 106; // ladder, vine
   }
-  func_82506_l(): boolean {
+  /** func_82506_l: whether a scheduled update of this block may run immediately while generating. */
+  isUpdateTickImmediate(): boolean {
     return true;
   }
-  canDropFromExplosion(): boolean {
+  canDropFromExplosion(_explosion?: Explosion): boolean {
     return true;
   }
   isAssociatedBlockID(id: number): boolean {
@@ -388,7 +390,8 @@ export class Block {
   }
   onBlockAdded(_w: IWorld, _x: number, _y: number, _z: number): void {}
   breakBlock(_w: IWorld, _x: number, _y: number, _z: number, _id: number, _meta: number): void {}
-  onBlockDestroyedByExplosion(_w: IWorld, _x: number, _y: number, _z: number): void {}
+  /** After an explosion removed the block (TNT primes itself here). */
+  onBlockDestroyedByExplosion(_w: IWorld, _x: number, _y: number, _z: number, _explosion?: Explosion): void {}
   onBlockActivated(_w: IWorld, _x: number, _y: number, _z: number, _p: EntityPlayer, _side: number, _hx: number, _hy: number, _hz: number): boolean {
     return false;
   }

@@ -157,11 +157,14 @@ export class GenWorld implements ChunkHost {
 
   /** Ticks queued while generating travel with the chunk to the main thread. */
   scheduleBlockUpdate(x: number, y: number, z: number, id: number, delay: number): void {
-    if (this.scheduledUpdatesAreImmediate) {
-      if (this.checkChunksExist(x - 8, y - 8, z - 8, x + 8, y + 8, z + 8) && this.getBlockId(x, y, z) === id && id > 0) {
-        Block.blocksList[id]?.updateTick(this, x, y, z, this.rand);
+    // While populating (falling sand), updates run at once unless the block opts out
+    // (fluids and fire: isUpdateTickImmediate), which then wait one tick on the main thread.
+    if (this.scheduledUpdatesAreImmediate && id > 0) {
+      if (Block.blocksList[id]?.isUpdateTickImmediate()) {
+        if (this.checkChunksExist(x, y, z, x, y, z) && this.getBlockId(x, y, z) === id) Block.blocksList[id]!.updateTick(this, x, y, z, this.rand);
+        return;
       }
-      return;
+      delay = 1;
     }
     const c = this.chunkAt(x, z);
     if (c) c.pendingTicks.push([x, y, z, id, delay]);

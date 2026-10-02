@@ -22,7 +22,7 @@ agent resumes from the first item that is not marked done or skipped. Status val
 | M3 | EntityLiving combat/death/sounds/AI branch + EntityCreature/Ageable/Animal/Mob + EntityAITasks/EntityAIBase | done (EntityLiving full port, Creature/Ageable/Animal/Mob/Tameable/Golem/WaterMob/Ambient/Flying, ai/ tasks + PathNavigate/PathFinder) |
 | M4 | RenderLiving, RenderBiped, RenderPlayer (F5 player model), shadows and fire overlay | done (Render shadow/fire, RenderLiving, RenderBiped, RenderPlayer, RenderItem entities; src/render/entity/EntityRenderers.ts) |
 | M5 | Biome spawn lists, SpawnListEntry, EnumCreatureType, SpawnerAnimals as World.mobSpawner | todo |
-| M6 | Explosion + World.createExplosion/newExplosion | todo |
+| M6 | Explosion + World.createExplosion/newExplosion | done (src/world/Explosion.ts, World.newExplosion/createExplosion/getBlockDensity) |
 | M7 | Chat and commands: GuiChat, GuiNewChat, CommandHandler, addChatMessage | todo |
 | M8 | Unloaded-chunk store keeps every ticked chunk (playerEdited flag) | done (World.runNaturally context, Chunk.playerModified) |
 

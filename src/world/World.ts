@@ -18,6 +18,7 @@ import { Chunk, EmptyChunk } from './Chunk';
 import { EnumSkyBlock, SKY_BLOCK_DEFAULT, type IBlockAccess } from './IBlockAccess';
 import type { IWorld } from './IWorld';
 import type { IWorldAccess } from './IWorldAccess';
+import { Explosion } from './Explosion';
 import { NextTickListEntry, TickScheduler } from './NextTickListEntry';
 import type { TileEntity } from './tileentity/TileEntity';
 import { WorldProvider } from './WorldProvider';
@@ -755,6 +756,40 @@ export class World implements IWorld, IBlockAccess {
     e.setDead();
     const i = this.playerEntities.indexOf(e as unknown as EntityPlayer);
     if (i >= 0) this.playerEntities.splice(i, 1);
+  }
+
+  /** createExplosion: a smoking (block-destroying), non-flaming explosion. */
+  createExplosion(exploder: Entity | null, x: number, y: number, z: number, size: number, smoking: boolean): Explosion {
+    return this.newExplosion(exploder, x, y, z, size, false, smoking);
+  }
+
+  /** TNT, creepers, fireballs, beds: rays, damage and knockback, then block removal and effects. */
+  newExplosion(exploder: Entity | null, x: number, y: number, z: number, size: number, flaming: boolean, smoking: boolean): Explosion {
+    const e = new Explosion(this, exploder, x, y, z, size);
+    e.isFlaming = flaming;
+    e.isSmoking = smoking;
+    e.doExplosionA();
+    e.doExplosionB(true);
+    return e;
+  }
+
+  /** Fraction of rays from points spread over `box` that reach `v` unobstructed. */
+  getBlockDensity(v: Vec3, box: AxisAlignedBB): number {
+    const sx = 1 / ((box.maxX - box.minX) * 2 + 1);
+    const sy = 1 / ((box.maxY - box.minY) * 2 + 1);
+    const sz = 1 / ((box.maxZ - box.minZ) * 2 + 1);
+    let clear = 0;
+    let total = 0;
+    for (let a = 0; a <= 1; a = f(a + sx)) {
+      for (let b = 0; b <= 1; b = f(b + sy)) {
+        for (let c = 0; c <= 1; c = f(c + sz)) {
+          const p = new Vec3(box.minX + (box.maxX - box.minX) * a, box.minY + (box.maxY - box.minY) * b, box.minZ + (box.maxZ - box.minZ) * c);
+          if (this.rayTraceBlocks(p, v) === null) clear++;
+          total++;
+        }
+      }
+    }
+    return f(clear / total);
   }
 
   /** A new (not yet spawned) EntityItem, or null when no item entity is installed. */

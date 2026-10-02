@@ -7,6 +7,7 @@ import { JavaRandom } from '../core/JavaRandom';
 import { MathHelper } from '../core/MathHelper';
 import { Vec3 } from '../core/Vec3';
 import { ItemStack } from '../item/ItemStack';
+import type { Explosion } from '../world/Explosion';
 import type { World } from '../world/World';
 import { DamageSource } from './DamageSource';
 import type { EntityPlayer } from './EntityPlayer';
@@ -694,6 +695,16 @@ export abstract class Entity {
 
   /** Called on the attacker when it kills `e`. */
   onKillEntity(_e: Entity): void {}
+
+  /** func_82146_a: resistance of a block against this entity's explosion (wither skulls change it). */
+  getBlockExplosionResistance(_explosion: Explosion, _w: World, _x: number, _y: number, _z: number, block: Block): number {
+    return block.getExplosionResistance(this);
+  }
+
+  /** func_96091_a: whether this entity's explosion may destroy the block (wither skulls, minecarts). */
+  canExplosionDestroyBlock(_explosion: Explosion, _w: World, _x: number, _y: number, _z: number, _id: number, _strength: number): boolean {
+    return true;
+  }
 
   /** A tamed wolf (its kills count as the owner's for loot). */
   isTamedWolf(): boolean {
