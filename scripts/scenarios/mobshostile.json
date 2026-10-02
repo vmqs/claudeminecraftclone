@@ -200,7 +200,7 @@
   "shot": "x_slimes.png"
  },
  {
-  "eval": "SHOT(0, 5, () => { MOB('Blaze', { dist: 4, side: -1.2, turn: 20 }); MOB('Silverfish', { dist: 2.5, side: 0.6, turn: 60 }); MOB('Witch', { dist: 4, side: 1.6, turn: -20 }) })"
+  "eval": "SHOT(0, 5, () => { MOB('Blaze', { dist: 4, side: -1.2, turn: 20, setup: (e) => e.setOnFireFlag(true) }); MOB('Silverfish', { dist: 2.5, side: 0.6, turn: 60 }); MOB('Witch', { dist: 4, side: 1.6, turn: -20 }) })"
  },
  {
   "wait": 700
@@ -216,6 +216,15 @@
  },
  {
   "shot": "x_ghast.png"
+ },
+ {
+  "eval": "SHOT(0, -20, () => { MOB('Ghast', { dist: 9, turn: -20, y: 6, setup: (e) => { e.attackCounter = e.prevAttackCounter = 15; e.charging = true; e.texture = '/mob/ghast_fire.png'; } }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "x_ghast_charging.png"
  },
  {
   "eval": "SHOT(0, 15, () => { const s = MOB('Spider', { dist: 4, turn: 30 }); const k = MOB('Skeleton', { dist: 4, turn: 30 }); k.mountEntity(s); s.updateRiderPosition(); k.prevPosX = k.lastTickPosX = k.posX; k.prevPosY = k.lastTickPosY = k.posY; k.prevPosZ = k.lastTickPosZ = k.posZ; })"
