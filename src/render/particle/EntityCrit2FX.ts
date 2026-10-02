@@ -5,7 +5,10 @@ import { EntityFX } from './EntityFX';
 
 const f = Math.fround;
 
-/** An invisible emitter: 16 crit particles around the hit entity for 3 ticks. */
+/**
+ * An invisible emitter on the lit layer: for 3 ticks it sprays up to 16 "crit" (or
+ * "magicCrit") particles from inside the hit entity's box.
+ */
 export class EntityCrit2FX extends EntityFX {
   private currentLife = 0;
   private readonly maximumLife = 3;
@@ -22,8 +25,6 @@ export class EntityCrit2FX extends EntityFX {
   override renderParticle(_t: Tessellator, _pt: number): void {}
 
   override onUpdate(): void {
-    // Called from the super constructor before the fields exist.
-    if (!this.theEntity) return;
     const e = this.theEntity;
     for (let i = 0; i < 16; i++) {
       const dx = f(this.rand.nextFloat() * 2 - 1);

@@ -20,8 +20,8 @@ import type { World } from '../world/World';
 import type { Frustum } from './Frustum';
 import { type DisplayList, GL, type TerrainMesh } from './gl/GL';
 import { Tessellator } from './gl/Tessellator';
-import { EntityDiggingFX } from './particle/EntityDiggingFX';
 import type { EntityFX } from './particle/EntityFX';
+import { createParticle, type ParticleFactory, particleFactories, unculledParticleFactories } from './particle/ParticleFactories';
 import { RenderHelper } from './RenderHelper';
 import { RenderManager } from './entity/RenderManager';
 import { TileEntityRenderer } from './tileentity/TileEntityRenderer';
@@ -1019,30 +1019,35 @@ export class RenderGlobal implements IWorldAccess {
     this.doSpawnParticle(name, x, y, z, vx, vy, vz);
   }
 
-  /** Particle factory by name; types without a port are ignored for now. */
-  static readonly particleFactories = new Map<string, (w: World, x: number, y: number, z: number, vx: number, vy: number, vz: number) => EntityFX | null>();
+  /**
+   * Particle constructors by name (src/render/particle/ParticleRegistry.ts registers every
+   * 1.5.2 name); other modules may add their own.
+   */
+  static readonly particleFactories: Map<string, ParticleFactory> = particleFactories;
 
+  /**
+   * The original's doSpawnParticle: "hugeexplosion", "largeexplode" and "fireworksSpark" are
+   * always created; everything else is skipped more than 16 blocks from the viewer, with the
+   * particle setting at Minimal, and for a random third of the calls at Decreased.
+   */
   doSpawnParticle(name: string, x: number, y: number, z: number, vx: number, vy: number, vz: number): EntityFX | null {
     const viewer = this.mc.renderViewEntity;
     const w = this.theWorld;
-    if (!viewer || !w) return null;
+    if (!viewer || !w || !this.mc.effectRenderer) return null;
     let setting = this.mc.gameSettings.particleSetting;
     if (setting === 1 && w.rand.nextInt(3) === 0) setting = 2;
     const dx = viewer.posX - x;
     const dy = viewer.posY - y;
     const dz = viewer.posZ - z;
+    const always = unculledParticleFactories.get(name);
+    if (always) {
+      const fx = always(w, x, y, z, vx, vy, vz);
+      if (fx) this.mc.effectRenderer.addEffect(fx);
+      return fx;
+    }
     if (dx * dx + dy * dy + dz * dz > 16 * 16) return null;
     if (setting > 1) return null;
-    let fx: EntityFX | null = null;
-    if (name.startsWith('tilecrack_')) {
-      const parts = name.split('_');
-      const id = parseInt(parts[1], 10);
-      const meta = parseInt(parts[2], 10);
-      const block = Block.blocksList[id];
-      if (block) fx = new EntityDiggingFX(w, x, y, z, vx, vy, vz, block, 0, meta).applyRenderColor(meta);
-    } else {
-      fx = RenderGlobal.particleFactories.get(name)?.(w, x, y, z, vx, vy, vz) ?? null;
-    }
+    const fx = createParticle(name, w, x, y, z, vx, vy, vz);
     if (fx) this.mc.effectRenderer.addEffect(fx);
     return fx;
   }

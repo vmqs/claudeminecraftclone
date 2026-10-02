@@ -6,7 +6,11 @@ import { EntityFX } from './EntityFX';
 
 const f = Math.fround;
 
-/** Block fragments from breaking/hitting a block, textured from the terrain atlas. */
+/**
+ * A block fragment from the terrain atlas: the 4x4x4 burst of a broken block, the crumbs of a
+ * hit face, and "tilecrack_<id>_<meta>" (running, landing). Always the bottom-face icon of the
+ * metadata, at 60% brightness, tinted by the block colour except for grass.
+ */
 export class EntityDiggingFX extends EntityFX {
   constructor(
     w: World,
@@ -30,16 +34,16 @@ export class EntityDiggingFX extends EntityFX {
   /** func_70596_a: tints by the block's colour multiplier at a position (not for grass). */
   applyColourMultiplier(x: number, y: number, z: number): this {
     if (this.blockInstance.blockID === BlockIds.grass) return this;
-    const c = this.blockInstance.colorMultiplier(this.worldObj, x, y, z);
-    this.particleRed = f(this.particleRed * f(((c >> 16) & 255) / 255));
-    this.particleGreen = f(this.particleGreen * f(((c >> 8) & 255) / 255));
-    this.particleBlue = f(this.particleBlue * f((c & 255) / 255));
-    return this;
+    return this.tint(this.blockInstance.colorMultiplier(this.worldObj, x, y, z));
   }
 
+  /** Tints by the block's item colour for a metadata (not for grass). */
   applyRenderColor(meta: number): this {
     if (this.blockInstance.blockID === BlockIds.grass) return this;
-    const c = this.blockInstance.getRenderColor(meta);
+    return this.tint(this.blockInstance.getRenderColor(meta));
+  }
+
+  private tint(c: number): this {
     this.particleRed = f(this.particleRed * f(((c >> 16) & 255) / 255));
     this.particleGreen = f(this.particleGreen * f(((c >> 8) & 255) / 255));
     this.particleBlue = f(this.particleBlue * f((c & 255) / 255));
@@ -51,24 +55,6 @@ export class EntityDiggingFX extends EntityFX {
   }
 
   override renderParticle(t: Tessellator, pt: number, rx: number, rxz: number, rz: number, ryz: number, rxy: number): void {
-    let u0 = f(f(this.particleTextureIndexX + f(this.particleTextureJitterX / 4)) / 16);
-    let u1 = f(u0 + f(0.015609375));
-    let v0 = f(f(this.particleTextureIndexY + f(this.particleTextureJitterY / 4)) / 16);
-    let v1 = f(v0 + f(0.015609375));
-    const s = f(0.1 * this.particleScale);
-    if (this.particleIcon) {
-      u0 = this.particleIcon.getInterpolatedU(f(f(this.particleTextureJitterX / 4) * 16));
-      u1 = this.particleIcon.getInterpolatedU(f(f(f(this.particleTextureJitterX + 1) / 4) * 16));
-      v0 = this.particleIcon.getInterpolatedV(f(f(this.particleTextureJitterY / 4) * 16));
-      v1 = this.particleIcon.getInterpolatedV(f(f(f(this.particleTextureJitterY + 1) / 4) * 16));
-    }
-    const x = f(this.prevPosX + (this.posX - this.prevPosX) * pt - EntityFX.interpPosX);
-    const y = f(this.prevPosY + (this.posY - this.prevPosY) * pt - EntityFX.interpPosY);
-    const z = f(this.prevPosZ + (this.posZ - this.prevPosZ) * pt - EntityFX.interpPosZ);
-    t.setColorOpaque_F(this.particleRed, this.particleGreen, this.particleBlue);
-    t.addVertexWithUV(x - rx * s - ryz * s, y - rxz * s, z - rz * s - rxy * s, u0, v1);
-    t.addVertexWithUV(x - rx * s + ryz * s, y + rxz * s, z - rz * s + rxy * s, u0, v0);
-    t.addVertexWithUV(x + rx * s + ryz * s, y + rxz * s, z + rz * s + rxy * s, u1, v0);
-    t.addVertexWithUV(x + rx * s - ryz * s, y - rxz * s, z + rz * s - rxy * s, u1, v1);
+    this.renderIconCrumb(t, pt, rx, rxz, rz, ryz, rxy);
   }
 }

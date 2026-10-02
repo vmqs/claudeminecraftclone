@@ -13,7 +13,7 @@ import type { PathEntity } from '../entity/ai/PathEntity';
 import type { Entity } from '../entity/Entity';
 import type { EntityLiving } from '../entity/EntityLiving';
 import type { EntityPlayer } from '../entity/EntityPlayer';
-import type { ItemStack } from '../item/ItemStack';
+import type { ItemStack, TagCompound } from '../item/ItemStack';
 import { getBiome, type BiomeGenBase } from './biome/BiomeGenBase';
 import { Chunk, EmptyChunk } from './Chunk';
 import { EnumSkyBlock, SKY_BLOCK_DEFAULT, type IBlockAccess } from './IBlockAccess';
@@ -69,6 +69,8 @@ export class World implements IWorld, IBlockAccess {
   static itemDropFactory: ItemDropFactory | null = null;
   /** Creates the EntityLightningBolt a thunderstorm strikes with (set by the weather code). */
   static lightningBoltFactory: ((w: World, x: number, y: number, z: number) => Entity) | null = null;
+  /** Starts a firework explosion effect (WorldClient.func_92088_a; set by the particle code). */
+  static fireworksEffect: ((w: World, x: number, y: number, z: number, vx: number, vy: number, vz: number, fireworks: TagCompound | null) => void) | null = null;
 
   readonly isRemote = false;
   readonly rand = new JavaRandom();
@@ -706,6 +708,15 @@ export class World implements IWorld, IBlockAccess {
 
   spawnParticle(name: string, x: number, y: number, z: number, vx: number, vy: number, vz: number): void {
     for (const a of this.worldAccesses) a.spawnParticle(name, x, y, z, vx, vy, vz);
+  }
+
+  /**
+   * The explosion of a firework rocket (func_92088_a, status 17 of EntityFireworkRocket):
+   * `fireworks` is the rocket's "Fireworks" compound ({Explosions: [{Type, Colors, FadeColors,
+   * Trail, Flicker}]}).
+   */
+  makeFireworks(x: number, y: number, z: number, vx: number, vy: number, vz: number, fireworks: TagCompound | null): void {
+    World.fireworksEffect?.(this, x, y, z, vx, vy, vz, fireworks);
   }
 
   /** Level events (2001 = block break effect with id + meta << 12, ...). */

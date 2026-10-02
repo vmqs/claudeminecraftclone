@@ -12,24 +12,37 @@ import { EntityFX } from './EntityFX';
 
 const f = Math.fround;
 
-/** Owns and draws particles in four layers (EffectRenderer). */
+/** At most this many particles per layer; the oldest is dropped for a new one. */
+const MAX_PER_LAYER = 4000;
+
+/**
+ * EffectRenderer: owns the particles in four layers and draws them. Layers 0-2 are batched
+ * into one translucent, depth-read-only quad batch each (particles.png, the terrain atlas, the
+ * item atlas); layer 3 ("lit" particles: pickups, large explosions, footprints, emitters) draws
+ * itself earlier in the frame with entity lighting.
+ */
 export class EffectRenderer {
+  /** The game's effect renderer, for particles that spawn more particles or bind textures. */
+  static instance: EffectRenderer | null = null;
   private readonly fxLayers: EntityFX[][] = [[], [], [], []];
   private readonly rand = new JavaRandom();
 
   constructor(
     protected worldObj: World | null,
-    private readonly renderer: TextureManager,
-  ) {}
+    readonly renderer: TextureManager,
+  ) {
+    EffectRenderer.instance = this;
+  }
 
   addEffect(fx: EntityFX): void {
     const layer = this.fxLayers[fx.getFXLayer()];
-    if (layer.length >= 4000) layer.shift();
+    if (layer.length >= MAX_PER_LAYER) layer.shift();
     layer.push(fx);
   }
 
   updateEffects(): void {
     for (const layer of this.fxLayers) {
+      // Particles added while updating (lava smoke, trails, emitters) are ticked in this pass too.
       for (let i = 0; i < layer.length; i++) {
         const fx = layer[i];
         fx.onUpdate();
@@ -69,19 +82,20 @@ export class EffectRenderer {
     }
   }
 
+  /** Layer 3, with billboard axes from the viewer's own (uninterpolated) rotation. */
   renderLitParticles(e: Entity, pt: number): void {
+    const layer = this.fxLayers[3];
+    if (layer.length === 0) return;
     const deg = f(Math.PI / 180);
     const c = MathHelper.cos(f(e.rotationYaw * deg));
     const s = MathHelper.sin(f(e.rotationYaw * deg));
-    const a = f(-s * MathHelper.sin(f(e.rotationPitch * deg)));
-    const b = f(c * MathHelper.sin(f(e.rotationPitch * deg)));
-    const cp = MathHelper.cos(f(e.rotationPitch * deg));
-    const layer = this.fxLayers[3];
-    if (layer.length === 0) return;
+    const ryz = f(f(-s) * MathHelper.sin(f(e.rotationPitch * deg)));
+    const rxy = f(c * MathHelper.sin(f(e.rotationPitch * deg)));
+    const rxz = MathHelper.cos(f(e.rotationPitch * deg));
     const t = Tessellator.instance;
     for (const fx of layer) {
       t.setBrightness(fx.getBrightnessForRender(pt));
-      fx.renderParticle(t, pt, c, cp, s, a, b);
+      fx.renderParticle(t, pt, c, rxz, s, ryz, rxy);
     }
   }
 
@@ -107,7 +121,7 @@ export class EffectRenderer {
         }
   }
 
-  /** Small fragments while mining a face. */
+  /** One small fragment on the face being hit (holding attack on a block). */
   addBlockHitEffects(x: number, y: number, z: number, side: number): void {
     const w = this.worldObj;
     if (!w) return;
@@ -125,11 +139,25 @@ export class EffectRenderer {
     if (side === 4) px = x + block.getBlockBoundsMinX() - m;
     if (side === 5) px = x + block.getBlockBoundsMaxX() + m;
     this.addEffect(
-      new EntityDiggingFX(w, px, py, pz, 0, 0, 0, block, side, w.getBlockMetadata(x, y, z)).applyColourMultiplier(x, y, z).multiplyVelocity(f(0.2)).multipleParticleScaleBy(f(0.6)),
+      new EntityDiggingFX(w, px, py, pz, 0, 0, 0, block, side, w.getBlockMetadata(x, y, z))
+        .applyColourMultiplier(x, y, z)
+        .multiplyVelocity(f(0.2))
+        .multipleParticleScaleBy(f(0.6)),
     );
   }
 
+  /** F3's "P:" count: layers 0-2 (the lit layer is not counted, as in the original). */
   getStatistics(): string {
     return '' + (this.fxLayers[0].length + this.fxLayers[1].length + this.fxLayers[2].length);
+  }
+
+  /** Particle counts per layer, for tests and debugging. */
+  getLayerCounts(): number[] {
+    return this.fxLayers.map((l) => l.length);
+  }
+
+  /** Every live particle (all layers), for tests and debugging. */
+  getAllParticles(): EntityFX[] {
+    return this.fxLayers.flat();
   }
 }
