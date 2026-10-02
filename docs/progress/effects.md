@@ -2,20 +2,30 @@
 
 Branch `w1/effects`. Owner area: `src/audio/**`, `src/render/particle/**`.
 
-## Plan
-- [ ] Audio: SoundPool split out, SoundManager faithful (channels, attenuation, pitch/volume clamps,
-      music scheduling, records incl. `.mus` decoding, stopAllSounds semantics, missing-file safety,
-      decode cache + preload, debug log for tests)
+## Done
 - [x] Particles: every EntityFX subclass of 1.5.2 + registry of every doSpawnParticle name
-- [x] RenderGlobal.doSpawnParticle faithful (always-spawned names, 16-block cull, particle setting)
-- [x] Firework effect hook (WorldClient.func_92088_a) -> World.makeFireworks
-- [ ] scripts/scenarios/effects.json + screenshots + audio smoke test
-- [ ] Report
+      (`ParticleRegistry.ts`, maps in `ParticleFactories.ts`, `RenderGlobal.particleFactories`
+      is the same map).
+- [x] RenderGlobal.doSpawnParticle faithful (always-created hugeexplosion / largeexplode /
+      fireworksSpark, 16-block cull, particle setting Decreased/Minimal, iconcrack_/tilecrack_).
+- [x] Firework effect hook (WorldClient.func_92088_a) -> `World.makeFireworks`.
+- [x] Audio: SoundPool split out, SoundManager faithful (28 channels with priority stealing,
+      linear fall-off, pitch/volume clamps, stereo sources unpanned, music scheduling in-world,
+      records incl. `.mus` decoding, stopAllSounds = entity loops only, closeMinecraft,
+      missing-file safety, decode cache + preload, context on first gesture, debug log).
+- [x] Packet62LevelSound quantisation for world sounds (RenderGlobal.playSound).
+- [x] scripts/scenarios/effects.json (gallery + assertions) passes.
+- [x] Docs: ARCHITECTURE §10 and §13 (Particles row), TESTING (effects scenario, audio).
 
-## Log
-- Particles ported and committed. Vanilla references captured with a private copy of the
-  harness (scratchpad/effects/vh, adds `particle`, `blockbreak`, `blockhit`, `firework`,
-  `clearparticles`; note `particles on` keeps particles, `particles keep` clears them) into
-  scratchpad/ref/extra/effects/. Our gallery (scratchpad/effects/scen/fx_ours.json) matches them.
+## Notes
+- Vanilla references for the particle gallery are in scratchpad/ref/extra/effects/ (captured
+  with a private copy of the harness in scratchpad/effects/vh that adds `particle`,
+  `blockbreak`, `blockhit`, `firework`, `clearparticles`; note `particles on` keeps particles,
+  `particles keep` clears them). Generator: scratchpad/effects/gen_fx.py.
 - Lava drip brightness 257: llvmpipe's GL_CLAMP + linear lightmap blends with the black border
-  (brown drip); our lightmap uses CLAMP_TO_EDGE (bright drip, as NVIDIA drivers showed it). Left as is.
+  (brown drip); our lightmap uses CLAMP_TO_EDGE (bright drip, as NVIDIA drivers showed it). Left
+  as is (lightmap belongs to the sky/core code).
+- The worktree's public/assets is a local overlay (symlinks to the shared assets plus the .mus
+  records and a manifest listing them) so the record path can be tested before the asset script
+  change is merged.
+- 1.5.2 has no menu music; music only counts down in a world (PlayerControllerMP.updateController).
