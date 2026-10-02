@@ -37,6 +37,7 @@ import { EffectRenderer } from '../render/particle/EffectRenderer';
 import { RenderManager } from '../render/entity/RenderManager';
 import { RenderBlocks } from '../render/RenderBlocks';
 import { RenderGlobal, WorldRenderer } from '../render/RenderGlobal';
+import { BlockDamageOverlay } from '../render/BlockDamageOverlay';
 import { TextureManager } from '../render/texture/TextureManager';
 import { ChunkProviderClient } from '../world/ChunkProviderClient';
 import { ColorizerFoliage, ColorizerGrass, rgbaToIntBuffer } from '../world/biome/Colorizer';
@@ -201,6 +202,7 @@ export class Minecraft implements SettingsListener {
 
     this.renderEngine.textureMapBlocks.registrars.push((reg) => {
       for (const b of Block.blocksList) if (b) b.registerIcons(reg);
+      BlockDamageOverlay.registerIcons(reg);
       RenderManager.instance.updateIcons(reg);
     });
     this.renderEngine.textureMapItems.registrars.push((reg) => {

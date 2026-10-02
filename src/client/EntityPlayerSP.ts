@@ -1,6 +1,8 @@
 import { MathHelper } from '../core/MathHelper';
 import type { Entity } from '../entity/Entity';
 import { EntityPlayer } from '../entity/EntityPlayer';
+import type { DamageSource } from '../entity/DamageSource';
+import { PotionId } from '../entity/PotionEffects';
 import { handleChat } from '../command/CommandServer';
 import type { GuiNewChat } from '../gui/GuiNewChat';
 import type { GuiScreen } from '../gui/GuiScreen';
@@ -91,6 +93,21 @@ export class EntityPlayerSP extends EntityPlayer {
     this.mc.respawnPlayer();
   }
 
+  /**
+   * The client's copy of the player never learns where a hit came from (its attackedAtYaw stays
+   * 0), so the hurt camera always rolls the same way and the body falls the same way on death.
+   */
+  override attackEntityFrom(src: DamageSource, amount: number): boolean {
+    const hit = super.attackEntityFrom(src, amount);
+    this.attackedAtYaw = 0;
+    return hit;
+  }
+
+  override onDeath(src: DamageSource): void {
+    this.attackedAtYaw = 0;
+    super.onDeath(src);
+  }
+
   override closeScreen(): void {
     super.closeScreen();
     this.mc.displayGuiScreen(null);
@@ -153,9 +170,9 @@ export class EntityPlayerSP extends EntityPlayer {
     this.pushOutOfBlocks(this.posX - hw, this.boundingBox.minY + 0.5, this.posZ - hw);
     this.pushOutOfBlocks(this.posX + hw, this.boundingBox.minY + 0.5, this.posZ - hw);
     this.pushOutOfBlocks(this.posX + hw, this.boundingBox.minY + 0.5, this.posZ + hw);
-    // Food level is always full in Creative, so sprinting is always allowed.
-    const canSprint = true;
-    if (this.onGround && !wasForward && this.movementInput.moveForward >= threshold && !this.isSprinting() && canSprint && !this.isUsingItem()) {
+    // Sprinting needs more than 3 shanks of food (or the ability to fly).
+    const canSprint = this.getFoodStats().getFoodLevel() > 6 || this.capabilities.allowFlying;
+    if (this.onGround && !wasForward && this.movementInput.moveForward >= threshold && !this.isSprinting() && canSprint && !this.isUsingItem() && !this.isPotionActive(PotionId.blindness)) {
       if (this.sprintToggleTimer === 0) {
         this.sprintToggleTimer = 7;
       } else {

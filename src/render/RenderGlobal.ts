@@ -23,6 +23,7 @@ import { Tessellator } from './gl/Tessellator';
 import type { EntityFX } from './particle/EntityFX';
 import { createParticle, type ParticleFactory, particleFactories, unculledParticleFactories } from './particle/ParticleFactories';
 import { RenderHelper } from './RenderHelper';
+import { BlockDamageOverlay } from './BlockDamageOverlay';
 import { RenderManager } from './entity/RenderManager';
 import { TileEntityRenderer } from './tileentity/TileEntityRenderer';
 
@@ -935,6 +936,7 @@ export class RenderGlobal implements IWorldAccess {
 
   updateClouds(): void {
     this.cloudTickCounter++;
+    this.blockDamage.onCloudTick(this.cloudTickCounter);
   }
 
   // ------------------------------------------------------------------ selection
@@ -993,7 +995,12 @@ export class RenderGlobal implements IWorldAccess {
 
   drawBlockBreaking(): void {}
 
-  drawBlockDamageTexture(): void {}
+  /** The crack overlay of blocks being mined (BlockDamageOverlay). */
+  readonly blockDamage = new BlockDamageOverlay();
+
+  drawBlockDamageTexture(viewer?: Entity, pt = 0): void {
+    if (viewer) this.blockDamage.draw(this.theWorld, viewer, pt, this.mc.renderEngine);
+  }
 
   // ------------------------------------------------------------------ IWorldAccess
 
@@ -1229,5 +1236,7 @@ export class RenderGlobal implements IWorldAccess {
     }
   }
 
-  destroyBlockPartially(): void {}
+  destroyBlockPartially(entityId: number, x: number, y: number, z: number, stage: number): void {
+    this.blockDamage.destroyBlockPartially(entityId, x, y, z, stage, this.cloudTickCounter);
+  }
 }

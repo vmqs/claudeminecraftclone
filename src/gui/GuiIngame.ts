@@ -128,7 +128,7 @@ export class GuiIngame extends Gui {
     if (this.mc.gameSettings.fancyGraphics) this.renderVignette(withClientSkylight(this.mc.theWorld!, () => p.getBrightness(pt)), w, h);
     else GL.blendFunc(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA);
     ScreenOverlays.renderHelmetAndPortal(this.mc, pt, w, h);
-    const drawHud = !p.capabilities.isCreativeMode;
+    const drawHud = this.mc.playerController.shouldDrawHUD();
     GL.color(1, 1, 1, 1);
     this.mc.renderEngine.bindTexture('/gui/gui.png');
     const inv = p.inventory;
@@ -143,7 +143,9 @@ export class GuiIngame extends Gui {
     let flash = Math.trunc(p.hurtResistantTime / 3) % 2 === 1;
     if (p.hurtResistantTime < 10) flash = false;
     const health = p.getHealth();
-    const prevHealth = (p as unknown as { prevHealth?: number }).prevHealth ?? health;
+    // The client player's prevHealth is never set in 1.5.2 (only the server's copy takes damage),
+    // so the hurt flash shows the white-rimmed containers without the lost hearts.
+    const prevHealth = 0;
     this.rand.setSeed(BigInt(this.updateCounter * 312871));
     const food = stats.getFoodStats?.() ?? null;
     const foodLevel = food?.getFoodLevel() ?? 20;
@@ -241,7 +243,8 @@ export class GuiIngame extends Gui {
       prof.endSection();
     }
     const level = stats.experienceLevel ?? 0;
-    if (drawHud && level > 0) {
+    // PlayerControllerMP.func_78763_f is always true: the level shows in every mode.
+    if (level > 0) {
       prof.startSection('expLevel');
       const s = '' + level;
       const x = Math.trunc((w - fr.getStringWidth(s)) / 2);

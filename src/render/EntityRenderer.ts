@@ -539,7 +539,7 @@ export class EntityRenderer {
     }
     GL.enable(GL.BLEND);
     GL.blendFunc(GL.SRC_ALPHA, GL.ONE);
-    rg.drawBlockDamageTexture();
+    rg.drawBlockDamageTexture(view, pt);
     GL.disable(GL.BLEND);
     this.rainSnow.render(pt, this.rendererUpdateCount, () => this.enableLightmap(pt), () => this.disableLightmap(pt));
     GL.disable(GL.FOG);
