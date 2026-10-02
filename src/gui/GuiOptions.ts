@@ -1,7 +1,12 @@
 import { EnumOptions, type GameSettings } from '../client/GameSettings';
 import { I18n } from '../core/I18n';
 import { GuiButton, GuiSlider, GuiSmallButton } from './GuiButton';
+import { GuiControls } from './GuiControls';
+import { GuiLanguage } from './GuiLanguage';
 import { GuiScreen } from './GuiScreen';
+import { GuiSnooper } from './GuiSnooper';
+import { GuiTexturePacks } from './GuiTexturePacks';
+import { ScreenChatOptions } from './ScreenChatOptions';
 
 function addOptionButtons(screen: { buttonList: GuiButton[] }, options: EnumOptions[], settings: GameSettings, x0: number, y0: number): void {
   options.forEach((o, i) => {
@@ -31,15 +36,11 @@ export class GuiOptions extends GuiScreen {
     const h6 = Math.trunc(this.height / 6);
     addOptionButtons(this as unknown as { buttonList: GuiButton[] }, GuiOptions.relevantOptions, this.options, cx - 155, h6 - 12);
     this.buttonList.push(new GuiButton(101, cx - 152, h6 + 96 - 6, 150, 20, t('options.video')));
-    const disabled = (b: GuiButton) => {
-      b.enabled = false;
-      return b;
-    };
-    this.buttonList.push(disabled(new GuiButton(100, cx + 2, h6 + 96 - 6, 150, 20, t('options.controls'))));
-    this.buttonList.push(disabled(new GuiButton(102, cx - 152, h6 + 120 - 6, 150, 20, t('options.language'))));
-    this.buttonList.push(disabled(new GuiButton(103, cx + 2, h6 + 120 - 6, 150, 20, t('options.multiplayer.title'))));
-    this.buttonList.push(disabled(new GuiButton(105, cx - 152, h6 + 144 - 6, 150, 20, t('options.texture.pack'))));
-    this.buttonList.push(disabled(new GuiButton(104, cx + 2, h6 + 144 - 6, 150, 20, t('options.snooper.view'))));
+    this.buttonList.push(new GuiButton(100, cx + 2, h6 + 96 - 6, 150, 20, t('options.controls')));
+    this.buttonList.push(new GuiButton(102, cx - 152, h6 + 120 - 6, 150, 20, t('options.language')));
+    this.buttonList.push(new GuiButton(103, cx + 2, h6 + 120 - 6, 150, 20, t('options.multiplayer.title')));
+    this.buttonList.push(new GuiButton(105, cx - 152, h6 + 144 - 6, 150, 20, t('options.texture.pack')));
+    this.buttonList.push(new GuiButton(104, cx + 2, h6 + 144 - 6, 150, 20, t('options.snooper.view')));
     this.buttonList.push(new GuiButton(200, cx - 100, h6 + 168, t('gui.done')));
   }
 
@@ -49,9 +50,17 @@ export class GuiOptions extends GuiScreen {
       this.options.setOptionValue(b.returnEnumOptions()!, 1);
       b.displayString = this.options.getKeyBinding(EnumOptions.getEnumOptions(b.id)!);
     }
-    if (b.id === 101) {
-      this.options.saveOptions();
-      this.mc.displayGuiScreen(new GuiVideoSettings(this, this.options));
+    const sub: Record<number, () => GuiScreen> = {
+      101: () => new GuiVideoSettings(this, this.options),
+      100: () => new GuiControls(this, this.options),
+      102: () => new GuiLanguage(this, this.options),
+      103: () => new ScreenChatOptions(this, this.options),
+      104: () => new GuiSnooper(this, this.options),
+      105: () => new GuiTexturePacks(this, this.options),
+    };
+    if (sub[b.id]) {
+      this.mc.gameSettings.saveOptions();
+      this.mc.displayGuiScreen(sub[b.id]());
     }
     if (b.id === 200) {
       this.options.saveOptions();

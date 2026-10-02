@@ -1,11 +1,13 @@
 import { Keyboard, Keys, Mouse } from '../client/Keyboard';
+import { GuiConfirmOpenLink } from './GuiConfirmOpenLink';
 import { GuiScreen } from './GuiScreen';
 import { GuiTextField } from './GuiTextField';
 
 /**
  * The chat input (GuiChat): T opens it empty, / opens it with "/". Enter sends, Up/Down walk the
  * sent history, Page Up/Down and the wheel scroll the chat, Tab completes commands and names.
- * Chat links (ChatClickData, GuiConfirmOpenLink) are not ported.
+ * Clicking a URL in the open chat opens it in a new tab, after GuiConfirmOpenLink when the
+ * "Prompt on Links" option is on.
  */
 export class GuiChat extends GuiScreen {
   /** The unsent text while browsing the history (field_73898_b). */
@@ -19,6 +21,7 @@ export class GuiChat extends GuiScreen {
   /** Completions "received from the server", applied on the next tick like a packet would be. */
   private pendingCompletions: string[] | null = null;
   protected inputField!: GuiTextField;
+  private clickedURI: string | null = null;
 
   constructor(private readonly defaultInputFieldText = '') {
     super();
@@ -84,8 +87,37 @@ export class GuiChat extends GuiScreen {
   }
 
   protected override mouseClicked(x: number, y: number, button: number): void {
+    if (button === 0 && this.mc.gameSettings.chatLinks) {
+      const data = this.mc.ingameGUI.getChatGUI().getChatClickData(Mouse.getX(), Mouse.getY());
+      const uri = data?.getURI() ?? null;
+      if (data && uri !== null) {
+        if (this.mc.gameSettings.chatLinksPrompt) {
+          this.clickedURI = uri;
+          this.mc.displayGuiScreen(new GuiConfirmOpenLink(this, data.getClickedUrl(), 0, false));
+        } else {
+          GuiChat.openURI(uri);
+        }
+        return;
+      }
+    }
     this.inputField.mouseClicked(x, y, button);
     super.mouseClicked(x, y, button);
+  }
+
+  override confirmClicked(ok: boolean, id: number): void {
+    if (id !== 0) return;
+    if (ok && this.clickedURI !== null) GuiChat.openURI(this.clickedURI);
+    this.clickedURI = null;
+    this.mc.displayGuiScreen(this);
+  }
+
+  /** func_73896_a: Desktop.browse, here a new browser tab. */
+  private static openURI(uri: string): void {
+    try {
+      window.open(uri, '_blank', 'noopener');
+    } catch (e) {
+      console.error(e);
+    }
   }
 
   /** Tab: asks for completions of the word before the cursor, then cycles through them. */

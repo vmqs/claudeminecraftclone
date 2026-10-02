@@ -2,6 +2,7 @@ import type { Minecraft } from '../client/Minecraft';
 import { I18n } from '../core/I18n';
 import { MathHelper } from '../core/MathHelper';
 import { GL } from '../render/gl/GL';
+import { ChatClickData } from './ChatClickData';
 import { ChatLine } from './ChatLine';
 import { Gui } from './Gui';
 import { GuiChat } from './GuiChat';
@@ -146,6 +147,25 @@ export class GuiNewChat extends Gui {
       this.scrollPos = 0;
       this.isScrolled = false;
     }
+  }
+
+  /** func_73766_a: the chat word at a display pixel (LWJGL coordinates: y counts up from the bottom). */
+  getChatClickData(mouseX: number, mouseY: number): ChatClickData | null {
+    if (!this.getChatOpen()) return null;
+    const factor = this.mc.getScaledResolution().getScaleFactor();
+    const scale = this.getChatScale();
+    let x = Math.trunc(mouseX / factor) - 3;
+    let y = Math.trunc(mouseY / factor) - 25;
+    x = MathHelper.floor_float(Math.fround(x / scale));
+    y = MathHelper.floor_float(Math.fround(y / scale));
+    if (x < 0 || y < 0) return null;
+    const lines = Math.min(this.getLineCount(), this.drawnChatLines.length);
+    const fh = this.mc.fontRenderer.FONT_HEIGHT;
+    if (x > MathHelper.floor_float(Math.fround(this.getChatWidth() / scale)) || y >= fh * lines + lines) return null;
+    const i = Math.trunc(y / (fh + 1)) + this.scrollPos;
+    const line = this.drawnChatLines[i];
+    if (!line) return null;
+    return new ChatClickData(this.mc.fontRenderer, line, x, y - (i - this.scrollPos) * fh + i);
   }
 
   addTranslatedMessage(key: string, ...args: unknown[]): void {

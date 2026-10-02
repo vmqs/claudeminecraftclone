@@ -3,6 +3,7 @@ import type { Entity } from '../entity/Entity';
 import { DamageSource, EntityDamageSource } from '../entity/DamageSource';
 import { EntityList } from '../entity/EntityList';
 import { GuiCreateWorld } from '../gui/GuiCreateWorld';
+import { openScreenByName } from '../gui/GuiDebugScreens';
 import { Item } from '../item/Item';
 import { ItemStack } from '../item/ItemStack';
 import { SkyDevTools } from '../render/sky/SkyDevTools';
@@ -160,6 +161,11 @@ export class DevTools {
   entities(name?: string): Entity[] {
     const list = this.mc.theWorld?.loadedEntityList ?? [];
     return name === undefined ? [...list] : list.filter((e) => EntityList.getDebugName(e) === name);
+  }
+
+  /** Opens a screen by name (src/gui/GuiDebugScreens.ts); false for an unknown name. */
+  screen(name: string): boolean {
+    return openScreenByName(this.mc, name);
   }
 
   /** Block id under the crosshair, or -1. */

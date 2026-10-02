@@ -1,0 +1,40 @@
+import type { Minecraft } from '../client/Minecraft';
+import { GuiControls } from './GuiControls';
+import { GuiCreateWorld } from './GuiCreateWorld';
+import { GuiLanguage } from './GuiLanguage';
+import { GuiMainMenu } from './GuiMainMenu';
+import { GuiMultiplayer } from './GuiMultiplayer';
+import { GuiOptions, GuiVideoSettings } from './GuiOptions';
+import type { GuiScreen } from './GuiScreen';
+import { GuiSelectWorld } from './GuiSelectWorld';
+import { GuiSnooper } from './GuiSnooper';
+import { GuiTexturePacks } from './GuiTexturePacks';
+import { ScreenChatOptions } from './ScreenChatOptions';
+
+/**
+ * Screens by name for automation (`mc.dev.screen('options')`), the same names as the reference
+ * harness's `screen` command where they exist. Screens registered by other modules can be added
+ * with `screenFactories.set(name, factory)`.
+ */
+export const screenFactories = new Map<string, (mc: Minecraft) => GuiScreen | null>([
+  ['none', () => null],
+  ['mainmenu', () => new GuiMainMenu()],
+  ['singleplayer', () => new GuiSelectWorld(new GuiMainMenu())],
+  ['createworld', () => new GuiCreateWorld(new GuiSelectWorld(new GuiMainMenu()))],
+  ['multiplayer', () => new GuiMultiplayer(new GuiMainMenu())],
+  ['options', (mc) => new GuiOptions(new GuiMainMenu(), mc.gameSettings)],
+  ['video', (mc) => new GuiVideoSettings(new GuiOptions(new GuiMainMenu(), mc.gameSettings), mc.gameSettings)],
+  ['controls', (mc) => new GuiControls(new GuiOptions(new GuiMainMenu(), mc.gameSettings), mc.gameSettings)],
+  ['language', (mc) => new GuiLanguage(new GuiMainMenu(), mc.gameSettings)],
+  ['texturepacks', (mc) => new GuiTexturePacks(new GuiOptions(new GuiMainMenu(), mc.gameSettings), mc.gameSettings)],
+  ['snooper', (mc) => new GuiSnooper(new GuiOptions(new GuiMainMenu(), mc.gameSettings), mc.gameSettings)],
+  ['chatoptions', (mc) => new ScreenChatOptions(new GuiOptions(new GuiMainMenu(), mc.gameSettings), mc.gameSettings)],
+]);
+
+/** Opens a screen by name; false when the name is unknown. */
+export function openScreenByName(mc: Minecraft, name: string): boolean {
+  const f = screenFactories.get(name);
+  if (!f) return false;
+  mc.displayGuiScreen(f(mc));
+  return true;
+}

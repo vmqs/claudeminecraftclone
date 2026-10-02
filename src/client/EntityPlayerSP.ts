@@ -6,6 +6,8 @@ import type { GuiNewChat } from '../gui/GuiNewChat';
 import type { GuiScreen } from '../gui/GuiScreen';
 import { GuiChest } from '../gui/inventory/GuiChest';
 import { GuiCrafting } from '../gui/inventory/GuiCrafting';
+import { GuiEditSign } from '../gui/GuiEditSign';
+import type { TileEntity } from '../world/tileentity/TileEntity';
 import type { IInventory } from '../gui/inventory/IInventory';
 import { EntityCrit2FX } from '../render/particle/EntityCrit2FX';
 import type { EntityFX } from '../render/particle/EntityFX';
@@ -100,6 +102,16 @@ export class EntityPlayerSP extends EntityPlayer {
 
   override displayGUIWorkbench(x: number, y: number, z: number): void {
     this.mc.displayGuiScreen(new GuiCrafting(this.inventory, this.worldObj, x, y, z));
+  }
+
+  /** EntityPlayerMP: seed, tell, help and me always work; the rest need "Allow Cheats". */
+  override canCommandSenderUseCommand(_level: number, command: string): boolean {
+    if (command === 'seed' || command === 'tell' || command === 'help' || command === 'me') return true;
+    return this.worldObj.worldInfo.allowCommands;
+  }
+
+  override displayGUIEditSign(te: TileEntity): void {
+    this.mc.displayGuiScreen(new GuiEditSign(te));
   }
 
   /** EntityClientPlayerMP.onUpdate: the player only updates once its chunk is present. */
