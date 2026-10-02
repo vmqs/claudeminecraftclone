@@ -19,6 +19,7 @@ import { GuiGameOver } from '../gui/GuiGameOver';
 import { GuiGameStopped } from '../gui/GuiGameStopped';
 import { GuiIngame } from '../gui/GuiIngame';
 import { GuiIngameMenu } from '../gui/GuiIngameMenu';
+import { initLanguage } from '../gui/GuiLanguage';
 import { GuiMainMenu } from '../gui/GuiMainMenu';
 import { GuiChat } from '../gui/GuiChat';
 import { GuiScreen } from '../gui/GuiScreen';
@@ -172,6 +173,7 @@ export class Minecraft implements SettingsListener {
     const splashes = await rm.getText('title/splashes.txt');
     if (splashes) GuiMainMenu.splashes = splashes.split(/\r?\n/).map((s) => s.trim()).filter((s) => s.length > 0);
     await this.fontRenderer.readFontData(rm);
+    await initLanguage(this);
     await this.loadColormaps();
     this.sndManager.init();
 

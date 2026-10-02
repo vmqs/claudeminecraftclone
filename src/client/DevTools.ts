@@ -1,5 +1,6 @@
 import { Block } from '../block/Block';
 import { GuiCreateWorld } from '../gui/GuiCreateWorld';
+import { openScreenByName } from '../gui/GuiDebugScreens';
 import { Item } from '../item/Item';
 import { ItemStack } from '../item/ItemStack';
 import { Keyboard, Mouse } from './Keyboard';
@@ -92,6 +93,11 @@ export class DevTools {
   /** Simulates a mouse button (0 left, 1 right, 2 middle). */
   mouse(button: number, down: boolean): void {
     Mouse.push({ button, state: down, dWheel: 0, x: Mouse.x, y: Mouse.y });
+  }
+
+  /** Opens a screen by name (src/gui/GuiDebugScreens.ts); false for an unknown name. */
+  screen(name: string): boolean {
+    return openScreenByName(this.mc, name);
   }
 
   /** Block id under the crosshair, or -1. */

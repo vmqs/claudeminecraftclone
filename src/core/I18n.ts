@@ -36,6 +36,16 @@ export const I18n = {
     }
   },
 
+  /** Empties the table (a language switch reloads en_US and then the selected language). */
+  clear(): void {
+    table.clear();
+  },
+
+  /** Every translated value (StringTranslate checks them for characters the bitmap font lacks). */
+  values(): IterableIterator<string> {
+    return table.values();
+  },
+
   /** Loads a table that was already parsed (e.g. transferred to a worker). */
   loadEntries(entries: Iterable<[string, string]>): void {
     for (const [k, v] of entries) table.set(k, v);

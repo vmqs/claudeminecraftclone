@@ -3,6 +3,7 @@ import { JavaRandom } from '../core/JavaRandom';
 import { GL } from '../render/gl/GL';
 import { Tessellator } from '../render/gl/Tessellator';
 import type { TextureManager } from '../render/texture/TextureManager';
+import { bidiRuns, reorderVisually, requiresBidi } from './Bidi';
 
 const f = Math.fround;
 
@@ -20,6 +21,7 @@ export class FontRenderer {
   private posX = 0;
   private posY = 0;
   private unicodeFlag = false;
+  private bidiFlag = false;
   private red = 1;
   private green = 1;
   private blue = 1;
@@ -153,6 +155,7 @@ export class FontRenderer {
 
   drawString(s: string, x: number, y: number, color: number, shadow = false): number {
     this.resetStyles();
+    if (this.bidiFlag) s = this.bidiReorder(s);
     let w: number;
     if (shadow) {
       w = this.renderString(s, x + 1, y + 1, color, true);
@@ -230,7 +233,7 @@ export class FontRenderer {
         this.posX -= off;
         this.posY -= off;
       }
-      let adv = this.renderCharAtPos(index, index > 0 ? allowed.charAt(index) : ch, this.italicStyle);
+      let adv = this.renderCharAtPos(index, ch, this.italicStyle);
       if (nudge) {
         this.posX += off;
         this.posY += off;
@@ -241,7 +244,7 @@ export class FontRenderer {
           this.posX -= off;
           this.posY -= off;
         }
-        this.renderCharAtPos(index, index > 0 ? allowed.charAt(index) : ch, this.italicStyle);
+        this.renderCharAtPos(index, ch, this.italicStyle);
         this.posX -= off;
         if (nudge) {
           this.posX += off;
@@ -342,9 +345,62 @@ export class FontRenderer {
     this.resetStyles();
     while (s.endsWith('\n')) s = s.slice(0, -1);
     for (const line of this.listFormattedStringToWidth(s, width)) {
-      this.renderString(line, x, y, color, false);
+      this.renderStringAligned(line, x, y, width, color, false);
       y += this.FONT_HEIGHT;
     }
+  }
+
+  /** Right-aligns the line in its box when drawing right to left. */
+  private renderStringAligned(s: string, x: number, y: number, width: number, color: number, shadow: boolean): number {
+    if (this.bidiFlag) {
+      s = this.bidiReorder(s);
+      x = x + width - this.getStringWidth(s);
+    }
+    return this.renderString(s, x, y, color, shadow);
+  }
+
+  /**
+   * Visual order for right-to-left text (bidiReorder): runs are reordered by level and the
+   * characters of odd (right-to-left) runs reversed, with parentheses mirrored.
+   */
+  bidiReorder(s: string): string {
+    if (!s || !requiresBidi(s)) return s;
+    const runs = bidiRuns(s);
+    const levels = runs.map((r) => r.level);
+    const texts = runs.map((r) => s.substring(r.start, r.limit));
+    const logical = texts.slice();
+    reorderVisually(levels, texts);
+    let out = '';
+    for (let i = 0; i < texts.length; i++) {
+      // As in the original, a run's level is looked up by its text (the first equal run wins).
+      let level = levels[i];
+      for (let j = 0; j < logical.length; j++) {
+        if (logical[j] === texts[i]) {
+          level = levels[j];
+          break;
+        }
+      }
+      if ((level & 1) === 0) {
+        out += texts[i];
+      } else {
+        const t = texts[i];
+        for (let k = t.length - 1; k >= 0; k--) {
+          let c = t.charAt(k);
+          if (c === '(') c = ')';
+          else if (c === ')') c = '(';
+          out += c;
+        }
+      }
+    }
+    return out;
+  }
+
+  setBidiFlag(v: boolean): void {
+    this.bidiFlag = v;
+  }
+
+  getBidiFlag(): boolean {
+    return this.bidiFlag;
   }
 
   splitStringWidth(s: string, width: number): number {

@@ -324,8 +324,9 @@ export class GameSettings {
         return v === 1 ? prefix + t('options.gamma.max') : prefix + '+' + Math.trunc(v * 100) + '%';
       }
       if (o === EnumOptions.CHAT_OPACITY) return prefix + Math.trunc(v * 90 + 10) + '%';
-      if (o === EnumOptions.CHAT_HEIGHT_UNFOCUSED || o === EnumOptions.CHAT_HEIGHT_FOCUSED) return prefix + Math.round(v * 160 + 20) + 'px';
-      if (o === EnumOptions.CHAT_WIDTH) return prefix + Math.round(v * 280 + 40) + 'px';
+      // GuiNewChat.calculateChatboxHeight / Width: floor of the float value.
+      if (o === EnumOptions.CHAT_HEIGHT_UNFOCUSED || o === EnumOptions.CHAT_HEIGHT_FOCUSED) return prefix + Math.floor(Math.fround(Math.fround(v * 160) + 20)) + 'px';
+      if (o === EnumOptions.CHAT_WIDTH) return prefix + Math.floor(Math.fround(Math.fround(v * 280) + 40)) + 'px';
       return v === 0 ? prefix + t('options.off') : prefix + Math.trunc(v * 100) + '%';
     }
     if (o.getEnumBoolean()) return prefix + t(this.getOptionOrdinalValue(o) ? 'options.on' : 'options.off');
