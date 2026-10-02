@@ -314,6 +314,32 @@ Rendering goes through `RenderManager → Render subclass → ModelBase` (boxes 
 offsets and drawn with the Tessellator), with hurt and death tinting and rotation, fancy shadows
 (`misc/shadow.png`), and fire overlays.
 
+The non-mob entities of 1.5.2 are all there: `EntityItem`, `EntityXPOrb`, `EntityArrow`, the
+`EntityThrowable` family (snowball, egg, ender pearl, bottle o' enchanting, splash potion),
+`EntityFireball` (large, small, wither skull), `EntityFallingSand`, `EntityTNTPrimed`,
+`EntityFireworkRocket`, `EntityBoat`, the `EntityMinecart` family (rideable, chest, furnace, TNT,
+hopper, spawner; `EntityMinecart.createMinecart(w, x, y, z, type)`), `EntityHanging`
+(`EntityPainting` with all 26 motives, `EntityItemFrame`), `EntityFishHook`, `EntityEnderEye` and
+`EntityEnderCrystal`, each with its renderer. Constructors take the 1.5.2 argument lists
+(`new EntityArrow(w, shooter, velocity)`, `new EntityTNTPrimed(w, x, y, z, igniter)`, ...).
+
+There is no client/server split, so the client's half of a few server events is replayed
+explicitly, as single player did:
+- `World.setEntityState(e, status)` calls `e.handleHealthUpdate(status)` (Packet38): living
+  entities play the hurt (2) and death (3) sound a second time at their own pitch, tamed animals
+  show hearts/smoke (7/6), fireworks burst (17), TNT minecarts light (10).
+- `EntityLiving.onItemPickup` runs `EntityLiving.collectEffect` (Packet22, installed by
+  `src/render/entity/EntityClientHooks.ts`): a second pop/orb sound and the `EntityPickupFX`.
+- `Explosion.doExplosionB(true)` plays `random.explode` twice (server and Packet60 echo).
+
+Potion effects live on `EntityLiving.activePotionsMap` as `PotionEffectLike` objects
+(`src/entity/PotionEffects.ts`: `PotionId`, the swirl colour, and `PotionHooks` for the potion
+code to install `effectsFromDamage`, `liquidColorFromDamage`, `createEffect` and `affectEntity`).
+Creative players are never targeted: `Entity.isCreativeInvulnerable()` is true for a player whose
+capabilities disable damage (hostile AI targeting, creeper swelling and skeleton shooting check it).
+World-generation entities come in as `EntityDescriptor`s through `EntityList.fromDescriptor`,
+which passes optional `data` to the entity's `readEntityFromNBT`.
+
 `EntityPlayerSP` uses the original movement: `landMovementFactor 0.1`,
 `jumpMovementFactor 0.02`, sprint (double-tap forward), Creative flight (double-tap jump, vertical
 speed ±0.15×3, flySpeed 0.05), sneaking at 0.3× with the edge guard, step height 0.5, eye height
@@ -396,7 +422,7 @@ registries are imported once by `src/client/Minecraft.ts`.
 | Items | Subclass `Item` in `src/item/`, register in `Items.ts`. Hooks: `onItemUse`, `onItemRightClick`, `getArmorInfo` (armour), `getRecordName` / `getRecordTitle` (records), `getContainerItem`, `onCreated`, `doesContainerItemLeaveCraftingGrid`. `Item.itemRand` is the shared item RNG. |
 | Crafting | `CraftingManager.getInstance().addRecipe(output, ['##', '##'], { '#': Block })`, `addShapelessRecipe(output, ...ingredients)`, `addRecipeObject(recipe)` for special recipes (`IRecipe`). The list sorts itself like `RecipeSorter`. |
 | Containers and GUIs | `IInventory` (or `InventoryBasic`), a `Container` subclass (`addSlotToContainer`, `transferStackInSlot`, `canInteractWith`, `canMergeSlot`), a `GuiContainer` subclass (`drawGuiContainerBackgroundLayer`, `drawGuiContainerForegroundLayer`). Open it from `EntityPlayerSP.displayGUI*` (hooks declared on `EntityPlayer`: chest, hopper, enchantment, anvil, workbench, furnace, dispenser, sign, brewing stand, beacon, merchant, book). The creative inventory replaces `GuiInventory` in its `initGui`/`updateScreen` and uses `PlayerControllerCreative.sendSlotPacket` (a no-op here). Armour slot backgrounds: `SlotArmor.emptySlotIcons`. Lists: subclass `GuiSlot`. |
-| Entities | Class in `src/entity/`, `EntityList.addMapping(cls, '<name>', id)` in `src/entity/Entities.ts` (eggs come from the `entityEggs` table), renderer via `RenderManager.instance.register(cls, render)` in `src/render/entity/EntityRenderers.ts`. Mob bases: `EntityCreature`, `EntityAgeable`, `EntityAnimal`, `EntityMob`, `EntityTameable`, `EntityGolem`, `EntityWaterMob`, `EntityAmbientCreature`, `EntityFlying`; AI tasks extend `EntityAIBase` (`src/entity/ai/`). Factories for classes `World` cannot import: `World.itemDropFactory` (set by `EntityItem`), `EntityLiving.experienceOrbFactory`, `World.lightningBoltFactory`. |
+| Entities | Class in `src/entity/`, `EntityList.addMapping(cls, '<name>', id)` in `src/entity/Entities.ts` (eggs come from the `entityEggs` table), renderer via `RenderManager.instance.register(cls, render)` in `src/render/entity/EntityRenderers.ts` (renderers needing item-atlas sprites override `Render.updateItemIcons`). Client echoes: `World.setEntityState` → `handleHealthUpdate`, `EntityLiving.collectEffect`. Hooks for other code: `EntityLiving.addRandomEnchantment`, `EntityPlayer.enchantmentHooks`, `EntityArrow.thornsHook`, `Explosion.blastProtection`, `EntityFireworkRocket.explosionEffect` (or `World.makeFireworks`), `HopperTransfer.chestInventory`, `PotionHooks`; `BlockSand.createFallingEntity` is installed by `EntityFallingSand`. Mob bases: `EntityCreature`, `EntityAgeable`, `EntityAnimal`, `EntityMob`, `EntityTameable`, `EntityGolem`, `EntityWaterMob`, `EntityAmbientCreature`, `EntityFlying`; AI tasks extend `EntityAIBase` (`src/entity/ai/`). Factories for classes `World` cannot import: `World.itemDropFactory` (set by `EntityItem`), `EntityLiving.experienceOrbFactory`, `World.lightningBoltFactory`. |
 | Spawning | Biome lists by `EntityList` name (`BiomeGenBase.getSpawnableList`, `editSpawns`), `SpawnRules` for the per-mob `getCanSpawnHere` data, `World.mobSpawner` (default `SpawnerAnimals.findChunksForSpawning`), world-generation animals in `WorldGenSpawning`. |
 | Particles | `RenderGlobal.particleFactories.set(name, (w, x, y, z, vx, vy, vz) => fx)` in `src/render/particle/ParticleRegistry.ts`. |
 | Sounds and world effects | `World.playSoundEffect` / `playSound` / `playSoundAtEntity`, `World.playAuxSFX(type, …)` (cases in `RenderGlobal.playAuxSFX`), `World.playRecord`, `World.broadcastSound`, `SoundManager.playEntitySound` for loops. |
