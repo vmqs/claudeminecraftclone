@@ -52,6 +52,7 @@ import { Timer } from './Timer';
 import { Profiler } from './Profiler';
 import { DebugHooks } from '../command/CommandDebug';
 import { GuiProfilerChart } from '../gui/GuiProfilerChart';
+import { GuiSleepMP } from '../gui/GuiSleepMP';
 
 /** World creation options (WorldSettings). */
 export interface WorldSettings {
@@ -403,7 +404,12 @@ export class Minecraft implements SettingsListener {
     if (!this.isGamePaused && this.theWorld) this.playerController.updateController();
     prof.endStartSection('textures');
     if (!this.isGamePaused) this.renderEngine.updateDynamicTextures();
-    if (this.currentScreen === null && this.thePlayer && this.thePlayer.getHealth() <= 0) this.displayGuiScreen(null);
+    if (this.currentScreen === null && this.thePlayer) {
+      if (this.thePlayer.getHealth() <= 0) this.displayGuiScreen(null);
+      else if (this.thePlayer.isPlayerSleeping() && this.theWorld) this.displayGuiScreen(new GuiSleepMP());
+    } else if (this.currentScreen instanceof GuiSleepMP && !this.thePlayer?.isPlayerSleeping()) {
+      this.displayGuiScreen(null);
+    }
     if (this.currentScreen) this.leftClickCounter = 10000;
     if (this.currentScreen) {
       this.currentScreen.handleInput();
