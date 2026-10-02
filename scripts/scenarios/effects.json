@@ -1,6 +1,6 @@
 [
  {
-  "goto": "?dev=1&autostart=1&seed=claude&type=flat&time=6000"
+  "goto": "?dev=1&autostart=1&seed=claude&type=flat&time=6000&hotbar=1"
  },
  {
   "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(3) === 0",
@@ -152,6 +152,18 @@
  },
  {
   "eval": "(() => { const assert = (c, m) => { if (!c) throw new Error(\"assertion failed: \" + m); }; const p = mc.thePlayer, rg = mc.renderGlobal, gs = mc.gameSettings; const old = gs.particleSetting; let n1 = 0, n2 = 0; gs.particleSetting = 2; for (let i = 0; i < 300; i++) if (rg.doSpawnParticle('smoke', p.posX, p.posY, p.posZ + 3, 0, 0, 0)) n2++; gs.particleSetting = 1; for (let i = 0; i < 300; i++) if (rg.doSpawnParticle('smoke', p.posX, p.posY, p.posZ + 3, 0, 0, 0)) n1++; gs.particleSetting = old; assert(n2 === 0, 'minimal spawned ' + n2); assert(n1 > 160 && n1 < 240, 'decreased spawned ' + n1 + ' of 300'); mc.effectRenderer.clearEffects(mc.theWorld); return { decreased: n1, minimal: n2 }; })()"
+ },
+ {
+  "eval": "(() => { const assert = (c, m) => { if (!c) throw new Error(\"assertion failed: \" + m); }; mc.effectRenderer.clearEffects(mc.theWorld); mc.dev.look(0, 20); const p = mc.thePlayer, w = mc.theWorld; const stack = p.inventory.mainInventory.find(Boolean); assert(stack, 'hotbar filled'); const e = w.constructor.itemDropFactory(w, p.posX, p.boundingBox.minY + 0.2, p.posZ + 1.2, stack.copy()); assert(e, 'item entity'); e.delayBeforeCanPickup = 0; e.motionX = e.motionY = e.motionZ = 0; w.spawnEntityInWorld(e); mc.sndManager.debugLog.length = 0; mc.dev.ticks(1); for (let i = 0; i < 4; i++) mc.renderGlobal.doSpawnParticle('footstep', p.posX + (i - 1.5) * 0.4, p.boundingBox.minY + 0.01, p.posZ + 2 + (i % 2) * 0.3, 0, 0, 0); const c = mc.effectRenderer.getLayerCounts(); assert(c[3] >= 5, 'pickup + footsteps on the lit layer: ' + c[3]); assert(mc.sndManager.debugLog.some(ev => ev.name === 'random.pop'), 'pickup pop'); return c; })()"
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "shot": "fx_pickup_footstep.png"
+ },
+ {
+  "eval": "(() => { mc.effectRenderer.clearEffects(mc.theWorld); mc.dev.look(0, 0); return 1; })()"
  },
  {
   "eval": "(() => { const assert = (c, m) => { if (!c) throw new Error(\"assertion failed: \" + m); }; const p = mc.thePlayer, rg = mc.renderGlobal; for (let i = 0; i < 4100; i++) rg.doSpawnParticle('townaura', p.posX, p.posY, p.posZ + 3, 0, 0, 0); const c = mc.effectRenderer.getLayerCounts(); assert(c[0] === 4000, 'layer 0 holds ' + c[0]); mc.effectRenderer.clearEffects(mc.theWorld); return c; })()"
