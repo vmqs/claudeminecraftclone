@@ -109,7 +109,7 @@ export class ModelOcelot extends ModelBase {
       this.ocelotBackRightLeg.rotateAngleX = f(MathHelper.cos(f(a + f(0.3))) * la);
       this.ocelotFrontLeftLeg.rotateAngleX = f(MathHelper.cos(f(f(a + PI_F) + f(0.3))) * la);
       this.ocelotFrontRightLeg.rotateAngleX = f(MathHelper.cos(f(a + PI_F)) * la);
-      this.ocelotTail2.rotateAngleX = f(f(1.7278761) + f(f(f(PI_F / 10) * MathHelper.cos(ls)) * la));
+      this.ocelotTail2.rotateAngleX = f(f(1.7278761) + f(f(f(Math.PI / 10) * MathHelper.cos(ls)) * la));
     } else {
       this.ocelotBackLeftLeg.rotateAngleX = f(MathHelper.cos(a) * la);
       this.ocelotBackRightLeg.rotateAngleX = f(MathHelper.cos(f(a + PI_F)) * la);
