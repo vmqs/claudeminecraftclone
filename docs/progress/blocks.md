@@ -13,7 +13,8 @@ Resume from the first step not marked done. Each step is one or more commits.
 | 7 | Containers: chest, ender chest, furnace, dispenser, dropper, hopper, brewing stand, enchanting table, anvil, beacon, jukebox, note block, spawner, cauldron, flower pot, skull, pistons | done |
 | 8 | Bed, cake, dragon egg, TNT, fire, portal, end portal (+frame); all 158 ids registered, static dump matches vanilla except item classes | done |
 | 9 | Block items registration (multi-texture), pick block, review vs Block.java table; world-state and behaviour dumps vs the 1.5.2 jar (bounds, textures, colours, collision, ray traces, placement, activation, drops, neighbour updates, display ticks) | done |
-| 10 | scripts/scenarios/blocks.json, screenshots, fixes | todo |
+| 10 | scripts/scenarios/blocks.json, screenshots, fixes (all scenario assertions pass) | done |
+| 11 | Survival harvest path: HarvestModifiers (silk touch / fortune hooks), addExhaustion/addStat via optional player methods | done |
 
 ## Verification tooling (scratchpad, not committed)
 
