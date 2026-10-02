@@ -19,6 +19,7 @@ import { Chunk, EmptyChunk } from './Chunk';
 import { EnumSkyBlock, SKY_BLOCK_DEFAULT, type IBlockAccess } from './IBlockAccess';
 import type { IWorld } from './IWorld';
 import type { IWorldAccess } from './IWorldAccess';
+import { BlockEventData } from './BlockEventData';
 import { Explosion } from './Explosion';
 import { SpawnerAnimals } from './SpawnerAnimals';
 import { NextTickListEntry, TickScheduler } from './NextTickListEntry';
@@ -106,6 +107,9 @@ export class World implements IWorld, IBlockAccess {
   private readonly collidingBoundingBoxes: AxisAlignedBB[] = [];
   /** >0 while the world changes itself (see runNaturally). */
   private naturalDepth = 0;
+  /** Block events of this tick and the next (WorldServer.blockEventCache). */
+  private readonly blockEventCache: BlockEventData[][] = [[], []];
+  private blockEventCacheIndex = 0;
   /**
    * Natural mob spawning each tick (doMobSpawning): SpawnerAnimals by default, hostile mobs
    * only above Peaceful, animals every 400 ticks. Replaceable for tests.
@@ -1706,6 +1710,28 @@ export class World implements IWorld, IBlockAccess {
     this.worldInfo.worldTime++;
     this.tickUpdates(false);
     this.runNaturally(() => this.tickBlocksAndAmbiance());
+    this.sendAndApplyBlockEvents();
+  }
+
+  /** WorldServer.addBlockEvent: queues an event for Block.onBlockEventReceived (duplicates dropped). */
+  addBlockEvent(x: number, y: number, z: number, blockId: number, eventId: number, param: number): void {
+    const e = new BlockEventData(x, y, z, blockId, eventId, param);
+    const list = this.blockEventCache[this.blockEventCacheIndex];
+    if (list.some((o) => o.equals(e))) return;
+    list.push(e);
+  }
+
+  /** Delivers queued block events; events added meanwhile run in the same tick. */
+  private sendAndApplyBlockEvents(): void {
+    while (this.blockEventCache[this.blockEventCacheIndex].length > 0) {
+      const i = this.blockEventCacheIndex;
+      this.blockEventCacheIndex ^= 1;
+      for (const e of this.blockEventCache[i]) {
+        const id = this.getBlockId(e.x, e.y, e.z);
+        if (id === e.blockID) Block.blocksList[id]?.onBlockEventReceived(this, e.x, e.y, e.z, e.eventID, e.eventParameter);
+      }
+      this.blockEventCache[i].length = 0;
+    }
   }
 
   /** WorldClient.doVoidFogParticles: random display ticks around the player. */
