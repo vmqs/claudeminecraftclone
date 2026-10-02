@@ -17,6 +17,8 @@ import { GuiIngame } from '../gui/GuiIngame';
 import { GuiIngameMenu } from '../gui/GuiIngameMenu';
 import { GuiMainMenu } from '../gui/GuiMainMenu';
 import { GuiScreen } from '../gui/GuiScreen';
+import { GuiInventory } from '../gui/inventory/GuiInventory';
+import { SlotArmor } from '../gui/inventory/SlotArmor';
 import { LoadingScreenRenderer } from '../gui/LoadingScreenRenderer';
 import { ScaledResolution } from '../gui/ScaledResolution';
 import { Item } from '../item/Item';
@@ -164,6 +166,7 @@ export class Minecraft implements SettingsListener {
     });
     this.renderEngine.textureMapItems.registrars.push((reg) => {
       for (const it of Item.itemsList) if (it && it.getSpriteNumber() === 1) it.registerIcons(reg);
+      SlotArmor.registerIcons(reg);
     });
     await this.renderEngine.refreshTextureMaps();
     RenderBlocks.missingIcon = this.renderEngine.textureMapBlocks.getMissingIcon();
@@ -437,7 +440,7 @@ export class Minecraft implements SettingsListener {
   private handleKeyBindings(): void {
     const gs = this.gameSettings;
     const p = this.thePlayer!;
-    while (gs.keyBindInventory.isPressed());
+    while (gs.keyBindInventory.isPressed()) this.displayGuiScreen(new GuiInventory(p));
     while (gs.keyBindDrop.isPressed()) p.dropOneItem(GuiScreen.isCtrlKeyDown());
     while (gs.keyBindChat.isPressed());
     if (this.currentScreen === null) gs.keyBindCommand.isPressed();

@@ -125,6 +125,10 @@ export class ItemStack {
     return this.getItem().isItemTool(this) && !this.isItemEnchanted();
   }
 
+  onCrafting(world: IWorld, player: EntityPlayer, _amount: number): void {
+    this.getItem().onCreated(this, world, player);
+  }
+
   copy(): ItemStack {
     const s = new ItemStack(this.itemID, this.stackSize, this.itemDamage);
     if (this.stackTagCompound) s.stackTagCompound = structuredClone(this.stackTagCompound);

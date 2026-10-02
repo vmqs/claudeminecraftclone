@@ -1,7 +1,11 @@
 import type { Block } from '../block/Block';
 import { Material } from '../block/Material';
 import { MathHelper } from '../core/MathHelper';
+import type { Container } from '../gui/inventory/Container';
+import { ContainerPlayer } from '../gui/inventory/ContainerPlayer';
+import type { IInventory } from '../gui/inventory/IInventory';
 import type { ItemStack } from '../item/ItemStack';
+import type { TileEntity } from '../world/tileentity/TileEntity';
 import type { World } from '../world/World';
 import { type DamageSource, EntityDamageSource } from './DamageSource';
 import type { Entity } from './Entity';
@@ -14,6 +18,9 @@ const f = Math.fround;
 /** A player: inventory, capabilities (creative flying), camera bob and eye height. */
 export abstract class EntityPlayer extends EntityLiving {
   inventory: InventoryPlayer;
+  /** The player's own inventory window; openContainer is it whenever no other window is open. */
+  inventoryContainer: Container;
+  openContainer: Container;
   protected flyToggleTimer = 0;
   prevCameraYaw = 0;
   cameraYaw = 0;
@@ -38,6 +45,8 @@ export abstract class EntityPlayer extends EntityLiving {
   constructor(world: World) {
     super(world);
     this.inventory = new InventoryPlayer(this);
+    this.inventoryContainer = new ContainerPlayer(this.inventory, !world.isRemote, this);
+    this.openContainer = this.inventoryContainer;
     this.yOffset = f(1.62);
     const sp = world.getSpawnPoint();
     this.setLocationAndAngles(sp.x + 0.5, sp.y + 1, sp.z + 0.5, 0, 0);
@@ -82,6 +91,10 @@ export abstract class EntityPlayer extends EntityLiving {
       else if (--this.itemInUseCount === 0) this.clearItemInUse();
     }
     super.onUpdate();
+    if (!this.worldObj.isRemote && !this.openContainer.canInteractWith(this)) {
+      this.closeScreen();
+      this.openContainer = this.inventoryContainer;
+    }
     if (this.isBurning() && this.capabilities.disableDamage) this.extinguish();
 
     this.prevChasingPosX = this.chasingPosX;
@@ -341,6 +354,32 @@ export abstract class EntityPlayer extends EntityLiving {
   }
 
   sendPlayerAbilities(): void {}
+
+  /** Closes any container window (EntityPlayerSP also closes the screen). */
+  closeScreen(): void {
+    this.openContainer = this.inventoryContainer;
+  }
+
+  override setDead(): void {
+    super.setDead();
+    this.inventoryContainer.onCraftGuiClosed(this);
+    this.openContainer.onCraftGuiClosed(this);
+  }
+
+  // Block and entity GUIs. Blocks call these; EntityPlayerSP opens the screens that exist.
+  displayGUIChest(_inv: IInventory): void {}
+  displayGUIHopper(_hopper: IInventory): void {}
+  displayGUIHopperMinecart(_cart: IInventory): void {}
+  displayGUIEnchantment(_x: number, _y: number, _z: number, _customName: string | null): void {}
+  displayGUIAnvil(_x: number, _y: number, _z: number): void {}
+  displayGUIWorkbench(_x: number, _y: number, _z: number): void {}
+  displayGUIFurnace(_furnace: IInventory): void {}
+  displayGUIDispenser(_dispenser: IInventory): void {}
+  displayGUIEditSign(_te: TileEntity): void {}
+  displayGUIBrewingStand(_stand: IInventory): void {}
+  displayGUIBeacon(_beacon: IInventory): void {}
+  displayGUIMerchant(_merchant: object, _customName: string | null): void {}
+  displayGUIBook(_stack: ItemStack): void {}
 
   addChatMessage(_msg: string): void {}
 

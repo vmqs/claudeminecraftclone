@@ -132,6 +132,14 @@ export class PlayerControllerCreative {
     p.stopUsingItem();
   }
 
+  /** A click in a container window (PlayerControllerMP.windowClick); the result is the clicked stack. */
+  windowClick(_windowId: number, slotId: number, button: number, mode: number, p: EntityPlayer): ItemStack | null {
+    return p.openContainer.slotClick(slotId, button, mode, p);
+  }
+
+  /** The creative inventory sets slots directly; the original also told the server here. */
+  sendSlotPacket(_stack: ItemStack | null, _slotId: number): void {}
+
   isNotCreative(): boolean {
     return false;
   }

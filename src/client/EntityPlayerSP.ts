@@ -1,6 +1,10 @@
 import { MathHelper } from '../core/MathHelper';
 import type { Entity } from '../entity/Entity';
 import { EntityPlayer } from '../entity/EntityPlayer';
+import type { GuiScreen } from '../gui/GuiScreen';
+import { GuiChest } from '../gui/inventory/GuiChest';
+import { GuiCrafting } from '../gui/inventory/GuiCrafting';
+import type { IInventory } from '../gui/inventory/IInventory';
 import { EntityCrit2FX } from '../render/particle/EntityCrit2FX';
 import type { EntityFX } from '../render/particle/EntityFX';
 import { EntityPickupFX } from '../render/particle/EntityPickupFX';
@@ -11,7 +15,7 @@ const f = Math.fround;
 
 /** What the local player needs from the game client. */
 export interface PlayerClient {
-  displayGuiScreen(screen: null): void;
+  displayGuiScreen(screen: GuiScreen | null): void;
   playSoundFX(name: string, volume: number, pitch: number): void;
   readonly effectRenderer: { addEffect(fx: EntityFX): void };
 }
@@ -58,6 +62,19 @@ export class EntityPlayerSP extends EntityPlayer {
 
   override onEnchantmentCritical(target: Entity): void {
     this.mc.effectRenderer.addEffect(new EntityCrit2FX(this.worldObj, target, 'magicCrit'));
+  }
+
+  override closeScreen(): void {
+    super.closeScreen();
+    this.mc.displayGuiScreen(null);
+  }
+
+  override displayGUIChest(inv: IInventory): void {
+    this.mc.displayGuiScreen(new GuiChest(this.inventory, inv));
+  }
+
+  override displayGUIWorkbench(x: number, y: number, z: number): void {
+    this.mc.displayGuiScreen(new GuiCrafting(this.inventory, this.worldObj, x, y, z));
   }
 
   override onItemPickup(item: Entity, _count: number): void {

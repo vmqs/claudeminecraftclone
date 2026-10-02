@@ -183,6 +183,12 @@ export class Item {
     return 0xffffff;
   }
   onUpdate(_stack: ItemStack, _world: IWorld, _e: Entity, _slot: number, _held: boolean): void {}
+  /** Called when the stack is taken out of a crafting or smelting result slot. */
+  onCreated(_stack: ItemStack, _world: IWorld, _player: EntityPlayer): void {}
+  /** False keeps the container item (bucket, bottle) in the grid instead of the inventory. */
+  doesContainerItemLeaveCraftingGrid(_stack: ItemStack): boolean {
+    return true;
+  }
   isMap(): boolean {
     return false;
   }

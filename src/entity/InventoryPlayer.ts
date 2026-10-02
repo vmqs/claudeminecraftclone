@@ -1,11 +1,12 @@
 import type { Block } from '../block/Block';
+import type { IInventory } from '../gui/inventory/IInventory';
 import { Item } from '../item/Item';
 import { ItemStack } from '../item/ItemStack';
 import type { Entity } from './Entity';
 import type { EntityPlayer } from './EntityPlayer';
 
 /** The player's 36 main slots (0-8 = hotbar) plus 4 armour slots. */
-export class InventoryPlayer {
+export class InventoryPlayer implements IInventory {
   mainInventory: (ItemStack | null)[] = new Array(36).fill(null);
   armorInventory: (ItemStack | null)[] = new Array(4).fill(null);
   currentItem = 0;
@@ -225,8 +226,20 @@ export class InventoryPlayer {
     return 'container.inventory';
   }
 
+  isInvNameLocalized(): boolean {
+    return false;
+  }
+
   getInventoryStackLimit(): number {
     return 64;
+  }
+
+  openChest(): void {}
+
+  closeChest(): void {}
+
+  isStackValidForSlot(_slot: number, _stack: ItemStack): boolean {
+    return true;
   }
 
   getDamageVsEntity(e: Entity): number {
