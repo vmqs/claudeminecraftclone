@@ -23,7 +23,7 @@
   "eval": "mc.dev.hotbar([[54, 0], [130, 0], [53, 0], [85, 0], [139, 0], [107, 0], [145, 0], [138, 0], [122, 0]]); mc.dev.select(0); mc.dev.ticks(130); 'ok'"
  },
  {
-  "eval": "(() => { const w = mc.theWorld; const ps = [[3, 4, 57, 33, 9], [3, 5, 57, 34, 1], [6, 4, 58, 29, 10], [6, 4, 57, 34, 10], [10, 4, 88, 29, 13], [11, 4, 88, 34, 13]]; for (const [x, y, z, id, m] of ps) { if (id === 34) { if (w.getBlockId(x, y, z) !== 34) w.setBlock(x, y, z, 34, m, 2); } else w.setBlockMetadataWithNotify(x, y, z, m, 2); } return ps.map(([x, y, z]) => w.getBlockId(x, y, z) + ':' + w.getBlockMetadata(x, y, z)).join(' '); })()"
+  "eval": "(() => { const w = mc.theWorld; const ps = [[3, 4, 57, 33, 9], [3, 5, 57, 34, 1], [6, 4, 58, 29, 10], [6, 4, 57, 34, 10], [6, 4, 56, 42, 0], [10, 4, 88, 29, 13], [11, 4, 88, 34, 13]]; for (const [x, y, z, id, m] of ps) { if (id === 34 || id === 42) { if (w.getBlockId(x, y, z) !== id) w.setBlock(x, y, z, id, m, 2); } else w.setBlockMetadataWithNotify(x, y, z, m, 2); } return ps.map(([x, y, z]) => w.getBlockId(x, y, z) + ':' + w.getBlockMetadata(x, y, z)).join(' '); })()"
  },
  {
   "eval": "(() => { const w = mc.theWorld; const b = w.getBlockTileEntity(7, 5, 55); const s = JSON.stringify({ te: b && b.constructor.name, active: b && b.isBeaconActive, levels: b && b.levels, time: w.getTotalWorldTime(), listed: w.loadedTileEntityList.includes(b), sky: w.canBlockSeeTheSky(7, 6, 55), chunk: w.chunkExists(0, 3) }); if (b && !b.isBeaconActive) b.updateState(); return s + ' -> ' + (b && b.isBeaconActive); })()"
