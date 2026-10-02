@@ -4,6 +4,9 @@ import type { World } from '../world/World';
 import { type DamageSource, EntityDamageSource } from './DamageSource';
 import type { Entity } from './Entity';
 import { EntityCreature } from './EntityCreature';
+import { applyThorns, EnchantmentHooks } from './EnchantmentHooks';
+import type { EntityLiving } from './EntityLiving';
+import { PotionId } from './PotionEffects';
 
 const f = Math.fround;
 
@@ -46,10 +49,35 @@ export abstract class EntityMob extends EntityCreature {
     return true;
   }
 
-  /** Melee: getAttackStrength() as mob damage. */
+  /**
+   * Melee: getAttackStrength() plus Strength (3 << amplifier) minus Weakness (2 << amplifier)
+   * and the held weapon's enchantments (sharpness/smite/bane, knockback, fire aspect), then
+   * the target's thorns.
+   */
   override attackEntityAsMob(target: Entity): boolean {
-    const damage = this.getAttackStrength(target);
-    return target.attackEntityFrom(EntityDamageSource.causeMobDamage(this), damage);
+    let damage = this.getAttackStrength(target);
+    const strength = this.getActivePotionEffect(PotionId.damageBoost);
+    if (strength) damage += 3 << strength.getAmplifier();
+    const weakness = this.getActivePotionEffect(PotionId.weakness);
+    if (weakness) damage -= 2 << weakness.getAmplifier();
+    let knockback = 0;
+    if (target.isLivingEntity) {
+      damage += EnchantmentHooks.modifierLiving?.(this, target as EntityLiving) ?? 0;
+      knockback += EnchantmentHooks.knockback?.(this, target as EntityLiving) ?? 0;
+    }
+    const hit = target.attackEntityFrom(EntityDamageSource.causeMobDamage(this), damage);
+    if (hit) {
+      if (knockback > 0) {
+        const r = f(f(this.rotationYaw * f(Math.PI)) / 180);
+        target.addVelocity(f(f(-MathHelper.sin(r) * knockback) * f(0.5)), 0.1, f(f(MathHelper.cos(r) * knockback) * f(0.5)));
+        this.motionX *= 0.6;
+        this.motionZ *= 0.6;
+      }
+      const fire = EnchantmentHooks.fireAspect?.(this) ?? 0;
+      if (fire > 0) target.setFire(fire * 4);
+      if (target.isLivingEntity) applyThorns(this, target as EntityLiving, this.rand);
+    }
+    return hit;
   }
 
   /** Old AI melee: within 2 blocks and overlapping vertically, every 20 ticks. */
