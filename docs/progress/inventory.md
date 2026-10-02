@@ -14,6 +14,13 @@ Branch w2/inventory from 96e8639. Commit after each step.
    scenario ticked the furnace outside the world tick and placed blocks out of reach -> scenario rewritten.
 7. [x] Brewing stand / beacon rules were never installed: src/gui/inventory/ContainerBindings.ts (imported by main.ts)
 8. [x] Third person: a player with a cast fishing line holds a stick (RenderBiped.renderHeldItem)
-9. [ ] Browser run 3 (last allowed): held items at yaw/pitch 0, bow/eat/block/glint, third person,
-   all 12 tabs, F3+H tooltip, every container within reach, chest lid + sounds, ender chest sharing,
-   shift-click crafting, hotbar keys, Q / Ctrl+Q, pick block, dropped item stacks
+9. [x] Browser run 3 (last allowed; shots in scratchpad/shots-inventory3): held stone/sword/torch/log match
+   claude_held_* / claude_hotbar_held_stone pixel for pixel on the item (face brightness identical); third
+   person front matches claude_thirdperson_front; tabs 1-11 + tooltips within 1.4-2.9 mean abs diff of the
+   references (left: chest/trapped/ender chest, fence, anvil item icons = renderblocks' block-as-item types,
+   glint timing); all scripted checks passed (creative clicks, destroy slot, search, furnace smelt + lit swap,
+   chest lid + sounds, ender chest shared, shift-click crafting 3 logs -> 12 planks, enchant offers, anvil
+   repair, brewing 400 ticks -> awkward, hotbar keys/wheel, Q, Ctrl+Q, pick block lit furnace -> furnace).
+10. [x] Run 3 showed the Survival Inventory tab without its background: the texture had not finished
+   loading (asynchronous here, synchronous in 1.5.2). Container/creative textures are now warmed in the
+   background at start-up (src/gui/inventory/ContainerTextures.ts, one line in Minecraft.startGame).

@@ -26,6 +26,7 @@ import { GuiMainMenu } from '../gui/GuiMainMenu';
 import { GuiChat } from '../gui/GuiChat';
 import { GuiScreen } from '../gui/GuiScreen';
 import { GuiInventory } from '../gui/inventory/GuiInventory';
+import { CONTAINER_TEXTURES } from '../gui/inventory/ContainerTextures';
 import { SlotArmor } from '../gui/inventory/SlotArmor';
 import { LoadingScreenRenderer } from '../gui/LoadingScreenRenderer';
 import { ScaledResolution } from '../gui/ScaledResolution';
@@ -225,6 +226,7 @@ export class Minecraft implements SettingsListener {
       '/mob/char.png',
       ...[0, 1, 2, 3, 4, 5].map((i) => `/title/bg/panorama${i}.png`),
     ]);
+    void this.renderEngine.preload([...CONTAINER_TEXTURES]);
 
     this.renderGlobal = new RenderGlobal(this);
     this.renderGlobal.initMeshers();
