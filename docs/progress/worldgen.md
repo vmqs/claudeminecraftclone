@@ -24,8 +24,12 @@ Branch `w1/worldgen`. Each step is committed; this file lists what is done and w
 - Light during population (`GenWorld.updateLightByType`, gated on loaded chunks like the
   original): a flower under the canopy in the "claude" open-south reference view was missing
   with column-only sky light and is now placed.
-- Visual comparison (scenario `worldgen`): spawn, open-south, cave and underwater views of
-  "claude" match the reference geometry block for block; see the report for 123456789.
+- Visual comparison (scenario `worldgen`, against the 854x480 Faithful references): the spawn,
+  open-south, cave and underwater views of "claude" and the spawn, open-south and cave views of
+  123456789 match block for block, including every flower and grass tuft. Remaining pixel
+  differences are clouds, flowing water in the 123456789 ravine (fluid ticks) and shaded areas
+  under canopies rendering about 15% darker than the reference; the client's light there equals
+  the worker's computed light, so that needs a vanilla light dump to settle.
 
 ## Next
 - Cascading population (a feature reading an unloaded chunk loads and populates it in the

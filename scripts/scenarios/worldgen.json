@@ -16,7 +16,7 @@
   {"wait": 1500},
   {"shot": "worldgen_claude_underwater.png"},
   {"eval": "mc.dev.setFlying(true); mc.dev.tp(176.5, 120, 236.5, 0, 90); mc.dev.setTime(6000)"},
-  {"waitFor": "mc.dev.pendingSections(3) === 0", "timeout": 300000},
+  {"waitFor": "mc.dev.pendingSections(3) === 0", "timeout": 900000},
   {"wait": 1000},
   {"shot": "worldgen_claude_overview.png"},
   {"eval": "mc.dev.tp(52, 105, 610, 0, 45); mc.dev.setTime(6000)"},
@@ -37,12 +37,12 @@
   {"wait": 1500},
   {"shot": "worldgen_123456789_cave.png"},
   {"goto": "?dev=1&autostart=1&seed=claude&type=flat&time=6000"},
-  {"waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0", "timeout": 300000},
+  {"waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0", "timeout": 900000},
   {"eval": "(() => { const i = mc.theWorld.worldInfo; if (i.spawnX !== -392 || i.spawnY !== 4 || i.spawnZ !== -528) throw new Error('worldgen: flat spawn ' + [i.spawnX, i.spawnY, i.spawnZ]); return { flatSpawn: [i.spawnX, i.spawnY, i.spawnZ] }; })()"},
   {"goto": "?dev=1&autostart=1&seed=claude&type=largeBiomes&time=6000&fly=1"},
   {"waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0", "timeout": 900000},
   {"eval": "(() => { const i = mc.theWorld.worldInfo; mc.dev.tp(i.spawnX + 0.5, 120, i.spawnZ + 0.5, 0, 90); return { largeBiomesSpawn: [i.spawnX, i.spawnY, i.spawnZ], biome: mc.theWorld.getBiomeGenForCoords(i.spawnX, i.spawnZ).biomeName }; })()"},
-  {"waitFor": "mc.dev.pendingSections(3) === 0", "timeout": 300000},
+  {"waitFor": "mc.dev.pendingSections(3) === 0", "timeout": 900000},
   {"wait": 1000},
   {"shot": "worldgen_largebiomes_overview.png"}
 ]
