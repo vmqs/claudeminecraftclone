@@ -1,8 +1,7 @@
-import type { InventoryCrafting } from '../../gui/inventory/InventoryCrafting';
-import type { World } from '../../world/World';
+import type { IWorld } from '../../world/IWorld';
 import { Item } from '../Item';
 import { ItemStack } from '../ItemStack';
-import { type IRecipe, WILDCARD_DAMAGE } from './IRecipe';
+import { type CraftingGrid, type IRecipe, WILDCARD_DAMAGE } from './IRecipe';
 import { ShapedRecipes } from './ShapedRecipes';
 import { ShapelessRecipes } from './ShapelessRecipes';
 
@@ -21,11 +20,18 @@ function toStack(ing: Ingredient, blockDamage: number): ItemStack {
  * shaped before shapeless, bigger recipes first, otherwise registration order.
  */
 export class CraftingManager {
-  private static readonly instance = new CraftingManager();
+  private static instance: CraftingManager | null = null;
+  /** Installs the 1.5.2 recipe list into a new manager (set by src/item/crafting/Recipes.ts). */
+  static vanillaRecipes: ((m: CraftingManager) => void) | null = null;
   private readonly recipes: IRecipe[] = [];
   private sorted = true;
 
+  /** The shared manager; the vanilla recipes are registered on first use, like the original constructor. */
   static getInstance(): CraftingManager {
+    if (!CraftingManager.instance) {
+      CraftingManager.instance = new CraftingManager();
+      CraftingManager.vanillaRecipes?.(CraftingManager.instance);
+    }
     return CraftingManager.instance;
   }
 
@@ -47,8 +53,10 @@ export class CraftingManager {
   }
 
   /** Adds a shapeless recipe; blocks here match damage 0 only, as in the original. */
-  addShapelessRecipe(output: ItemStack, ...ingredients: Ingredient[]): void {
-    this.addRecipeObject(new ShapelessRecipes(output, ingredients.map((i) => toStack(i, 0))));
+  addShapelessRecipe(output: ItemStack, ...ingredients: Ingredient[]): ShapelessRecipes {
+    const r = new ShapelessRecipes(output, ingredients.map((i) => toStack(i, 0)));
+    this.addRecipeObject(r);
+    return r;
   }
 
   /** Adds a special recipe (armour dyeing, map cloning, fireworks). */
@@ -58,7 +66,7 @@ export class CraftingManager {
   }
 
   /** The result for the grid: repairing two damaged tools of the same kind, or the first match. */
-  findMatchingRecipe(grid: InventoryCrafting, world: World | null): ItemStack | null {
+  findMatchingRecipe(grid: CraftingGrid, world: IWorld | null): ItemStack | null {
     let count = 0;
     let first: ItemStack | null = null;
     let second: ItemStack | null = null;

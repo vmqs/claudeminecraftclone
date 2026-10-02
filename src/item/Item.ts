@@ -264,7 +264,8 @@ export class Item {
   getIconFromDamageForRenderPass(damage: number, _pass: number): Icon | null {
     return this.getIconFromDamage(damage);
   }
-  getSubItems(id: number, _tab: CreativeTabs, out: ItemStack[]): void {
+  /** The stacks this item shows in creative tab `tab` (null for the search tab). */
+  getSubItems(id: number, _tab: CreativeTabs | null, out: ItemStack[]): void {
     out.push(new ItemStack(id, 1, 0));
   }
   getCreativeTab(): CreativeTabs | null {
