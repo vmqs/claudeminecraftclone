@@ -111,6 +111,11 @@ export class ItemStack {
     this.getItem().hitEntity(this, target, player);
   }
 
+  /** Right click on a living entity with this stack (Item.itemInteractionForEntity). */
+  interactWith(e: EntityLiving): boolean {
+    return this.getItem().itemInteractionForEntity(this, e);
+  }
+
   getDamageVsEntity(e: Entity): number {
     return this.getItem().getDamageVsEntity(e);
   }

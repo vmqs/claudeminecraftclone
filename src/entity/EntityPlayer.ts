@@ -496,6 +496,17 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
 
   /** Entities this player collided with (Entity.onCollideWithPlayer) are handled by them. */
   interactWith(e: Entity): boolean {
-    return e.interact(this);
+    if (e.interact(this)) return true;
+    // Then the held item acts on a living entity (dye on a sheep, saddle on a pig); Creative
+    // uses a copy so the stack is never used up.
+    let held = this.getCurrentEquippedItem();
+    if (held && e.isLivingEntity) {
+      if (this.capabilities.isCreativeMode) held = held.copy();
+      if (held.interactWith(e as EntityLiving)) {
+        if (held.stackSize <= 0 && !this.capabilities.isCreativeMode) this.destroyCurrentEquippedItem();
+        return true;
+      }
+    }
+    return false;
   }
 }
