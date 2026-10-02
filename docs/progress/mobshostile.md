@@ -14,7 +14,7 @@ Plan (tick when committed):
 - [x] Ghast, Blaze
 - [x] Registration (src/entity/HostileMobs.ts, src/render/entity/HostileMobRenderers.ts)
 - [x] Spawner cage spin (client delay)
-- [ ] Node test tests/mobshostile.test.ts all green (3 survival-target failures at 539367d)
+- [x] Node test tests/mobshostile.test.ts all green
 - [ ] Review vs decompiled source (natural spawning rules, despawn, drops, XP)
 - [ ] Scenario scripts/scenarios/mobshostile.json + screenshot comparison with ref mob shots
 

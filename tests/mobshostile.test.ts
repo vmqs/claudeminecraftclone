@@ -101,7 +101,11 @@ for (const creative of [true, false]) {
   const p = addPlayer(w, creative, 0.5, 0.5);
   const zombie = spawn<EntityLiving>(w, 'Zombie', 6.5, 0.5, false);
   const skeleton = spawn<EntityLiving>(w, 'Skeleton', -6.5, 0.5);
-  const creeper = spawn<EntityCreeper>(w, 'Creeper', 0.5, 2.5, false);
+  // The creeper gets a world of its own: its blast would kill a survival player before the
+  // skeleton's first arrow.
+  const cw = makeWorld();
+  const cp = addPlayer(cw, creative, 0.5, 0.5);
+  const creeper = spawn<EntityCreeper>(cw, 'Creeper', 0.5, 2.5, false);
   const ghast = spawn<EntityLiving>(w, 'Ghast', 0.5, -12.5, false);
   ghast.setPosition(0.5, 14, -12.5);
   const witch = spawn<EntityLiving>(w, 'Witch', 0.5, 8.5, false);
@@ -111,11 +115,15 @@ for (const creative of [true, false]) {
   let potions = 0;
   for (let i = 0; i < 160; i++) {
     tick(w, 1);
+    tick(cw, 1);
+    cp.setLocationAndAngles(0.5, 5, 0.5, 0, 0);
     if (creeper.getCreeperState() > 0) creeperSwelled = true;
     arrows = Math.max(arrows, w.loadedEntityList.filter((e) => EntityList.getEntityString(e) === 'Arrow').length);
     fireballs = Math.max(fireballs, w.loadedEntityList.filter((e) => EntityList.getEntityString(e) === 'Fireball').length);
     potions = Math.max(potions, w.loadedEntityList.filter((e) => EntityList.getEntityString(e) === 'ThrownPotion').length);
     p.setLocationAndAngles(0.5, 5, 0.5, 0, 0);
+    // Keep the survival target alive so every shooter gets its turn.
+    if (!creative) p.setEntityHealth(20);
   }
   if (creative) {
     check('zombie ignores creative', zombie.getAttackTarget() === null);
