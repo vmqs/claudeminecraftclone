@@ -553,7 +553,10 @@ export class RenderGlobal implements IWorldAccess {
     const ter = TileEntityRenderer.instance;
     for (const te of w.loadedTileEntityList) {
       if (te.isInvalid() || !ter.hasSpecialRenderer(te)) continue;
-      if (!frustum.isBoxInFrustum(te.xCoord - 1, te.yCoord - 1, te.zCoord - 1, te.xCoord + 2, te.yCoord + 2, te.zCoord + 2)) continue;
+      // 1.5.2 draws every tile entity of the built sections; the box test is only a shortcut
+      // for the ones drawn within their block, so far-reaching ones (beacon beams) skip it.
+      const farReaching = te.getMaxRenderDistanceSquared() > 4096;
+      if (!farReaching && !frustum.isBoxInFrustum(te.xCoord - 1, te.yCoord - 1, te.zCoord - 1, te.xCoord + 2, te.yCoord + 2, te.zCoord + 2)) continue;
       ter.renderTileEntity(te, pt);
     }
     this.mc.entityRenderer.disableLightmap(pt);

@@ -23,10 +23,16 @@
   "eval": "mc.dev.hotbar([[54, 0], [130, 0], [53, 0], [85, 0], [139, 0], [107, 0], [145, 0], [138, 0], [122, 0]]); mc.dev.select(0); mc.dev.ticks(130); 'ok'"
  },
  {
+  "eval": "(() => { const w = mc.theWorld; const ps = [[3, 4, 57, 33, 9], [3, 5, 57, 34, 1], [6, 4, 58, 29, 10], [6, 4, 57, 34, 10], [10, 4, 88, 29, 13], [11, 4, 88, 34, 13]]; for (const [x, y, z, id, m] of ps) { if (id === 34) { if (w.getBlockId(x, y, z) !== 34) w.setBlock(x, y, z, 34, m, 2); } else w.setBlockMetadataWithNotify(x, y, z, m, 2); } return ps.map(([x, y, z]) => w.getBlockId(x, y, z) + ':' + w.getBlockMetadata(x, y, z)).join(' '); })()"
+ },
+ {
+  "eval": "(() => { const w = mc.theWorld; const b = w.getBlockTileEntity(7, 5, 55); const s = JSON.stringify({ te: b && b.constructor.name, active: b && b.isBeaconActive, levels: b && b.levels, time: w.getTotalWorldTime(), listed: w.loadedTileEntityList.includes(b), sky: w.canBlockSeeTheSky(7, 6, 55), chunk: w.chunkExists(0, 3) }); if (b && !b.isBeaconActive) b.updateState(); return s + ' -> ' + (b && b.isBeaconActive); })()"
+ },
+ {
   "eval": "[[1,4,8],[6,4,8],[9,4,8],[1,4,15],[3,4,15],[3,4,37],[6,4,58]].map(([x,y,z]) => mc.theWorld.getBlockId(x,y,z) + ':' + mc.theWorld.getBlockMetadata(x,y,z)).join(' ')"
  },
  {
-  "eval": "mc.dev.tp(7.5, 6, 4, 0, 30); mc.dev.setFlying(true)"
+  "eval": "mc.dev.sky.unfreeze(); mc.dev.tp(7.5, 6, 4, 0, 30); mc.dev.setFlying(true)"
  },
  {
   "wait": 1500
@@ -45,7 +51,7 @@
   "shot": "rb_redstone.png"
  },
  {
-  "eval": "mc.dev.tp(7.5, 6, 24, 0, 30); mc.dev.setFlying(true)"
+  "eval": "mc.dev.sky.unfreeze(); mc.dev.tp(7.5, 6, 24, 0, 30); mc.dev.setFlying(true)"
  },
  {
   "wait": 1500
@@ -64,7 +70,7 @@
   "shot": "rb_structures.png"
  },
  {
-  "eval": "mc.dev.tp(7.5, 6, 44, 0, 30); mc.dev.setFlying(true)"
+  "eval": "mc.dev.sky.unfreeze(); mc.dev.tp(7.5, 6, 44, 0, 30); mc.dev.setFlying(true)"
  },
  {
   "wait": 1500
@@ -83,7 +89,7 @@
   "shot": "rb_plants.png"
  },
  {
-  "eval": "mc.dev.tp(6.5, 6, 64, 0, 30); mc.dev.setFlying(true)"
+  "eval": "mc.dev.sky.unfreeze(); mc.dev.tp(6.5, 6, 64, 0, 30); mc.dev.setFlying(true)"
  },
  {
   "wait": 1500
@@ -102,7 +108,7 @@
   "shot": "rb_tileentities.png"
  },
  {
-  "eval": "mc.dev.tp(7.5, 9, 78, 0, 35); mc.dev.setFlying(true)"
+  "eval": "mc.dev.sky.unfreeze(); mc.dev.tp(7.5, 9, 78, 0, 35); mc.dev.setFlying(true)"
  },
  {
   "wait": 1500
@@ -121,7 +127,7 @@
   "shot": "rb_fluids.png"
  },
  {
-  "eval": "mc.dev.tp(6.5, 6, 85, 0, 50); mc.dev.setFlying(true)"
+  "eval": "mc.dev.sky.unfreeze(); mc.dev.tp(6.5, 6, 85, 0, 50); mc.dev.setFlying(true)"
  },
  {
   "wait": 1500
@@ -131,7 +137,7 @@
   "timeout": 600000
  },
  {
-  "eval": "((bt) => { if (bt) for (let i = 0; i < 40; i++) bt.getBeamStrength(); })(mc.theWorld.getBlockTileEntity(7, 5, 55)); mc.dev.look(0, 50); mc.dev.sky.pin(6000)"
+  "eval": "if (!window.__realNow) window.__realNow = Date.now; Date.now = () => 1500000000000; ((bt) => { if (bt) for (let i = 0; i < 40; i++) bt.getBeamStrength(); })(mc.theWorld.getBlockTileEntity(7, 5, 55)); mc.dev.look(0, 50); mc.dev.sky.pin(6000)"
  },
  {
   "wait": 1500
@@ -140,7 +146,7 @@
   "shot": "rb_portal.png"
  },
  {
-  "eval": "mc.dev.tp(7.5, 5, 64, 0, 10); mc.dev.setFlying(true)"
+  "eval": "if (window.__realNow) Date.now = window.__realNow; mc.dev.sky.unfreeze(); mc.dev.tp(7.5, 5, 64, 0, 10); mc.dev.setFlying(true)"
  },
  {
   "wait": 1000
