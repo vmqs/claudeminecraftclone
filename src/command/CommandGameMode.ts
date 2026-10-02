@@ -41,12 +41,26 @@ export class CommandGameMode extends CommandBase {
    * the client answers with "Your game mode has been updated".
    */
   static setGameType(player: EntityPlayer, mode: number): void {
+    CommandGameMode.applyGameType(player, mode);
+    player.addChatMessage('gameMode.changed');
+  }
+
+  /**
+   * EnumGameType.configurePlayerCapabilities without the chat line: a player joining or
+   * respawning in a world gets its mode this way (ServerConfigurationManager.setPlayerGameTypeBasedOnOther).
+   */
+  static applyGameType(player: EntityPlayer, mode: number): void {
     const caps = player.capabilities;
     caps.allowFlying = caps.isCreativeMode = caps.disableDamage = mode === 1;
     caps.allowEdit = mode !== 2;
     if (mode !== 1) caps.isFlying = false;
     CommandGameMode.gameTypeListener?.(player, mode);
-    player.addChatMessage('gameMode.changed');
+  }
+
+  /** The player's current EnumGameType id, read back from its capabilities. */
+  static gameTypeOf(player: EntityPlayer): number {
+    const caps = player.capabilities;
+    return caps.isCreativeMode ? 1 : caps.allowEdit ? 0 : 2;
   }
 
   protected getGameModeFromCommand(sender: ICommandSender, s: string): number {

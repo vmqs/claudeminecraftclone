@@ -1,3 +1,4 @@
+import { CommandGameMode } from '../../command/CommandGameMode';
 import type { EntityPlayer } from '../../entity/EntityPlayer';
 import type { ItemStack } from '../../item/ItemStack';
 import type { ChunkProviderClient } from '../ChunkProviderClient';
@@ -15,6 +16,20 @@ export interface PlayerSnapshot {
   currentItem: number;
   isFlying: boolean;
   dead: boolean;
+  /** EnumGameType id (playerGameType). */
+  gameType: number;
+  health: number;
+  air: number;
+  experience: number;
+  experienceLevel: number;
+  experienceTotal: number;
+  /** The player's FoodStats object, when the player class has one (the survival port). */
+  foodStats: unknown;
+}
+
+/** Player state that the survival port may add; copied when present. */
+interface SurvivalFields {
+  foodStats?: unknown;
 }
 
 /** One world of the session (a save folder). */
@@ -113,6 +128,13 @@ export class SaveFormatMemory {
         currentItem: player.inventory.currentItem,
         isFlying: player.capabilities.isFlying,
         dead: player.getHealth() <= 0,
+        gameType: CommandGameMode.gameTypeOf(player),
+        health: player.getHealth(),
+        air: player.getAir(),
+        experience: player.experience,
+        experienceLevel: player.experienceLevel,
+        experienceTotal: player.experienceTotal,
+        foodStats: (player as unknown as SurvivalFields).foodStats,
       };
       world.removeEntity(player);
       if (player.addedToChunk && world.chunkExists(player.chunkCoordX, player.chunkCoordZ)) world.getChunkFromChunkCoords(player.chunkCoordX, player.chunkCoordZ).removeEntity(player);
@@ -151,7 +173,15 @@ export class SaveFormatMemory {
     for (let i = 0; i < s.mainInventory.length && i < p.inventory.mainInventory.length; i++) p.inventory.mainInventory[i] = s.mainInventory[i];
     for (let i = 0; i < s.armorInventory.length && i < p.inventory.armorInventory.length; i++) p.inventory.armorInventory[i] = s.armorInventory[i];
     p.inventory.currentItem = s.currentItem;
-    p.capabilities.isFlying = s.isFlying;
+    CommandGameMode.applyGameType(p, s.gameType);
+    p.capabilities.isFlying = s.isFlying && p.capabilities.allowFlying;
+    p.setEntityHealth(s.health);
+    p.prevHealth = s.health;
+    p.setAir(s.air);
+    p.experience = s.experience;
+    p.experienceLevel = s.experienceLevel;
+    p.experienceTotal = s.experienceTotal;
+    if (s.foodStats !== undefined && 'foodStats' in p) (p as unknown as SurvivalFields).foodStats = s.foodStats;
   }
 }
 

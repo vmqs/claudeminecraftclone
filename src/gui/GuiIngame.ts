@@ -144,7 +144,7 @@ export class GuiIngame extends Gui {
     if (p.hurtResistantTime < 10) flash = false;
     const health = p.getHealth();
     const prevHealth = (p as unknown as { prevHealth?: number }).prevHealth ?? health;
-    this.rand.setSeed(BigInt(this.updateCounter * 312871));
+    this.rand.setSeed(BigInt(Math.imul(this.updateCounter, 312871)));
     const food = stats.getFoodStats?.() ?? null;
     const foodLevel = food?.getFoodLevel() ?? 20;
     const prevFoodLevel = food?.getPrevFoodLevel?.() ?? foodLevel;

@@ -3,13 +3,13 @@ import type { Entity } from '../entity/Entity';
 import { DamageSource, EntityDamageSource } from '../entity/DamageSource';
 import { EntityList } from '../entity/EntityList';
 import { GuiCreateWorld } from '../gui/GuiCreateWorld';
-import { openScreenByName } from '../gui/GuiDebugScreens';
 import { Item } from '../item/Item';
 import { ItemStack } from '../item/ItemStack';
 import { SkyDevTools } from '../render/sky/SkyDevTools';
 import { type WeatherKind, WeatherCycle } from '../world/WeatherCycle';
 import { Keyboard, Mouse } from './Keyboard';
 import type { Minecraft } from './Minecraft';
+import { openScreenByName } from '../gui/GuiDebugScreens';
 
 /** The hotbar of the reference captures: stone, grass, dirt, cobble, planks, log, glass, torch, diamond sword. */
 const DEV_HOTBAR = [1, 2, 3, 4, 5, 17, 20, 50, 276];
@@ -163,16 +163,16 @@ export class DevTools {
     return name === undefined ? [...list] : list.filter((e) => EntityList.getDebugName(e) === name);
   }
 
-  /** Opens a screen by name (src/gui/GuiDebugScreens.ts); false for an unknown name. */
-  screen(name: string): boolean {
-    return openScreenByName(this.mc, name);
-  }
-
   /** Block id under the crosshair, or -1. */
   target(): number {
     const m = this.mc.objectMouseOver;
     if (!m || !this.mc.theWorld) return -1;
     return this.mc.theWorld.getBlockId(m.blockX, m.blockY, m.blockZ);
+  }
+
+  /** Opens a screen by name (src/gui/GuiDebugScreens.ts); false for an unknown name. */
+  screen(name: string): boolean {
+    return openScreenByName(this.mc, name);
   }
 }
 

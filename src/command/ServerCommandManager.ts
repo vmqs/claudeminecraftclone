@@ -1,5 +1,6 @@
 import { CommandBase, type IAdminCommand } from './CommandBase';
 import { CommandServerEmote, CommandServerMessage, CommandServerSay } from './CommandChat';
+import { installCommandBlockExecutor, isCommandBlock } from './CommandBlockExecutor';
 import { CommandClearInventory } from './CommandClearInventory';
 import { CommandDebug, DebugHooks } from './CommandDebug';
 import { CommandDifficulty } from './CommandDifficulty';
@@ -65,12 +66,19 @@ export class ServerCommandManager extends CommandHandler implements IAdminComman
     DebugHooks.getTickCounter = () => getServer()?.getWorlds()[0]?.worldInfo.totalTime ?? 0;
     for (const f of ServerCommandManager.extraCommands) this.registerCommand(f());
     CommandBase.setAdminCommander(this);
+    installCommandBlockExecutor();
   }
 
   /** Other players with commands see "[sender: message]" in grey; the sender sees it unless flag 1. */
   notifyAdmins(sender: ICommandSender, flags: number, key: string, args: unknown[]): void {
-    for (const p of getServer()?.getPlayers() ?? []) {
-      if ((p as unknown) !== sender) p.sendChatToPlayer(`§7§o[${sender.getCommandSenderName()}: ${p.translateString(key, ...args)}]`);
+    const s = getServer();
+    // A command block's output is shown only while the commandBlockOutput rule is on.
+    const broadcast = !isCommandBlock(sender) || (s?.getWorlds()[0]?.worldInfo.gameRules.commandBlockOutput ?? true);
+    if (broadcast) {
+      for (const p of s?.getPlayers() ?? []) {
+        // ServerConfigurationManager.areCommandsAllowed: the player may use commands.
+        if ((p as unknown) !== sender && p.canCommandSenderUseCommand(1, '')) p.sendChatToPlayer(`§7§o[${sender.getCommandSenderName()}: ${p.translateString(key, ...args)}]`);
+      }
     }
     console.info(`[${sender.getCommandSenderName()}: ${sender.translateString(key, ...args)}]`);
     if ((flags & 1) !== 1) sender.sendChatToPlayer(sender.translateString(key, ...args));
