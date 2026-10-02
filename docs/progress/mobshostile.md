@@ -18,7 +18,7 @@ Plan (tick when committed):
 - [x] Review of every entity/AI/model/renderer against the decompiled source
 - [x] Scenario scripts/scenarios/mobshostile.json; run 1 compared with the reference shots
 - [x] Eye layers: half lightmap like the original's GL_CLAMP border (GlowingEyes.ts)
-- [ ] Run 2 (eye fix, view-bob reset) compared
+- [x] Run 2 (eye fix, view-bob reset) compared: reference close-ups within ~2 mean abs per pixel except spider shadows (core Render.renderShadow, see notes)
 
 Notes:
 - Reference close-ups (zombie, skeleton, creeper, spider, enderman, pigman, witch, slime, cave
@@ -26,3 +26,7 @@ Notes:
   in run 1 came from the scenario's tp + tick (camera bob), reset in run 2.
 - In 1.5.2 a Creative attacker is picked up by EntityAIHurtByTarget and dropped on the next
   tick (resetTask clears players with disableDamage), so mobs only lurch at Creative players.
+- Open (core, not this slice): the spider and cave spider shadows (shadow size 1.0) come out darker
+  and larger than in the reference captures although Render.renderShadow follows the original
+  formula; zombie-sized shadows match.
+- EntityAILeapAtTarget removed again: no hostile mob uses it in 1.5.2 (wolves and ocelots do).
