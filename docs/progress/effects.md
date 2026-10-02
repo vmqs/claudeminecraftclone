@@ -22,9 +22,10 @@ Branch `w1/effects`. Owner area: `src/audio/**`, `src/render/particle/**`.
   with a private copy of the harness in scratchpad/effects/vh that adds `particle`,
   `blockbreak`, `blockhit`, `firework`, `clearparticles`; note `particles on` keeps particles,
   `particles keep` clears them). Generator: scratchpad/effects/gen_fx.py.
-- Lava drip brightness 257: llvmpipe's GL_CLAMP + linear lightmap blends with the black border
-  (brown drip); our lightmap uses CLAMP_TO_EDGE (bright drip, as NVIDIA drivers showed it). Left
-  as is (lightmap belongs to the sky/core code).
+- Lava drip brightness 257: the original's GL_CLAMP + linear lightmap sample is half the
+  (block 15, sky 0) texel and half the black border (the brown drip of the vanilla capture).
+  EntityDropParticleFX reproduces it as brightness 240 at half colour, so it does not depend on
+  our lightmap's CLAMP_TO_EDGE wrap.
 - The worktree's public/assets is a local overlay (symlinks to the shared assets plus the .mus
   records and a manifest listing them) so the record path can be tested before the asset script
   change is merged.

@@ -2,6 +2,7 @@ import { BlockFluid } from '../../block/BlockFluid';
 import { Material } from '../../block/Material';
 import { MathHelper } from '../../core/MathHelper';
 import type { World } from '../../world/World';
+import type { Tessellator } from '../gl/Tessellator';
 import { EntityFX } from './EntityFX';
 
 const f = Math.fround;
@@ -32,8 +33,30 @@ export class EntityDropParticleFX extends EntityFX {
     this.motionX = this.motionY = this.motionZ = 0;
   }
 
+  /**
+   * Lava drops ask for brightness 257 in the original, a lightmap coordinate just past the
+   * texture's edge. With the original's GL_CLAMP wrap and linear filtering that sample is half
+   * the (block 15, sky 0) texel and half the black border, which is the dull brown drop of the
+   * 1.5.2 captures. That result is reproduced here whatever the lightmap's wrap mode: the
+   * texel itself (240) at half colour in renderParticle.
+   */
   override getBrightnessForRender(pt: number): number {
-    return this.materialType === Material.water ? super.getBrightnessForRender(pt) : 257;
+    return this.materialType === Material.water ? super.getBrightnessForRender(pt) : 240;
+  }
+
+  override renderParticle(t: Tessellator, pt: number, rx: number, rxz: number, rz: number, ryz: number, rxy: number): void {
+    if (this.materialType === Material.water) {
+      super.renderParticle(t, pt, rx, rxz, rz, ryz, rxy);
+      return;
+    }
+    const { particleRed: r, particleGreen: g, particleBlue: b } = this;
+    this.particleRed = f(r * 0.5);
+    this.particleGreen = f(g * 0.5);
+    this.particleBlue = f(b * 0.5);
+    super.renderParticle(t, pt, rx, rxz, rz, ryz, rxy);
+    this.particleRed = r;
+    this.particleGreen = g;
+    this.particleBlue = b;
   }
 
   override getBrightness(pt: number): number {
