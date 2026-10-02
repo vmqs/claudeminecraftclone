@@ -49,7 +49,7 @@ export class EntityRenderer {
   private fovModifierHandPrev = 0;
   private fovMultiplierTemp = 0;
   private cloudFog = false;
-  private lightmapUpdateNeeded = false;
+  lightmapUpdateNeeded = false;
   torchFlickerX = 0;
   torchFlickerDX = 0;
   torchFlickerY = 0;

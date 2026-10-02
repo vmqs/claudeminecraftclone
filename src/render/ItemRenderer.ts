@@ -12,6 +12,8 @@ import { OpenGlHelper } from './OpenGlHelper';
 import { RenderBlocks } from './RenderBlocks';
 import { RenderHelper } from './RenderHelper';
 import type { Icon } from './texture/Icon';
+import { withClientSkylight } from './sky/ClientWorldView';
+import { ScreenOverlays } from './sky/ScreenOverlays';
 
 const f = Math.fround;
 const PI_F = f(Math.PI);
@@ -214,6 +216,7 @@ export class ItemRenderer {
     GL.disable(GL.ALPHA_TEST);
     const p = this.mc.thePlayer!;
     const w = this.mc.theWorld!;
+    if (p.isBurning()) ScreenOverlays.renderFireInFirstPerson(this.mc);
     if (p.isEntityInsideOpaqueBlock()) {
       const x = MathHelper.floor_double(p.posX);
       const y = MathHelper.floor_double(p.posY);
@@ -262,7 +265,7 @@ export class ItemRenderer {
   private renderWarpedTextureOverlay(pt: number): void {
     const t = Tessellator.instance;
     const p = this.mc.thePlayer!;
-    const b = p.getBrightness(pt);
+    const b = withClientSkylight(this.mc.theWorld!, () => p.getBrightness(pt));
     GL.color(b, b, b, 0.5);
     GL.enable(GL.BLEND);
     GL.blendFunc(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA);

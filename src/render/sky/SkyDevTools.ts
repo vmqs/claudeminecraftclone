@@ -30,6 +30,9 @@ export class SkyDevTools {
     const er = mc.entityRenderer;
     er.torchFlickerX = er.torchFlickerDX = er.torchFlickerY = er.torchFlickerDY = 0;
     er.settleFogBrightness();
+    er.lightmapUpdateNeeded = true;
+    p.renderArmYaw = p.prevRenderArmYaw = p.rotationYaw;
+    p.renderArmPitch = p.prevRenderArmPitch = p.rotationPitch;
     const v = 1 - withClientSkylight(w, () => p.getBrightness(1));
     mc.ingameGUI.prevVignetteBrightness = Math.fround(Math.min(1, Math.max(0, v)));
   }

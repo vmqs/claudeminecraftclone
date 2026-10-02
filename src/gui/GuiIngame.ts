@@ -11,6 +11,8 @@ import { RenderHelper } from '../render/RenderHelper';
 import { EnumSkyBlock } from '../world/IBlockAccess';
 import { Gui } from './Gui';
 import { GuiNewChat } from './GuiNewChat';
+import { withClientSkylight } from '../render/sky/ClientWorldView';
+import { ScreenOverlays } from '../render/sky/ScreenOverlays';
 
 const f = Math.fround;
 
@@ -50,8 +52,9 @@ export class GuiIngame extends Gui {
     const p = this.mc.thePlayer!;
     this.mc.entityRenderer.setupOverlayRendering();
     GL.enable(GL.BLEND);
-    if (this.mc.gameSettings.fancyGraphics) this.renderVignette(p.getBrightness(pt), w, h);
+    if (this.mc.gameSettings.fancyGraphics) this.renderVignette(withClientSkylight(this.mc.theWorld!, () => p.getBrightness(pt)), w, h);
     else GL.blendFunc(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA);
+    ScreenOverlays.renderHelmetAndPortal(this.mc, pt, w, h);
     GL.color(1, 1, 1, 1);
     this.mc.renderEngine.bindTexture('/gui/gui.png');
     const inv = p.inventory;
