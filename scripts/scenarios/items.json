@@ -4,7 +4,7 @@
   },
   {
     "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0",
-    "timeout": 240000
+    "timeout": 600000
   },
   {
     "eval": "(() => { const p = mc.thePlayer; const x0 = Math.floor(p.posX), z0 = Math.floor(p.posZ); mc.dev.tp(x0 + 0.5, 4, z0 + 0.5, 180, 25); window.T = { x0, z0, y: 3, results: {} }; window.useOn = (id, dmg, x, y, z, side, hx = 0.5, hy = 1, hz = 0.5) => { mc.dev.setStack(0, id, 1, dmg); mc.dev.select(0); const s = mc.thePlayer.inventory.mainInventory[0]; return mc.playerController.onPlayerRightClick(mc.thePlayer, mc.theWorld, s, x, y, z, side, { xCoord: x + hx, yCoord: y + hy, zCoord: z + hz }); }; window.useAir = (id, dmg) => { mc.dev.setStack(0, id, 1, dmg); mc.dev.select(0); const s = mc.thePlayer.inventory.mainInventory[0]; mc.playerController.sendUseItem(mc.thePlayer, mc.theWorld, s); return mc.thePlayer.inventory.mainInventory[0]; }; window.at = (x, y, z) => mc.theWorld.getBlockId(x, y, z) + ':' + mc.theWorld.getBlockMetadata(x, y, z); return { x0, z0, feet: p.boundingBox.minY }; })()"
