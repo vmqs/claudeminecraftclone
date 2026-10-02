@@ -328,6 +328,7 @@ export class Minecraft implements SettingsListener {
     this.chunkProvider?.processIncoming(4);
     prof.endStartSection('preRenderErrors');
     RenderBlocks.fancyGrass = this.gameSettings.fancyGraphics;
+    RenderBlocks.anaglyphEnable = this.gameSettings.anaglyph;
     prof.endStartSection('sound');
     this.sndManager.setListener(this.thePlayer, this.timer.renderPartialTicks);
     if (!this.isGamePaused) this.sndManager.updateScheduledSounds();

@@ -31,6 +31,7 @@ function applyIcons(table: IconTable): void {
 function applySettings(s: MesherSettings): void {
   RenderBlocks.aoLevel = s.aoLevel;
   RenderBlocks.fancyGrass = s.fancyGraphics;
+  RenderBlocks.anaglyphEnable = s.anaglyph ?? false;
   (Blocks.leaves as BlockLeaves).setGraphicsLevel(s.fancyGraphics);
 }
 

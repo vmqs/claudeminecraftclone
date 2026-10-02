@@ -157,7 +157,7 @@ export class RenderGlobal implements IWorldAccess {
 
   /** Sends the atlas layout, colormaps and settings to the meshers (after stitching). */
   initMeshers(): void {
-    const settings = { aoLevel: this.mc.gameSettings.ambientOcclusion, fancyGraphics: this.mc.gameSettings.fancyGraphics };
+    const settings = { aoLevel: this.mc.gameSettings.ambientOcclusion, fancyGraphics: this.mc.gameSettings.fancyGraphics, anaglyph: this.mc.gameSettings.anaglyph };
     (Blocks.leaves as BlockLeaves).setGraphicsLevel(settings.fancyGraphics);
     const icons = this.mc.renderEngine.textureMapBlocks.getIconTable();
     for (const w of this.workers) {
@@ -211,7 +211,7 @@ export class RenderGlobal implements IWorldAccess {
     const wide = Math.trunc(width / 16) + 1;
     this.renderChunksWide = wide;
     this.renderRadius = Math.trunc((wide - 1) / 2);
-    const settings = { aoLevel: gs.ambientOcclusion, fancyGraphics: gs.fancyGraphics };
+    const settings = { aoLevel: gs.ambientOcclusion, fancyGraphics: gs.fancyGraphics, anaglyph: gs.anaglyph };
     (Blocks.leaves as BlockLeaves).setGraphicsLevel(gs.fancyGraphics);
     for (const w of this.workers) w.worker.postMessage({ type: 'settings', settings } satisfies MesherRequest);
     this.markAllDirty();
