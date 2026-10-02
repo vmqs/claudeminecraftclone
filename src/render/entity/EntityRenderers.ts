@@ -26,6 +26,7 @@ import { EntityTNTPrimed } from '../../entity/EntityTNTPrimed';
 import { EntityWitherSkull } from '../../entity/EntityWitherSkull';
 import { EntityXPOrb } from '../../entity/EntityXPOrb';
 import './EntityClientHooks';
+import './PassiveMobRenderers';
 import { ModelBiped } from './ModelBiped';
 import { RenderArrow } from './RenderArrow';
 import { RenderBoat } from './RenderBoat';
