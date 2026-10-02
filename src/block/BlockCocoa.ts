@@ -32,12 +32,16 @@ export class BlockCocoa extends BlockDirectional {
     return this.iconArray[age];
   }
 
+  /** Drops off without its jungle log; otherwise 1 in 5 ticks (the world's random) adds an age, up to 2. */
   override updateTick(w: IWorld, x: number, y: number, z: number, _rand: JavaRandom): void {
     if (!this.canBlockStay(w, x, y, z)) {
       this.dropBlockAsItem(w, x, y, z, w.getBlockMetadata(x, y, z), 0);
       w.setBlockToAir(x, y, z);
+    } else if (w.rand.nextInt(5) === 0) {
+      const meta = w.getBlockMetadata(x, y, z);
+      let age = (meta & 12) >> 2;
+      if (age < 2) w.setBlockMetadataWithNotify(x, y, z, (++age << 2) | BlockDirectional.getDirection(meta), 2);
     }
-    // TODO(block-dynamics): growth: otherwise 1 in 5 ticks adds an age (up to 2).
   }
 
   /** Hangs on the side of a jungle log. */

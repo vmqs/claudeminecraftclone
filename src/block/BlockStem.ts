@@ -5,6 +5,7 @@ import type { Icon, IconRegister } from '../render/texture/Icon';
 import type { IBlockAccess } from '../world/IBlockAccess';
 import type { IWorld } from '../world/IWorld';
 import type { Block } from './Block';
+import { farmlandGrowthRate } from './BlockCrops';
 import { BlockFlower } from './BlockFlower';
 import { BlockIds, ItemIds } from './BlockIds';
 
@@ -32,7 +33,29 @@ export class BlockStem extends BlockFlower {
 
   override updateTick(w: IWorld, x: number, y: number, z: number, rand: JavaRandom): void {
     super.updateTick(w, x, y, z, rand);
-    // TODO(block-dynamics): growth to age 7, then a fruit on a free neighbouring farmland/dirt/grass.
+    if (w.getBlockLightValue(x, y + 1, z) < 9) return;
+    const rate = farmlandGrowthRate(w, x, y, z, this.blockID);
+    if (rand.nextInt(Math.trunc(Math.fround(25 / rate)) + 1) !== 0) return;
+    let meta = w.getBlockMetadata(x, y, z);
+    if (meta < 7) {
+      w.setBlockMetadataWithNotify(x, y, z, ++meta, 2);
+      return;
+    }
+    // Ripe: one fruit at a time, on a random side with farmland, dirt or grass under it.
+    const fruit = this.fruitType.blockID;
+    if (w.getBlockId(x - 1, y, z) === fruit || w.getBlockId(x + 1, y, z) === fruit) return;
+    if (w.getBlockId(x, y, z - 1) === fruit || w.getBlockId(x, y, z + 1) === fruit) return;
+    const dir = rand.nextInt(4);
+    let fx = x;
+    let fz = z;
+    if (dir === 0) fx = x - 1;
+    if (dir === 1) fx = x + 1;
+    if (dir === 2) fz = z - 1;
+    if (dir === 3) fz = z + 1;
+    const below = w.getBlockId(fx, y - 1, fz);
+    if (w.getBlockId(fx, y, fz) === 0 && (below === BlockIds.tilledField || below === BlockIds.dirt || below === BlockIds.grass)) {
+      w.setBlock(fx, y, fz, fruit);
+    }
   }
 
   /** Bone meal: 2-5 ages at once. */

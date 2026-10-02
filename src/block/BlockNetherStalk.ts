@@ -27,7 +27,8 @@ export class BlockNetherStalk extends BlockFlower {
   }
 
   override updateTick(w: IWorld, x: number, y: number, z: number, rand: JavaRandom): void {
-    // TODO(block-dynamics): growth: below age 3, nextInt(10) == 0 adds an age (before the stay check).
+    let meta = w.getBlockMetadata(x, y, z);
+    if (meta < 3 && rand.nextInt(10) === 0) w.setBlockMetadataWithNotify(x, y, z, ++meta, 2);
     super.updateTick(w, x, y, z, rand);
   }
 

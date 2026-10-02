@@ -28,7 +28,11 @@ export class BlockCrops extends BlockFlower {
 
   override updateTick(w: IWorld, x: number, y: number, z: number, rand: JavaRandom): void {
     super.updateTick(w, x, y, z, rand);
-    // TODO(block-dynamics): growth: with light >= 9 above, nextInt(25 / getGrowthRate + 1) == 0 adds a stage.
+    if (w.getBlockLightValue(x, y + 1, z) < 9) return;
+    let meta = w.getBlockMetadata(x, y, z);
+    if (meta >= 7) return;
+    const rate = this.getGrowthRate(w, x, y, z);
+    if (rand.nextInt(Math.trunc(Math.fround(25 / rate)) + 1) === 0) w.setBlockMetadataWithNotify(x, y, z, ++meta, 2);
   }
 
   /** Bone meal: 2-5 stages at once (at most ripe). */
@@ -39,29 +43,7 @@ export class BlockCrops extends BlockFlower {
 
   /** Growth speed from the farmland around (wet counts triple) and crowding by the same crop. */
   getGrowthRate(w: IWorld, x: number, y: number, z: number): number {
-    const f = Math.fround;
-    let rate = 1;
-    const n = w.getBlockId(x, y, z - 1);
-    const s = w.getBlockId(x, y, z + 1);
-    const west = w.getBlockId(x - 1, y, z);
-    const east = w.getBlockId(x + 1, y, z);
-    const nw = w.getBlockId(x - 1, y, z - 1);
-    const ne = w.getBlockId(x + 1, y, z - 1);
-    const se = w.getBlockId(x + 1, y, z + 1);
-    const sw = w.getBlockId(x - 1, y, z + 1);
-    const rowX = west === this.blockID || east === this.blockID;
-    const rowZ = n === this.blockID || s === this.blockID;
-    const diagonal = nw === this.blockID || ne === this.blockID || se === this.blockID || sw === this.blockID;
-    for (let ix = x - 1; ix <= x + 1; ix++) {
-      for (let iz = z - 1; iz <= z + 1; iz++) {
-        let v = 0;
-        if (w.getBlockId(ix, y - 1, iz) === BlockIds.tilledField) v = w.getBlockMetadata(ix, y - 1, iz) > 0 ? 3 : 1;
-        if (ix !== x || iz !== z) v = f(v / 4);
-        rate = f(rate + v);
-      }
-    }
-    if (diagonal || (rowX && rowZ)) rate = f(rate / 2);
-    return rate;
+    return farmlandGrowthRate(w, x, y, z, this.blockID);
   }
 
   override getIcon(_side: number, meta: number): Icon | null {
@@ -104,4 +86,35 @@ export class BlockCrops extends BlockFlower {
     this.iconArray = [];
     for (let i = 0; i < 8; i++) this.iconArray.push(reg.registerIcon('crops_' + i));
   }
+}
+
+/**
+ * The growth speed of a plant on farmland (BlockCrops.getGrowthRate / BlockStem.getGrowthModifier):
+ * 1 plus the farmland under the 3x3 area (dry 1, wet 3, a quarter for the eight neighbours),
+ * halved when the same plant grows diagonally or in both a row and a column next to it.
+ */
+export function farmlandGrowthRate(w: IWorld, x: number, y: number, z: number, plantId: number): number {
+  const f = Math.fround;
+  let rate = 1;
+  const n = w.getBlockId(x, y, z - 1);
+  const s = w.getBlockId(x, y, z + 1);
+  const west = w.getBlockId(x - 1, y, z);
+  const east = w.getBlockId(x + 1, y, z);
+  const nw = w.getBlockId(x - 1, y, z - 1);
+  const ne = w.getBlockId(x + 1, y, z - 1);
+  const se = w.getBlockId(x + 1, y, z + 1);
+  const sw = w.getBlockId(x - 1, y, z + 1);
+  const rowX = west === plantId || east === plantId;
+  const rowZ = n === plantId || s === plantId;
+  const diagonal = nw === plantId || ne === plantId || se === plantId || sw === plantId;
+  for (let ix = x - 1; ix <= x + 1; ix++) {
+    for (let iz = z - 1; iz <= z + 1; iz++) {
+      let v = 0;
+      if (w.getBlockId(ix, y - 1, iz) === BlockIds.tilledField) v = w.getBlockMetadata(ix, y - 1, iz) > 0 ? 3 : 1;
+      if (ix !== x || iz !== z) v = f(v / 4);
+      rate = f(rate + v);
+    }
+  }
+  if (diagonal || (rowX && rowZ)) rate = f(rate / 2);
+  return rate;
 }

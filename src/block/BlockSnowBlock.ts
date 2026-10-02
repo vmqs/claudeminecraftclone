@@ -22,8 +22,8 @@ export class BlockSnowBlock extends Block {
     return 4;
   }
 
+  /** Melts (dropping its snowballs) where the block light is above 11. */
   override updateTick(w: IWorld, x: number, y: number, z: number, _rand: JavaRandom): void {
-    // TODO(block-dynamics): melting is owned by the block-dynamics port; this is the 1.5.2 rule.
     if (w.getSavedLightValue(EnumSkyBlock.Block, x, y, z) > 11) {
       this.dropBlockAsItem(w, x, y, z, w.getBlockMetadata(x, y, z), 0);
       w.setBlockToAir(x, y, z);

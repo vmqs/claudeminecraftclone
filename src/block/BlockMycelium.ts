@@ -36,8 +36,22 @@ export class BlockMycelium extends Block {
     this.iconSnowSide = reg.registerIcon('snow_side');
   }
 
-  override updateTick(_w: IWorld, _x: number, _y: number, _z: number, _rand: JavaRandom): void {
-    // TODO(block-dynamics): spread to dirt with light >= 9 above, turn to dirt under opaque cover.
+  /** Turns to dirt under an opaque cover in the dark; spreads to lit dirt nearby like grass. */
+  override updateTick(w: IWorld, x: number, y: number, z: number, rand: JavaRandom): void {
+    if (w.isRemote) return;
+    if (w.getBlockLightValue(x, y + 1, z) < 4 && Block.lightOpacity[w.getBlockId(x, y + 1, z)] > 2) {
+      w.setBlock(x, y, z, BlockIds.dirt);
+    } else if (w.getBlockLightValue(x, y + 1, z) >= 9) {
+      for (let i = 0; i < 4; i++) {
+        const tx = x + rand.nextInt(3) - 1;
+        const ty = y + rand.nextInt(5) - 3;
+        const tz = z + rand.nextInt(3) - 1;
+        const above = w.getBlockId(tx, ty + 1, tz);
+        if (w.getBlockId(tx, ty, tz) === BlockIds.dirt && w.getBlockLightValue(tx, ty + 1, tz) >= 4 && Block.lightOpacity[above] <= 2) {
+          w.setBlock(tx, ty, tz, this.blockID);
+        }
+      }
+    }
   }
 
   override randomDisplayTick(w: IWorld, x: number, y: number, z: number, rand: JavaRandom): void {

@@ -1016,6 +1016,19 @@ export abstract class Entity {
     this.fallDistance = 0;
   }
 
+  /**
+   * Touched a nether portal block: marks the entity as in a portal (the player's swirl overlay
+   * reads it), or restarts the cooldown. There is no Nether, so nothing ever travels.
+   */
+  setInPortal(): void {
+    if (this.timeUntilPortal > 0) this.timeUntilPortal = this.getPortalCooldown();
+    else this.inPortal = true;
+  }
+
+  getPortalCooldown(): number {
+    return 900;
+  }
+
   /** The translated "entity.<EntityList name>.name". */
   getEntityName(): string {
     return I18n.translateToLocal('entity.' + (EntityList.getEntityString(this) ?? 'generic') + '.name');

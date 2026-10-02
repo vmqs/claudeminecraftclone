@@ -159,8 +159,71 @@ export class BlockVine extends Block {
     }
   }
 
-  override updateTick(_w: IWorld, _x: number, _y: number, _z: number, _rand: JavaRandom): void {
-    // TODO(block-dynamics): spreading up, sideways around corners and down (1 in 4 ticks, at most 5 vines nearby).
+  /**
+   * One in four random ticks (rolled on the world's random) a vine grows: up onto air (keeping the
+   * faces that still have a wall), sideways along or around a wall, or down into air or an existing
+   * vine below. Upward and sideways growth stop once 5 vines are within 4 blocks (and 1 level).
+   */
+  override updateTick(w: IWorld, x: number, y: number, z: number, _rand: JavaRandom): void {
+    if (w.isRemote || w.rand.nextInt(4) !== 0) return;
+    let budget = 5;
+    let crowded = false;
+    scan: for (let ix = x - 4; ix <= x + 4; ix++) {
+      for (let iz = z - 4; iz <= z + 4; iz++) {
+        for (let iy = y - 1; iy <= y + 1; iy++) {
+          if (w.getBlockId(ix, iy, iz) === this.blockID && --budget <= 0) {
+            crowded = true;
+            break scan;
+          }
+        }
+      }
+    }
+    const meta = w.getBlockMetadata(x, y, z);
+    const side = w.rand.nextInt(6);
+    const dir: number = Direction.facingToDirection[side];
+    const ox: readonly number[] = Direction.offsetX;
+    const oz: readonly number[] = Direction.offsetZ;
+    if (side === 1 && y < 255 && w.isAirBlock(x, y + 1, z)) {
+      if (crowded) return;
+      let up = w.rand.nextInt(16) & meta;
+      if (up > 0) {
+        for (let d = 0; d <= 3; d++) if (!this.canBePlacedOn(w.getBlockId(x + ox[d], y + 1, z + oz[d]))) up &= ~(1 << d);
+        if (up > 0) w.setBlock(x, y + 1, z, this.blockID, up, 2);
+      }
+    } else if (side >= 2 && side <= 5 && (meta & (1 << dir)) === 0) {
+      if (crowded) return;
+      const nx = x + ox[dir];
+      const nz = z + oz[dir];
+      const id = w.getBlockId(nx, y, nz);
+      if (id === 0 || !Block.blocksList[id]) {
+        const cw = (dir + 1) & 3;
+        const ccw = (dir + 3) & 3;
+        if ((meta & (1 << cw)) !== 0 && this.canBePlacedOn(w.getBlockId(nx + ox[cw], y, nz + oz[cw]))) {
+          w.setBlock(nx, y, nz, this.blockID, 1 << cw, 2);
+        } else if ((meta & (1 << ccw)) !== 0 && this.canBePlacedOn(w.getBlockId(nx + ox[ccw], y, nz + oz[ccw]))) {
+          w.setBlock(nx, y, nz, this.blockID, 1 << ccw, 2);
+        } else if ((meta & (1 << cw)) !== 0 && w.isAirBlock(nx + ox[cw], y, nz + oz[cw]) && this.canBePlacedOn(w.getBlockId(x + ox[cw], y, z + oz[cw]))) {
+          w.setBlock(nx + ox[cw], y, nz + oz[cw], this.blockID, 1 << ((dir + 2) & 3), 2);
+        } else if ((meta & (1 << ccw)) !== 0 && w.isAirBlock(nx + ox[ccw], y, nz + oz[ccw]) && this.canBePlacedOn(w.getBlockId(x + ox[ccw], y, z + oz[ccw]))) {
+          w.setBlock(nx + ox[ccw], y, nz + oz[ccw], this.blockID, 1 << ((dir + 2) & 3), 2);
+        } else if (this.canBePlacedOn(w.getBlockId(nx, y + 1, nz))) {
+          w.setBlock(nx, y, nz, this.blockID, 0, 2);
+        }
+      } else {
+        const b = Block.blocksList[id]!;
+        if (b.blockMaterial.isOpaque() && b.renderAsNormalBlock()) w.setBlockMetadataWithNotify(x, y, z, meta | (1 << dir), 2);
+      }
+    } else if (y > 1) {
+      const below = w.getBlockId(x, y - 1, z);
+      if (below === 0) {
+        const down = w.rand.nextInt(16) & meta;
+        if (down > 0) w.setBlock(x, y - 1, z, this.blockID, down, 2);
+      } else if (below === this.blockID) {
+        const add = w.rand.nextInt(16) & meta;
+        const old = w.getBlockMetadata(x, y - 1, z);
+        if (old !== (old | add)) w.setBlockMetadataWithNotify(x, y - 1, z, old | add, 2);
+      }
+    }
   }
 
   /** The face the vine hangs on is the one opposite the clicked face. */

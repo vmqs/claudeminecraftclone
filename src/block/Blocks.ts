@@ -293,12 +293,14 @@ export const Blocks = {
 
 /**
  * Derives the tables that depend on every block existing (the tail of Block's static
- * initialiser): useNeighborBrightness, and canBlockGrass[0] = true.
+ * initialiser): initializeBlock (the fire's flammability tables), useNeighborBrightness, and
+ * canBlockGrass[0] = true.
  */
 export function finishBlockRegistry(): void {
   for (let id = 0; id < 256; id++) {
     const b = Block.blocksList[id];
     if (!b) continue;
+    b.initializeBlock();
     Block.useNeighborBrightness[id] =
       (id > 0 && b.getRenderType() === 10) ||
       (id > 0 && b.usesNeighborBrightness()) ||
