@@ -34,9 +34,14 @@ export interface BiomeSource {
   areBiomesViable(x: number, z: number, radius: number, allowed: readonly BiomeGenBase[]): boolean;
 }
 
-/** Raw generated chunk: block ids in the original's x<<11 | z<<7 | y layout (0..127) and biomes. */
+/**
+ * Raw generated chunk: block ids in the original's x<<11 | z<<7 | y layout (height 128), or
+ * x<<12 | z<<8 | y for 256-high superflat chunks, and biomes.
+ */
 export interface GeneratedChunk {
   blocks: Uint8Array;
+  /** 128 (default) or 256. */
+  height?: number;
   /** Block metadata in the same layout (superflat layers); absent means all zero. */
   meta?: Uint8Array;
   biomes: Uint8Array;

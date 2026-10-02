@@ -79,11 +79,14 @@ export class WorldGenServer {
     c = new Chunk(w, cx, cz);
     const src = gen.blocks;
     const meta = gen.meta;
-    for (let sy = 0; sy < 8; sy++) {
+    const height = gen.height ?? 128;
+    const xs = height === 256 ? 12 : 11;
+    const zs = height === 256 ? 8 : 7;
+    for (let sy = 0; sy < height >> 4; sy++) {
       let s: ChunkSection | null = null;
       for (let x = 0; x < 16; x++) {
         for (let z = 0; z < 16; z++) {
-          const base = (x << 11) | (z << 7) | (sy << 4);
+          const base = (x << xs) | (z << zs) | (sy << 4);
           for (let y = 0; y < 16; y++) {
             const id = src[base + y];
             if (id === 0) continue;
