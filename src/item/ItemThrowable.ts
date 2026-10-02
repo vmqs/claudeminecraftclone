@@ -75,6 +75,21 @@ interface StructureFinder {
   findClosestStructure?(name: string, x: number, y: number, z: number): { x: number; y: number; z: number } | null;
 }
 
+/**
+ * World.findClosestStructure for eyes of ender. The world-generation code answers
+ * asynchronously (StructureLocator, installed by ItemBindings); without it a synchronous
+ * `world.findClosestStructure` is used when the World has one.
+ */
+export const StructureSearch = {
+  locate: null as ((name: string, x: number, y: number, z: number) => Promise<[number, number, number] | null>) | null,
+};
+
+function findClosestStronghold(world: World, x: number, y: number, z: number): Promise<[number, number, number] | null> {
+  if (StructureSearch.locate) return StructureSearch.locate('Stronghold', x, y, z);
+  const t = (world as World & StructureFinder).findClosestStructure?.('Stronghold', x, y, z) ?? null;
+  return Promise.resolve(t ? [t.x, t.y, t.z] : null);
+}
+
 function isEnderEyeInserted(meta: number): boolean {
   return (meta & 4) !== 0;
 }
@@ -160,17 +175,26 @@ export class ItemEnderEye extends Item {
     const hit = this.getMovingObjectPositionFromPlayer(world, player, false);
     if (hit && hit.typeOfHit === EnumMovingObjectType.TILE && w.getBlockId(hit.blockX, hit.blockY, hit.blockZ) === BlockIds.endPortalFrame) return stack;
     if (!w.isRemote) {
-      const target = (world as World & StructureFinder).findClosestStructure?.('Stronghold', Math.trunc(player.posX), Math.trunc(player.posY), Math.trunc(player.posZ)) ?? null;
-      if (target) {
-        const eye = createEnderEye(world, player.posX, player.posY + 1.62 - player.yOffset, player.posZ);
+      // The structures live in the world-generation worker, so the answer arrives later; the
+      // eye starts from where the player stood when throwing.
+      const sx = player.posX;
+      const sy = player.posY + 1.62 - player.yOffset;
+      const sz = player.posZ;
+      void findClosestStronghold(world, Math.trunc(player.posX), Math.trunc(player.posY), Math.trunc(player.posZ)).then((target) => {
+        if (!target || player.worldObj !== world) return;
+        const eye = createEnderEye(world, sx, sy, sz);
         if (eye) {
-          moveEnderEyeTowards(eye, target.x, target.y, target.z);
-          w.spawnEntityInWorld(eye);
+          moveEnderEyeTowards(eye, target[0], target[1], target[2]);
+          world.spawnEntityInWorld(eye);
         }
-        playThrowSound(w, player);
+        playThrowSound(world, player);
         world.playAuxSFXAtEntity(null, 1002, Math.trunc(player.posX), Math.trunc(player.posY), Math.trunc(player.posZ), 0);
-        if (!player.capabilities.isCreativeMode) stack.stackSize--;
-      }
+        if (!player.capabilities.isCreativeMode && --stack.stackSize <= 0) {
+          const inv = player.inventory.mainInventory;
+          const slot = inv.indexOf(stack);
+          if (slot >= 0) inv[slot] = null;
+        }
+      });
     }
     return stack;
   }

@@ -1,6 +1,7 @@
 import { ResourceManager, setResourceManager } from './assets/ResourceManager';
 import './block/Blocks';
 import './item/Items';
+import './item/ItemBindings';
 import { installDevHooks } from './client/DevTools';
 import { Minecraft } from './client/Minecraft';
 import { GL } from './render/gl/GL';
