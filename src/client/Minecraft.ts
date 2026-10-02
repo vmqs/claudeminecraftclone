@@ -11,6 +11,7 @@ import { MathHelper } from '../core/MathHelper';
 import { EnumMovingObjectType, type MovingObjectPosition } from '../core/MovingObjectPosition';
 import { type CommandServer, getPossibleCompletions, setServer } from '../command/CommandServer';
 import { ServerCommandManager } from '../command/ServerCommandManager';
+import { CommandGameMode } from '../command/CommandGameMode';
 import type { EntityLiving } from '../entity/EntityLiving';
 import type { EntityPlayer } from '../entity/EntityPlayer';
 import { FontRenderer } from '../gui/FontRenderer';
@@ -837,6 +838,8 @@ export class Minecraft implements SettingsListener {
     world.spawnEntityInWorld(this.thePlayer);
     this.thePlayer.movementInput = new MovementInputFromOptions(this.gameSettings);
     this.playerController.setPlayerCapabilities(this.thePlayer);
+    // The world's game mode (Create World's Survival / Hardcore / Creative, /defaultgamemode).
+    CommandGameMode.applyGameType(this.thePlayer, world.worldInfo.gameType);
     this.renderViewEntity = this.thePlayer;
     this.commandManager = new ServerCommandManager();
     setServer(this.commandServer);
@@ -862,6 +865,8 @@ export class Minecraft implements SettingsListener {
     this.playerController.flipPlayer(p);
     p.movementInput = new MovementInputFromOptions(this.gameSettings);
     this.playerController.setPlayerCapabilities(p);
+    // ServerConfigurationManager.respawnPlayer keeps the old player's game mode.
+    CommandGameMode.applyGameType(p, CommandGameMode.gameTypeOf(old));
     if (this.currentScreen instanceof GuiGameOver) this.displayGuiScreen(null);
   }
 
