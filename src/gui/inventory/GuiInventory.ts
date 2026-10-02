@@ -5,16 +5,17 @@ import { OpenGlHelper } from '../../render/OpenGlHelper';
 import { RenderHelper } from '../../render/RenderHelper';
 import { RenderManager } from '../../render/entity/RenderManager';
 import type { Minecraft } from '../../client/Minecraft';
-import { GuiContainer } from './GuiContainer';
+import { GuiContainerCreative } from './GuiContainerCreative';
+import { InventoryEffectRenderer } from './InventoryEffectRenderer';
 
 const f = Math.fround;
 
 /**
- * The survival inventory (GuiInventory): 2x2 crafting, armour and the player model. In
- * Creative 1.5.2 swaps it for GuiContainerCreative in initGui/updateScreen; until that
- * screen exists this one is shown. Active potion effects (InventoryEffectRenderer) are not drawn.
+ * The survival inventory (GuiInventory): 2x2 crafting, armour and the player model, with the
+ * active potion effects beside it. In Creative it swaps itself for GuiContainerCreative
+ * (initGui / updateScreen), which is what the inventory key opens there.
  */
-export class GuiInventory extends GuiContainer {
+export class GuiInventory extends InventoryEffectRenderer {
   private xSizeFloat = 0;
   private ySizeFloat = 0;
 
@@ -23,9 +24,14 @@ export class GuiInventory extends GuiContainer {
     this.allowUserInput = true;
   }
 
+  override updateScreen(): void {
+    if (this.mc.playerController.isInCreativeMode()) this.mc.displayGuiScreen(new GuiContainerCreative(this.mc.thePlayer!));
+  }
+
   override initGui(): void {
     this.buttonList = [];
-    super.initGui();
+    if (this.mc.playerController.isInCreativeMode()) this.mc.displayGuiScreen(new GuiContainerCreative(this.mc.thePlayer!));
+    else super.initGui();
   }
 
   override drawScreen(mx: number, my: number, pt: number): void {

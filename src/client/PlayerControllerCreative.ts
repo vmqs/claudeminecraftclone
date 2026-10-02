@@ -145,8 +145,18 @@ export class PlayerControllerCreative {
     return p.openContainer.slotClick(slotId, button, mode, p);
   }
 
-  /** The creative inventory sets slots directly; the original also told the server here. */
-  sendSlotPacket(_stack: ItemStack | null, _slotId: number): void {}
+  /**
+   * The creative inventory setting a slot of the player's own window (Packet107CreativeSetSlot
+   * as NetServerHandler.handleCreativeSetSlot applies it): only for a Creative player, only
+   * slots 1-44 (not the crafting result). Drops (slot -1) are spawned by the screen itself.
+   */
+  sendSlotPacket(stack: ItemStack | null, slotId: number): void {
+    const p = this.mc.thePlayer;
+    if (!p || !p.capabilities.isCreativeMode) return;
+    if (slotId < 1 || slotId >= 45) return;
+    if (stack && (stack.stackSize <= 0 || stack.stackSize > 64 || stack.getItemDamage() < 0)) return;
+    p.inventoryContainer.putStackInSlot(slotId, stack);
+  }
 
   isNotCreative(): boolean {
     return false;

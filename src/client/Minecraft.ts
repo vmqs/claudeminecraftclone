@@ -43,6 +43,7 @@ import { ColorizerFoliage, ColorizerGrass, rgbaToIntBuffer } from '../world/biom
 import { World, WorldInfo } from '../world/World';
 import { type PlayerSnapshot, SaveFormatMemory } from '../world/storage/SaveFormatMemory';
 import { EntityPlayerSP } from './EntityPlayerSP';
+import { pickBlock } from './PickBlock';
 import { EnumOptions, GameSettings, type SettingsListener } from './GameSettings';
 import { installInput } from './Input';
 import { Keyboard, Keys, Mouse } from './Keyboard';
@@ -603,19 +604,9 @@ export class Minecraft implements SettingsListener {
     }
   }
 
-  /** Pick block: puts the targeted block in the hotbar (creative). */
+  /** Pick block (middle click): selects the targeted block's item, or puts it in the hotbar in Creative. */
   private clickMiddleMouseButton(): void {
-    const mop = this.objectMouseOver;
-    if (!mop || mop.typeOfHit !== EnumMovingObjectType.TILE) return;
-    const w = this.theWorld!;
-    const block = Block.blocksList[w.getBlockId(mop.blockX, mop.blockY, mop.blockZ)];
-    if (!block) return;
-    const id = block.idPicked(w, mop.blockX, mop.blockY, mop.blockZ);
-    if (id === 0 || !Item.itemsList[id]) return;
-    const subtypes = Item.itemsList[id]!.getHasSubtypes();
-    const src = id < 256 && !block.isFlowerPot() ? id : block.blockID;
-    const damage = Block.blocksList[src]?.getDamageValue(w, mop.blockX, mop.blockY, mop.blockZ) ?? 0;
-    this.thePlayer!.inventory.setCurrentItem(id, damage, subtypes, true);
+    pickBlock(this.thePlayer!, this.theWorld!, this.objectMouseOver, (stack, slot) => this.playerController.sendSlotPacket(stack, slot));
   }
 
   // ------------------------------------------------------------------ screens and focus
