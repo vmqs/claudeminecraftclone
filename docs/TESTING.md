@@ -47,6 +47,7 @@ node scripts/shot.mjs interact               # walk, fly, break and place, with 
 node scripts/shot.mjs inventory              # E, slot tooltip, pick up and put back a stack
 node scripts/shot.mjs chat                   # chat line, /time, /give @p, /help, Tab completion, /kill
 node scripts/shot.mjs flat                   # a Superflat world (bedrock, dirt, dirt, grass; spawn y=4)
+node scripts/shot.mjs effects                # every particle type, spawn rules, sounds, records and music (asserts)
 node scripts/shot.mjs path/to/scenario.json --url http://localhost:5173/ --server none
 ```
 
@@ -77,6 +78,16 @@ SwiftShader renders on the CPU, so expect 1 to 5 fps in the harness while terrai
 before typing: at these frame rates several key events can land in one tick, and the ones that
 arrive before the screen opens act as game keys, exactly as they would in the original
 (`scripts/scenarios/chat.json` shows the pattern).
+
+## Audio
+
+Headless Chromium has no speakers, but the harness allows autoplay, so the audio context runs and
+sounds really decode and start. `mc.sndManager.debugLog` lists the recent events (`requested`,
+`started`, `missing`, `dropped`, `failed`, `music`, `record`, `stopped`, with name, file, volume,
+pitch and position) and `mc.sndManager.getDebugInfo()` the context state, channels in use, cache,
+music countdown and the record pools; `scripts/scenarios/effects.json` asserts on them. With the
+game clock frozen (`mc.timer.timerSpeed = 0`) particles can be spawned and advanced tick by tick
+with `mc.dev.ticks(n)` for deterministic captures.
 
 ## Logic checks without a browser
 
