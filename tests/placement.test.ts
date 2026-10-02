@@ -156,7 +156,7 @@ check('wall sign on the north face, editor opened', at(14, 4, -1) === `${B.signW
 check('no sign on the bottom face', use(I.sign, 0, 14, 4, 0, 0).ok === false);
 
 // Skulls keep their type through the tile entity.
-const skullTile = { type: -1, rot: -1, setSkullType(t: number) { this.type = t; }, setSkullRotation(r: number) { this.rot = r; } };
+const skullTile = { type: -1, rot: -1, setSkullType(t: number) { this.type = t; }, getSkullType() { return this.type; }, setSkullRotation(r: number) { this.rot = r; } };
 w.tileEntities.set('16,4,0', skullTile);
 use(I.skull, 4, 16, 3, 0, 1, 45);
 check('creeper head placed with rotation 2', at(16, 4, 0) === `${B.skull}:1` && skullTile.type === 4 && skullTile.rot === 2, `${at(16, 4, 0)} ${skullTile.type} ${skullTile.rot}`);
