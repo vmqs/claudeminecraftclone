@@ -86,6 +86,8 @@ export class World implements IWorld, IBlockAccess {
   private ambientTickCountdown: number;
   private readonly activeChunkSet = new Set<number>();
   private readonly collidingBoundingBoxes: AxisAlignedBB[] = [];
+  /** >0 while the world changes itself (see runNaturally). */
+  private naturalDepth = 0;
   /** Spawn hook for natural mob spawning (SpawnerAnimals; installed by the mob code). */
   mobSpawner: ((w: World) => void) | null = null;
 
@@ -128,7 +130,12 @@ export class World implements IWorld, IBlockAccess {
     this.lastChunk = null;
     this.lastChunkKey = Number.NaN;
     chunk.isChunkLoaded = true;
-    for (const t of chunk.pendingTicks) this.scheduleBlockUpdate(t[0], t[1], t[2], t[3], t[4]);
+    for (const t of chunk.pendingTicks) {
+      const natural = t[5] !== 0;
+      if (natural) this.naturalDepth++;
+      this.scheduleBlockUpdate(t[0], t[1], t[2], t[3], t[4]);
+      if (natural) this.naturalDepth--;
+    }
     chunk.pendingTicks = [];
     for (const list of chunk.entityLists) for (const e of list) this.addLoadedEntity(e);
     for (const a of this.worldAccesses) a.onChunkLoaded?.(chunk.xPosition, chunk.zPosition);
@@ -147,7 +154,7 @@ export class World implements IWorld, IBlockAccess {
     this.lastChunkKey = Number.NaN;
     c.isChunkLoaded = false;
     for (const t of this.pendingTicks.removeInChunk(cx, cz)) {
-      c.pendingTicks.push([t.xCoord, t.yCoord, t.zCoord, t.blockID, Math.max(0, t.scheduledTime - this.worldInfo.totalTime)]);
+      c.pendingTicks.push([t.xCoord, t.yCoord, t.zCoord, t.blockID, Math.max(0, t.scheduledTime - this.worldInfo.totalTime), t.natural ? 1 : 0]);
     }
     for (const list of c.entityLists) for (const e of list) if (!(e as unknown as EntityPlayer).isPlayerEntity) this.unloadedEntityList.push(e);
     for (const a of this.worldAccesses) a.onChunkUnloaded?.(cx, cz);
@@ -218,6 +225,7 @@ export class World implements IWorld, IBlockAccess {
     let oldId = 0;
     if ((flags & 1) !== 0) oldId = c.getBlockID(x & 15, y, z & 15);
     const changed = c.setBlockIDWithMetadata(x & 15, y, z & 15, id, meta);
+    if (changed && this.naturalDepth === 0) c.playerModified = true;
     this.updateAllLightTypes(x, y, z);
     if (changed) {
       if ((flags & 2) !== 0 && (!this.isRemote || (flags & 4) === 0)) this.markBlockForUpdate(x, y, z);
@@ -230,6 +238,7 @@ export class World implements IWorld, IBlockAccess {
     if (x < -30000000 || z < -30000000 || x >= 30000000 || z >= 30000000 || y < 0 || y >= 256) return false;
     const c = this.getChunkFromChunkCoords(x >> 4, z >> 4);
     const changed = c.setBlockMetadata(x & 15, y, z & 15, meta);
+    if (changed && this.naturalDepth === 0) c.playerModified = true;
     if (changed) {
       const id = c.getBlockID(x & 15, y, z & 15);
       if ((flags & 2) !== 0 && (!this.isRemote || (flags & 4) === 0)) this.markBlockForUpdate(x, y, z);
@@ -454,7 +463,10 @@ export class World implements IWorld, IBlockAccess {
   setLightValue(type: EnumSkyBlock, x: number, y: number, z: number, v: number): void {
     if (x < -30000000 || z < -30000000 || x >= 30000000 || z >= 30000000 || y < 0 || y >= 256) return;
     if (!this.chunkExists(x >> 4, z >> 4)) return;
-    this.getChunkFromChunkCoords(x >> 4, z >> 4).setLightValue(type, x & 15, y, z & 15, v);
+    const c = this.getChunkFromChunkCoords(x >> 4, z >> 4);
+    c.setLightValue(type, x & 15, y, z & 15, v);
+    // Light spilling over from an edit must survive the neighbour being unloaded.
+    if (this.naturalDepth === 0) c.playerModified = true;
     for (const a of this.worldAccesses) a.markBlockForRenderUpdate(x, y, z);
   }
 
@@ -1278,8 +1290,29 @@ export class World implements IWorld, IBlockAccess {
 
   // ------------------------------------------------------------------ ticking
 
+  /**
+   * Runs `fn` as the world changing itself: block edits inside do not mark chunks as
+   * player-modified, and block updates scheduled inside stay natural. Random ticks, natural
+   * scheduled ticks, weather and mob spawning run this way; everything else (players,
+   * entities, explosions, commands) counts as a modification that must survive unloading.
+   */
+  runNaturally<T>(fn: () => T): T {
+    this.naturalDepth++;
+    try {
+      return fn();
+    } finally {
+      this.naturalDepth--;
+    }
+  }
+
+  /** Whether block changes right now come from the world's own ticking. */
+  isNaturalEdit(): boolean {
+    return this.naturalDepth > 0;
+  }
+
   scheduleBlockUpdate(x: number, y: number, z: number, id: number, delay: number, priority = 0): void {
     const e = new NextTickListEntry(x, y, z, id);
+    e.natural = this.naturalDepth > 0;
     if (!this.checkChunksExist(x, y, z, x, y, z)) return;
     if (id > 0) {
       e.scheduledTime = delay + this.worldInfo.totalTime;
@@ -1304,9 +1337,18 @@ export class World implements IWorld, IBlockAccess {
     for (const e of due) {
       if (this.checkChunksExist(e.xCoord, e.yCoord, e.zCoord, e.xCoord, e.yCoord, e.zCoord)) {
         const id = this.getBlockId(e.xCoord, e.yCoord, e.zCoord);
-        if (id > 0 && Block.isAssociatedBlockID(id, e.blockID)) Block.blocksList[id]!.updateTick(this, e.xCoord, e.yCoord, e.zCoord, this.rand);
+        if (id > 0 && Block.isAssociatedBlockID(id, e.blockID)) {
+          if (e.natural) this.naturalDepth++;
+          try {
+            Block.blocksList[id]!.updateTick(this, e.xCoord, e.yCoord, e.zCoord, this.rand);
+          } finally {
+            if (e.natural) this.naturalDepth--;
+          }
+        }
       } else {
+        if (e.natural) this.naturalDepth++;
         this.scheduleBlockUpdate(e.xCoord, e.yCoord, e.zCoord, e.blockID, 0);
+        if (e.natural) this.naturalDepth--;
       }
     }
     return this.pendingTicks.size > 0;
@@ -1387,14 +1429,19 @@ export class World implements IWorld, IBlockAccess {
 
   /** One game tick: weather, time, scheduled and random block updates (WorldServer.tick). */
   tick(): void {
-    this.updateWeather();
-    this.mobSpawner?.(this);
+    this.naturalDepth++;
+    try {
+      this.updateWeather();
+      this.mobSpawner?.(this);
+    } finally {
+      this.naturalDepth--;
+    }
     const sub = this.calculateSkylightSubtracted(1);
     if (sub !== this.skylightSubtracted) this.skylightSubtracted = sub;
     this.worldInfo.totalTime++;
     this.worldInfo.worldTime++;
     this.tickUpdates(false);
-    this.tickBlocksAndAmbiance();
+    this.runNaturally(() => this.tickBlocksAndAmbiance());
   }
 
   /** WorldClient.doVoidFogParticles: random display ticks around the player. */

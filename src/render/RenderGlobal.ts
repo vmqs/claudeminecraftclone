@@ -79,6 +79,13 @@ interface MesherWorker {
 export class RenderGlobal implements IWorldAccess {
   theWorld: World | null = null;
   private readonly sections = new Map<number, WorldRenderer>();
+  /** Sections with needsUpdate set (in flight or waiting for a mesher). */
+  private readonly dirty = new Set<WorldRenderer>();
+  /** Sections with uploaded geometry in either pass. */
+  private readonly withGeometry = new Set<WorldRenderer>();
+  private viewerX = 0;
+  private viewerY = 0;
+  private viewerZ = 0;
   private readonly workers: MesherWorker[] = [];
   private readonly snapshots: SectionSnapshot[] = [];
   private readonly jobs = new Map<number, WorldRenderer>();
@@ -88,6 +95,8 @@ export class RenderGlobal implements IWorldAccess {
   private renderDistance = -1;
   /** Section radius drawn around the player (renderChunksWide / 2). */
   renderRadius = 8;
+  /** Width of the original's render grid (the F3 "C:" total is wide * wide * 16). */
+  renderChunksWide = 17;
   cloudTickCounter = 0;
   private starList: DisplayList | null = null;
   private skyList: DisplayList | null = null;
@@ -149,9 +158,9 @@ export class RenderGlobal implements IWorldAccess {
     if (this.theWorld) this.theWorld.removeWorldAccess(this);
     for (const s of this.sections.values()) this.disposeSection(s);
     this.sections.clear();
+    this.dirty.clear();
     this.jobs.clear();
     this.results.length = 0;
-    this.queue = [];
     this.theWorld = world;
     if (world) {
       world.addWorldAccess(this);
@@ -167,6 +176,7 @@ export class RenderGlobal implements IWorldAccess {
     let width = 64 << (3 - gs.renderDistance);
     if (width > 400) width = 400;
     const wide = Math.trunc(width / 16) + 1;
+    this.renderChunksWide = wide;
     this.renderRadius = Math.trunc((wide - 1) / 2);
     const settings = { aoLevel: gs.ambientOcclusion, fancyGraphics: gs.fancyGraphics };
     (Blocks.leaves as BlockLeaves).setGraphicsLevel(gs.fancyGraphics);
@@ -175,10 +185,13 @@ export class RenderGlobal implements IWorldAccess {
   }
 
   private markAllDirty(): void {
-    for (const s of this.sections.values()) {
-      if (s.inFlight) s.stale = true;
-      s.needsUpdate = true;
-    }
+    for (const s of this.sections.values()) this.markDirty(s);
+  }
+
+  private markDirty(s: WorldRenderer): void {
+    if (s.inFlight) s.stale = true;
+    s.needsUpdate = true;
+    this.dirty.add(s);
   }
 
   static sectionKey(sx: number, sy: number, sz: number): number {
@@ -188,7 +201,10 @@ export class RenderGlobal implements IWorldAccess {
   onChunkLoaded(cx: number, cz: number): void {
     for (let sy = 0; sy < 16; sy++) {
       const k = RenderGlobal.sectionKey(cx, sy, cz);
-      if (!this.sections.has(k)) this.sections.set(k, new WorldRenderer(cx, sy, cz));
+      if (this.sections.has(k)) continue;
+      const s = new WorldRenderer(cx, sy, cz);
+      this.sections.set(k, s);
+      this.dirty.add(s);
     }
   }
 
@@ -198,6 +214,7 @@ export class RenderGlobal implements IWorldAccess {
       const s = this.sections.get(k);
       if (s) {
         this.disposeSection(s);
+        this.dirty.delete(s);
         this.sections.delete(k);
       }
     }
@@ -209,6 +226,8 @@ export class RenderGlobal implements IWorldAccess {
       if (m) GL.deleteTerrain(m);
       s.meshes[p] = null;
     }
+    s.hasGeometry = false;
+    this.withGeometry.delete(s);
   }
 
   markBlocksForUpdate(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): void {
@@ -222,9 +241,7 @@ export class RenderGlobal implements IWorldAccess {
       for (let sz = sz0; sz <= sz1; sz++)
         for (let sy = sy0; sy <= sy1; sy++) {
           const s = this.sections.get(RenderGlobal.sectionKey(sx, sy, sz));
-          if (!s) continue;
-          if (s.inFlight) s.stale = true;
-          s.needsUpdate = true;
+          if (s) this.markDirty(s);
         }
   }
 
@@ -295,42 +312,64 @@ export class RenderGlobal implements IWorldAccess {
     }
   }
 
-  /** Sorted dirty sections waiting for a mesher (rebuilt every frame, drained as workers free up). */
-  private queue: WorldRenderer[] = [];
-
-  /** Collects dirty sections near the player (in frustum first, then nearest) and dispatches them. */
+  /** Records the viewer position and hands the most urgent dirty sections to the meshers. */
   updateRenderers(viewer: EntityLiving): void {
     if (!this.theWorld || !this.mesherReady) return;
-    const cx = MathHelper.floor_double(viewer.posX) >> 4;
-    const cz = MathHelper.floor_double(viewer.posZ) >> 4;
-    const r = this.renderRadius;
-    const candidates: WorldRenderer[] = [];
-    for (const s of this.sections.values()) {
-      if (!s.needsUpdate || s.inFlight) continue;
-      if (Math.abs(s.sx - cx) > r || Math.abs(s.sz - cz) > r) continue;
-      if (!this.neighboursLoaded(s.sx, s.sz)) continue;
-      candidates.push(s);
-    }
-    const d = (s: WorldRenderer) => s.distanceToEntitySquared(viewer);
-    candidates.sort((a, b) => (a.isInFrustum !== b.isInFrustum ? (a.isInFrustum ? -1 : 1) : d(a) - d(b)));
-    this.queue = candidates.reverse();
+    this.viewerX = viewer.posX;
+    this.viewerY = viewer.posY;
+    this.viewerZ = viewer.posZ;
     this.dispatch();
     this.uploadResults();
   }
 
+  private sectionDistSq(s: WorldRenderer): number {
+    const dx = this.viewerX - (s.posX + 8);
+    const dy = this.viewerY - (s.posY + 8);
+    const dz = this.viewerZ - (s.posZ + 8);
+    return dx * dx + dy * dy + dz * dz;
+  }
+
+  /**
+   * Fills the free worker slots with the best dirty sections: in the frustum first, then the
+   * nearest. A partial selection over the dirty set, so nothing is sorted per frame.
+   */
   private dispatch(): void {
     const w = this.theWorld;
-    if (!w) return;
-    while (this.queue.length > 0) {
+    if (!w || !this.mesherReady) return;
+    let free = 0;
+    for (const wk of this.workers) free += Math.max(0, RenderGlobal.JOBS_PER_WORKER - wk.busy);
+    if (free === 0 || this.dirty.size === 0) return;
+    const cx = MathHelper.floor_double(this.viewerX) >> 4;
+    const cz = MathHelper.floor_double(this.viewerZ) >> 4;
+    const r = this.renderRadius;
+    const best: WorldRenderer[] = [];
+    const keys: number[] = [];
+    const neighbours = new Map<number, boolean>();
+    for (const s of this.dirty) {
+      if (s.inFlight || Math.abs(s.sx - cx) > r || Math.abs(s.sz - cz) > r) continue;
+      const key = (s.isInFrustum ? 0 : 1e12) + this.sectionDistSq(s);
+      if (best.length === free && key >= keys[free - 1]) continue;
+      const ck = s.sx * 65536 + s.sz;
+      let ok = neighbours.get(ck);
+      if (ok === undefined) neighbours.set(ck, (ok = this.neighboursLoaded(s.sx, s.sz)));
+      if (!ok) continue;
+      let i = best.length === free ? free - 1 : best.length;
+      while (i > 0 && keys[i - 1] > key) {
+        best[i] = best[i - 1];
+        keys[i] = keys[i - 1];
+        i--;
+      }
+      best[i] = s;
+      keys[i] = key;
+    }
+    for (const s of best) {
       const worker = this.workers.reduce((a, b) => (b.busy < a.busy ? b : a));
       if (worker.busy >= RenderGlobal.JOBS_PER_WORKER) return;
-      const s = this.queue.pop()!;
-      if (!s.needsUpdate || s.inFlight || this.sections.get(RenderGlobal.sectionKey(s.sx, s.sy, s.sz)) !== s) continue;
+      this.dirty.delete(s);
       const center = w.getChunkFromChunkCoords(s.sx, s.sz).sections[s.sy];
       if (!center || center.isEmpty()) {
         this.disposeSection(s);
         s.needsUpdate = false;
-        s.hasGeometry = false;
         continue;
       }
       const snap = this.snapshots.pop() ?? allocSnapshot();
@@ -356,7 +395,7 @@ export class RenderGlobal implements IWorldAccess {
       this.jobs.delete(res.id);
       if (!s || this.sections.get(RenderGlobal.sectionKey(s.sx, s.sy, s.sz)) !== s) continue;
       s.inFlight = false;
-      if (s.stale) s.needsUpdate = true;
+      if (s.stale) this.markDirty(s);
       for (let p = 0; p < 2; p++) {
         const data = res.passes[p];
         if (data) s.meshes[p] = GL.uploadTerrain(s.meshes[p], data, res.vertexCounts[p]);
@@ -366,6 +405,8 @@ export class RenderGlobal implements IWorldAccess {
         }
       }
       s.hasGeometry = !!(s.meshes[0] || s.meshes[1]);
+      if (s.hasGeometry) this.withGeometry.add(s);
+      else this.withGeometry.delete(s);
       WorldRenderer.chunksUpdated++;
       if (performance.now() - t0 > this.uploadBudgetMs) break;
     }
@@ -376,15 +417,16 @@ export class RenderGlobal implements IWorldAccess {
     const cx = MathHelper.floor_double(viewer.posX) >> 4;
     const cz = MathHelper.floor_double(viewer.posZ) >> 4;
     let n = 0;
-    for (const s of this.sections.values()) {
-      if (Math.abs(s.sx - cx) > radius || Math.abs(s.sz - cz) > radius) continue;
-      if (s.needsUpdate || s.inFlight) n++;
-    }
-    return n + this.results.length;
+    const near = (s: WorldRenderer) => Math.abs(s.sx - cx) <= radius && Math.abs(s.sz - cz) <= radius;
+    for (const s of this.dirty) if (near(s)) n++;
+    // In flight (sent, or the result is waiting for upload) and not dirty again.
+    for (const s of this.jobs.values()) if (!s.needsUpdate && near(s)) n++;
+    return n;
   }
 
   clipRenderersByFrustum(fr: Frustum): void {
-    for (const s of this.sections.values()) s.updateInFrustum(fr);
+    for (const s of this.withGeometry) s.updateInFrustum(fr);
+    for (const s of this.dirty) s.updateInFrustum(fr);
   }
 
   /** Draws one terrain pass; pass 0 front to back, pass 1 back to front. */
@@ -397,23 +439,23 @@ export class RenderGlobal implements IWorldAccess {
     const cz = MathHelper.floor_double(viewer.posZ) >> 4;
     const r = this.renderRadius;
     if (pass === 0) {
-      this.renderersLoaded = 0;
+      // The original counts its whole renderChunksWide^2 x 16 grid; sections that are not
+      // loaded or have no pass-0 geometry count as skipped ("E").
+      this.renderersLoaded = this.renderChunksWide * this.renderChunksWide * 16;
       this.renderersBeingClipped = 0;
       this.renderersBeingRendered = 0;
-      this.renderersSkippingRenderPass = 0;
     }
     const list: WorldRenderer[] = [];
-    for (const s of this.sections.values()) {
+    for (const s of this.withGeometry) {
       if (Math.abs(s.sx - cx) > r || Math.abs(s.sz - cz) > r) continue;
-      if (pass === 0) {
-        this.renderersLoaded++;
-        if (s.skipRenderPass(0)) this.renderersSkippingRenderPass++;
-        else if (!s.isInFrustum) this.renderersBeingClipped++;
+      if (pass === 0 && !s.skipRenderPass(0)) {
+        if (!s.isInFrustum) this.renderersBeingClipped++;
         else this.renderersBeingRendered++;
       }
       if (s.skipRenderPass(pass) || !s.isInFrustum) continue;
       list.push(s);
     }
+    if (pass === 0) this.renderersSkippingRenderPass = this.renderersLoaded - this.renderersBeingClipped - this.renderersBeingRendered;
     const d = (s: WorldRenderer) => {
       const dx = s.posX + 8 - camX;
       const dy = s.posY + 8 - camY;

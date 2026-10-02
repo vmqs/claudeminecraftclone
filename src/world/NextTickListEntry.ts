@@ -6,6 +6,8 @@ let nextTickEntryID = 0;
 export class NextTickListEntry {
   scheduledTime = 0;
   priority = 0;
+  /** Scheduled by the world itself (generation, random ticks), not by a player action. */
+  natural = false;
   readonly tickEntryID = nextTickEntryID++;
 
   constructor(

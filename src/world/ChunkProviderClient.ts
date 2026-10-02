@@ -14,12 +14,13 @@ export class ChunkProviderClient {
   private readonly worker: Worker;
   private readonly requested = new Set<number>();
   private readonly incoming: ChunkPayload[] = [];
-  /** Chunks that were modified after loading and then unloaded. */
-  private readonly stored = new Map<number, Chunk>();
+  /** Unloaded chunks kept in memory (player-modified or holding entities). */
+  readonly stored = new Map<number, Chunk>();
   private ready = false;
   private spawnWaiters: ((p: { x: number; y: number; z: number }) => void)[] = [];
   private lastCX = Number.NaN;
   private lastCZ = Number.NaN;
+  private lastRadius = -1;
   /** Chunk radius kept loaded around the player. */
   loadRadius = 9;
 
@@ -65,9 +66,11 @@ export class ChunkProviderClient {
     const cx = MathHelper.floor_double(x) >> 4;
     const cz = MathHelper.floor_double(z) >> 4;
     const r = this.loadRadius;
-    if (cx !== this.lastCX || cz !== this.lastCZ) {
+    // Also when the render distance changed while standing still.
+    if (cx !== this.lastCX || cz !== this.lastCZ || r !== this.lastRadius) {
       this.lastCX = cx;
       this.lastCZ = cz;
+      this.lastRadius = r;
       this.post({ type: 'player', cx, cz, radius: r });
       for (const k of this.requested) {
         const [kx, kz] = ChunkProviderClient.unkey(k);
@@ -128,15 +131,17 @@ export class ChunkProviderClient {
     c.biomes.set(m.biomes);
     c.pendingTicks = m.pendingTicks;
     c.isModified = false;
-    c.isEdited = false;
+    c.playerModified = false;
     return c;
   }
 
   unloadChunk(cx: number, cz: number): void {
     const c = this.world.removeChunk(cx, cz);
     if (!c) return;
-    const hasMobs = c.entityLists.some((l) => l.some((e) => !e.isPlayerEntity));
-    if (c.isModified || c.isEdited || hasMobs) this.stored.set(World.chunkKey(cx, cz), c);
+    // Generation is deterministic: only chunks changed by players (not by the world's own
+    // ticking: leaf decay, grass, fluids settling) or holding entities need to be kept.
+    const hasEntities = c.entityLists.some((l) => l.some((e) => !e.isPlayerEntity));
+    if (c.playerModified || hasEntities) this.stored.set(World.chunkKey(cx, cz), c);
   }
 
   /** Whether every chunk within `radius` of the block position is present. */

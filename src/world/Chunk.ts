@@ -41,14 +41,21 @@ export class Chunk {
   heightMapMinimum = 0;
   isChunkLoaded = false;
   isModified = false;
-  /** True once it differs from what the generator produced (kept in memory on unload). */
-  isEdited = false;
+  /**
+   * Changed by something other than the world's own ticking (players, entities, explosions,
+   * commands); such chunks are kept in memory when unloaded. Set by World, see
+   * World.runNaturally.
+   */
+  playerModified = false;
   hasEntities = false;
   isTerrainPopulated = true;
   private isGapLightingUpdated = false;
   readonly chunkTileEntityMap = new Map<number, TileEntityLike>();
   readonly entityLists: Entity[][] = Array.from({ length: 16 }, () => []);
-  /** Pending ticks that came with the chunk from the generator: [x, y, z, blockId, delay]. */
+  /**
+   * Scheduled ticks waiting for the chunk to load: [x, y, z, blockId, delay, natural]. From the
+   * generator they are natural (6th element missing or 1); ticks saved on unload keep their origin.
+   */
   pendingTicks: number[][] = [];
   private queuedLightChecks = 4096;
 
@@ -283,7 +290,6 @@ export class Chunk {
     if (id !== 0 && !w.isRemote) Block.blocksList[id]?.onBlockAdded(w, wx, y, wz);
     if (oldId !== id) this.chunkTileEntityMap.delete(Chunk.teKey(x, y, z));
     this.isModified = true;
-    this.isEdited = true;
     return true;
   }
 
@@ -292,7 +298,6 @@ export class Chunk {
     if (!s) return false;
     if (s.getExtBlockMetadata(x, y & 15, z) === meta) return false;
     this.isModified = true;
-    this.isEdited = true;
     s.setExtBlockMetadata(x, y & 15, z, meta);
     return true;
   }
