@@ -997,12 +997,19 @@ export class RenderGlobal implements IWorldAccess {
 
   // ------------------------------------------------------------------ IWorldAccess
 
+  /**
+   * A world sound (World.playSoundEffect / playSoundAtEntity), which 1.5.2 sends from the
+   * integrated server as Packet62LevelSound: the position travels in 1/8 blocks and the pitch
+   * in steps of 1/63 (at most 255/63), and only viewers within 16 * max(1, volume) hear it.
+   */
   playSound(name: string, x: number, y: number, z: number, volume: number, pitch: number): void {
     const viewer = this.mc.renderViewEntity;
     if (!viewer) return;
     let range = 16;
     if (volume > 1) range *= volume;
-    if (viewer.getDistanceSq(x, y, z) < range * range) this.mc.sndManager.playSound(name, x, y, z, volume, pitch);
+    if (viewer.getDistanceSq(x, y, z) >= range * range) return;
+    const step = Math.min(255, Math.max(0, Math.trunc(f(pitch * 63))));
+    this.mc.sndManager.playSound(name, f(Math.trunc(x * 8) / 8), f(Math.trunc(y * 8) / 8), f(Math.trunc(z * 8) / 8), volume, f(step / 63));
   }
 
   playSoundWithDistanceDelay(name: string, x: number, y: number, z: number, volume: number, pitch: number, distanceDelay: boolean): void {

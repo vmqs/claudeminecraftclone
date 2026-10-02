@@ -120,8 +120,11 @@ async function main() {
   if (withSound) {
     const idx = versionJson.assetIndex;
     const index = JSON.parse((await cached(idx.url, `index-${idx.id}.json`, idx.sha1)).toString('utf8'));
+    // Records other than 13 and cat only exist as streaming/*.mus (Ogg XORed with a key
+    // stream, decoded by src/audio/MusCodec.ts); take those where no .ogg twin exists.
+    const isRecordMus = (key) => key.startsWith('streaming/') && key.endsWith('.mus') && !index.objects[key.slice(0, -4) + '.ogg'];
     const wanted = Object.entries(index.objects).filter(
-      ([key]) => key.endsWith('.ogg') && SOUND_PREFIXES.some((p) => key.startsWith(p)),
+      ([key]) => (key.endsWith('.ogg') || isRecordMus(key)) && SOUND_PREFIXES.some((p) => key.startsWith(p)),
     );
     console.log(`[assets] ${wanted.length} sound files`);
     await pool(wanted, 16, async ([key, obj]) => {
