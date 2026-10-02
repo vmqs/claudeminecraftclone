@@ -23,6 +23,7 @@ import { EntityLargeExplodeFX } from './EntityLargeExplodeFX';
 import { EntityLavaFX } from './EntityLavaFX';
 import { EntityNoteFX } from './EntityNoteFX';
 import { EntityPortalFX } from './EntityPortalFX';
+import { EntityRainFX } from './EntityRainFX';
 import { EntityReddustFX } from './EntityReddustFX';
 import { EntitySmokeFX } from './EntitySmokeFX';
 import { EntitySnowShovelFX } from './EntitySnowShovelFX';
@@ -116,6 +117,11 @@ factories.set('happyVillager', (w, x, y, z, vx, vy, vz) => {
   fx.setRBGColorF(1, 1, 1);
   return fx;
 });
+
+// Not a doSpawnParticle name in 1.5.2: EntityRenderer.addRainParticles builds EntityRainFX
+// directly. Registered so the rain renderer can look the splash up by name
+// (RenderGlobal.particleFactories.get('rain')) and add it to the effect renderer itself.
+factories.set('rain', (w, x, y, z) => new EntityRainFX(w, x, y, z));
 
 // "iconcrack_<itemID>": a crumb of the item's icon.
 prefixes.set('iconcrack_', (w, suffix, x, y, z, vx, vy, vz) => {
