@@ -35,7 +35,7 @@
   {"shot": "flat_noon_sky_up_fast.png"},
   {"eval": "mc.gameSettings.fancyGraphics = true; mc.gameSettings.renderDistance = 0; mc.dev.look(0, 0); mc.dev.sky.unfreeze()"},
   {"wait": 1500},
-  {"waitFor": "mc.dev.pendingSections(14) === 0", "timeout": 240000},
+  {"waitFor": "mc.dev.pendingSections(11) === 0", "timeout": 240000},
   {"wait": 1000},
   {"eval": "mc.dev.look(0, 0); mc.dev.sky.pin(6000)"},
   {"wait": 1000},

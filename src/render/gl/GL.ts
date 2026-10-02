@@ -547,11 +547,14 @@ class GLFacade {
     let cap = Math.max(this.quadIndexCapacity, 1024);
     while (cap < quads) cap *= 2;
     const idx = new Uint32Array(cap * 6);
+    // Split along the v1-v3 diagonal, as Mesa (the reference captures' GL) decomposes GL_QUADS so
+    // the last vertex stays the provoking one: it decides how colours, smooth light and per-vertex
+    // fog interpolate across a quad.
     for (let q = 0, v = 0, i = 0; q < cap; q++, v += 4) {
       idx[i++] = v;
       idx[i++] = v + 1;
-      idx[i++] = v + 2;
-      idx[i++] = v;
+      idx[i++] = v + 3;
+      idx[i++] = v + 1;
       idx[i++] = v + 2;
       idx[i++] = v + 3;
     }

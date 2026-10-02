@@ -70,7 +70,9 @@ src/
                            compass and clock, dynamic lightmap texture
   render/                  RenderGlobal, WorldRenderer (16^3 sections), EntityRenderer (camera, fog,
                            lightmap, frame orchestration), RenderBlocks, ItemRenderer (first-person),
-                           RenderHelper (item lighting), Frustum, sky, clouds, weather
+                           RenderHelper (item lighting), Frustum, sky, clouds
+  render/sky/              rain and snow (RenderRainSnow), screen overlays (pumpkin, portal, fire),
+                           the client-daylight light quirk, mc.dev.sky helpers, weather registrations
   render/entity/           RenderManager, Render*, models (ModelBase, ModelRenderer, ModelBox, Model*)
   render/tileentity/       chest, ender chest, sign, mob spawner, skull, piston, enchant table, beacon
   render/particle/         EffectRenderer and EntityFX subclasses
@@ -199,7 +201,8 @@ stitching. Grass, foliage, and water colormaps are sent to workers once at init.
 
 ### 5.5 Simulation
 
-`World.tick()` covers world time and moon phase, weather cycling, mob spawning
+`World.tick()` covers world time and moon phase, weather cycling (`World.clientWeather.tick()`: the
+server's `updateWeather`, then the client's view of it, see §6.4), mob spawning
 (`World.mobSpawner`, by default `SpawnerAnimals.findChunksForSpawning`), scheduled block updates
 (`scheduleBlockUpdate`, `tickRate`), and `tickBlocksAndAmbiance`: per active chunk the mood-sound
 check, the lightning roll (1 in 100000 while thundering), the ice and snow roll, and 3 random
@@ -267,6 +270,22 @@ The far plane is `256 >> renderDistance` (Far 256, Normal 128, Short 64, Tiny 32
 radius follows `RenderGlobal`'s `renderChunksWide`. Render distance, graphics (fancy leaves and
 clouds), smooth lighting, clouds, particles, view bobbing, brightness, GUI scale, and FOV all
 come from `GameSettings` and behave as in 1.5.2.
+
+### 6.4 Sky, fog and weather quirks kept from 1.5.2
+
+- Fog distance is radial and computed per vertex (`length(eye)`, interpolated): the reference GL
+  (Mesa, like NVIDIA) has `GL_NV_fog_distance`, which `setupFog` switches to `GL_EYE_RADIAL_NV`.
+  Quads are split along the v1-v3 diagonal as Mesa does, which decides how per-vertex fog,
+  colour and smooth light interpolate across a quad.
+- The client world computes `skylightSubtracted` once at world time 0 and never again, so the
+  fog brightness, the vignette and the water overlay always see daylight. Client-side light
+  queries go through `withClientSkylight` (`src/render/sky/ClientWorldView.ts`).
+- Rendering reads `World.clientWeather` (`src/world/WeatherCycle.ts`), not the server strengths:
+  the client restarts its rain strength at 0 when the server's `isRaining()` turns true (at 1 when
+  it turns false) and never learns about thunder, so storms look like rain plus bolts.
+  `getSkyColor`, `getCloudColour` and `getSunBrightness` use these client values.
+- `EntityLightningBolt` does the server's work (fire, `onStruckByLightning`, thunder sounds) and
+  the client's (`World.lastLightningBolt` flash, drawn by `RenderLightningBolt`).
 
 ## 7. Blocks and items
 
@@ -400,7 +419,7 @@ registries are imported once by `src/client/Minecraft.ts`.
 | Spawning | Biome lists by `EntityList` name (`BiomeGenBase.getSpawnableList`, `editSpawns`), `SpawnRules` for the per-mob `getCanSpawnHere` data, `World.mobSpawner` (default `SpawnerAnimals.findChunksForSpawning`), world-generation animals in `WorldGenSpawning`. |
 | Particles | `RenderGlobal.particleFactories.set(name, (w, x, y, z, vx, vy, vz) => fx)` in `src/render/particle/ParticleRegistry.ts`. |
 | Sounds and world effects | `World.playSoundEffect` / `playSound` / `playSoundAtEntity`, `World.playAuxSFX(type, …)` (cases in `RenderGlobal.playAuxSFX`), `World.playRecord`, `World.broadcastSound`, `SoundManager.playEntitySound` for loops. |
-| Weather | `World.updateWeather` (rain and thunder cycles), `World.weatherEffects` + `addWeatherEffect` (rendered before entities), `World.lightningBoltFactory` for the strike in `tickBlocksAndAmbiance`. Sky and fog read `getRainStrength` / `getWeightedThunderStrength`. |
+| Weather | `World.updateWeather` (the server's rain and thunder cycles, `isRaining()` for gameplay), `World.clientWeather` (`WeatherCycle`: what is rendered; `WeatherCycle.setWeather(world, 'clear' \| 'rain' \| 'thunder', seconds?)` and `WeatherCycle.toggleDownfall(world)` back `/weather` and `/toggledownfall`), `World.weatherEffects` + `addWeatherEffect` (rendered before entities), `World.lightningBoltFactory` (set in `src/render/sky/SkyRegistry.ts`) for the strike in `tickBlocksAndAmbiance`. Rain splashes use the `rain` and `smoke` particle factories directly (like `new EntityRainFX`), the sound `ambient.weather.rain`; bolts play `ambient.weather.thunder` and `random.explode`. Sky, fog, clouds and the lightmap read `clientWeather.getRainStrength` / `getWeightedThunderStrength`. |
 | Explosions | `World.createExplosion` / `newExplosion`; entities can veto blocks with `getBlockExplosionResistance` / `canExplosionDestroyBlock`. |
 | Commands | Subclass `CommandBase` (`src/command/`), register it in the `ServerCommandManager` constructor or with `ServerCommandManager.addCommand(() => new CommandX())` before a world starts. `getServer()` gives the worlds, players and `sendChatMsg`; results go through `CommandBase.notifyAdmins`; target selectors through `CommandBase.getPlayer` / `PlayerSelector`. |
 | Chat | `EntityPlayer.addChatMessage(langKey)`, `sendChatToPlayer(text)`, `Minecraft.ingameGUI.getChatGUI().printChatMessage(text)`. |
