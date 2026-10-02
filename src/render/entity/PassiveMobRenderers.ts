@@ -19,6 +19,7 @@ import { ModelSquid } from './ModelSquid';
 import { ModelWolf } from './ModelWolf';
 import { RenderLiving } from './RenderLiving';
 import { RenderManager } from './RenderManager';
+import '../../gui/merchant/MerchantGui';
 import { RenderBat, RenderChicken, RenderIronGolem, RenderMooshroom, RenderOcelot, RenderPig, RenderSheep, RenderSnowMan, RenderSquid, RenderVillager, RenderWolf } from './RenderPassiveMobs';
 
 const f = Math.fround;
