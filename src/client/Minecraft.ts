@@ -182,6 +182,7 @@ export class Minecraft implements SettingsListener {
     this.renderEngine.textureMapItems.registrars.push((reg) => {
       for (const it of Item.itemsList) if (it && it.getSpriteNumber() === 1) it.registerIcons(reg);
       SlotArmor.registerIcons(reg);
+      RenderManager.instance.updateItemIcons(reg);
     });
     await this.renderEngine.refreshTextureMaps();
     RenderBlocks.missingIcon = this.renderEngine.textureMapBlocks.getMissingIcon();

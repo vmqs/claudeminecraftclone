@@ -105,6 +105,11 @@ export class EntityList {
     EntityList.classToName.set(cls, name);
   }
 
+  /** The class bound to a name, or null when it is not implemented yet. */
+  static getClassFromName(name: string): EntityConstructor | null {
+    return EntityList.nameToClass.get(name) ?? null;
+  }
+
   static createEntityByName(name: string, world: World): Entity | null {
     const cls = EntityList.nameToClass.get(name);
     return cls ? new cls(world) : null;

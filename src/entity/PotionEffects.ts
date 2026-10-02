@@ -71,3 +71,28 @@ export function areAllPotionsAmbient(effects: Iterable<PotionEffectLike>): boole
   for (const e of effects) if (!e.getIsAmbient()) return false;
   return true;
 }
+
+/**
+ * What entities need from the potion items (ItemPotion / PotionHelper / Potion), installed by
+ * the potion code; null entries fall back to "no effects" and the water colour.
+ */
+export const PotionHooks: {
+  /** ItemPotion.getEffects(damage): the effects of a potion item damage value. */
+  effectsFromDamage: ((damage: number) => PotionEffectLike[]) | null;
+  /** PotionHelper.func_77915_a(damage, false): the liquid colour of a potion item damage value. */
+  liquidColorFromDamage: ((damage: number) => number) | null;
+  /** new PotionEffect(id, duration, amplifier). */
+  createEffect: ((id: number, duration: number, amplifier: number) => PotionEffectLike) | null;
+  /** Potion.affectEntity for instant potions (healing, harming) scaled by the splash distance. */
+  affectEntity: ((potionId: number, thrower: EntityLiving | null, target: EntityLiving, amplifier: number, scale: number) => void) | null;
+} = {
+  effectsFromDamage: null,
+  liquidColorFromDamage: null,
+  createEffect: null,
+  affectEntity: null,
+};
+
+/** Potion.isInstant: healing and harming apply at once instead of over time. */
+export function isInstantPotion(id: number): boolean {
+  return id === PotionId.heal || id === PotionId.harm;
+}

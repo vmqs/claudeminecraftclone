@@ -35,8 +35,11 @@ export abstract class Render {
     this.renderManager = m;
   }
 
-  /** Terrain/item icons this renderer needs (called when the atlases are stitched). */
+  /** Terrain icons this renderer needs (called when the terrain atlas is stitched). */
   updateIcons(_reg: IconRegister): void {}
+
+  /** Item-atlas icons this renderer needs (called when the item atlas is stitched). */
+  updateItemIcons(_reg: IconRegister): void {}
 
   getFontRendererFromRenderManager(): FontRenderer | null {
     return this.renderManager.fontRenderer;

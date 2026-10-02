@@ -31,6 +31,10 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
   experienceTotal = 0;
   /** Progress towards the next level, 0..1. */
   experience = 0;
+  /** Ticks until the next experience orb can be collected. */
+  xpCooldown = 0;
+  /** ticksExisted of the last level-up sound (field_82249_h). */
+  private lastLevelUpTick = 0;
   /** The player's own inventory window; openContainer is it whenever no other window is open. */
   inventoryContainer: Container;
   openContainer: Container;
@@ -108,6 +112,7 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
         if (--this.itemInUseCount === 0) this.onItemUseFinish();
       }
     }
+    if (this.xpCooldown > 0) this.xpCooldown--;
     super.onUpdate();
     if (!this.worldObj.isRemote && !this.openContainer.canInteractWith(this)) {
       this.closeScreen();
@@ -489,6 +494,45 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
 
   override addToPlayerScore(_e: Entity, n: number): void {
     this.score += n;
+  }
+
+  addScore(n: number): void {
+    this.score += n;
+  }
+
+  /** Experience points from orbs (and /xp): fills the bar, levelling up as often as it overflows. */
+  addExperience(points: number): void {
+    this.addScore(points);
+    const room = 2147483647 - this.experienceTotal;
+    if (points > room) points = room;
+    this.experience = f(this.experience + f(points / this.xpBarCap()));
+    this.experienceTotal += points;
+    while (this.experience >= 1) {
+      this.experience = f(f(this.experience - 1) * this.xpBarCap());
+      this.addExperienceLevel(1);
+      this.experience = f(this.experience / this.xpBarCap());
+    }
+  }
+
+  /** Adds (or removes) whole levels; every fifth level plays the level-up sound. */
+  addExperienceLevel(levels: number): void {
+    this.experienceLevel += levels;
+    if (this.experienceLevel < 0) {
+      this.experienceLevel = 0;
+      this.experience = 0;
+      this.experienceTotal = 0;
+    }
+    if (levels > 0 && this.experienceLevel % 5 === 0 && f(this.lastLevelUpTick) < f(this.ticksExisted - 100)) {
+      const v = this.experienceLevel > 30 ? 1 : f(this.experienceLevel / 30);
+      this.worldObj.playSoundAtEntity(this, 'random.levelup', f(v * f(0.75)), 1);
+      this.lastLevelUpTick = this.ticksExisted;
+    }
+  }
+
+  /** Points needed for the next level. */
+  xpBarCap(): number {
+    if (this.experienceLevel >= 30) return 62 + (this.experienceLevel - 30) * 7;
+    return this.experienceLevel >= 15 ? 17 + (this.experienceLevel - 15) * 3 : 17;
   }
 
   getScore(): number {

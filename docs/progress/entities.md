@@ -6,9 +6,9 @@ A restarted agent continues from the first item not marked done. Status: todo / 
 |---|---|---|
 | 1 | DamageSource: indirect/arrow/fireball/thrown/magic/thorns/explosion sources | done |
 | 2 | Entity/EntityLiving completion: potions storage + hooks, loot pickup, armour helpers, setPositionAndRotation2, unmountEntity, creative-target helper | done (World.setEntityState echo, collectEffect hook, PotionEffects.ts) |
-| 3 | EntityXPOrb + RenderXPOrb | todo |
-| 4 | EntityArrow + RenderArrow | todo |
-| 5 | EntityThrowable family (snowball, egg, pearl, exp bottle, potion) + RenderSnowball | todo |
+| 3 | EntityXPOrb + RenderXPOrb | done |
+| 4 | EntityArrow + RenderArrow | done |
+| 5 | EntityThrowable family (snowball, egg, pearl, exp bottle, potion) + RenderSnowball | done (visual check pending) |
 | 6 | Fireballs (large, small, wither skull) + renderers | todo |
 | 7 | EntityFallingSand + RenderFallingSand (BlockSand hook) | todo |
 | 8 | EntityTNTPrimed + RenderTNTPrimed; Explosion review | todo |
