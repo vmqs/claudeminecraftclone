@@ -1,3 +1,5 @@
+import { BlockIds } from '../../block/BlockIds';
+import { MathHelper } from '../../core/MathHelper';
 import type { FontRenderer } from '../../gui/FontRenderer';
 import type { GameSettings } from '../../client/GameSettings';
 import type { Entity } from '../../entity/Entity';
@@ -70,8 +72,19 @@ export class RenderManager {
     this.fontRenderer = font;
     this.livingPlayer = viewer;
     this.options = options;
-    this.playerViewY = viewer.prevRotationYaw + (viewer.rotationYaw - viewer.prevRotationYaw) * pt;
-    this.playerViewX = viewer.prevRotationPitch + (viewer.rotationPitch - viewer.prevRotationPitch) * pt;
+    if (viewer.isPlayerSleeping()) {
+      // In a bed the view follows the bed (name tags and sprites face that way).
+      const x = MathHelper.floor_double(viewer.posX);
+      const y = MathHelper.floor_double(viewer.posY);
+      const z = MathHelper.floor_double(viewer.posZ);
+      if (w.getBlockId(x, y, z) === BlockIds.bed) {
+        this.playerViewY = (w.getBlockMetadata(x, y, z) & 3) * 90 + 180;
+        this.playerViewX = 0;
+      }
+    } else {
+      this.playerViewY = viewer.prevRotationYaw + (viewer.rotationYaw - viewer.prevRotationYaw) * pt;
+      this.playerViewX = viewer.prevRotationPitch + (viewer.rotationPitch - viewer.prevRotationPitch) * pt;
+    }
     if (options.thirdPersonView === 2) this.playerViewY += 180;
     this.viewerPosX = viewer.lastTickPosX + (viewer.posX - viewer.lastTickPosX) * pt;
     this.viewerPosY = viewer.lastTickPosY + (viewer.posY - viewer.lastTickPosY) * pt;

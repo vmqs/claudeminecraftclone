@@ -55,6 +55,7 @@ import { Profiler } from './Profiler';
 import { DebugHooks } from '../command/CommandDebug';
 import { GuiProfilerChart } from '../gui/GuiProfilerChart';
 import { GuiSleepMP } from '../gui/GuiSleepMP';
+import { respawnAtBedLocation } from './BedRespawn';
 
 /** World creation options (WorldSettings). */
 export interface WorldSettings {
@@ -863,6 +864,7 @@ export class Minecraft implements SettingsListener {
     this.renderViewEntity = p;
     p.preparePlayerToSpawn();
     this.spawnPlayerAtWorldSpawn();
+    respawnAtBedLocation(old, p, w, this.chunkProvider);
     w.spawnEntityInWorld(p);
     this.playerController.flipPlayer(p);
     p.movementInput = new MovementInputFromOptions(this.gameSettings);

@@ -784,7 +784,10 @@ export class World implements IWorld, IBlockAccess {
     const cz = MathHelper.floor_double(e.posZ / 16);
     const isPlayer = (e as unknown as EntityPlayer).isPlayerEntity === true;
     if (!isPlayer && !e.forceSpawn && !this.chunkExists(cx, cz)) return false;
-    if (isPlayer) this.playerEntities.push(e as unknown as EntityPlayer);
+    if (isPlayer) {
+      this.playerEntities.push(e as unknown as EntityPlayer);
+      this.updateAllPlayersSleepingFlag();
+    }
     this.getChunkFromChunkCoords(cx, cz).addEntity(e);
     this.loadedEntityList.push(e);
     this.obtainEntitySkin(e);
@@ -812,6 +815,32 @@ export class World implements IWorld, IBlockAccess {
     e.setDead();
     const i = this.playerEntities.indexOf(e as unknown as EntityPlayer);
     if (i >= 0) this.playerEntities.splice(i, 1);
+    this.updateAllPlayersSleepingFlag();
+  }
+
+  // ------------------------------------------------------------------ sleeping (WorldServer)
+
+  /** Every player lies in a bed (refreshed whenever one lies down, gets up, joins or leaves). */
+  private allPlayersSleeping = false;
+
+  updateAllPlayersSleepingFlag(): void {
+    this.allPlayersSleeping = this.playerEntities.length > 0 && this.playerEntities.every((p) => p.isPlayerSleeping());
+  }
+
+  /** Everyone has slept the full 100 ticks, so the night is skipped. */
+  areAllPlayersAsleep(): boolean {
+    return this.allPlayersSleeping && !this.isRemote && this.playerEntities.every((p) => p.isPlayerFullyAsleep());
+  }
+
+  /** The morning after a slept-through night: everyone gets up (spawn set) and the weather clears. */
+  protected wakeAllPlayers(): void {
+    this.allPlayersSleeping = false;
+    for (const p of this.playerEntities) if (p.isPlayerSleeping()) p.wakeUpPlayer(false, false, true);
+    const info = this.worldInfo;
+    info.rainTime = 0;
+    info.raining = false;
+    info.thunderTime = 0;
+    info.thundering = false;
   }
 
   /**
@@ -1754,6 +1783,11 @@ export class World implements IWorld, IBlockAccess {
     this.naturalDepth++;
     try {
       this.clientWeather.tick();
+      if (this.areAllPlayersAsleep()) {
+        const t = this.worldInfo.worldTime + 24000;
+        this.setWorldTime(t - (t % 24000));
+        this.wakeAllPlayers();
+      }
       if (this.worldInfo.gameRules.doMobSpawning) this.mobSpawner?.(this);
     } finally {
       this.naturalDepth--;

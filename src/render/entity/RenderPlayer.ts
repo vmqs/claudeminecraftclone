@@ -1,8 +1,10 @@
+import { ItemIds } from '../../block/BlockIds';
 import { MathHelper } from '../../core/MathHelper';
 import type { Entity } from '../../entity/Entity';
 import type { EntityLiving } from '../../entity/EntityLiving';
 import type { EntityPlayer } from '../../entity/EntityPlayer';
 import { EnumAction } from '../../item/Item';
+import { ItemStack } from '../../item/ItemStack';
 import { GL } from '../gl/GL';
 import { ModelBiped } from './ModelBiped';
 import { renderHeadItem, renderHeldItem, setArmorModel, setArmorOverlay } from './RenderBiped';
@@ -77,8 +79,31 @@ export class RenderPlayer extends RenderLiving {
       this.loadTexture(RenderPlayer.capeTexture);
       this.renderCape(p, pt);
     }
-    const held = p.inventory.getCurrentItem();
-    if (held) renderHeldItem(this, p, held, this.modelBipedMain, p.getItemInUseCount() > 0 ? held.getItemUseAction() : null);
+    let held = p.inventory.getCurrentItem();
+    if (held) {
+      // While the line is out, a fishing rod is drawn as a plain stick.
+      if (p.fishEntity) held = new ItemStack(ItemIds.stick, 1, 0);
+      renderHeldItem(this, p, held, this.modelBipedMain, p.getItemInUseCount() > 0 ? held.getItemUseAction() : null);
+    }
+  }
+
+  /** renderPlayerSleep: a sleeping body is moved towards the foot of the bed. */
+  protected override renderLivingAt(e: EntityLiving, x: number, y: number, z: number): void {
+    const p = e as EntityPlayer;
+    if (p.isEntityAlive() && p.isPlayerSleeping()) super.renderLivingAt(p, x + p.sleepOffsetX, y + p.sleepOffsetY, z + p.sleepOffsetZ);
+    else super.renderLivingAt(p, x, y, z);
+  }
+
+  /** rotatePlayer: a sleeping body lies on its back along the bed. */
+  protected override rotateCorpse(e: EntityLiving, age: number, bodyYaw: number, pt: number): void {
+    const p = e as EntityPlayer;
+    if (p.isEntityAlive() && p.isPlayerSleeping()) {
+      GL.rotate(p.getBedOrientationInDegrees(), 0, 1, 0);
+      GL.rotate(this.getDeathMaxRotation(p), 0, 0, 1);
+      GL.rotate(270, 0, 1, 0);
+    } else {
+      super.rotateCorpse(p, age, bodyYaw, pt);
+    }
   }
 
   /** The cape swings behind with the chasing point, the walk bob and sneaking. */
