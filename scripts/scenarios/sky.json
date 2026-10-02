@@ -122,7 +122,7 @@
   {"eval": "mc.dev.look(0, 0); mc.dev.sky.pin(18000)"},
   {"wait": 600},
   {"shot": "water_midnight_south.png"},
-  {"eval": "mc.dev.sky.fill(11, 4, 6); mc.dev.sky.fill(0, 7, 8); mc.dev.tp(8.5, 5, 8.5, 0, 0); mc.dev.ticks(2); 'burning=' + mc.thePlayer.isBurning()"},
+  {"eval": "mc.dev.sky.fill(0, 4, 8); mc.dev.sky.fill(11, 4, 6); mc.dev.tp(8.5, 5, 8.5, 0, 0); mc.dev.ticks(2); mc.dev.tp(8.5, 5, 8.5, 0, 0); 'burning=' + mc.thePlayer.isBurning()"},
   {"wait": 1000},
   {"waitFor": "mc.dev.pendingSections(6) === 0", "timeout": 600000},
   {"eval": "mc.dev.look(0, 0); mc.dev.sky.pin(6000)"},
