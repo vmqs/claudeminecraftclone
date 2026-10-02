@@ -2,6 +2,8 @@ import { Block } from '../../block/Block';
 import { MathHelper } from '../../core/MathHelper';
 import type { Entity } from '../../entity/Entity';
 import type { EntityFallingSand } from '../../entity/EntityFallingSand';
+import type { BiomeGenBase } from '../../world/biome/BiomeGenBase';
+import type { IBlockAccess } from '../../world/IBlockAccess';
 import type { World } from '../../world/World';
 import { GL } from '../gl/GL';
 import { Tessellator } from '../gl/Tessellator';
@@ -36,13 +38,15 @@ export class RenderFallingSand extends Render {
     const type = block.getRenderType();
     if (type === 35 || type === 27) {
       // Anvil and dragon egg: their own shape, drawn at the block position shifted to the origin.
-      rb.blockAccess = w;
+      // The falling block's own metadata (anvil facing and damage), not the air it passes.
+      rb.blockAccess = new FallingBlockAccess(w, bx, by, bz, sand.blockID, sand.metadata);
       const t = Tessellator.instance;
       t.startDrawingQuads();
       t.setTranslation(f(f(-bx) - f(0.5)), f(f(-by) - f(0.5)), f(f(-bz) - f(0.5)));
       rb.renderBlockByRenderType(block, bx, by, bz);
       t.setTranslation(0, 0, 0);
       t.draw();
+      rb.blockAccess = w;
     } else {
       rb.setRenderBoundsFromBlock(block);
       this.renderBlockSandFalling(w, block, bx, by, bz, sand.metadata);
@@ -71,5 +75,66 @@ export class RenderFallingSand extends Render {
     t.setColorOpaque_F(f(0.6), f(0.6), f(0.6));
     rb.renderFaceXPos(block, o, o, o, rb.getBlockIconFromSideAndMetadata(block, 5, meta));
     t.draw();
+  }
+}
+
+/**
+ * The world as seen by a falling block's renderer: its own cell holds the falling block and
+ * metadata (RenderBlocks.renderBlockAnvilMetadata in 1.5.2 takes the metadata directly).
+ */
+class FallingBlockAccess implements IBlockAccess {
+  constructor(
+    private readonly w: IBlockAccess,
+    private readonly x: number,
+    private readonly y: number,
+    private readonly z: number,
+    private readonly id: number,
+    private readonly meta: number,
+  ) {}
+
+  private at(x: number, y: number, z: number): boolean {
+    return x === this.x && y === this.y && z === this.z;
+  }
+  getBlockId(x: number, y: number, z: number): number {
+    return this.at(x, y, z) ? this.id : this.w.getBlockId(x, y, z);
+  }
+  getBlockMetadata(x: number, y: number, z: number): number {
+    return this.at(x, y, z) ? this.meta : this.w.getBlockMetadata(x, y, z);
+  }
+  getLightBrightnessForSkyBlocks(x: number, y: number, z: number, min: number): number {
+    return this.w.getLightBrightnessForSkyBlocks(x, y, z, min);
+  }
+  getBrightness(x: number, y: number, z: number, min: number): number {
+    return this.w.getBrightness(x, y, z, min);
+  }
+  getLightBrightness(x: number, y: number, z: number): number {
+    return this.w.getLightBrightness(x, y, z);
+  }
+  getBlockMaterial(x: number, y: number, z: number) {
+    return this.w.getBlockMaterial(x, y, z);
+  }
+  isBlockOpaqueCube(x: number, y: number, z: number): boolean {
+    return this.w.isBlockOpaqueCube(x, y, z);
+  }
+  isBlockNormalCube(x: number, y: number, z: number): boolean {
+    return this.w.isBlockNormalCube(x, y, z);
+  }
+  isAirBlock(x: number, y: number, z: number): boolean {
+    return this.at(x, y, z) ? false : this.w.isAirBlock(x, y, z);
+  }
+  getBiomeGenForCoords(x: number, z: number): BiomeGenBase {
+    return this.w.getBiomeGenForCoords(x, z);
+  }
+  getHeight(): number {
+    return this.w.getHeight();
+  }
+  extendedLevelsInChunkCache(): boolean {
+    return this.w.extendedLevelsInChunkCache();
+  }
+  doesBlockHaveSolidTopSurface(x: number, y: number, z: number): boolean {
+    return this.w.doesBlockHaveSolidTopSurface(x, y, z);
+  }
+  isBlockProvidingPowerTo(x: number, y: number, z: number, side: number): number {
+    return this.w.isBlockProvidingPowerTo(x, y, z, side);
   }
 }

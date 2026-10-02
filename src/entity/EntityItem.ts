@@ -58,7 +58,7 @@ export class EntityItem extends Entity {
         this.motionY = f(0.2);
         this.motionX = f(f(this.rand.nextFloat() - this.rand.nextFloat()) * f(0.2));
         this.motionZ = f(f(this.rand.nextFloat() - this.rand.nextFloat()) * f(0.2));
-        this.playSound('random.fizz', f(0.4), f(2 + f(this.rand.nextFloat() * f(0.4))));
+        this.playSoundEchoed('random.fizz', f(0.4), () => f(2 + f(this.rand.nextFloat() * f(0.4))));
       }
       this.searchForOtherItemsNearby();
     }

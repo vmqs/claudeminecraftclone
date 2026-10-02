@@ -431,6 +431,15 @@ export abstract class Entity {
     }
   }
 
+  /**
+   * A sound that 1.5.2 single player hears twice: the integrated server's entity and the
+   * client's copy both run the code that plays it, each with its own random pitch (see the
+   * "client echoes" rule in docs/ARCHITECTURE.md).
+   */
+  playSoundEchoed(name: string, volume: number, pitch: () => number): void {
+    for (let i = 0; i < 2; i++) this.playSound(name, volume, pitch());
+  }
+
   playSound(name: string, volume: number, pitch: number): void {
     this.worldObj.playSoundAtEntity(this, name, volume, pitch);
   }

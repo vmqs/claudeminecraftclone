@@ -17,10 +17,13 @@
     "timeout": 120000
   },
   {
+    "eval": "mc.dev.setTime(6000)"
+  },
+  {
     "eval": "(() => { const { ox, oz } = window.O; const S = mc.dev.lib.ItemStack; const out = {}; mc.dev.select(0); const before = mc.thePlayer.inventory.mainInventory[0].stackSize; mc.thePlayer.inventory.mainInventory[0].stackSize = 10; mc.dev.press(16); mc.dev.press(16); out.afterQ = mc.thePlayer.inventory.mainInventory[0]?.stackSize; out.dropped = mc.dev.entities('Item').length; const sizes = [[1, 1], [2, 3], [4, 8], [5, 25], [12, 64], [280, 1], [50, 3], [20, 30]]; sizes.forEach(([id, n], i) => { const e = mc.dev.spawn('Item', ox - 2.5 + (i % 4) * 1.6, 4.3, oz + 3.2 + Math.floor(i / 4) * 1.6, new S(id, n, 0)); e.motionX = e.motionZ = 0; e.delayBeforeCanPickup = 100000; }); mc.dev.ticks(30); const burning = mc.dev.entities('Item').find(e => e.getEntityItem().itemID === 4); burning.setFire(10); out.items = mc.dev.entities('Item').map(e => e.getEntityItem().itemID + 'x' + e.getEntityItem().stackSize); out.burning = burning.isBurning(); return out; })()"
   },
   {
-    "eval": "mc.timer.timerSpeed = 0"
+    "eval": "mc.dev.setTime(6000); mc.timer.timerSpeed = 0"
   },
   {
     "wait": 2500
@@ -38,7 +41,7 @@
     "eval": "(() => { const { ox, oz } = window.O; const p = mc.thePlayer; const out = {}; [[-12, -8], [-4, -10], [0, -12], [6, -9], [12, -7]].forEach(([yaw, pitch]) => { mc.dev.look(yaw, pitch); const a = mc.dev.spawn('Arrow', '@p', 2); a.setIsCritical(true); }); mc.dev.ticks(30); const arrows = mc.dev.entities('Arrow'); out.arrows = arrows.length; out.stuck = arrows.filter(a => a.isInGround()).length; out.z = arrows.map(a => a.posZ - oz).map(v => v.toFixed(2)); [1, 3, 7, 17, 37, 73, 149].forEach((v, i) => { const o = mc.dev.spawn('XPOrb', ox - 3 + i, 4.5, oz + 4, v); o.motionX = o.motionY = o.motionZ = 0; }); mc.dev.look(0, 10); mc.dev.spawn('Snowball', '@p'); const flying = mc.dev.spawn('Arrow', '@p', 0.6); out.flyingArrow = !!flying; mc.dev.ticks(3); return out; })()"
   },
   {
-    "eval": "mc.timer.timerSpeed = 0"
+    "eval": "mc.dev.setTime(6000); mc.timer.timerSpeed = 0"
   },
   {
     "wait": 2500
@@ -59,7 +62,7 @@
     "eval": "(() => { const { ox, oz } = window.O; mc.dev.tp(ox + 0.5, 4, oz + 3.5, 0, 0); mc.dev.ticks(2); return mc.dev.entities('Painting').length + mc.dev.entities('ItemFrame').length; })()"
   },
   {
-    "eval": "mc.timer.timerSpeed = 0"
+    "eval": "mc.dev.setTime(6000); mc.timer.timerSpeed = 0"
   },
   {
     "wait": 2500
@@ -74,7 +77,7 @@
     "eval": "(() => { const { ox, oz } = window.O; for (const e of mc.dev.entities('Item')) e.setDead(); const w = mc.theWorld; for (let x = -3; x <= 3; x++) for (let z = 3; z <= 9; z++) w.setBlock(ox + x, 3, oz + z, 1, 0, 3); const t = mc.dev.spawn('PrimedTnt', ox + 0.5, 4.5, oz + 6.5, mc.thePlayer); const s = mc.dev.spawn('FallingSand', ox - 2.5, 9.5, oz + 6.5, 12, 0); w.setBlock(ox - 3, 9, oz + 6, 12, 0, 3); mc.dev.tp(ox + 0.5, 4, oz - 1.5, 0, 25); mc.dev.ticks(1); t.fuse = 4; mc.dev.ticks(2); return { fuse: t.fuse, tntAlias: window.TNT_ALIAS, sandY: s.posY.toFixed(2) }; })()"
   },
   {
-    "eval": "mc.timer.timerSpeed = 0"
+    "eval": "mc.dev.setTime(6000); mc.timer.timerSpeed = 0"
   },
   {
     "wait": 2500
@@ -86,7 +89,7 @@
     "eval": "(() => { mc.timer.timerSpeed = 1; const { ox, oz } = window.O; const w = mc.theWorld; mc.dev.ticks(20); let air = 0; for (let x = -4; x <= 4; x++) for (let y = 1; y <= 4; y++) for (let z = 2; z <= 10; z++) if (w.getBlockId(ox + x, y, oz + z) === 0 && y <= 3) air++; return { tntLeft: mc.dev.entities('PrimedTnt').length, craterAirBlocks: air, drops: mc.dev.entities('Item').length, sandBlocks: (() => { const at = []; for (let x = -14; x <= 6; x++) for (let y = 1; y <= 10; y++) for (let z = -2; z <= 12; z++) if (w.getBlockId(ox + x, y, oz + z) === 12) at.push([x, y, z].join(',')); return at; })(), fallingLeft: mc.dev.entities('FallingSand').length }; })()"
   },
   {
-    "eval": "mc.timer.timerSpeed = 0"
+    "eval": "mc.dev.setTime(6000); mc.timer.timerSpeed = 0"
   },
   {
     "wait": 3500
@@ -98,7 +101,7 @@
     "eval": "(() => { mc.timer.timerSpeed = 1; for (const e of mc.dev.entities('Item')) e.setDead(); const { ox, oz } = window.O; const b = mc.dev.spawn('Boat', ox + 11.5, 4, oz + 4.5); b.rotationYaw = b.prevRotationYaw = -90; mc.dev.tp(ox + 11.5, 4.5, oz - 2, 0, 20); mc.dev.ticks(2); const ok = mc.thePlayer.interactWith(b); mc.dev.ticks(20); const r = { riding: mc.thePlayer.ridingEntity === b, boatY: b.posY.toFixed(3) }; const z0 = b.posZ; mc.dev.key(17, true); mc.dev.ticks(40); mc.dev.key(17, false); mc.dev.ticks(1); r.boatMovedZ = (b.posZ - z0).toFixed(2); r.boatYaw = b.rotationYaw.toFixed(1); r.boatSpeed = Math.hypot(b.motionX, b.motionZ).toFixed(3); r.ok = ok; mc.gameSettings.thirdPersonView = 1; return r; })()"
   },
   {
-    "eval": "mc.timer.timerSpeed = 0"
+    "eval": "mc.dev.setTime(6000); mc.timer.timerSpeed = 0"
   },
   {
     "wait": 2500
@@ -113,7 +116,7 @@
     "eval": "(() => { const { ox, oz, rx0, rx1, rz0, rz1 } = window.O; const c = mc.dev.spawn('MinecartRideable', ox + rx0 + 0.5, 4.5, oz + rz0 + 4.5); const f = mc.dev.spawn('MinecartFurnace', ox + rx1 + 0.5, 4.5, oz + rz0 + 3.5); const ch = mc.dev.spawn('MinecartChest', ox + rx0 + 4.5, 4.5, oz + rz1 + 0.5); c.motionZ = -0.4; mc.dev.tp(ox + rx0 + 4.5, 4, oz - 4, 0, 30); mc.dev.ticks(1); const path = []; for (let i = 0; i < 6; i++) { mc.dev.ticks(5); path.push([(c.posX - ox).toFixed(2), (c.posZ - oz).toFixed(2), c.rotationYaw.toFixed(0)]); } const onRail = !!c.getRailPosition(c.posX, c.posY, c.posZ); return { railId: mc.theWorld.getBlockId(ox + rx0, 4, oz + rz0 + 4), railMeta: mc.theWorld.getBlockMetadata(ox + rx0, 4, oz + rz0 + 4), path, onRail, carts: mc.dev.entities().filter(e => e.getMinecartType).length }; })()"
   },
   {
-    "eval": "mc.timer.timerSpeed = 0"
+    "eval": "mc.dev.setTime(6000); mc.timer.timerSpeed = 0"
   },
   {
     "wait": 2500
@@ -128,7 +131,7 @@
     "eval": "(() => { mc.timer.timerSpeed = 1; const { ox, oz } = window.O; for (const e of mc.dev.entities()) if (e !== mc.thePlayer) e.setDead(); mc.dev.ticks(1); const lib = mc.dev.lib; if (!lib.Item.itemsList[346]) new lib.Item(90).setUnlocalizedName('fishingRod'); mc.thePlayer.inventory.mainInventory[8] = new lib.ItemStack(346, 1, 0); mc.dev.select(8); mc.dev.tp(ox + 0.5, 4, oz - 6.5, 0, 0); mc.dev.ticks(1); const out = {}; const big = mc.dev.spawn('Fireball', ox - 2.5, 6, oz + 2.5, 0, 0, 1); const small = mc.dev.spawn('SmallFireball', ox - 0.5, 6, oz + 2.5, 0, 0, 1); const skull = mc.dev.spawn('WitherSkull', ox + 1.5, 6, oz + 2.5, 0, 0, 1); const crystal = mc.dev.spawn('EnderCrystal', ox + 4.5, 5, oz + 4.5); const eye = mc.dev.spawn('EyeOfEnderSignal', ox - 4.5, 5.5, oz + 1.5); eye.moveTowards(ox - 4.5, 70, oz + 200); const potion = mc.dev.spawn('ThrownPotion', ox + 3, 8, oz + 1, 16389); potion.motionX = potion.motionY = potion.motionZ = 0; const rocket = mc.dev.spawn('FireworksRocketEntity', ox + 2.5, 4.5, oz + 1, null); mc.dev.look(-15, -20); const hook = mc.dev.spawn('FishHook', '@p'); mc.dev.ticks(2); out.alive = [big, small, skull, crystal, eye, potion, rocket, hook].map(e => !e.isDead); out.hookFound = mc.dev.entities('FishHook').length; out.crystalFire = mc.theWorld.getBlockId(Math.floor(crystal.posX), Math.floor(crystal.posY), Math.floor(crystal.posZ)); mc.dev.look(0, 0); return out; })()"
   },
   {
-    "eval": "mc.timer.timerSpeed = 0"
+    "eval": "mc.dev.setTime(6000); mc.timer.timerSpeed = 0"
   },
   {
     "wait": 2500
@@ -138,5 +141,8 @@
   },
   {
     "eval": "(() => { mc.timer.timerSpeed = 1; const big = mc.dev.entities('Fireball')[0]; const before = [big.accelerationX, big.accelerationZ].map(v => v.toFixed(3)); mc.dev.look(90, 0); mc.thePlayer.attackTargetEntityWithCurrentItem(big); return { accelBefore: before, accelAfter: [big.accelerationX, big.accelerationZ].map(v => v.toFixed(3)), shooterIsPlayer: big.shootingEntity === mc.thePlayer }; })()"
+  },
+  {
+    "eval": "(() => { const L = mc.dev.lib; const p = mc.thePlayer, w = mc.theWorld; const caps = p.capabilities; const out = {}; const mob = mc.dev.newEntity('Snowball', p.posX + 2, p.posY, p.posZ); Object.defineProperty(mob, 'isLivingEntity', { value: true }); mob.getHeldItem = () => null; const hit = (diff, n, creative) => { caps.disableDamage = creative; w.difficultySetting = diff; p.hurtResistantTime = 0; p.setEntityHealth(20); p.attackEntityFrom(new L.EntityDamageSource('mob', mob), n); return 20 - p.getHealth(); }; out.creative = hit(2, 6, true); out.peaceful = hit(0, 6, false); out.easy = hit(1, 6, false); out.normal = hit(2, 6, false); out.hard = hit(3, 6, false); out.playerHitUnscaled = (() => { w.difficultySetting = 1; p.hurtResistantTime = 0; p.setEntityHealth(20); p.attackEntityFrom(L.DamageSource.causePlayerDamage(p), 6); return 20 - p.getHealth(); })(); out.deathXp = (() => { p.experienceLevel = 5; const a = p.getExperiencePoints(null); p.experienceLevel = 30; const b = p.getExperiencePoints(null); p.experienceLevel = 0; return [a, b]; })(); caps.disableDamage = true; w.difficultySetting = 2; p.hurtResistantTime = 0; p.setEntityHealth(20); p.motionX = p.motionY = p.motionZ = 0; out.ok = out.creative === 0 && out.peaceful === 0 && out.easy === 4 && out.normal === 6 && out.hard === 9 && out.playerHitUnscaled === 6 && out.deathXp[0] === 35 && out.deathXp[1] === 100; return out; })()"
   }
 ]

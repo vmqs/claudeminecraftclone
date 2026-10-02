@@ -1,5 +1,6 @@
 import { Block } from '../../block/Block';
-import { BlockIds } from '../../block/BlockIds';
+import { BlockIds, ItemIds } from '../../block/BlockIds';
+import { MathHelper } from '../../core/MathHelper';
 import type { Entity } from '../../entity/Entity';
 import { EntityItem } from '../../entity/EntityItem';
 import { DIRECTION_OFFSET_X, DIRECTION_OFFSET_Z } from '../../entity/EntityHanging';
@@ -97,9 +98,31 @@ export class RenderItemFrame extends Render {
         GL.translate(f(0.16), f(-0.16), 0);
         break;
     }
+    // A framed compass points at the spawn as seen from the frame's facing, without wobble.
+    const compass = stack.itemID === ItemIds.compass ? this.renderManager.renderEngine?.textureMapItems : undefined;
+    const icon = compass?.getIcon('compass');
+    const saved = icon ? icon.shownFrame : -1;
+    if (compass && icon && icon.frames.length > 1) compass.showFrame(icon, compassFrame(frame, icon.frames.length));
     RenderItem.renderInFrame = true;
     RenderManager.instance.renderEntityWithPosYaw(item, 0, 0, 0, 0, 0);
     RenderItem.renderInFrame = false;
+    if (compass && icon && saved >= 0) compass.showFrame(icon, saved);
     GL.popMatrix();
   }
+}
+
+/**
+ * TextureCompass.updateCompass for a compass in a frame (snapping straight to the angle): the
+ * needle frame pointing at the world spawn from the frame's position, the frame's facing
+ * standing in for the player's yaw.
+ */
+function compassFrame(frame: EntityItemFrame, frames: number): number {
+  const spawn = frame.worldObj.getSpawnPoint();
+  const dx = spawn.x - frame.posX;
+  const dz = spawn.z - frame.posZ;
+  const yaw = MathHelper.wrapAngleTo180_float(180 + frame.hangingDirection * 90) % 360;
+  const angle = -(((yaw - 90) * Math.PI) / 180 - Math.atan2(dz, dx));
+  let i = Math.trunc((angle / (Math.PI * 2) + 1) * frames) % frames;
+  while (i < 0) i = (i + frames) % frames;
+  return i;
 }

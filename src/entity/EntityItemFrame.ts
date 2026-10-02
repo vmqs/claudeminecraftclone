@@ -40,7 +40,29 @@ export class EntityItemFrame extends EntityHanging {
   dropItemStack(): void {
     this.entityDropItem(new ItemStack(ItemIds.itemFrame, 1, 0), 0);
     const s = this.getDisplayedItem();
-    if (s && this.rand.nextFloat() < f(this.itemDropChance)) this.entityDropItem(s.copy(), 0);
+    if (s && this.rand.nextFloat() < f(this.itemDropChance)) {
+      const drop = s.copy();
+      EntityItemFrame.setItemFrame(drop, null);
+      this.entityDropItem(drop, 0);
+    }
+  }
+
+  private static readonly frames = new WeakMap<ItemStack, EntityItemFrame>();
+
+  /** ItemStack.getItemFrame: the frame showing this stack, if any (maps and compasses care). */
+  static getItemFrame(stack: ItemStack): EntityItemFrame | null {
+    return EntityItemFrame.frames.get(stack) ?? null;
+  }
+
+  /** ItemStack.isOnItemFrame. */
+  static isOnItemFrame(stack: ItemStack): boolean {
+    return EntityItemFrame.frames.has(stack);
+  }
+
+  /** ItemStack.setItemFrame (kept beside the stack so ItemStack needs no extra field). */
+  static setItemFrame(stack: ItemStack, frame: EntityItemFrame | null): void {
+    if (frame) EntityItemFrame.frames.set(stack, frame);
+    else EntityItemFrame.frames.delete(stack);
   }
 
   getDisplayedItem(): ItemStack | null {
@@ -50,6 +72,7 @@ export class EntityItemFrame extends EntityHanging {
   setDisplayedItem(stack: ItemStack): void {
     const s = stack.copy();
     s.stackSize = 1;
+    EntityItemFrame.setItemFrame(s, this);
     this.displayed = s;
   }
 

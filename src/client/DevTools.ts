@@ -1,5 +1,6 @@
 import { Block } from '../block/Block';
 import type { Entity } from '../entity/Entity';
+import { DamageSource, EntityDamageSource } from '../entity/DamageSource';
 import { EntityList } from '../entity/EntityList';
 import { GuiCreateWorld } from '../gui/GuiCreateWorld';
 import { Item } from '../item/Item';
@@ -115,9 +116,16 @@ export class DevTools {
     return e;
   }
 
-  /** Registries for scenario scripts (Block, Item, ItemStack, EntityList). */
-  get lib(): { Block: typeof Block; Item: typeof Item; ItemStack: typeof ItemStack; EntityList: typeof EntityList } {
-    return { Block, Item, ItemStack, EntityList };
+  /** Registries for scenario scripts (Block, Item, ItemStack, EntityList, damage sources). */
+  get lib(): {
+    Block: typeof Block;
+    Item: typeof Item;
+    ItemStack: typeof ItemStack;
+    EntityList: typeof EntityList;
+    DamageSource: typeof DamageSource;
+    EntityDamageSource: typeof EntityDamageSource;
+  } {
+    return { Block, Item, ItemStack, EntityList, DamageSource, EntityDamageSource };
   }
 
   /** Loaded entities, optionally only those with an EntityList name. */

@@ -1,7 +1,7 @@
 import { MathHelper } from '../core/MathHelper';
 import type { Entity } from '../entity/Entity';
 import type { EntityLiving } from '../entity/EntityLiving';
-import { EntityList } from '../entity/EntityList';
+import { type EntityDescriptor, EntityList } from '../entity/EntityList';
 import type { ChunkPayload, WorldGenRequest, WorldGenResponse } from '../workers/worldgenProtocol';
 import { Chunk } from './Chunk';
 import { ChunkSection } from './ChunkSection';
@@ -162,7 +162,7 @@ export class ChunkProviderClient {
       const e = EntityList.fromDescriptor(d, this.world);
       if (!e) continue;
       this.world.spawnEntityInWorld(e);
-      if (e.isLivingEntity) (e as EntityLiving).initCreature();
+      if (e.isLivingEntity && (d as EntityDescriptor).init !== false) (e as EntityLiving).initCreature();
     }
   }
 

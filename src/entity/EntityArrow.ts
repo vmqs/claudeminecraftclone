@@ -221,7 +221,7 @@ export class EntityArrow extends Entity implements IProjectile {
         this.posX -= (this.motionX / len) * f(0.05);
         this.posY -= (this.motionY / len) * f(0.05);
         this.posZ -= (this.motionZ / len) * f(0.05);
-        this.playSound('random.bowhit', 1, f(f(1.2) / f(f(this.rand.nextFloat() * f(0.2)) + f(0.9))));
+        this.playSoundEchoed('random.bowhit', 1, () => f(f(1.2) / f(f(this.rand.nextFloat() * f(0.2)) + f(0.9))));
         this.inGround = true;
         this.arrowShake = 7;
         this.setIsCritical(false);

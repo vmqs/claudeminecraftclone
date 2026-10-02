@@ -16,6 +16,8 @@ export interface EntityDescriptor {
   yaw: number;
   pitch?: number;
   data?: Record<string, unknown>;
+  /** false: spawn as described, without initCreature's random set-up (structure mobs, loot carts). */
+  init?: boolean;
 }
 
 /** Entities that take savegame-style fields (EntityDescriptor.data). */
