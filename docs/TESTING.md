@@ -44,6 +44,9 @@ npm run build
 node scripts/shot.mjs title                  # scripts/scenarios/title.json
 node scripts/shot.mjs spawn --out shots      # spawn at noon, F3, selection outline
 node scripts/shot.mjs interact               # walk, fly, break and place, with assertions in the log
+node scripts/shot.mjs inventory              # E, slot tooltip, pick up and put back a stack
+node scripts/shot.mjs chat                   # chat line, /time, /give @p, /help, Tab completion, /kill
+node scripts/shot.mjs flat                   # a Superflat world (bedrock, dirt, dirt, grass; spawn y=4)
 node scripts/shot.mjs path/to/scenario.json --url http://localhost:5173/ --server none
 ```
 
@@ -69,7 +72,25 @@ Scenario steps (JSON array):
 
 SwiftShader renders on the CPU, so expect 1 to 5 fps in the harness while terrain streams in
 (the GPU path dominates; a frame's JavaScript takes a few milliseconds). Wait for
-`mc.dev.pendingSections(r) === 0` before capturing.
+`mc.dev.pendingSections(r) === 0` before capturing. After a key that opens or closes a screen
+(T, /, E, Enter, Escape), wait for the screen state (`{"waitFor": "mc.currentScreen !== null"}`)
+before typing: at these frame rates several key events can land in one tick, and the ones that
+arrive before the screen opens act as game keys, exactly as they would in the original
+(`scripts/scenarios/chat.json` shows the pattern).
+
+## Logic checks without a browser
+
+Simulation code imports no DOM, so it can run under Node. Bundle a script that imports the
+modules it needs (start with `import './src/block/Blocks'` so blocks are registered) and run it:
+
+```sh
+npx rolldown check.ts --format esm --platform node -o check.mjs && node check.mjs
+```
+
+This is how tile-entity lifecycle, explosions, spawning and the RenderBlocks rewrite were
+checked: the rewrite was compared byte for byte with the previous implementation over random
+`ChunkCache` snapshots (all render settings, rotations, overridden bounds and textures) and every
+block's item render. Keep such scripts outside the repository unless they become real tests.
 
 ## Comparing with the original
 

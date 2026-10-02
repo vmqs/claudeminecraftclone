@@ -1,0 +1,19 @@
+[
+  { "goto": "?dev=1&autostart=1&seed=-1357935714&hotbar=1&time=6000" },
+  { "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0", "timeout": 240000 },
+  { "eval": "(() => { mc.dev.press(18, 1); const s = mc.currentScreen; return { slots: s && s.inventorySlots.inventorySlots.length }; })()" },
+  { "move": [282, 374] },
+  { "wait": 400 },
+  { "shot": "inventory_tooltip.png" },
+  { "click": [282, 374] },
+  { "move": [300, 200] },
+  { "wait": 400 },
+  { "eval": "(() => ({ cursor: String(mc.thePlayer.inventory.getItemStack()), slot0: String(mc.thePlayer.inventory.mainInventory[0]) }))()" },
+  { "shot": "inventory_cursor.png" },
+  { "click": [282, 374] },
+  { "wait": 400 },
+  { "eval": "(() => ({ cursor: String(mc.thePlayer.inventory.getItemStack()), slot0: String(mc.thePlayer.inventory.mainInventory[0]) }))()" },
+  { "key": "e" },
+  { "wait": 400 },
+  { "eval": "String(mc.currentScreen)" }
+]

@@ -17,8 +17,10 @@ In scope:
   in the creative inventory and can be placed.
 - **Mobs and combat.** All overworld mobs and every spawn egg in the 1.5.2 creative inventory,
   with their AI, natural spawning, drops, and the original models and animations. The player can
-  hit, shoot (bow), and explode mobs. Mobs attack the player (animations, sounds, knockback) but
-  deal no damage in Creative.
+  hit, shoot (bow), and explode mobs. As in 1.5.2, hostile mobs do not target a Creative player
+  (`World.getClosestVulnerablePlayer` skips players whose capabilities disable damage); they
+  still fight each other (iron golems, wolves). Only out-of-world damage (`/kill`, falling into
+  the void) kills the player, which shows the death screen and respawns at the world spawn.
 - World generation is a **close approximation** of 1.5.2. The same algorithms are welcome, but
   seed-exact output is not a requirement.
 - **No world saving.** Worlds live in memory for the session. Modified chunks are kept in memory
@@ -29,7 +31,8 @@ In scope:
 
 Out of scope (render as static or decorative where a block exists): redstone logic, Survival,
 Hardcore, crafting and furnace processing, Nether/End dimensions, multiplayer, achievements,
-statistics, enchanting, brewing, trading.
+statistics, enchanting, brewing, trading. (The container and crafting frameworks exist, so a
+crafting table opens and works once recipes are registered, but no recipes are required.)
 
 ## 2. Fidelity rules
 
@@ -79,15 +82,18 @@ src/
   workers/                 worker entry points: worldgen.worker.ts, mesher.worker.ts
   block/                   Block base, Material, StepSound, Blocks registry, Block* subclasses
   item/                    Item base, ItemStack, Items registry, ItemBlock*, CreativeTabs
+  item/crafting/           CraftingManager, IRecipe, ShapedRecipes, ShapelessRecipes
   entity/                  Entity, EntityLiving, EntityCreature, EntityAnimal, EntityMob,
                            EntityPlayer, EntityItem, EntityXPOrb, projectiles, EntityFallingSand,
                            EntityTNTPrimed, mobs, DataWatcher-equivalent fields
   entity/ai/               EntityAITasks and EntityAI* tasks, PathNavigate, PathFinder, look/move helpers
   gui/                     Gui, GuiScreen, GuiButton, GuiSlider, GuiTextField, GuiSlot, FontRenderer,
                            ScaledResolution, GuiIngame (HUD + F3), GuiNewChat, every screen
-  gui/inventory/           Container, Slot, GuiContainer, GuiContainerCreative, chest GUI
-  audio/                   SoundManager (Web Audio), SoundPool, music scheduling
-  command/                 chat commands (/time, /tp, /give, /weather, /gamemode, /summon-like helpers)
+  gui/inventory/           IInventory, Slot, Container, GuiContainer, ContainerPlayer and GuiInventory,
+                           workbench and chest windows, crafting inventories (GuiContainerCreative to come)
+  audio/                   SoundManager (Web Audio), SoundPool, music and record scheduling
+  command/                 CommandHandler, CommandBase, PlayerSelector, ServerCommandManager and the
+                           commands (/help, /time, /tp, /give, /kill, /seed, /say, /me, /tell so far)
 docs/                      ARCHITECTURE.md (this file), RESEARCH.md
 ```
 
@@ -163,6 +169,17 @@ to 10 blocks, on `getTopSolidOrLiquidBlock`), then shows "Downloading terrain" u
 around the player is meshed. `Chunk` only needs a `ChunkHost` (an `IWorld` plus light and
 render-update hooks), which both the client `World` and the worker's `GenWorld` implement.
 
+The worker runs a `ChunkGenerator` (`world/gen/ChunkProviderGenerate.ts`): `ChunkProviderGenerate`
+for Default and Large Biomes, `ChunkProviderFlat` (presets parsed by `FlatGeneratorInfo`) for
+Superflat. Generation also records tile-entity NBT and the animals of `WorldGenSpawning`; the
+payload carries both, and the client creates them through `TileEntity.createAndLoadEntity` and
+`EntityList.createEntityByName`.
+
+Edits made by world simulation (block ticks, fluids, leaf decay, weather, light) run inside
+`World.runNaturally`; anything else marks the chunk `playerModified`. When a chunk unloads, a
+player-modified chunk is kept whole, otherwise only its entities are kept, and it is regenerated
+when it comes back.
+
 ### 5.3 Lighting (main thread)
 
 Incremental updates use the original's sky and block light rules: `Block.lightOpacity`,
@@ -182,11 +199,13 @@ stitching. Grass, foliage, and water colormaps are sent to workers once at init.
 
 ### 5.5 Simulation
 
-`World.tick()` covers world time and moon phase, weather cycling, scheduled block updates
-(`scheduleBlockUpdate`, `tickRate`), random block ticks (3 random blocks per non-empty section per
-tick for loaded chunks near the player, matching `WorldServer.tickBlocksAndAmbiance`), entity
-updates (`onUpdate` for every entity, then removal of dead ones), mob spawning (`SpawnerAnimals`),
-and tile entities.
+`World.tick()` covers world time and moon phase, weather cycling, mob spawning
+(`World.mobSpawner`, by default `SpawnerAnimals.findChunksForSpawning`), scheduled block updates
+(`scheduleBlockUpdate`, `tickRate`), and `tickBlocksAndAmbiance`: per active chunk the mood-sound
+check, the lightning roll (1 in 100000 while thundering), the ice and snow roll, and 3 random
+block ticks per non-empty section, consuming `rand` and `updateLCG` in the original order.
+`World.updateEntities()` ticks weather effects, entities (then removes dead ones) and tile
+entities (`updateEntity`, with additions and removals deferred while iterating).
 
 ## 6. Rendering
 
@@ -224,8 +243,10 @@ Porting is far simpler and more faithful if we emulate that API on WebGL2.
 `ResourceManager`, which looks up the selected texture pack first and then the vanilla layer.
 Filtering is NEAREST, with no mipmaps. `TextureMap` stitches `textures/blocks/*.png` ("terrain")
 and `textures/items/*.png` ("items") into atlases and hands out `Icon`s via
-`registerIcon(name)`. Tiles of different sizes (Faithful is mostly 32×32, but its water and lava
-strips are 16 px wide) are scaled to the largest tile size with nearest-neighbour. Animated
+`registerIcon(name)`. The cell size is the pack's most common sprite width; every sprite is scaled
+(nearest-neighbour) to a whole number of cells, so a 16 px water strip in the 32 px Faithful pack
+becomes one 32 px cell and a 64 px sprite takes 2×2 cells, and the cells are packed into a
+power-of-two grid, largest first. Animated
 textures use vertical strips with optional `.txt` frame sequences (`water`, `lava`, `water_flow`,
 `lava_flow`, `fire_0`, `fire_1`, `portal`), and `compass` and `clock` follow game state. GUI
 `drawTexturedModalRect` UVs are in 1/256 units of the texture, so HD GUI textures need no special
@@ -265,6 +286,12 @@ bounds (`minX..maxZ` with `setBlockBounds`, `setBlockBoundsBasedOnState`, `setBl
 `getCreativeTabToDisplayOn`, `getLocalizedName`, and so on. Behaviour receives a `World`. Rendering
 code only sees `IBlockAccess`.
 
+`RenderBlocks` (worker-safe) draws render types 0 (standard, with flat, smooth and partial-bounds
+smooth lighting), 1 (crossed squares), 2 (torch), 4 (fluids), 13 (cactus) and 31 (logs). Every
+standard face goes through one quad builder, `renderFace(side, …)`, driven by the `FACES` table
+(geometry, UV layout per `uvRotate*` value, `flipTexture`, smooth-light sample order). Other
+render types fall back to a cube until they are ported (see §13).
+
 `Item` and `ItemStack` mirror the original in the same way (`itemID`, `maxStackSize`, `getIconFromDamage`,
 `getIconFromDamageForRenderPass`, `requiresMultipleRenderPasses`, `getColorFromItemStack`,
 `onItemUse`, `onItemRightClick`, `onPlayerStoppedUsing`, `getMaxItemUseDuration`, `getItemUseAction`,
@@ -278,7 +305,10 @@ Entities follow `Entity → EntityLiving → EntityCreature/EntityAgeable/Entity
 in the original, with `onUpdate`, `onLivingUpdate`, `moveEntity` (swept AABB against block
 collision boxes, `stepHeight`, sneak edge-guard), `moveEntityWithHeading` (friction
 `slipperiness * 0.91`, gravity 0.08, drag 0.98, water and lava), `attackEntityFrom`, `knockBack`,
-`hurtTime`/`deathTime`, `onDeath` drops, and `getEyeHeight`. AI uses `EntityAITasks` with the same
+`hurtTime`/`deathTime`, `onDeath` drops, and `getEyeHeight`. `EntityList` binds classes to
+their 1.5.2 names and IDs (`createEntityByName`, `createEntityByID`, `entityEggs`), and
+`Explosion` (`World.createExplosion` / `newExplosion`) damages and pushes entities by exposure
+and removes blocks with a 1/size drop chance. AI uses `EntityAITasks` with the same
 priorities and mutex bits, `PathNavigate`, and `PathFinder` (A* over `PathPoint`s, as in 1.5.2).
 Rendering goes through `RenderManager → Render subclass → ModelBase` (boxes built from texture
 offsets and drawn with the Tessellator), with hurt and death tinting and rotation, fancy shadows
@@ -305,7 +335,17 @@ Options": seed, structures, world type Default, Superflat, or Large Biomes, chea
 options, video settings, controls, sounds, language (English), texture packs (bundled Faithful vs
 Default), pause menu, loading screens, chat with commands, the creative inventory (12 tabs, search,
 scroll, survival-inventory tab with the destroy slot), the HUD (hotbar, crosshair, selected item
-name fade), and the F3 debug screen with the original text lines.
+name fade, chat lines, "Now playing"), the death screen, and the F3 debug screen with the original
+text lines.
+
+Shared widgets: `GuiButton`, `GuiTextField` (selection, Ctrl+A/C/X/V), `GuiSlot` (scrolling
+lists). Container windows extend `GuiContainer`, which draws the slots, the cursor stack and
+tooltips and implements every 1.5.2 click (shift-click, number keys, middle-click clone, Q,
+drag-spreading, double-click collect) through `PlayerControllerCreative.windowClick` and
+`Container.slotClick`. The inventory key opens `GuiInventory` (the survival layout) until
+`GuiContainerCreative` exists. Chat goes `GuiChat` → `EntityPlayerSP.sendChatMessage` →
+`command/CommandServer.handleChat`, which runs `/commands` through `ServerCommandManager` and
+prints everything else as `<Player> text` in `GuiNewChat`.
 
 ## 10. Audio
 
@@ -314,7 +354,9 @@ name fade), and the F3 debug screen with the original text lines.
 pitch)` uses linear attenuation over `16 * max(1, volume)` blocks, with the listener tracking the
 camera. `playSoundFX` is for UI. Music plays a random `music/` or `newmusic/` track after a random
 delay of 0–12000 ticks, then waits 12000–24000 ticks between tracks. Volume settings work as in
-the original. The audio context is resumed on the first user gesture.
+the original. The audio context is resumed on the first user gesture. Jukebox records play from
+`streaming/` at the jukebox (`playStreaming`, 64-block range) and stop the music. Looping entity
+sounds (`playEntitySound`, keyed by entity id) are the only sounds the pause menu pauses.
 
 ## 11. Input
 
@@ -339,3 +381,28 @@ See `docs/TESTING.md` for details.
   condition, evaluate JS, run ticks, press keys, capture) and writes PNGs, which can be compared
   with reference screenshots of the original game.
 - `npm run typecheck` and `npm run build` must stay green on every commit.
+
+## 13. Extension points
+
+Where later subsystems plug in. Registries that workers also need are imported by
+`src/block/Blocks.ts` (the mesher and world-generation workers import it); main-thread-only
+registries are imported once by `src/client/Minecraft.ts`.
+
+| Area | How to extend |
+|---|---|
+| Blocks | Subclass `Block` (`src/block/`), construct it in `src/block/Blocks.ts`, add icons in `registerIcons`. Behaviour hooks: `updateTick`, `randomDisplayTick`, `onBlockActivated`, `onNeighborBlockChange`, `onBlockDestroyedByExplosion`, `canDropFromExplosion`, `isUpdateTickImmediate`, `fillWithRain`. Schedule ticks with `World.scheduleBlockUpdate`. |
+| Block rendering | Add a `case` to `RenderBlocks.renderBlockByRenderType` or call `RenderBlocks.renderers.set(type, (rb, block, x, y, z) => …)` from a module that `Blocks.ts` imports. Build faces with `setRenderBounds` / `overrideBlockBounds` + `renderStandardBlock` or `renderFace(side, x, y, z, icon)`, `uvRotate*` and `flipTexture`. Items in 3D: `RenderBlocks.renderItemIn3d` and `renderBlockAsItem`. |
+| Tile entities | Subclass `TileEntity` (`src/world/tileentity/`), `TileEntity.addMapping(cls, '<1.5.2 id>')` in `TileEntities.ts`, and a `BlockContainer` whose `createNewTileEntity` returns it. Special renderers: `TileEntityRenderer.instance.register(cls, renderer)` in `src/render/tileentity/TileEntityRenderers.ts`. World generation can place them through `IWorld.setBlockTileEntity`; they travel to the client as NBT. |
+| Items | Subclass `Item` in `src/item/`, register in `Items.ts`. Hooks: `onItemUse`, `onItemRightClick`, `getArmorInfo` (armour), `getRecordName` / `getRecordTitle` (records), `getContainerItem`, `onCreated`, `doesContainerItemLeaveCraftingGrid`. `Item.itemRand` is the shared item RNG. |
+| Crafting | `CraftingManager.getInstance().addRecipe(output, ['##', '##'], { '#': Block })`, `addShapelessRecipe(output, ...ingredients)`, `addRecipeObject(recipe)` for special recipes (`IRecipe`). The list sorts itself like `RecipeSorter`. |
+| Containers and GUIs | `IInventory` (or `InventoryBasic`), a `Container` subclass (`addSlotToContainer`, `transferStackInSlot`, `canInteractWith`, `canMergeSlot`), a `GuiContainer` subclass (`drawGuiContainerBackgroundLayer`, `drawGuiContainerForegroundLayer`). Open it from `EntityPlayerSP.displayGUI*` (hooks declared on `EntityPlayer`: chest, hopper, enchantment, anvil, workbench, furnace, dispenser, sign, brewing stand, beacon, merchant, book). The creative inventory replaces `GuiInventory` in its `initGui`/`updateScreen` and uses `PlayerControllerCreative.sendSlotPacket` (a no-op here). Armour slot backgrounds: `SlotArmor.emptySlotIcons`. Lists: subclass `GuiSlot`. |
+| Entities | Class in `src/entity/`, `EntityList.addMapping(cls, '<name>', id)` in `src/entity/Entities.ts` (eggs come from the `entityEggs` table), renderer via `RenderManager.instance.register(cls, render)` in `src/render/entity/EntityRenderers.ts`. Mob bases: `EntityCreature`, `EntityAgeable`, `EntityAnimal`, `EntityMob`, `EntityTameable`, `EntityGolem`, `EntityWaterMob`, `EntityAmbientCreature`, `EntityFlying`; AI tasks extend `EntityAIBase` (`src/entity/ai/`). Factories for classes `World` cannot import: `World.itemDropFactory` (set by `EntityItem`), `EntityLiving.experienceOrbFactory`, `World.lightningBoltFactory`. |
+| Spawning | Biome lists by `EntityList` name (`BiomeGenBase.getSpawnableList`, `editSpawns`), `SpawnRules` for the per-mob `getCanSpawnHere` data, `World.mobSpawner` (default `SpawnerAnimals.findChunksForSpawning`), world-generation animals in `WorldGenSpawning`. |
+| Particles | `RenderGlobal.particleFactories.set(name, (w, x, y, z, vx, vy, vz) => fx)` in `src/render/particle/ParticleRegistry.ts`. |
+| Sounds and world effects | `World.playSoundEffect` / `playSound` / `playSoundAtEntity`, `World.playAuxSFX(type, …)` (cases in `RenderGlobal.playAuxSFX`), `World.playRecord`, `World.broadcastSound`, `SoundManager.playEntitySound` for loops. |
+| Weather | `World.updateWeather` (rain and thunder cycles), `World.weatherEffects` + `addWeatherEffect` (rendered before entities), `World.lightningBoltFactory` for the strike in `tickBlocksAndAmbiance`. Sky and fog read `getRainStrength` / `getWeightedThunderStrength`. |
+| Explosions | `World.createExplosion` / `newExplosion`; entities can veto blocks with `getBlockExplosionResistance` / `canExplosionDestroyBlock`. |
+| Commands | Subclass `CommandBase` (`src/command/`), register it in the `ServerCommandManager` constructor or with `ServerCommandManager.addCommand(() => new CommandX())` before a world starts. `getServer()` gives the worlds, players and `sendChatMsg`; results go through `CommandBase.notifyAdmins`; target selectors through `CommandBase.getPlayer` / `PlayerSelector`. |
+| Chat | `EntityPlayer.addChatMessage(langKey)`, `sendChatToPlayer(text)`, `Minecraft.ingameGUI.getChatGUI().printChatMessage(text)`. |
+| World generation | `ChunkGenerator` implementations in `src/world/gen/` (selected in `worldgen.worker.ts` on `init`), `BiomeSource` (`PlaceholderBiomeSource` is the stand-in for the GenLayer stack), `WorldGenerator` features run from `ChunkProviderGenerate.populate` / `BiomeDecorator`, superflat presets in `FlatGeneratorInfo`. Code here must stay worker-safe (`IWorld`, no DOM or GL). |
+| Dev hooks | `src/client/DevTools.ts` (`?dev=1` → `window.mc.dev`), scenarios in `scripts/scenarios/`. |

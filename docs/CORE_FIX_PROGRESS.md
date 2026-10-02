@@ -37,7 +37,7 @@ agent resumes from the first item that is not marked done or skipped. Status val
 | m5 | Texture pack switch reloads grass/foliage colormaps and sends them to meshers | done (GuiTexturePacks itself left to the GUI agent, see m13) |
 | m6 | Chunk streaming hotspots (dirty set, per-frame scans, allocations) | done (dirty/geometry sets, partial selection instead of per-frame sort; no real-GPU profile possible here) |
 | m7 | F3 "C:" counts like 1.5.2 | done |
-| m8 | Extension points documented in ARCHITECTURE.md | todo |
+| m8 | Extension points documented in ARCHITECTURE.md | done (ARCHITECTURE.md §13) |
 | m9 | EntityItem, World.itemDropFactory, drop key (Q) | done |
 | m10 | ModelBase texture offset map, named addBox | done |
 | m11 | playAuxSFX remaining cases | done (ghast/zombie/wither/bat/anvil sounds, records with "Now playing" and SoundManager.playStreaming, potion splash, eye of ender, bone meal; broadcastSound 1013/1018) |
@@ -51,5 +51,5 @@ agent resumes from the first item that is not marked done or skipped. Status val
 | m19 | Ctrl+A/C/X/V in text fields | done (GuiTextField selection port) |
 | m20 | Smooth camera (F8) MouseFilter, mouse look gated on focus | done |
 | m21 | Pause menu Achievements/Statistics/LAN enabled (no-op) | done |
-| m22 | TextureMap doc vs code (tile size) | todo |
-| m23 | Final docs: ARCHITECTURE.md / TESTING.md reflect reality | todo |
+| m22 | TextureMap doc vs code (tile size) | done (§6.2 describes the most-common-size cell grid) |
+| m23 | Final docs: ARCHITECTURE.md / TESTING.md reflect reality | done (scope, layout, worldgen generators, chunk store, simulation order, RenderBlocks, GUI/containers/chat, audio; TESTING: new scenarios, timing note, Node checks) |
