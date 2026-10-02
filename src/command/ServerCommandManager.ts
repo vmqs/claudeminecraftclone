@@ -19,6 +19,7 @@ import { CommandTime } from './CommandTime';
 import { CommandToggleDownfall, CommandWeather } from './CommandWeather';
 import { CommandXP } from './CommandXP';
 import { getServer } from './CommandServer';
+import { ServerCommandScoreboard } from './ServerCommandScoreboard';
 import { ServerCommandTestFor } from './ServerCommandTestFor';
 import type { ICommand } from './ICommand';
 import type { ICommandSender } from './ICommandSender';
@@ -59,6 +60,7 @@ export class ServerCommandManager extends CommandHandler implements IAdminComman
     this.registerCommand(new CommandGameRule());
     this.registerCommand(new CommandClearInventory());
     this.registerCommand(new ServerCommandTestFor());
+    this.registerCommand(new ServerCommandScoreboard());
     this.registerCommand(new CommandServerPublishLocal());
     DebugHooks.getTickCounter = () => getServer()?.getWorlds()[0]?.worldInfo.totalTime ?? 0;
     for (const f of ServerCommandManager.extraCommands) this.registerCommand(f());

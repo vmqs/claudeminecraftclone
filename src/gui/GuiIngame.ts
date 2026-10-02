@@ -15,6 +15,8 @@ import type { World } from '../world/World';
 import { BossStatus } from './BossStatus';
 import type { FontRenderer } from './FontRenderer';
 import { Gui } from './Gui';
+import { worldScoreboardOverlay } from './ScoreboardOverlay';
+import type { EntityPlayer } from '../entity/EntityPlayer';
 import { GuiNewChat } from './GuiNewChat';
 
 const f = Math.fround;
@@ -78,6 +80,8 @@ export interface SidebarObjective {
 export interface ScoreboardOverlay {
   sidebar(world: World): SidebarObjective | null;
   list(world: World): ScoreLookup | null;
+  /** Once per tick: scores that follow the player (the health criteria). */
+  tick?(world: World, player: EntityPlayer): void;
 }
 
 function fmt(v: number, digits: number): string {
@@ -101,7 +105,7 @@ export class GuiIngame extends Gui {
   /** The players of a multiplayer session for the TAB list; null in singleplayer. */
   static playerListProvider: (() => PlayerList) | null = null;
   /** Scoreboard display slots, installed by the scoreboard module. */
-  static scoreboardOverlay: ScoreboardOverlay | null = null;
+  static scoreboardOverlay: ScoreboardOverlay | null = worldScoreboardOverlay;
 
   constructor(private readonly mc: Minecraft) {
     super();
@@ -308,12 +312,16 @@ export class GuiIngame extends Gui {
     this.persistantChatGUI.drawChat(this.updateCounter);
     prof.endSection();
     GL.popMatrix();
-    const players = GuiIngame.playerListProvider?.() ?? null;
+    const remote = GuiIngame.playerListProvider !== null;
     const listObjective = GuiIngame.scoreboardOverlay?.list(this.mc.theWorld!) ?? null;
-    if (this.mc.gameSettings.keyBindPlayerList.pressed && players && (players.entries.length > 1 || listObjective)) {
-      prof.startSection('playerList');
-      this.renderPlayerList(players, listObjective, w, fr);
-      prof.endSection();
+    if (this.mc.gameSettings.keyBindPlayerList.pressed) {
+      // The integrated server's list: just this player, 8 slots (IntegratedPlayerList).
+      const players = GuiIngame.playerListProvider?.() ?? { entries: [{ name: p.getEntityName(), responseTime: 0 }], maxPlayers: 8 };
+      if (remote || players.entries.length > 1 || listObjective) {
+        prof.startSection('playerList');
+        this.renderPlayerList(players, listObjective, w, fr);
+        prof.endSection();
+      }
     }
     GL.color(1, 1, 1, 1);
     GL.disable(GL.LIGHTING);
@@ -544,6 +552,7 @@ export class GuiIngame extends Gui {
     this.updateCounter++;
     const p = this.mc.thePlayer;
     if (!p) return;
+    if (this.mc.theWorld) GuiIngame.scoreboardOverlay?.tick?.(this.mc.theWorld, p);
     const cur = p.inventory.getCurrentItem();
     if (!cur) this.remainingHighlightTicks = 0;
     else if (

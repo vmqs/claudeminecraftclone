@@ -105,6 +105,12 @@ export class EntityPlayerSP extends EntityPlayer {
     this.mc.displayGuiScreen(new GuiCrafting(this.inventory, this.worldObj, x, y, z));
   }
 
+  /** EntityPlayerMP: seed, tell, help and me always work; the rest need "Allow Cheats". */
+  override canCommandSenderUseCommand(_level: number, command: string): boolean {
+    if (command === 'seed' || command === 'tell' || command === 'help' || command === 'me') return true;
+    return this.worldObj.worldInfo.allowCommands;
+  }
+
   override displayGUIEditSign(te: TileEntity): void {
     this.mc.displayGuiScreen(new GuiEditSign(te));
   }
