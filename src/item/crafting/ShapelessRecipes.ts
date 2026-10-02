@@ -1,6 +1,5 @@
-import type { InventoryCrafting } from '../../gui/inventory/InventoryCrafting';
 import type { ItemStack } from '../ItemStack';
-import { type IRecipe, WILDCARD_DAMAGE } from './IRecipe';
+import { type CraftingGrid, type IRecipe, WILDCARD_DAMAGE } from './IRecipe';
 
 /** A recipe that only needs its ingredients somewhere in the grid. */
 export class ShapelessRecipes implements IRecipe {
@@ -13,7 +12,7 @@ export class ShapelessRecipes implements IRecipe {
     return this.recipeOutput;
   }
 
-  matches(grid: InventoryCrafting): boolean {
+  matches(grid: CraftingGrid): boolean {
     const needed = [...this.recipeItems];
     for (let row = 0; row < 3; row++) {
       for (let col = 0; col < 3; col++) {

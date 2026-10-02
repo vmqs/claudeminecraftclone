@@ -1,6 +1,5 @@
-import type { InventoryCrafting } from '../../gui/inventory/InventoryCrafting';
 import type { ItemStack } from '../ItemStack';
-import { type IRecipe, WILDCARD_DAMAGE } from './IRecipe';
+import { type CraftingGrid, type IRecipe, WILDCARD_DAMAGE } from './IRecipe';
 
 /** A recipe with a fixed layout, matched at any offset in the grid and also mirrored. */
 export class ShapedRecipes implements IRecipe {
@@ -21,7 +20,7 @@ export class ShapedRecipes implements IRecipe {
     return this.recipeOutput;
   }
 
-  matches(grid: InventoryCrafting): boolean {
+  matches(grid: CraftingGrid): boolean {
     for (let dx = 0; dx <= 3 - this.recipeWidth; dx++) {
       for (let dy = 0; dy <= 3 - this.recipeHeight; dy++) {
         if (this.checkMatch(grid, dx, dy, true) || this.checkMatch(grid, dx, dy, false)) return true;
@@ -30,7 +29,7 @@ export class ShapedRecipes implements IRecipe {
     return false;
   }
 
-  private checkMatch(grid: InventoryCrafting, dx: number, dy: number, mirrored: boolean): boolean {
+  private checkMatch(grid: CraftingGrid, dx: number, dy: number, mirrored: boolean): boolean {
     for (let col = 0; col < 3; col++) {
       for (let row = 0; row < 3; row++) {
         const rx = col - dx;
@@ -48,7 +47,7 @@ export class ShapedRecipes implements IRecipe {
     return true;
   }
 
-  getCraftingResult(grid: InventoryCrafting): ItemStack {
+  getCraftingResult(grid: CraftingGrid): ItemStack {
     const out = this.recipeOutput.copy();
     if (this.copyIngredientNBT) {
       for (let i = 0; i < grid.getSizeInventory(); i++) {

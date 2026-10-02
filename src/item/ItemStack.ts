@@ -1,10 +1,15 @@
 import { Item } from './Item';
 import type { Block } from '../block/Block';
+import { I18n } from '../core/I18n';
+import { Enchantment, EnchantmentDurability, type EnchantmentTag } from '../enchantment/Enchantment';
+import { EnchantmentHelper } from '../enchantment/EnchantmentHelper';
 import type { Entity } from '../entity/Entity';
 import type { EntityLiving } from '../entity/EntityLiving';
 import type { EntityPlayer } from '../entity/EntityPlayer';
 import type { IWorld } from '../world/IWorld';
 import { EnumAction, EnumRarity } from './Item';
+
+const MAP_ID = 358;
 
 /** NBT-like tag data (plain JSON-able objects stand in for NBTTagCompound). */
 export type TagCompound = { [key: string]: unknown };
@@ -15,6 +20,8 @@ export class ItemStack {
   itemID: number;
   stackTagCompound: TagCompound | null = null;
   private itemDamage: number;
+  /** The item frame showing this stack (set by EntityItemFrame.setDisplayedItem), if any. */
+  private itemFrame: Entity | null = null;
 
   constructor(item: number | Item | Block | { blockID: number }, stackSize = 1, damage = 0) {
     this.itemID = typeof item === 'number' ? item : 'itemID' in item ? item.itemID : item.blockID;
@@ -89,13 +96,29 @@ export class ItemStack {
     return this.getItem().getMaxDamage();
   }
 
-  /** Creative players never damage items. */
+  /**
+   * Adds `amount` wear, each point first having an Unbreaking roll to cancel it; true when the
+   * item is worn out.
+   */
+  attemptDamageItem(amount: number, rand: { nextFloat(): number; nextInt(n: number): number }): boolean {
+    if (!this.isItemStackDamageable()) return false;
+    if (amount > 0) {
+      const level = EnchantmentHelper.getEnchantmentLevel(Enchantment.unbreaking.effectId, this);
+      let negated = 0;
+      for (let i = 0; level > 0 && i < amount; i++) if (EnchantmentDurability.negateDamage(this, level, rand)) negated++;
+      amount -= negated;
+      if (amount <= 0) return false;
+    }
+    this.itemDamage += amount;
+    return this.itemDamage > this.getMaxDamage();
+  }
+
+  /** Wears the item out by `amount` (never for Creative players); a worn-out item breaks. */
   damageItem(amount: number, entity: EntityLiving): void {
     const player = entity as unknown as EntityPlayer;
     if ('capabilities' in player && player.capabilities.isCreativeMode) return;
     if (!this.isItemStackDamageable()) return;
-    this.itemDamage += amount;
-    if (this.itemDamage > this.getMaxDamage()) {
+    if (this.attemptDamageItem(amount, entity.getRNG())) {
       entity.renderBrokenItemStack(this);
       this.stackSize--;
       if (this.stackSize < 0) this.stackSize = 0;
@@ -105,6 +128,11 @@ export class ItemStack {
 
   hitEntity(target: EntityLiving, player: EntityPlayer): void {
     this.getItem().hitEntity(this, target, player);
+  }
+
+  /** Right click on a living entity with this stack (Item.itemInteractionForEntity). */
+  interactWith(e: EntityLiving): boolean {
+    return this.getItem().itemInteractionForEntity(this, e);
   }
 
   getDamageVsEntity(e: Entity): number {
@@ -127,6 +155,18 @@ export class ItemStack {
 
   onCrafting(world: IWorld, player: EntityPlayer, _amount: number): void {
     this.getItem().onCreated(this, world, player);
+  }
+
+  isOnItemFrame(): boolean {
+    return this.itemFrame !== null;
+  }
+
+  setItemFrame(frame: Entity | null): void {
+    this.itemFrame = frame;
+  }
+
+  getItemFrame(): Entity | null {
+    return this.itemFrame;
   }
 
   copy(): ItemStack {
@@ -230,11 +270,54 @@ export class ItemStack {
       }
       const id = String(this.itemID).padStart(4, '0');
       name += this.getHasSubtypes() ? `#${id}/${this.itemDamage}${close}` : `#${id}${close}`;
+    } else if (!this.hasDisplayName() && this.itemID === MAP_ID) {
+      name += ' #' + this.itemDamage;
     }
     lines.push(name);
     this.getItem().addInformation(this, player, lines, advanced);
+    if (this.stackTagCompound) {
+      for (const t of this.getEnchantmentTagList() ?? []) {
+        const e = Enchantment.enchantmentsList[t.id];
+        if (e) lines.push(e.getTranslatedName(t.lvl));
+      }
+      const display = this.stackTagCompound.display as TagCompound | undefined;
+      if (display && typeof display === 'object') {
+        if ('color' in display) {
+          if (advanced) lines.push('Color: #' + (Number(display.color) >>> 0).toString(16).toUpperCase());
+          else lines.push('§o' + I18n.translateToLocal('item.dyed'));
+        }
+        if (Array.isArray(display.Lore)) for (const l of display.Lore) lines.push('§5§o' + String(l));
+      }
+    }
     if (advanced && this.isItemDamaged()) lines.push(`Durability: ${this.getMaxDamage() - this.getItemDamageForDisplay()} / ${this.getMaxDamage()}`);
     return lines;
+  }
+
+  /** The "ench" list ({id, lvl} entries), or null. */
+  getEnchantmentTagList(): EnchantmentTag[] | null {
+    const l = this.stackTagCompound?.ench;
+    return Array.isArray(l) ? (l as EnchantmentTag[]) : null;
+  }
+
+  addEnchantment(e: Enchantment, level: number): void {
+    this.stackTagCompound ??= {};
+    const list = (this.stackTagCompound.ench ??= []) as EnchantmentTag[];
+    list.push({ id: e.effectId, lvl: level });
+  }
+
+  setTagInfo(key: string, value: unknown): void {
+    this.stackTagCompound ??= {};
+    this.stackTagCompound[key] = value;
+  }
+
+  /** Anvil repair cost ("RepairCost"). */
+  getRepairCost(): number {
+    return this.stackTagCompound && 'RepairCost' in this.stackTagCompound ? Number(this.stackTagCompound.RepairCost) : 0;
+  }
+
+  setRepairCost(cost: number): void {
+    this.stackTagCompound ??= {};
+    this.stackTagCompound.RepairCost = cost;
   }
 
   hasEffect(): boolean {

@@ -87,6 +87,11 @@ modules it needs (start with `import './src/block/Blocks'` so blocks are registe
 npx rolldown check.ts --format esm --platform node -o check.mjs && node check.mjs
 ```
 
+Checks that live in the repository are in `tests/` and run with
+`node scripts/run-node-test.mjs tests/crafting.test.ts tests/items.test.ts tests/placement.test.ts`
+(recipes and smelting, the item registry with names/potions/enchantments, and item placement
+against an in-memory world). The `items` and `item-icons` scenarios exercise items in the game.
+
 This is how tile-entity lifecycle, explosions, spawning and the RenderBlocks rewrite were
 checked: the rewrite was compared byte for byte with the previous implementation over random
 `ChunkCache` snapshots (all render settings, rotations, overridden bounds and textures) and every

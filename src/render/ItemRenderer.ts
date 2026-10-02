@@ -4,6 +4,7 @@ import type { Minecraft } from '../client/Minecraft';
 import { MathHelper } from '../core/MathHelper';
 import type { EntityLiving } from '../entity/EntityLiving';
 import { EnumAction, Item } from '../item/Item';
+import { getItemIconForEntity } from '../item/ItemIcons';
 import type { ItemStack } from '../item/ItemStack';
 import { ModelBiped } from './entity/ModelBiped';
 import { GL } from './gl/GL';
@@ -35,8 +36,7 @@ export class ItemRenderer {
       this.mc.renderEngine.bindTexture('/terrain.png');
       this.renderBlocksInstance.renderBlockAsItem(block, stack.getItemDamage(), 1);
     } else {
-      const icon = stack.getIconIndex() ?? null;
-      void pass;
+      const icon = getItemIconForEntity(e, stack, pass);
       if (!icon) {
         GL.popMatrix();
         void e;
@@ -49,8 +49,38 @@ export class ItemRenderer {
       GL.rotate(335, 0, 0, 1);
       GL.translate(f(-0.9375), f(-0.0625), 0);
       ItemRenderer.renderItemIn2D(Tessellator.instance, icon.getMaxU(), icon.getMinV(), icon.getMinU(), icon.getMaxV(), icon.getSheetWidth(), icon.getSheetHeight(), f(0.0625));
+      if (stack.hasEffect() && pass === 0) this.renderHeldGlint();
     }
     GL.popMatrix();
+  }
+
+  /**
+   * The enchantment glint over a held sprite: two purple layers of misc/glint.png drawn on the
+   * same depth, scrolling sideways every 3000 ms and 4873 ms at -50 and 10 degrees.
+   */
+  private renderHeldGlint(): void {
+    const t = Tessellator.instance;
+    GL.depthFunc(GL.EQUAL);
+    GL.disable(GL.LIGHTING);
+    this.mc.renderEngine.bindTexture('%blur%/misc/glint.png');
+    GL.enable(GL.BLEND);
+    GL.blendFunc(GL.SRC_COLOR, GL.ONE);
+    const k = f(0.76);
+    GL.color(f(0.5 * k), f(0.25 * k), f(0.8 * k), 1);
+    GL.matrixMode(GL.TEXTURE);
+    const s = f(0.125);
+    for (const [period, dir, angle] of [[3000, 1, -50], [4873, -1, 10]] as const) {
+      GL.pushMatrix();
+      GL.scale(s, s, s);
+      GL.translate(f(f(f(Date.now() % period) / period) * 8) * dir, 0, 0);
+      GL.rotate(angle, 0, 0, 1);
+      ItemRenderer.renderItemIn2D(t, 0, 0, 1, 1, 256, 256, f(0.0625));
+      GL.popMatrix();
+    }
+    GL.matrixMode(GL.MODELVIEW);
+    GL.disable(GL.BLEND);
+    GL.enable(GL.LIGHTING);
+    GL.depthFunc(GL.LEQUAL);
   }
 
   /** The original's extruded sprite: front, back and one-pixel side strips. */
@@ -173,8 +203,42 @@ export class ItemRenderer {
       GL.rotate(f(-b * 20), 0, 0, 1);
       GL.rotate(f(-b * 80), 1, 0, 0);
       GL.scale(f(0.4), f(0.4), f(0.4));
+      if (p.getItemInUseCount() > 0) {
+        const action = stack.getItemUseAction();
+        if (action === EnumAction.block) {
+          // Blocking with a sword: the blade held across the view.
+          GL.translate(f(-0.5), f(0.2), 0);
+          GL.rotate(30, 0, 1, 0);
+          GL.rotate(-80, 1, 0, 0);
+          GL.rotate(60, 0, 1, 0);
+        } else if (action === EnumAction.bow) {
+          // Drawing a bow: pulled towards the eye, stretched with the draw, shaking once drawn.
+          GL.rotate(-18, 0, 0, 1);
+          GL.rotate(-12, 0, 1, 0);
+          GL.rotate(-8, 1, 0, 0);
+          GL.translate(f(-0.9), f(0.2), 0);
+          const ticks = f(stack.getMaxItemUseDuration() - f(f(p.getItemInUseCount() - pt) + 1));
+          let draw = f(ticks / 20);
+          draw = f(f(f(draw * draw) + f(draw * 2)) / 3);
+          if (draw > 1) draw = 1;
+          if (draw > 0.1) GL.translate(0, f(f(MathHelper.sin(f(f(ticks - f(0.1)) * f(1.3))) * f(0.01)) * f(draw - f(0.1))), 0);
+          GL.translate(0, 0, f(draw * f(0.1)));
+          GL.rotate(-335, 0, 0, 1);
+          GL.rotate(-50, 0, 1, 0);
+          GL.translate(0, 0.5, 0);
+          GL.scale(1, 1, f(1 + f(draw * f(0.2))));
+          GL.translate(0, -0.5, 0);
+          GL.rotate(50, 0, 1, 0);
+          GL.rotate(335, 0, 0, 1);
+        }
+      }
       if (stack.getItem().shouldRotateAroundWhenRendering()) GL.rotate(180, 0, 1, 0);
       this.renderItem(p, stack, 0);
+      if (stack.getItem().requiresMultipleRenderPasses()) {
+        const c2 = stack.getItem().getColorFromItemStack(stack, 1);
+        GL.color(((c2 >> 16) & 255) / 255, ((c2 >> 8) & 255) / 255, (c2 & 255) / 255, 1);
+        this.renderItem(p, stack, 1);
+      }
       GL.popMatrix();
     } else if (!p.isInvisible()) {
       GL.pushMatrix();

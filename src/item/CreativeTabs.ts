@@ -68,11 +68,33 @@ export class CreativeTabs {
     return this.tabIndex < 6;
   }
 
-  /** Fills `out` with every item stack shown in this tab (in item id order). */
+  /**
+   * The enchantment types whose max-level enchanted books follow the items of this tab
+   * (CreativeTabTools: digger; CreativeTabCombat: armour, bow and weapon types).
+   */
+  private relevantEnchantmentTypes: readonly string[] = [];
+
+  /**
+   * Appends one max-level enchanted book per enchantment of the given types
+   * (CreativeTabs.func_92116_a); installed by the item registry.
+   */
+  static enchantedBookProvider: ((types: readonly string[], out: ItemStack[]) => void) | null = null;
+
+  setRelevantEnchantmentTypes(...types: string[]): this {
+    this.relevantEnchantmentTypes = types;
+    return this;
+  }
+
+  getRelevantEnchantmentTypes(): readonly string[] {
+    return this.relevantEnchantmentTypes;
+  }
+
+  /** Fills `out` with every item stack shown in this tab (in item id order), then its enchanted books. */
   displayAllReleventItems(out: ItemStack[]): void {
     for (const item of itemsListRef) {
       if (item && item.getCreativeTab() === this) item.getSubItems(item.itemID, this, out);
     }
+    if (this.relevantEnchantmentTypes.length > 0) CreativeTabs.enchantedBookProvider?.(this.relevantEnchantmentTypes, out);
   }
 
   static tabBlock = new CreativeTabs(0, 'buildingBlocks', BlockIds.brick);
@@ -82,8 +104,8 @@ export class CreativeTabs {
   static tabMisc = new CreativeTabs(4, 'misc', ItemIds.bucketLava);
   static tabAllSearch = new CreativeTabs(5, 'search', ItemIds.compass).setBackgroundImageName('search.png');
   static tabFood = new CreativeTabs(6, 'food', ItemIds.appleRed);
-  static tabTools = new CreativeTabs(7, 'tools', ItemIds.axeIron);
-  static tabCombat = new CreativeTabs(8, 'combat', ItemIds.swordGold);
+  static tabTools = new CreativeTabs(7, 'tools', ItemIds.axeIron).setRelevantEnchantmentTypes('digger');
+  static tabCombat = new CreativeTabs(8, 'combat', ItemIds.swordGold).setRelevantEnchantmentTypes('armor', 'armor_feet', 'armor_head', 'armor_legs', 'armor_torso', 'bow', 'weapon');
   static tabBrewing = new CreativeTabs(9, 'brewing', ItemIds.potion);
   static tabMaterials = new CreativeTabs(10, 'materials', ItemIds.stick);
   static tabInventory = new CreativeTabs(11, 'inventory', BlockIds.chest)

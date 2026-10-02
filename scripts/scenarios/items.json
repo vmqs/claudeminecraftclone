@@ -1,0 +1,65 @@
+[
+  {
+    "goto": "?dev=1&autostart=1&seed=-1357935714&time=6000&type=flat"
+  },
+  {
+    "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0",
+    "timeout": 240000
+  },
+  {
+    "eval": "(() => { const p = mc.thePlayer; const x0 = Math.floor(p.posX), z0 = Math.floor(p.posZ); mc.dev.tp(x0 + 0.5, 4, z0 + 0.5, 180, 25); window.T = { x0, z0, y: 3, results: {} }; window.useOn = (id, dmg, x, y, z, side, hx = 0.5, hy = 1, hz = 0.5) => { mc.dev.setStack(0, id, 1, dmg); mc.dev.select(0); const s = mc.thePlayer.inventory.mainInventory[0]; return mc.playerController.onPlayerRightClick(mc.thePlayer, mc.theWorld, s, x, y, z, side, { xCoord: x + hx, yCoord: y + hy, zCoord: z + hz }); }; window.useAir = (id, dmg) => { mc.dev.setStack(0, id, 1, dmg); mc.dev.select(0); const s = mc.thePlayer.inventory.mainInventory[0]; mc.playerController.sendUseItem(mc.thePlayer, mc.theWorld, s); return mc.thePlayer.inventory.mainInventory[0]; }; window.at = (x, y, z) => mc.theWorld.getBlockId(x, y, z) + ':' + mc.theWorld.getBlockMetadata(x, y, z); return { x0, z0, feet: p.boundingBox.minY }; })()"
+  },
+  {
+    "eval": "(() => { const { x0, z0, y } = T, r = {}; const zz = z0 - 3; useOn(324, 0, x0 - 4, y, zz, 1); r.doorWood = [at(x0 - 4, 4, zz), at(x0 - 4, 5, zz)]; useOn(330, 0, x0 - 3, y, zz, 1); r.doorIron = [at(x0 - 3, 4, zz), at(x0 - 3, 5, zz)]; useOn(355, 0, x0 - 1, y, zz, 1); r.bed = [at(x0 - 1, 4, zz), at(x0 - 1, 4, zz - 1)]; useOn(44, 0, x0 + 1, y, zz, 1); useOn(44, 0, x0 + 1, 4, zz, 1); r.slabMerged = at(x0 + 1, 4, zz); useOn(44, 3, x0 + 2, y, zz, 1); r.cobbleSlab = at(x0 + 2, 4, zz); mc.thePlayer.rotationYaw = 200; useOn(323, 0, x0 + 3, y, zz, 1); r.signPost = at(x0 + 3, 4, zz); r.screen = String(mc.currentScreen && mc.currentScreen.constructor.name); if (mc.currentScreen) mc.displayGuiScreen(null); mc.thePlayer.rotationYaw = 180; useOn(78, 0, x0 + 4, y, zz, 1); useOn(78, 0, x0 + 4, 4, zz, 1); useOn(78, 0, x0 + 4, 4, zz, 1); r.snowLayers = at(x0 + 4, 4, zz); useOn(338, 0, x0 + 5, y, zz, 1); r.sugarCaneNeedsWater = at(x0 + 5, 4, zz); T.results.place = r; return r; })()"
+  },
+  {
+    "eval": "(() => { const { x0, z0, y } = T, r = {}; r.noBucketUseOnBlock = useOn(326, 0, x0, y, z0 - 6, 1); mc.dev.tp(x0 + 0.5, 4, z0 - 5.5, 180, 60); const after = useAir(326, 0); r.waterBucketKept = after && after.itemID; T.results.bucket = r; return r; })()"
+  },
+  {
+    "ticks": 2
+  },
+  {
+    "eval": "(() => { const { x0, z0 } = T, r = {}; let water = null; for (let dz = -8; dz <= 0; dz++) for (let dx = -2; dx <= 2; dx++) { const id = mc.theWorld.getBlockId(x0 + dx, 4, z0 + dz); if (id === 8 || id === 9) water = [x0 + dx, 4, z0 + dz, id]; } r.waterPlaced = water; const empty = useAir(325, 0); r.emptyBucketAfterScoop = empty && empty.itemID; r.waterAfterScoop = water ? at(water[0], water[1], water[2]) : null; T.results.scoop = r; return r; })()"
+  },
+  {
+    "eval": "(() => { const { x0, z0, y } = T, w = mc.theWorld, r = {}; mc.dev.tp(x0 + 0.5, 4, z0 + 0.5, 180, 25); const gx = x0 + 3, gz = z0 + 3; const count = () => { let n = 0; for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++) if (w.getBlockId(gx + dx, 4, gz + dz) !== 0) n++; return n; }; const before = count(); r.bonemealUsed = useOn(351, 15, gx, y, gz, 1); r.plantsGrown = count() - before; useOn(290, 0, x0 - 3, y, z0 + 3, 1); r.hoe = at(x0 - 3, y, z0 + 3); useOn(295, 0, x0 - 3, y, z0 + 3, 1); r.seeds = at(x0 - 3, 4, z0 + 3); T.results.farm = r; return r; })()"
+  },
+  {
+    "eval": "(() => { const r = {}; const p = mc.thePlayer; mc.dev.setStack(0, 373, 1, 8193); mc.dev.select(0); const potion = p.inventory.mainInventory[0].getItem(); let drunk = 0; const orig = potion.onEaten; potion.onEaten = function (...a) { drunk++; return orig.apply(this, a); }; mc.dev.mouse(1, true); mc.dev.ticks(3); r.potionInUse = p.isUsingItem(); mc.dev.ticks(33); mc.dev.mouse(1, false); mc.dev.ticks(2); potion.onEaten = orig; r.potionsDrunk = drunk; r.potionKeptInCreative = String(p.inventory.mainInventory[0]); useAir(322, 1); r.creativeCannotEat = !p.isUsingItem(); const sb = useAir(332, 0); r.snowballKeptInCreative = sb && sb.stackSize; mc.dev.setStack(0, 261, 1, 0); mc.dev.mouse(1, true); mc.dev.ticks(25); r.bowDrawnTicks = p.isUsingItem() ? 72000 - p.getItemInUseCount() : -1; mc.dev.mouse(1, false); mc.dev.ticks(2); r.bowReleased = !p.isUsingItem(); r.spawnEggUsed = useOn(383, 90, T.x0 + 2, T.y, T.z0 + 2, 1); const armor = useAir(310, 0); r.helmetEquipped = String(p.inventory.armorInventory[3]); r.helmetKeptInHand = String(armor); T.results.use = r; return r; })()"
+  },
+  {
+    "eval": "(() => { mc.dev.tp(T.x0 + 0.5, 4, T.z0 + 0.5, 180, 30); mc.dev.hotbar([[324,0],[355,0],[44,0],[323,0],[326,0],[351,15],[373,8193],[383,90],[261,0]]); mc.dev.select(8); return JSON.stringify(T.results); })()"
+  },
+  {
+    "wait": 1500
+  },
+  {
+    "waitFor": "mc.dev.pendingSections(2) === 0",
+    "timeout": 60000
+  },
+  {
+    "shot": "items_placed.png"
+  },
+  {
+    "eval": "(() => { mc.dev.press(18, 1); return String(mc.currentScreen && mc.currentScreen.constructor.name); })()"
+  },
+  {
+    "waitFor": "mc.currentScreen !== null",
+    "timeout": 20000
+  },
+  {
+    "eval": "(() => { const c = mc.thePlayer.inventoryContainer, inv = mc.thePlayer.inventory, r = {}; const put = (slot, id, dmg) => { mc.dev.setStack(9, id, 1, dmg); c.craftMatrix.setInventorySlotContents(slot, inv.mainInventory[9]); inv.mainInventory[9] = null; }; const res = () => String(c.craftResult.getStackInSlot(0)); put(0, 263, 1); put(2, 280, 0); r.torchFromCharcoal = res(); put(0, 0, 0); c.craftMatrix.setInventorySlotContents(0, null); c.craftMatrix.setInventorySlotContents(2, null); put(0, 351, 4); put(1, 351, 2); r.cyanDye = res(); c.craftMatrix.setInventorySlotContents(0, null); c.craftMatrix.setInventorySlotContents(1, null); put(3, 17, 2); r.birchPlanks = res(); return r; })()"
+  },
+  {
+    "move": [
+      400,
+      160
+    ]
+  },
+  {
+    "wait": 800
+  },
+  {
+    "shot": "items_crafting.png"
+  }
+]

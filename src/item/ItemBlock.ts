@@ -85,8 +85,8 @@ export class ItemBlock extends Item {
     return this.block.getCreativeTabToDisplayOn();
   }
 
-  override getSubItems(id: number, tab: CreativeTabs, out: ItemStack[]): void {
-    this.block.getSubBlocks(id, tab, out);
+  override getSubItems(id: number, tab: CreativeTabs | null, out: ItemStack[]): void {
+    this.block.getSubBlocks(id, tab as CreativeTabs, out);
   }
 
   override registerIcons(reg: IconRegister): void {

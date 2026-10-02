@@ -200,6 +200,17 @@ export class RenderItem extends Render {
       this.itemRenderBlocks.renderBlockAsItem(block, meta, 1);
       this.itemRenderBlocks.useInventoryTint = true;
       GL.popMatrix();
+    } else if (item?.requiresMultipleRenderPasses()) {
+      // Two tinted layers: spawn egg spots, potion contents, leather overlay, firework star.
+      GL.disable(GL.LIGHTING);
+      engine.bindTexture('/gui/items.png');
+      for (let pass = 0; pass <= 1; pass++) {
+        const passIcon = item.getIconFromDamageForRenderPass(meta, pass) ?? engine.getMissingIcon(1);
+        const c = item.getColorFromItemStack(stack, pass);
+        if (this.renderWithColor) GL.color(((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255, 1);
+        this.renderIcon(x, y, passIcon, 16, 16);
+      }
+      GL.enable(GL.LIGHTING);
     } else {
       GL.disable(GL.LIGHTING);
       engine.bindTexture(stack.getItemSpriteNumber() === 0 ? '/terrain.png' : '/gui/items.png');
@@ -213,7 +224,43 @@ export class RenderItem extends Render {
   }
 
   renderItemAndEffectIntoGUI(fr: FontRenderer, engine: TextureManager, stack: ItemStack | null, x: number, y: number): void {
-    if (stack) this.renderItemIntoGUI(fr, engine, stack, x, y);
+    if (!stack) return;
+    this.renderItemIntoGUI(fr, engine, stack, x, y);
+    if (stack.hasEffect()) {
+      // The enchantment glint over the icon (drawn behind it in depth, multiplied in).
+      GL.depthFunc(GL.GREATER);
+      GL.disable(GL.LIGHTING);
+      GL.depthMask(false);
+      engine.bindTexture('%blur%/misc/glint.png');
+      this.zLevel -= 50;
+      GL.enable(GL.BLEND);
+      GL.blendFunc(GL.DST_COLOR, GL.DST_COLOR);
+      GL.color(0.5, 0.25, 0.8, 1);
+      this.renderGuiGlint(x - 2, y - 2, 20, 20);
+      GL.disable(GL.BLEND);
+      GL.depthMask(true);
+      this.zLevel += 50;
+      GL.enable(GL.LIGHTING);
+      GL.depthFunc(GL.LEQUAL);
+    }
+  }
+
+  /** RenderItem.renderGlint: two additive layers of the glint texture scrolling at different speeds. */
+  private renderGuiGlint(x: number, y: number, w: number, h: number): void {
+    const t = Tessellator.instance;
+    const k = f(0.00390625);
+    for (let layer = 0; layer < 2; layer++) {
+      GL.blendFunc(GL.SRC_COLOR, GL.ONE);
+      const period = 3000 + layer * 1873;
+      const u = f(f(f(Date.now() % period) / f(period)) * 256);
+      const slant = layer === 1 ? -1 : 4;
+      t.startDrawingQuads();
+      t.addVertexWithUV(x, y + h, this.zLevel, f(f(u + f(h * slant)) * k), f(h * k));
+      t.addVertexWithUV(x + w, y + h, this.zLevel, f(f(u + w + f(h * slant)) * k), f(h * k));
+      t.addVertexWithUV(x + w, y, this.zLevel, f(f(u + w) * k), 0);
+      t.addVertexWithUV(x, y, this.zLevel, f(u * k), 0);
+      t.draw();
+    }
   }
 
   renderItemOverlayIntoGUI(fr: FontRenderer, _engine: TextureManager, stack: ItemStack | null, x: number, y: number, text: string | null = null): void {
