@@ -60,6 +60,7 @@ node scripts/shot.mjs inventory              # E, slot tooltip, pick up and put 
 node scripts/shot.mjs chat                   # chat line, /time, /give @p, /help, Tab completion, /kill
 node scripts/shot.mjs flat                   # a Superflat world (bedrock, dirt, dirt, grass; spawn y=4)
 node scripts/shot.mjs entities               # items, arrows, orbs, paintings, frames, TNT, boat, minecarts (checks in the log)
+node scripts/shot.mjs dynamics               # fluids over time, falling blocks, fire, trees, leaf decay, snow (counts in the log)
 node scripts/shot.mjs sky                    # sky, fog, clouds, render distances, rain, thunder and a bolt,
                                              # snow, desert, underwater, lava, in-wall and pumpkin overlays
 node scripts/shot.mjs path/to/scenario.json --url http://localhost:5173/ --server none
@@ -112,7 +113,13 @@ npx rolldown check.ts --format esm --platform node -o check.mjs && node check.mj
 Checks that live in the repository are in `tests/` and run with
 `node scripts/run-node-test.mjs tests/crafting.test.ts tests/items.test.ts tests/placement.test.ts`
 (recipes and smelting, the item registry with names/potions/enchantments, and item placement
-against an in-memory world). The `items` and `item-icons` scenarios exercise items in the game.
+against an in-memory world). `tests/dynamics.test.ts` runs dynamic block behaviour (fluid flow
+shapes, falling blocks, leaf decay, saplings, fire, crops, weather, melting, portals) against a
+real `World` built from flat chunks by `tests/dynamicsWorld.ts` (`makeWorld`, `addFakePlayer`
+so random ticks run, `tick`). The `dynamics` scenario pours water and lava, drops sand and gravel,
+burns a wooden house, grows trees with bone meal, lets leaves decay and snows on a cold biome; its
+fluid shots line up with vanilla captures of the same block list (flat world, seed `claude`,
+camera at (7.5, 12, 70), yaw 0, pitch 40). The `items` and `item-icons` scenarios exercise items in the game.
 
 This is how tile-entity lifecycle, explosions, spawning and the RenderBlocks rewrite were
 checked: the rewrite was compared byte for byte with the previous implementation over random
