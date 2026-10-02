@@ -30,8 +30,9 @@ URL parameters (any combination):
 `tp(x, y, z, yaw?, pitch?)`, `look(yaw, pitch)`, `setTime(t)`, `select(slot)`, `fillHotbar(ids?)`,
 `setFlying(on)`, `ticks(n)` (runs game ticks synchronously), `key(code, down)`,
 `press(code, holdTicks)`, `mouse(button, down)`, `click(button, holdTicks)`, `target()`,
-`newEntity(name, ...ctorArgs)` / `spawn(name, ...ctorArgs)` (an EntityList name, the world is
-passed first; `'@p'` stands for the player, e.g. `spawn('Arrow', '@p', 2)`), `entities(name?)`,
+`newEntity(name, ...ctorArgs)` / `spawn(name, ...ctorArgs)` (an EntityList name, or `'Egg'` /
+`'FishHook'` for the two unsaved classes; the world is passed first and `'@p'` stands for the
+player, e.g. `spawn('Arrow', '@p', 2)` or `spawn('FishHook', '@p')`), `entities(name?)`,
 and `lib` (`Block`, `Item`, `ItemStack`, `EntityList`). Setting `mc.timer.timerSpeed = 0` freezes
 game time (and partial ticks) for a capture while `mc.dev.ticks(n)` still advances it.
 Key codes are LWJGL codes (`src/client/Keyboard.ts`, e.g. W = 17, space = 57, left shift = 42).

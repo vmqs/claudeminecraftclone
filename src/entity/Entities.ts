@@ -55,6 +55,7 @@ EntityList.addMapping(EntityMinecartTNT, 'MinecartTNT');
 EntityList.addMapping(EntityMinecartHopper, 'MinecartHopper');
 EntityList.addMapping(EntityMinecartMobSpawner, 'MinecartSpawner');
 EntityList.addMapping(EntityEnderCrystal, 'EnderCrystal');
-// Eggs and fishing bobbers have no savegame name in 1.5.2 (they are never saved).
-void EntityEgg;
-void EntityFishHook;
+// Eggs and fishing bobbers have no savegame name in 1.5.2 (they are never saved); the labels
+// only let the dev tools create and find them.
+EntityList.addUnsaved(EntityEgg, 'Egg');
+EntityList.addUnsaved(EntityFishHook, 'FishHook');

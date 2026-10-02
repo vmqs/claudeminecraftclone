@@ -97,13 +97,13 @@ export class DevTools {
   }
 
   /**
-   * Creates an entity by its EntityList name, passing the world and then `args` to the class
+   * Creates an entity by its EntityList name (or the dev label 'Egg' / 'FishHook'), passing the world and then `args` to the class
    * constructor (e.g. newEntity('Arrow', mc.thePlayer, 2) is a fully drawn bow shot). The
    * player can be passed as the string '@p'. Not spawned yet.
    */
   newEntity(name: string, ...args: unknown[]): Entity | null {
     const w = this.mc.theWorld;
-    const cls = EntityList.getClassFromName(name) as (new (...a: unknown[]) => Entity) | null;
+    const cls = EntityList.getClassForDebug(name) as (new (...a: unknown[]) => Entity) | null;
     if (!w || !cls) return null;
     return new cls(w, ...args.map((a) => (a === '@p' ? this.mc.thePlayer : a)));
   }
@@ -123,7 +123,7 @@ export class DevTools {
   /** Loaded entities, optionally only those with an EntityList name. */
   entities(name?: string): Entity[] {
     const list = this.mc.theWorld?.loadedEntityList ?? [];
-    return name === undefined ? [...list] : list.filter((e) => EntityList.getEntityString(e) === name);
+    return name === undefined ? [...list] : list.filter((e) => EntityList.getDebugName(e) === name);
   }
 
   /** Block id under the crosshair, or -1. */

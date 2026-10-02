@@ -125,6 +125,29 @@ export class EntityList {
     EntityList.classToName.set(cls, name);
   }
 
+  /**
+   * Classes that have no savegame name in 1.5.2 (thrown eggs and fishing bobbers are never
+   * saved), labelled for the dev tools only; the save and network lookups ignore them.
+   */
+  private static readonly unsavedByLabel = new Map<string, EntityConstructor>();
+  private static readonly unsavedLabels = new Map<EntityConstructor, string>();
+
+  static addUnsaved(cls: EntityConstructor, label: string): void {
+    EntityList.unsavedByLabel.set(label, cls);
+    EntityList.unsavedLabels.set(cls, label);
+  }
+
+  /** The savegame name, or else the dev label of an unsaved class (for debugging). */
+  static getDebugName(e: Entity): string | null {
+    const cls = e.constructor as EntityConstructor;
+    return EntityList.classToName.get(cls) ?? EntityList.unsavedLabels.get(cls) ?? null;
+  }
+
+  /** getClassFromName, falling back to the unsaved classes' dev labels. */
+  static getClassForDebug(name: string): EntityConstructor | null {
+    return EntityList.nameToClass.get(name) ?? EntityList.unsavedByLabel.get(name) ?? null;
+  }
+
   /** The class bound to a name, or null when it is not implemented yet. */
   static getClassFromName(name: string): EntityConstructor | null {
     return EntityList.nameToClass.get(name) ?? null;

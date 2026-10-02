@@ -336,7 +336,8 @@ Potion effects live on `EntityLiving.activePotionsMap` as `PotionEffectLike` obj
 (`src/entity/PotionEffects.ts`: `PotionId`, the swirl colour, and `PotionHooks` for the potion
 code to install `effectsFromDamage`, `liquidColorFromDamage`, `createEffect` and `affectEntity`).
 Creative players are never targeted: `Entity.isCreativeInvulnerable()` is true for a player whose
-capabilities disable damage (hostile AI targeting, creeper swelling and skeleton shooting check it).
+capabilities disable damage. Mob code (AI target selection, creeper swelling, skeleton and blaze
+shooting, wolf anger) should test it wherever the original tests `capabilities.disableDamage`.
 World-generation entities come in as `EntityDescriptor`s through `EntityList.fromDescriptor`,
 which passes optional `data` to the entity's `readEntityFromNBT`.
 
