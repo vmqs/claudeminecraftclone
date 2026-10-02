@@ -24,6 +24,11 @@ const MAX_PER_LAYER = 4000;
 export class EffectRenderer {
   /** The game's effect renderer, for particles that spawn more particles or bind textures. */
   static instance: EffectRenderer | null = null;
+  /**
+   * The entity the world is drawn from (mc.renderViewEntity), as last passed to renderParticles;
+   * null with no world. Firework sounds pick their "_far" variant from its distance.
+   */
+  static viewer: Entity | null = null;
   private readonly fxLayers: EntityFX[][] = [[], [], [], []];
   private readonly rand = new JavaRandom();
 
@@ -52,6 +57,7 @@ export class EffectRenderer {
   }
 
   renderParticles(e: Entity, pt: number): void {
+    EffectRenderer.viewer = e;
     const rx = ActiveRenderInfo.rotationX;
     const rz = ActiveRenderInfo.rotationZ;
     const ryz = ActiveRenderInfo.rotationYZ;
@@ -101,6 +107,7 @@ export class EffectRenderer {
 
   clearEffects(w: World | null): void {
     this.worldObj = w;
+    EffectRenderer.viewer = null;
     for (const l of this.fxLayers) l.length = 0;
   }
 

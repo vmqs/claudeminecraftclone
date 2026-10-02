@@ -136,11 +136,14 @@ prefixes.set('tilecrack_', (w, suffix, x, y, z, vx, vy, vz) => {
   return block ? new EntityDiggingFX(w, x, y, z, vx, vy, vz, block, 0, meta).applyRenderColor(meta) : null;
 });
 
-// Firework rockets exploding (WorldClient.func_92088_a). "Far" means no player within 16
-// blocks (the original asks the render view entity, which is the only player here).
+// Firework rockets exploding (WorldClient.func_92088_a). "Far" is judged from the local
+// viewer only, so a remote multiplayer player near the rocket does not make it sound near.
 World.fireworksEffect = (w, x, y, z, vx, vy, vz, fireworks) => {
   const er = EffectRenderer.instance;
   if (!er) return;
-  const isFar = (px: number, py: number, pz: number) => w.getClosestPlayer(px, py, pz, 16) === null;
+  const isFar = (px: number, py: number, pz: number) => {
+    const v = EffectRenderer.viewer;
+    return v === null || !(v.getDistanceSq(px, py, pz) < 256);
+  };
   er.addEffect(new EntityFireworkStarterFX(w, x, y, z, vx, vy, vz, er, fireworks, isFar));
 };
