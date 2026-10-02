@@ -183,7 +183,7 @@ export class Minecraft implements SettingsListener {
       onPointerLockLost: () => this.onPointerLockLost(),
     });
     Tessellator.drawHandler = (mode, data, count, flags) => GL.drawDynamic(mode, data, count, flags);
-    RenderBlocks.itemGL = { color: (r, g, b, a) => GL.color(r, g, b, a), rotate: (a, x, y, z) => GL.rotate(a, x, y, z), translate: (x, y, z) => GL.translate(x, y, z) };
+    RenderBlocks.itemGL = { color: (r, g, b, a) => GL.color(r, g, b, a), rotate: (a, x, y, z) => GL.rotate(a, x, y, z), translate: (x, y, z) => GL.translate(x, y, z), enableRescaleNormal: () => GL.enable(GL.RESCALE_NORMAL) };
     this.setupGLState();
     await this.renderEngine.preload(['/title/mojang.png']);
     this.loadScreen();
@@ -329,6 +329,7 @@ export class Minecraft implements SettingsListener {
     prof.endStartSection('preRenderErrors');
     RenderBlocks.fancyGrass = this.gameSettings.fancyGraphics;
     RenderBlocks.anaglyphEnable = this.gameSettings.anaglyph;
+    RenderBlocks.aoLevel = this.gameSettings.ambientOcclusion;
     prof.endStartSection('sound');
     this.sndManager.setListener(this.thePlayer, this.timer.renderPartialTicks);
     if (!this.isGamePaused) this.sndManager.updateScheduledSounds();

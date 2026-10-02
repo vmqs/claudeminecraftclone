@@ -71,12 +71,9 @@ export class TileEntityChestRenderer extends TileEntitySpecialRenderer {
     if (meta === 5 && chest.adjacentChestZPosition !== null) GL.translate(0, 0, -1);
     GL.rotate(chestYaw(meta), 0, 1, 0);
     GL.translate(-0.5, -0.5, -0.5);
-    let lid = f(chest.prevLidAngle + f((chest.lidAngle - chest.prevLidAngle) * pt));
-    for (const other of [chest.adjacentChestZNeg, chest.adjacentChestXNeg]) {
-      if (!other) continue;
-      const a = f(other.prevLidAngle + f((other.lidAngle - other.prevLidAngle) * pt));
-      if (a > lid) lid = a;
-    }
+    // 1.5.2 also takes the larger lid angle of the west / north half here, but only the
+    // west / north half gets this far, so those links are always empty.
+    const lid = f(chest.prevLidAngle + f((chest.lidAngle - chest.prevLidAngle) * pt));
     model.chestLid.rotateAngleX = lidRotation(lid);
     model.renderAll();
     GL.disable(GL.RESCALE_NORMAL);

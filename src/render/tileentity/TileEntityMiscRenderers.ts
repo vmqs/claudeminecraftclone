@@ -90,7 +90,7 @@ export class TileEntitySkullRenderer extends TileEntitySpecialRenderer {
     if (placement !== 1) {
       switch (placement) {
         case 2:
-          GL.translate(f(x + 0.5), f(y + 0.25), f(x === x ? z + f(0.74) : z));
+          GL.translate(f(x + 0.5), f(y + 0.25), f(z + f(0.74)));
           break;
         case 3:
           GL.translate(f(x + 0.5), f(y + 0.25), f(z + f(0.26)));
@@ -318,11 +318,9 @@ export class RenderEndPortal extends TileEntitySpecialRenderer {
         GL.blendFunc(GL.ONE, GL.ONE);
         scale = 0.5;
       }
-      const below = f(-(y + surface));
-      const near = f(below + ActiveRenderInfo.objectY);
-      const far = f(f(below + depth) + ActiveRenderInfo.objectY);
-      const genY = f(f(y + surface) + f(near / far));
-      void genY;
+      // The generated s, t (and r) only depend on the translation's x and z, the camera
+      // position, so its y (the layer depth) drops out; the depth acts through the matrix below.
+      const near = f(f(-(y + surface)) + ActiveRenderInfo.objectY);
       // The texture matrix of this layer.
       m.loadIdentity();
       m.translate(0, f((Date.now() % 700000) / 700000), 0);
