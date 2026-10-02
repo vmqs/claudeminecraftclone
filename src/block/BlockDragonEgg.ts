@@ -3,6 +3,7 @@ import type { EntityPlayer } from '../entity/EntityPlayer';
 import type { IBlockAccess } from '../world/IBlockAccess';
 import type { IWorld } from '../world/IWorld';
 import { Block } from './Block';
+import { BlockSand } from './BlockSand';
 import { Material } from './Material';
 
 const fround = Math.fround;
@@ -25,9 +26,21 @@ export class BlockDragonEgg extends Block {
     w.scheduleBlockUpdate(x, y, z, this.blockID, this.tickRate(w));
   }
 
-  override updateTick(_w: IWorld, _x: number, _y: number, _z: number, _rand: JavaRandom): void {
-    // TODO(block-dynamics): fall like sand when unsupported (an EntityFallingSand of this id with
-    // metadata 0; with BlockSand.fallInstantly or unloaded chunks, drop straight down instead).
+  override updateTick(w: IWorld, x: number, y: number, z: number, _rand: JavaRandom): void {
+    this.fallIfPossible(w, x, y, z);
+  }
+
+  /** Falls like sand: an EntityFallingSand of this id (metadata 0), or straight down when it cannot. */
+  private fallIfPossible(w: IWorld, x: number, y: number, z: number): void {
+    if (!BlockSand.canFallBelow(w, x, y - 1, z) || y < 0) return;
+    const r = 32;
+    if (!BlockSand.fallInstantly && BlockSand.createFallingEntity && w.checkChunksExist(x - r, y - r, z - r, x + r, y + r, z + r)) {
+      w.spawnEntityInWorld(BlockSand.createFallingEntity(w, x + 0.5, y + 0.5, z + 0.5, this.blockID, 0));
+    } else {
+      w.setBlockToAir(x, y, z);
+      while (BlockSand.canFallBelow(w, x, y - 1, z) && y > 0) y--;
+      if (y > 0) w.setBlock(x, y, z, this.blockID, 0, 2);
+    }
   }
 
   override onBlockActivated(w: IWorld, x: number, y: number, z: number, _p: EntityPlayer, _side: number, _hx: number, _hy: number, _hz: number): boolean {
