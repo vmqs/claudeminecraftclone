@@ -96,6 +96,17 @@ export abstract class EntityMinecartContainer extends EntityMinecart implements 
     super.setDead();
   }
 
+  /** Descriptor data (mineshaft chest carts): "Items" as [{ Slot, id, Count, Damage }]. */
+  readEntityFromNBT(tag: Record<string, unknown>): void {
+    const items = tag['Items'];
+    if (!Array.isArray(items)) return;
+    this.items.fill(null);
+    for (const it of items as { Slot?: number; id?: number; Count?: number; Damage?: number }[]) {
+      const slot = (it.Slot ?? -1) & 255;
+      if (slot >= 0 && slot < this.items.length && it.id) this.items[slot] = new ItemStack(it.id, it.Count ?? 1, it.Damage ?? 0);
+    }
+  }
+
   override interact(player: EntityPlayer): boolean {
     player.displayGUIChest(this);
     return true;

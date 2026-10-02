@@ -159,9 +159,8 @@ export class ChunkProviderClient {
   /** performWorldGenSpawning's animals, created through EntityList (unknown names are skipped). */
   private spawnGeneratedEntities(m: ChunkPayload): void {
     for (const d of m.entities) {
-      const e = EntityList.createEntityByName(d.name, this.world);
+      const e = EntityList.fromDescriptor(d, this.world);
       if (!e) continue;
-      e.setLocationAndAngles(d.x, d.y, d.z, d.yaw, 0);
       this.world.spawnEntityInWorld(e);
       if (e.isLivingEntity) (e as EntityLiving).initCreature();
     }
