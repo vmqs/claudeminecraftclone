@@ -5,6 +5,7 @@ import { MovingObjectPosition } from '../core/MovingObjectPosition';
 import type { Vec3 } from '../core/Vec3';
 import type { Entity } from '../entity/Entity';
 import type { EntityLiving } from '../entity/EntityLiving';
+import { EntityList } from '../entity/EntityList';
 import type { EntityPlayer } from '../entity/EntityPlayer';
 import type { CreativeTabs } from '../item/CreativeTabs';
 import { Item } from '../item/Item';
@@ -13,6 +14,7 @@ import type { Icon, IconRegister } from '../render/texture/Icon';
 import type { IBlockAccess } from '../world/IBlockAccess';
 import type { IWorld } from '../world/IWorld';
 import type { Explosion } from '../world/Explosion';
+import type { World } from '../world/World';
 import { Material } from './Material';
 import { StepSounds, type StepSound } from './StepSound';
 
@@ -521,16 +523,45 @@ export class Block {
 
   /** Spawns an item entity at a random point inside the block. */
   protected dropBlockAsItem_do(w: IWorld, x: number, y: number, z: number, stack: ItemStack): void {
-    if (w.isRemote) return;
-    const f = 0.7;
-    const dx = w.rand.nextFloat() * f + (1 - f) * 0.5;
-    const dy = w.rand.nextFloat() * f + (1 - f) * 0.5;
-    const dz = w.rand.nextFloat() * f + (1 - f) * 0.5;
+    if (w.isRemote || !Block.getGameRule(w, 'doTileDrops')) return;
+    const fr = Math.fround;
+    const f = fr(0.7);
+    const edge = fr(1 - f) * 0.5;
+    const dx = fr(w.rand.nextFloat() * f) + edge;
+    const dy = fr(w.rand.nextFloat() * f) + edge;
+    const dz = fr(w.rand.nextFloat() * f) + edge;
     w.dropItemStack(x + dx, y + dy, z + dz, stack);
   }
 
-  protected dropXpOnBlockBreak(_w: IWorld, _x: number, _y: number, _z: number, _xp: number): void {
-    // XP orbs are survival-only; nothing to do in Creative.
+  /**
+   * Experience orbs (ores, spawners, furnaces), split like EntityXPOrb.getXPSplit. In Creative
+   * this happens when an explosion breaks the block. Uses EntityList 'XPOrb' when registered.
+   */
+  protected dropXpOnBlockBreak(w: IWorld, x: number, y: number, z: number, xp: number): void {
+    if (w.isRemote) return;
+    while (xp > 0) {
+      const split = Block.getXPSplit(xp);
+      xp -= split;
+      const e = EntityList.createEntityByName('XPOrb', w as unknown as World);
+      if (!e) return;
+      const orb = e as unknown as { setSize?(w: number, h: number): void; xpValue?: number };
+      orb.setSize?.(0.5, 0.5);
+      e.yOffset = e.height / 2;
+      e.setPosition(x + 0.5, y + 0.5, z + 0.5);
+      const fr = Math.fround;
+      e.rotationYaw = fr(Math.random() * 360);
+      e.motionX = fr(fr(Math.random() * 0.20000000298023224 - 0.10000000149011612) * 2);
+      e.motionY = fr(fr(Math.random() * 0.2) * 2);
+      e.motionZ = fr(fr(Math.random() * 0.20000000298023224 - 0.10000000149011612) * 2);
+      orb.xpValue = split;
+      w.spawnEntityInWorld(e);
+    }
+  }
+
+  /** EntityXPOrb.getXPSplit: the largest orb size not above `xp`. */
+  static getXPSplit(xp: number): number {
+    for (const v of [2477, 1237, 617, 307, 149, 73, 37, 17, 7, 3]) if (xp >= v) return v;
+    return 1;
   }
 
   harvestBlock(w: IWorld, _p: EntityPlayer, x: number, y: number, z: number, meta: number): void {

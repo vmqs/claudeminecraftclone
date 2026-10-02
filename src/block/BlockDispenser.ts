@@ -105,7 +105,6 @@ export class BlockDispenser extends BlockContainer {
 
   /** A rising redstone edge (above or at the block) fires it after 4 ticks. */
   override onNeighborBlockChange(w: IWorld, x: number, y: number, z: number, _id: number): void {
-    if (!Block.hasRedstone(w)) return;
     const powered = Block.isPowered(w, x, y, z) || Block.isPowered(w, x, y + 1, z);
     const meta = w.getBlockMetadata(x, y, z);
     const triggered = (meta & 8) !== 0;

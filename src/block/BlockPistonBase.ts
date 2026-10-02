@@ -142,7 +142,7 @@ export class BlockPistonBase extends Block {
     if (event === 0) {
       if (!this.tryExtend(w, x, y, z, facing)) return false;
       w.setBlockMetadataWithNotify(x, y, z, facing | 8, 2);
-      w.playSoundEffect(x + 0.5, y + 0.5, z + 0.5, 'tile.piston.out', 0.5, w.rand.nextFloat() * 0.25 + 0.6);
+      w.playSoundEffect(x + 0.5, y + 0.5, z + 0.5, 'tile.piston.out', 0.5, Math.fround(w.rand.nextFloat() * 0.25 + Math.fround(0.6)));
     } else if (event === 1) {
       const fx = Facing.offsetsXForSide[facing];
       const fy = Facing.offsetsYForSide[facing];
@@ -171,14 +171,18 @@ export class BlockPistonBase extends Block {
         if (pulledMoving || id <= 0 || !BlockPistonBase.canPushBlock(id, w, px, py, pz, false) || (b!.getMobilityFlag() !== 0 && id !== BlockIds.pistonBase && id !== BlockIds.pistonStickyBase)) {
           if (!pulledMoving) w.setBlockToAir(x + fx, y + fy, z + fz);
         } else {
-          w.setBlock(x + fx, y + fy, z + fz, BlockIds.pistonMoving, meta, 3);
-          w.setBlockTileEntity(x + fx, y + fy, z + fz, new TileEntityPiston(id, meta, facing, false, false));
+          // The original moves its x/y/z here, so the sound comes from the pulled block.
+          x += fx;
+          y += fy;
+          z += fz;
+          w.setBlock(x, y, z, BlockIds.pistonMoving, meta, 3);
+          w.setBlockTileEntity(x, y, z, new TileEntityPiston(id, meta, facing, false, false));
           w.setBlockToAir(px, py, pz);
         }
       } else {
         w.setBlockToAir(x + fx, y + fy, z + fz);
       }
-      w.playSoundEffect(x + 0.5, y + 0.5, z + 0.5, 'tile.piston.in', 0.5, w.rand.nextFloat() * 0.15 + 0.6);
+      w.playSoundEffect(x + 0.5, y + 0.5, z + 0.5, 'tile.piston.in', 0.5, Math.fround(Math.fround(w.rand.nextFloat() * Math.fround(0.15)) + Math.fround(0.6)));
     }
     return true;
   }

@@ -21,7 +21,7 @@ export class BlockCommandBlock extends BlockContainer {
   }
 
   override onNeighborBlockChange(w: IWorld, x: number, y: number, z: number, _id: number): void {
-    if (w.isRemote || !Block.hasRedstone(w)) return;
+    if (w.isRemote) return;
     const powered = Block.isPowered(w, x, y, z);
     const meta = w.getBlockMetadata(x, y, z);
     const wasPowered = (meta & 1) !== 0;

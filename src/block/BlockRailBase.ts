@@ -329,9 +329,8 @@ export class BlockRail extends BlockRailBase {
     this.iconTurn = reg.registerIcon('rail_turn');
   }
 
-  /** A junction re-evaluates its curve when powered (redstone only). */
+  /** A power source changing next to a T junction re-evaluates its curve (unpowered without redstone). */
   protected override onRailNeighborChange(w: IWorld, x: number, y: number, z: number, _meta: number, _shape: number, id: number): void {
-    if (!Block.hasRedstone(w)) return;
     if (id > 0 && Block.blocksList[id]?.canProvidePower() && new BlockRailLogic(w, x, y, z).getNumberOfAdjacentTracks() === 3) this.refreshTrackShape(w, x, y, z, false);
   }
 }
@@ -420,7 +419,6 @@ export class BlockRailPowered extends BlockRailBase {
   }
 
   protected override onRailNeighborChange(w: IWorld, x: number, y: number, z: number, meta: number, shape: number, _id: number): void {
-    if (!Block.hasRedstone(w)) return;
     const powered = Block.isPowered(w, x, y, z) || this.isConnectedRailPowered(w, x, y, z, meta, true, 0) || this.isConnectedRailPowered(w, x, y, z, meta, false, 0);
     let changed = false;
     if (powered && (meta & 8) === 0) {

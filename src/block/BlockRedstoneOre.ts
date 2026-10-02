@@ -57,6 +57,15 @@ export class BlockRedstoneOre extends Block {
     return 4 + rand.nextInt(2);
   }
 
+  /** 1-5 experience when it drops redstone (not with silk touch). */
+  override dropBlockAsItemWithChance(w: IWorld, x: number, y: number, z: number, meta: number, chance: number, fortune: number): void {
+    super.dropBlockAsItemWithChance(w, x, y, z, meta, chance, fortune);
+    if (this.idDropped(meta, w.rand, fortune) !== this.blockID) {
+      const xp = 1 + w.rand.nextInt(5);
+      this.dropXpOnBlockBreak(w, x, y, z, xp);
+    }
+  }
+
   override randomDisplayTick(w: IWorld, x: number, y: number, z: number, _rand: JavaRandom): void {
     if (this.glowing) this.sparkle(w, x, y, z);
   }
@@ -65,9 +74,9 @@ export class BlockRedstoneOre extends Block {
     const r = w.rand;
     const d = 0.0625;
     for (let i = 0; i < 6; i++) {
-      let px = x + r.nextFloat();
-      let py = y + r.nextFloat();
-      let pz = z + r.nextFloat();
+      let px = Math.fround(x + r.nextFloat());
+      let py = Math.fround(y + r.nextFloat());
+      let pz = Math.fround(z + r.nextFloat());
       if (i === 0 && !w.isBlockOpaqueCube(x, y + 1, z)) py = y + 1 + d;
       if (i === 1 && !w.isBlockOpaqueCube(x, y - 1, z)) py = y - d;
       if (i === 2 && !w.isBlockOpaqueCube(x, y, z + 1)) pz = z + 1 + d;

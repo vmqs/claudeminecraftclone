@@ -34,7 +34,7 @@ const EMPTY_OCTANTS = [
 export class BlockStairs extends Block {
   private readonly modelBlock: Block;
   private readonly modelBlockMetadata: number;
-  /** While ray tracing: bounds come from the octant below (field_72156_cr / field_72160_cs). */
+  /** Set by the first ray trace (field_72156_cr): bounds then come from octant field_72160_cs. */
   private tracingOctant = false;
   private octant = 0;
 
@@ -359,7 +359,8 @@ export class BlockStairs extends Block {
       this.octant = i;
       hits[i] = super.collisionRayTrace(w, x, y, z, start, end);
     }
-    this.tracingOctant = false;
+    // The original never clears the flag: once traced, setBlockBoundsBasedOnState keeps giving
+    // the last octant (the outline still uses the model block's full selection box).
     for (const i of empty) hits[i] = null;
     let best: MovingObjectPosition | null = null;
     let bestDist = 0;
