@@ -25,7 +25,7 @@
   {"wait": 1000},
   {"shot": "worldgen_claude_desert_village.png"},
   {"goto": "?dev=1&autostart=1&seed=123456789&time=6000&pos=-203.5,66,248.5,0,0"},
-  {"waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(3) === 0", "timeout": 900000},
+  {"waitFor": "mc.dev.isInGame() && (() => { const rg = mc.renderGlobal, p = mc.thePlayer; if (!rg.dirty || !rg.jobs) return mc.dev.pendingSections(3) === 0; const cx = Math.floor(p.posX) >> 4, cz = Math.floor(p.posZ) >> 4; const near = (s) => s.sy > 0 && Math.abs(s.sx - cx) <= 3 && Math.abs(s.sz - cz) <= 3; let n = 0; for (const s of rg.dirty) if (near(s)) n++; for (const s of rg.jobs.values()) if (!s.needsUpdate && near(s)) n++; return n === 0; })()", "timeout": 900000},
   {"eval": "(() => { const w = mc.theWorld, i = w.worldInfo; const b = (x, z) => w.getBiomeGenForCoords(x, z).biomeName; if (i.spawnX !== -204 || i.spawnZ !== 248) throw new Error('worldgen: spawn ' + [i.spawnX, i.spawnZ]); if (b(-204, 248) !== 'Forest' || b(-243, 255) !== 'ForestHills') throw new Error('worldgen: biomes ' + [b(-204, 248), b(-243, 255)]); return { spawn: [i.spawnX, i.spawnY, i.spawnZ], biomes: [b(-204, 248), b(-243, 255), b(-284, 212), b(-286, 212)] }; })()"},
   {"eval": "mc.dev.tp(-203.5, 66, 248.5, 0, 0); mc.dev.setTime(6000)"},
   {"wait": 1500},

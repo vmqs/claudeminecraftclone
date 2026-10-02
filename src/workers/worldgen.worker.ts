@@ -38,7 +38,15 @@ function pump(): void {
   }
   const [cx, cz] = requested.get(best)!;
   requested.delete(best);
-  const payload = server.finalizeChunk(cx, cz);
+  let payload: ReturnType<WorldGenServer['finalizeChunk']>;
+  try {
+    payload = server.finalizeChunk(cx, cz);
+  } catch (err) {
+    // Report and keep serving the other chunks rather than stalling the queue.
+    console.error(`[worldgen] chunk ${cx},${cz} failed`, err);
+    schedule();
+    return;
+  }
   const transfer: Transferable[] = [payload.heightMap.buffer, payload.biomes.buffer];
   for (const s of payload.sections) transfer.push(s.blocks.buffer, s.meta.buffer, s.skyLight.buffer, s.blockLight.buffer);
   post(payload, transfer);
