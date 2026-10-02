@@ -2,6 +2,7 @@ import type { EntityPlayer } from '../../entity/EntityPlayer';
 import type { ItemStack } from '../../item/ItemStack';
 import type { ChunkProviderClient } from '../ChunkProviderClient';
 import type { World, WorldInfo } from '../World';
+import { PlayerSpawning, type PlayerSurvivalState } from '../../entity/PlayerSpawning';
 
 /** What level.dat's Player tag would hold for the single player. */
 export interface PlayerSnapshot {
@@ -15,6 +16,8 @@ export interface PlayerSnapshot {
   currentItem: number;
   isFlying: boolean;
   dead: boolean;
+  /** Game mode, health, hunger, experience, bed (PlayerSpawning.captureState). */
+  state?: PlayerSurvivalState;
 }
 
 /** One world of the session (a save folder). */
@@ -113,6 +116,7 @@ export class SaveFormatMemory {
         currentItem: player.inventory.currentItem,
         isFlying: player.capabilities.isFlying,
         dead: player.getHealth() <= 0,
+        state: PlayerSpawning.captureState(player),
       };
       world.removeEntity(player);
       if (player.addedToChunk && world.chunkExists(player.chunkCoordX, player.chunkCoordZ)) world.getChunkFromChunkCoords(player.chunkCoordX, player.chunkCoordZ).removeEntity(player);

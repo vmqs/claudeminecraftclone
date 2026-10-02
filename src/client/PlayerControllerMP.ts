@@ -1,9 +1,8 @@
 import { BlockMiningSounds } from '../audio/BlockSounds';
 import type { SoundManager } from '../audio/SoundManager';
 import { Block } from '../block/Block';
-import { CommandGameMode } from '../command/CommandGameMode';
 import type { Vec3 } from '../core/Vec3';
-import type { EntityPlayer } from '../entity/EntityPlayer';
+import { EntityPlayer } from '../entity/EntityPlayer';
 import { ItemBlock } from '../item/ItemBlock';
 import { ItemStack } from '../item/ItemStack';
 import { EnumGameType } from '../world/EnumGameType';
@@ -18,32 +17,33 @@ export interface MPControllerClient extends ControllerClient {
 }
 
 /**
- * PlayerControllerMP with every game mode. Single player had a client controller talking to the
- * integrated server's ItemInWorldManager; here both halves run on the one world, so each action
- * does the client's part (effects, local prediction) and then the server's part (drops, tool
- * wear, onBlockClicked) exactly once:
- * - Creative: instant breaking with a 5-tick repeat, placement that keeps the stack, reach 5.
- * - Survival / Adventure: blocks take getPlayerRelativeBlockHardness per tick until the damage
- *   reaches 1 (the crack overlay follows it), then break with the held tool's wear and, when the
- *   tool can harvest the block, its drops; 5 ticks pass before the next block; reach 4.5.
+ * PlayerControllerMP with every game mode. Single player had this client controller talking to
+ * the integrated server's ItemInWorldManager; here both halves act on the one world, so each
+ * action does the client's part (crack overlay, mining sounds, prediction) and the server's part
+ * (onBlockClicked, onBlockHarvested, tool wear, drops) exactly once:
+ * - Creative: instant breaking with a 5-tick repeat, placement keeps the stack, reach 5.
+ * - Survival / Adventure: the block takes getPlayerRelativeBlockHardness per tick until the
+ *   damage reaches 1 (the crack overlay follows it), then breaks, wearing the held tool and,
+ *   when the player can harvest it, dropping its items; 5 ticks pass before the next block;
+ *   reach 4.5. Adventure players only break what their tool can.
  */
 export class PlayerControllerMP extends PlayerControllerCreative {
-  private currentBlockX = -1;
-  private currentBlockY = -1;
-  private currentBlockZ = -1;
+  private curBlockX = -1;
+  private curBlockY = -1;
+  private curBlockZ = -1;
   /** The held stack when the current block was first hit (field_85183_f). */
   private currentItemHittingBlock: ItemStack | null = null;
   private curBlockDamageMP = 0;
   private readonly miningSounds = new BlockMiningSounds();
-  private blockHitDelay = 0;
+  private hitDelay = 0;
   private isHittingBlock = false;
   private currentGameType = EnumGameType.SURVIVAL;
 
   constructor(private readonly client: MPControllerClient) {
     super(client);
-    // /gamemode on the local player: Packet70GameEvent 3 told the client controller.
-    CommandGameMode.gameTypeListener = (player, mode) => {
-      if (player === this.client.thePlayer) this.setGameType(EnumGameType.getByID(mode));
+    // Packet70GameEvent 3: the server changed the local player's mode (/gamemode).
+    EntityPlayer.gameTypeListener = (player, type) => {
+      if (player === this.client.thePlayer) this.setGameType(type);
     };
   }
 
@@ -72,15 +72,21 @@ export class PlayerControllerMP extends PlayerControllerCreative {
     return this.curBlockDamageMP;
   }
 
+  /** Whether a block is being mined right now. */
   isHitting(): boolean {
     return this.isHittingBlock;
   }
 
+  /** Ticks left before the next block can be damaged (blockHitDelay). */
+  getBlockHitDelay(): number {
+    return this.hitDelay;
+  }
+
   /**
-   * Breaks a block as the player. The client half plays the break effect (2001) and removes
-   * the block; the server half (ItemInWorldManager.tryHarvestBlock) runs onBlockHarvested and,
-   * outside Creative, wears the held tool and drops the block's items if the tool could
-   * harvest it (checked before the wear, so a tool that breaks on its last block still drops).
+   * Breaks a block as the player. The client's half plays the break effect (2001); the
+   * server's half (ItemInWorldManager.tryHarvestBlock) runs onBlockHarvested, removes the block
+   * and, outside Creative, wears the held tool and drops the block's items if the player could
+   * harvest it (decided before the wear, so a tool breaking on its last block still drops).
    */
   override onPlayerDestroyBlock(x: number, y: number, z: number, _side: number): boolean {
     const p = this.client.thePlayer!;
@@ -94,7 +100,7 @@ export class PlayerControllerMP extends PlayerControllerCreative {
     block.onBlockHarvested(w, x, y, z, meta, p);
     const removed = w.setBlockToAir(x, y, z);
     if (removed) block.onBlockDestroyedByPlayer(w, x, y, z, meta);
-    this.currentBlockY = -1;
+    this.curBlockY = -1;
     if (!this.currentGameType.isCreative()) {
       const held = p.getCurrentEquippedItem();
       const canHarvest = p.canHarvestBlock(block);
@@ -107,34 +113,35 @@ export class PlayerControllerMP extends PlayerControllerCreative {
     return removed;
   }
 
-  /** clickBlockCreative: put out fire on the clicked face, otherwise break the block. */
-  private clickBlockCreative(x: number, y: number, z: number, side: number): void {
+  /** Creative's click: put out fire on the clicked face, otherwise break the block. */
+  private clickBlockInCreative(x: number, y: number, z: number, side: number): void {
     if (!this.client.theWorld!.extinguishFire(this.client.thePlayer!, x, y, z, side)) this.onPlayerDestroyBlock(x, y, z, side);
   }
 
-  /** Left click on a block: break it (Creative, or instant blocks) or start mining it. */
+  /** Left click on a block: break it (Creative, or blocks that break at once) or start mining. */
   override clickBlock(x: number, y: number, z: number, side: number): void {
     const p = this.client.thePlayer!;
     const w = this.client.theWorld!;
     if (this.currentGameType.isAdventure() && !p.canCurrentToolHarvestBlock(x, y, z)) return;
     if (this.currentGameType.isCreative()) {
-      this.clickBlockCreative(x, y, z, side);
-      this.blockHitDelay = 5;
+      this.clickBlockInCreative(x, y, z, side);
+      this.hitDelay = 5;
       return;
     }
     if (this.isHittingBlock && this.sameToolAndBlock(x, y, z)) return;
-    // The server's half of the click: fire on the face goes out, then the block is told.
-    w.extinguishFire(p, x, y, z, side);
+    // The server's half (ItemInWorldManager.onBlockClicked): fire on the face goes out, the block hears the click.
+    w.extinguishFire(null, x, y, z, side);
     const id = w.getBlockId(x, y, z);
     if (id > 0) Block.blocksList[id]?.onBlockClicked(w, x, y, z, p);
-    const block = Block.blocksList[w.getBlockId(x, y, z)];
+    const now = w.getBlockId(x, y, z);
+    const block = now > 0 ? Block.blocksList[now] : null;
     if (block && block.getPlayerRelativeBlockHardness(p, w, x, y, z) >= 1) {
       this.onPlayerDestroyBlock(x, y, z, side);
     } else {
       this.isHittingBlock = true;
-      this.currentBlockX = x;
-      this.currentBlockY = y;
-      this.currentBlockZ = z;
+      this.curBlockX = x;
+      this.curBlockY = y;
+      this.curBlockZ = z;
       this.currentItemHittingBlock = p.getHeldItem();
       this.curBlockDamageMP = 0;
       this.miningSounds.reset();
@@ -148,18 +155,18 @@ export class PlayerControllerMP extends PlayerControllerCreative {
     this.curBlockDamageMP = 0;
     const p = this.client.thePlayer;
     const w = this.client.theWorld;
-    if (p && w) w.destroyBlockInWorldPartially(p.entityId, this.currentBlockX, this.currentBlockY, this.currentBlockZ, -1);
+    if (p && w) w.destroyBlockInWorldPartially(p.entityId, this.curBlockX, this.curBlockY, this.curBlockZ, -1);
   }
 
   /** Every tick the attack button stays down on a block. */
   override onPlayerDamageBlock(x: number, y: number, z: number, side: number): void {
-    if (this.blockHitDelay > 0) {
-      this.blockHitDelay--;
+    if (this.hitDelay > 0) {
+      this.hitDelay--;
       return;
     }
     if (this.currentGameType.isCreative()) {
-      this.blockHitDelay = 5;
-      this.clickBlockCreative(x, y, z, side);
+      this.hitDelay = 5;
+      this.clickBlockInCreative(x, y, z, side);
       return;
     }
     if (!this.sameToolAndBlock(x, y, z)) {
@@ -182,9 +189,9 @@ export class PlayerControllerMP extends PlayerControllerCreative {
       this.onPlayerDestroyBlock(x, y, z, side);
       this.curBlockDamageMP = 0;
       this.miningSounds.reset();
-      this.blockHitDelay = 5;
+      this.hitDelay = 5;
     }
-    w.destroyBlockInWorldPartially(p.entityId, this.currentBlockX, this.currentBlockY, this.currentBlockZ, Math.trunc(f(this.curBlockDamageMP * 10)) - 1);
+    w.destroyBlockInWorldPartially(p.entityId, this.curBlockX, this.curBlockY, this.curBlockZ, Math.trunc(f(this.curBlockDamageMP * 10)) - 1);
   }
 
   override getBlockReachDistance(): number {
@@ -199,12 +206,12 @@ export class PlayerControllerMP extends PlayerControllerCreative {
     if (was !== null && held !== null) {
       same = held.itemID === was.itemID && ItemStack.areItemStackTagsEqual(held, was) && (held.isItemStackDamageable() || held.getItemDamage() === was.getItemDamage());
     }
-    return x === this.currentBlockX && y === this.currentBlockY && z === this.currentBlockZ && same;
+    return x === this.curBlockX && y === this.curBlockY && z === this.curBlockZ && same;
   }
 
   /**
    * Right click on a block: activate it, otherwise use the held item on it. Creative keeps the
-   * stack's size and damage (the integrated server's activateBlockOrUseItem); other modes spend it.
+   * stack's size and damage (activateBlockOrUseItem); the other modes spend it.
    */
   override onPlayerRightClick(p: EntityPlayer, w: World, stack: ItemStack | null, x: number, y: number, z: number, side: number, hit: Vec3): boolean {
     if (this.currentGameType.isCreative()) return super.onPlayerRightClick(p, w, stack, x, y, z, side, hit);

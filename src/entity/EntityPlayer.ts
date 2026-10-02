@@ -14,11 +14,14 @@ import type { IInventory } from '../gui/inventory/IInventory';
 import type { ItemStack } from '../item/ItemStack';
 import type { TileEntity } from '../world/tileentity/TileEntity';
 import type { World } from '../world/World';
-import { type DamageSource, EntityDamageSource } from './DamageSource';
+import { DamageSource, EntityDamageSource } from './DamageSource';
 import type { Entity } from './Entity';
 import { applyThorns, EnchantmentHooks } from './EnchantmentHooks';
 import { ChunkCoordinates, EntityLiving } from './EntityLiving';
 import { EntityList } from './EntityList';
+import { CombatTracker } from './CombatTracker';
+import { FoodStats } from './FoodStats';
+import { EnumGameType } from '../world/EnumGameType';
 import { InventoryPlayer } from './InventoryPlayer';
 import { PlayerCapabilities } from './PlayerCapabilities';
 import { PotionId } from './PotionEffects';
@@ -69,6 +72,20 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
   protected speedInAir = f(0.02);
   private itemInUse: ItemStack | null = null;
   private itemInUseCount = 0;
+  /** Hunger, saturation and exhaustion (FoodStats). */
+  protected foodStats = new FoodStats();
+  /** Recent damage, for the death message (CombatTracker). */
+  readonly combatTracker: CombatTracker = new CombatTracker(this);
+  /** The bed (or /spawnpoint) this player respawns at, and whether it is used without a bed. */
+  private spawnChunk: ChunkCoordinates | null = null;
+  private spawnForced = false;
+  /** The game mode the server keeps for this player (ItemInWorldManager.gameType). */
+  gameType: EnumGameType = EnumGameType.NOT_SET;
+  /** Ticks of spawn protection left (EntityPlayerMP.initialInvulnerability): only the void hurts. */
+  initialInvulnerability = 60;
+  /** onGround and posY when the last tick ended: the server's view, used for jump exhaustion. */
+  private serverOnGround = false;
+  private serverPosY = 0;
 
   override get isPlayerEntity(): boolean {
     return true;
@@ -118,6 +135,7 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
   }
 
   override onUpdate(): void {
+    if (!this.worldObj.isRemote) this.initialInvulnerability--;
     if (this.itemInUse) {
       const held = this.inventory.getCurrentItem();
       if (held !== this.itemInUse) {
@@ -148,6 +166,13 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     this.chasingPosX += dx * 0.25;
     this.chasingPosZ += dz * 0.25;
     this.chasingPosY += dy * 0.25;
+    if (!this.worldObj.isRemote) {
+      // NetServerHandler.handleFlying: leaving the ground upwards costs 0.2 (also for sprint jumps).
+      if (this.serverOnGround && !this.onGround && this.posY - this.serverPosY > 0) this.addExhaustion(f(0.2));
+      this.serverOnGround = this.onGround;
+      this.serverPosY = this.posY;
+      this.foodStats.onUpdate(this);
+    }
   }
 
   /** Drinking sounds, or eating sounds and crumbs of the food's icon in front of the face. */
@@ -239,6 +264,8 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
 
   override onLivingUpdate(): void {
     if (this.flyToggleTimer > 0) this.flyToggleTimer--;
+    // Peaceful regeneration; the original's `ticksExisted % 20 * 12 == 0` means every 20 ticks.
+    if (this.worldObj.difficultySetting === 0 && this.getHealth() < this.getMaxHealth() && this.ticksExisted % 20 === 0) this.heal(1);
     this.inventory.decrementAnimations();
     this.prevCameraYaw = this.cameraYaw;
     super.onLivingUpdate();
@@ -305,6 +332,7 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
    */
   override attackEntityFrom(src: DamageSource, amount: number): boolean {
     if (this.isEntityInvulnerable()) return false;
+    if (this.initialInvulnerability > 0 && src !== DamageSource.outOfWorld && !this.worldObj.isRemote) return false;
     if (this.capabilities.disableDamage && !src.canHarmInCreative()) return false;
     this.entityAge = 0;
     if (this.getHealth() <= 0) return false;
@@ -369,20 +397,104 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     amount = this.applyArmorCalculations(src, amount);
     amount = this.applyPotionDamageCalculations(src, amount);
     this.addExhaustion(src.getHungerDamage());
+    const before = this.getHealth();
     this.setEntityHealth(this.getHealth() - amount);
+    this.combatTracker.trackDamage(src, before, amount);
+  }
+
+  /** Food exhaustion from actions (FoodStats.addExhaustion); nothing while damage is disabled. */
+  addExhaustion(amount: number): void {
+    if (this.capabilities.disableDamage || this.worldObj.isRemote) return;
+    this.foodStats.addExhaustion(amount);
+  }
+
+  getFoodStats(): FoodStats {
+    return this.foodStats;
+  }
+
+  /** Hungry (or the food is always edible) and able to take damage: Creative players never eat. */
+  canEat(alwaysEdible: boolean): boolean {
+    return (alwaysEdible || this.foodStats.needFood()) && !this.capabilities.disableDamage;
+  }
+
+  /** Alive and below full health (natural regeneration). */
+  shouldHeal(): boolean {
+    return this.getHealth() > 0 && this.getHealth() < this.getMaxHealth();
   }
 
   /**
-   * Food exhaustion from actions (FoodStats.addExhaustion); nothing in Creative. Hunger is not
-   * implemented yet, so this is where the food code plugs in.
+   * Exhaustion for the distance covered in one tick (addMovementStat): 0.015 per metre diving or
+   * swimming, 0.01 walking and 0.1 sprinting on the ground; climbing and flying are free.
    */
-  addExhaustion(amount: number): void {
-    if (this.capabilities.disableDamage || this.worldObj.isRemote) return;
-    EntityPlayer.exhaustionHook?.(this, amount);
+  addMovementStat(dx: number, dy: number, dz: number): void {
+    if (this.ridingEntity !== null) return;
+    const cm = (d: number) => Math.floor(f(f(f(MathHelper.sqrt_double(d)) * 100) + 0.5));
+    if (this.isInsideOfMaterial(Material.water)) {
+      const n = cm(dx * dx + dy * dy + dz * dz);
+      if (n > 0) this.addExhaustion(f(f(f(0.015) * n) * f(0.01)));
+    } else if (this.isInWater()) {
+      const n = cm(dx * dx + dz * dz);
+      if (n > 0) this.addExhaustion(f(f(f(0.015) * n) * f(0.01)));
+    } else if (this.isOnLadder()) {
+      // distanceClimbed only.
+    } else if (this.onGround) {
+      const n = cm(dx * dx + dz * dz);
+      if (n > 0) this.addExhaustion(f(f((this.isSprinting() ? f(0.099999994) : f(0.01)) * n) * f(0.01)));
+    }
   }
 
-  /** FoodStats.addExhaustion, installed by the food code; null = no hunger. */
-  static exhaustionHook: ((player: EntityPlayer, amount: number) => void) | null = null;
+  /** The bed or /spawnpoint position this player respawns at (null: the world spawn). */
+  getBedLocation(): ChunkCoordinates | null {
+    return this.spawnChunk;
+  }
+
+  isSpawnForced(): boolean {
+    return this.spawnForced;
+  }
+
+  setSpawnChunk(c: ChunkCoordinates | null, forced: boolean): void {
+    this.spawnChunk = c ? new ChunkCoordinates(c.posX, c.posY, c.posZ) : null;
+    this.spawnForced = c ? forced : false;
+  }
+
+  /**
+   * EntityPlayerMP.setGameType: the mode's capabilities, the abilities packet, and the client's
+   * Packet70GameEvent 3 ("Your game mode has been updated"), which the PlayerController follows.
+   */
+  setGameType(type: EnumGameType): void {
+    this.gameType = type;
+    type.configurePlayerCapabilities(this.capabilities);
+    this.sendPlayerAbilities();
+    EntityPlayer.gameTypeListener?.(this, type);
+    this.addChatMessage('gameMode.changed');
+  }
+
+  /** The client's half of a game-mode change (PlayerControllerMP.setGameType via Packet70). */
+  static gameTypeListener: ((player: EntityPlayer, type: EnumGameType) => void) | null = null;
+
+  /**
+   * The respawned player takes over from the dead one (clonePlayer): everything when coming
+   * back from the End, otherwise only the inventory and experience under keepInventory. (The
+   * ender chest contents always carry over; PlayerSpawning.respawn copies them.)
+   */
+  clonePlayer(old: EntityPlayer, wholeState: boolean): void {
+    const keep = (): void => {
+      for (let i = 0; i < old.inventory.mainInventory.length; i++) this.inventory.mainInventory[i] = old.inventory.mainInventory[i];
+      for (let i = 0; i < old.inventory.armorInventory.length; i++) this.inventory.armorInventory[i] = old.inventory.armorInventory[i];
+      this.inventory.currentItem = old.inventory.currentItem;
+      this.experienceLevel = old.experienceLevel;
+      this.experienceTotal = old.experienceTotal;
+      this.experience = old.experience;
+      this.addScore(old.getScore() - this.getScore());
+    };
+    if (wholeState) {
+      keep();
+      this.setEntityHealth(old.getHealth());
+      this.foodStats = old.foodStats;
+    } else if (this.worldObj.worldInfo.gameRules.keepInventory) {
+      keep();
+    }
+  }
 
   /** A dead player drops 7 experience per level (at most 100), none with keepInventory. */
   protected override getExperiencePoints(_player: EntityPlayer | null): number {
@@ -552,6 +664,9 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
   }
 
   override moveEntityWithHeading(strafe: number, forward: number): void {
+    const x = this.posX;
+    const y = this.posY;
+    const z = this.posZ;
     if (this.capabilities.isFlying && this.ridingEntity === null) {
       const my = this.motionY;
       const saved = this.jumpMovementFactor;
@@ -562,6 +677,7 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     } else {
       super.moveEntityWithHeading(strafe, forward);
     }
+    this.addMovementStat(this.posX - x, this.posY - y, this.posZ - z);
   }
 
   protected override fall(dist: number): void {
@@ -596,7 +712,7 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
 
   /** The death message goes to chat; the inventory drops unless keepInventory; the body falls over. */
   override onDeath(src: DamageSource): void {
-    getServer()?.sendChatMsg(src.getDeathMessage(this));
+    getServer()?.sendChatMsg(this.combatTracker.getDeathMessage());
     getScoreboard(this.worldObj).increaseScores(ScoreObjectiveCriteria.deathCount, this.getEntityName());
     super.onDeath(src);
     this.setSize(f(0.2), f(0.2));

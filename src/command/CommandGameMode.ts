@@ -1,4 +1,5 @@
 import { I18n } from '../core/I18n';
+import { EnumGameType } from '../world/EnumGameType';
 import type { EntityPlayer } from '../entity/EntityPlayer';
 import { CommandBase } from './CommandBase';
 import { WrongUsageException } from './CommandException';
@@ -37,16 +38,12 @@ export class CommandGameMode extends CommandBase {
   static gameTypeListener: ((player: EntityPlayer, mode: number) => void) | null = null;
 
   /**
-   * EntityPlayerMP.setGameType: the capabilities of the mode, then Packet70GameEvent 3, which
-   * the client answers with "Your game mode has been updated".
+   * EntityPlayerMP.setGameType: the player's mode and capabilities change (EntityPlayer.setGameType
+   * sends Packet70GameEvent 3, which the client answers with "Your game mode has been updated").
    */
   static setGameType(player: EntityPlayer, mode: number): void {
-    const caps = player.capabilities;
-    caps.allowFlying = caps.isCreativeMode = caps.disableDamage = mode === 1;
-    caps.allowEdit = mode !== 2;
-    if (mode !== 1) caps.isFlying = false;
+    player.setGameType(EnumGameType.getByID(mode));
     CommandGameMode.gameTypeListener?.(player, mode);
-    player.addChatMessage('gameMode.changed');
   }
 
   protected getGameModeFromCommand(sender: ICommandSender, s: string): number {

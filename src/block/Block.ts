@@ -502,10 +502,16 @@ export class Block {
     return 0;
   }
 
+  /**
+   * The fraction of the block one tick of mining removes: the player's digging strength over
+   * the hardness, divided by 30 when the player can harvest the block and by 100 when it would
+   * drop nothing (float maths, as the per-tick sums decide break timings). Unbreakable: 0.
+   */
   getPlayerRelativeBlockHardness(p: EntityPlayer, w: IWorld, x: number, y: number, z: number): number {
-    const h = this.getBlockHardness(w, x, y, z);
+    const fr = Math.fround;
+    const h = fr(this.getBlockHardness(w, x, y, z));
     if (h < 0) return 0;
-    return !p.canHarvestBlock(this) ? p.getCurrentPlayerStrVsBlock(this, false) / h / 100 : p.getCurrentPlayerStrVsBlock(this, true) / h / 30;
+    return !p.canHarvestBlock(this) ? fr(fr(p.getCurrentPlayerStrVsBlock(this, false) / h) / 100) : fr(fr(p.getCurrentPlayerStrVsBlock(this, true) / h) / 30);
   }
 
   dropBlockAsItem(w: IWorld, x: number, y: number, z: number, meta: number, fortune: number): void {

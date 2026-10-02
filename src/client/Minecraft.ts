@@ -49,7 +49,8 @@ import { Keyboard, Keys, Mouse } from './Keyboard';
 import { KeyBinding } from './KeyBinding';
 import { MouseHelper } from './MouseHelper';
 import { MovementInputFromOptions } from './MovementInput';
-import { PlayerControllerCreative } from './PlayerControllerCreative';
+import { PlayerControllerMP } from './PlayerControllerMP';
+import { PlayerSpawning } from '../entity/PlayerSpawning';
 import { Timer } from './Timer';
 import { Profiler } from './Profiler';
 import { DebugHooks } from '../command/CommandDebug';
@@ -97,7 +98,7 @@ export class Minecraft implements SettingsListener {
   entityRenderer!: EntityRenderer;
   effectRenderer!: EffectRenderer;
   ingameGUI!: GuiIngame;
-  readonly playerController: PlayerControllerCreative;
+  readonly playerController: PlayerControllerMP;
   theWorld: World | null = null;
   thePlayer: EntityPlayerSP | null = null;
   renderViewEntity: EntityLiving | null = null;
@@ -152,7 +153,7 @@ export class Minecraft implements SettingsListener {
     this.sndManager = new SoundManager(this.gameSettings, resources);
     installEntityClientHooks(this);
     this.loadingScreen = new LoadingScreenRenderer(this);
-    this.playerController = new PlayerControllerCreative(this);
+    this.playerController = new PlayerControllerMP(this);
     this.updateDisplaySize();
   }
 
@@ -709,6 +710,11 @@ export class Minecraft implements SettingsListener {
     this.sndManager.onSoundOptionsChanged();
   }
 
+  /** Options were saved (sendSettingsToServer): the integrated server takes the difficulty. */
+  onSettingsSaved(): void {
+    if (this.theWorld) PlayerSpawning.applyDifficulty(this.theWorld, this.gameSettings.difficulty);
+  }
+
   /** Quit Game: closes the tab when the page was opened by a script, otherwise says it stopped. */
   shutdown(): void {
     this.loadWorld(null);
@@ -788,6 +794,8 @@ export class Minecraft implements SettingsListener {
     this.loadWorld(pw.world);
     if (pw.restore && !pw.restore.dead) SaveFormatMemory.restorePlayer(this.thePlayer!, pw.restore);
     else this.spawnPlayerAtWorldSpawn();
+    if (pw.restore?.state) PlayerSpawning.restoreState(this.thePlayer!, pw.restore.state, pw.restore.dead);
+    this.playerController.setGameType(PlayerSpawning.initializeGameType(this.thePlayer!, pw.world.worldInfo));
     const provider = pw.provider;
     this.displayGuiScreen(
       new GuiDownloadTerrain(() => {
@@ -800,15 +808,7 @@ export class Minecraft implements SettingsListener {
 
   /** EntityPlayerMP's spawn: a random spot within 10 blocks of the world spawn, on the ground. */
   private spawnPlayerAtWorldSpawn(): void {
-    const p = this.thePlayer!;
-    const w = this.theWorld!;
-    const info = w.worldInfo;
-    const rand = new JavaRandom();
-    const x = info.spawnX + rand.nextInt(20) - 10;
-    const z = info.spawnZ + rand.nextInt(20) - 10;
-    const y = w.getTopSolidOrLiquidBlock(x, z);
-    p.setLocationAndAngles(x + 0.5, y, z + 0.5, 0, 0);
-    while (w.getCollidingBoundingBoxes(p, p.boundingBox).length > 0) p.setPosition(p.posX, p.posY + 1, p.posZ);
+    PlayerSpawning.placeAtWorldSpawn(this.thePlayer!, this.theWorld!);
   }
 
   loadWorld(world: World | null): void {
@@ -841,6 +841,8 @@ export class Minecraft implements SettingsListener {
     this.thePlayer.preparePlayerToSpawn();
     world.spawnEntityInWorld(this.thePlayer);
     this.thePlayer.movementInput = new MovementInputFromOptions(this.gameSettings);
+    PlayerSpawning.applyDifficulty(world, this.gameSettings.difficulty);
+    this.playerController.setGameType(PlayerSpawning.initializeGameType(this.thePlayer, world.worldInfo));
     this.playerController.setPlayerCapabilities(this.thePlayer);
     this.renderViewEntity = this.thePlayer;
     this.commandManager = new ServerCommandManager();
@@ -849,7 +851,8 @@ export class Minecraft implements SettingsListener {
 
   /**
    * The Respawn button: the server's respawnPlayer plus setDimensionAndSpawnPlayer. A fresh
-   * player (empty inventory) appears near the world spawn.
+   * player (what keepInventory saves, the same game mode) appears at its bed or near the world
+   * spawn.
    */
   respawnPlayer(): void {
     const w = this.theWorld;
@@ -862,9 +865,11 @@ export class Minecraft implements SettingsListener {
     this.thePlayer = p;
     this.renderViewEntity = p;
     p.preparePlayerToSpawn();
-    this.spawnPlayerAtWorldSpawn();
-    w.spawnEntityInWorld(p);
+    // The client flips the new player, then the server's position packet sets its real angles.
     this.playerController.flipPlayer(p);
+    PlayerSpawning.respawn(p, old, w);
+    this.playerController.setGameType(p.gameType);
+    w.spawnEntityInWorld(p);
     p.movementInput = new MovementInputFromOptions(this.gameSettings);
     this.playerController.setPlayerCapabilities(p);
     if (this.currentScreen instanceof GuiGameOver) this.displayGuiScreen(null);
