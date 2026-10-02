@@ -36,8 +36,31 @@ export class BlockFarmland extends Block {
     return Block.blocksList[BlockIds.dirt]!.getBlockTextureFromSide(side);
   }
 
-  override updateTick(_w: IWorld, _x: number, _y: number, _z: number, _rand: JavaRandom): void {
-    // TODO(block-dynamics): moisture: 7 with water within 4 blocks (or rain), else dry out by one, then turn to dirt without crops.
+  /** Moisture 7 with water within 4 blocks (or rain falling on it), else dries out by one, then turns to dirt unless planted. */
+  override updateTick(w: IWorld, x: number, y: number, z: number, _rand: JavaRandom): void {
+    if (this.isWaterNearby(w, x, y, z) || w.canLightningStrikeAt(x, y + 1, z)) {
+      w.setBlockMetadataWithNotify(x, y, z, 7, 2);
+      return;
+    }
+    const meta = w.getBlockMetadata(x, y, z);
+    if (meta > 0) w.setBlockMetadataWithNotify(x, y, z, meta - 1, 2);
+    else if (!this.isCropsNearby(w, x, y, z)) w.setBlock(x, y, z, BlockIds.dirt);
+  }
+
+  /** A crop, stem, carrot or potato planted on this block. */
+  private isCropsNearby(w: IWorld, x: number, y: number, z: number): boolean {
+    const id = w.getBlockId(x, y + 1, z);
+    return id === BlockIds.crops || id === BlockIds.melonStem || id === BlockIds.pumpkinStem || id === BlockIds.potato || id === BlockIds.carrot;
+  }
+
+  /** Water in the 9x9 area at this level or the one above. */
+  private isWaterNearby(w: IWorld, x: number, y: number, z: number): boolean {
+    for (let ix = x - 4; ix <= x + 4; ix++) {
+      for (let iy = y; iy <= y + 1; iy++) {
+        for (let iz = z - 4; iz <= z + 4; iz++) if (w.getBlockMaterial(ix, iy, iz) === Material.water) return true;
+      }
+    }
+    return false;
   }
 
   /** Trampled by a fall (players, or any mob while mobGriefing is on). */
