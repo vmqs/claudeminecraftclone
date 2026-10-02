@@ -7,6 +7,7 @@ import type { GuiScreen } from '../gui/GuiScreen';
 import { GuiChest } from '../gui/inventory/GuiChest';
 import { GuiCrafting } from '../gui/inventory/GuiCrafting';
 import { GuiEditSign } from '../gui/GuiEditSign';
+import { GuiCommandBlock, isCommandBlock } from '../gui/GuiCommandBlock';
 import type { TileEntity } from '../world/tileentity/TileEntity';
 import type { IInventory } from '../gui/inventory/IInventory';
 import { EntityCrit2FX } from '../render/particle/EntityCrit2FX';
@@ -103,16 +104,6 @@ export class EntityPlayerSP extends EntityPlayer {
 
   override displayGUIWorkbench(x: number, y: number, z: number): void {
     this.mc.displayGuiScreen(new GuiCrafting(this.inventory, this.worldObj, x, y, z));
-  }
-
-  /** EntityPlayerMP: seed, tell, help and me always work; the rest need "Allow Cheats". */
-  override canCommandSenderUseCommand(_level: number, command: string): boolean {
-    if (command === 'seed' || command === 'tell' || command === 'help' || command === 'me') return true;
-    return this.worldObj.worldInfo.allowCommands;
-  }
-
-  override displayGUIEditSign(te: TileEntity): void {
-    this.mc.displayGuiScreen(new GuiEditSign(te));
   }
 
   override onItemPickup(item: Entity, _count: number): void {
@@ -248,5 +239,17 @@ export class EntityPlayerSP extends EntityPlayer {
 
   override playSound(name: string, volume: number, pitch: number): void {
     this.worldObj.playSound(this.posX, this.posY - this.yOffset, this.posZ, name, volume, pitch, false);
+  }
+
+  /** EntityPlayerMP: seed, tell, help and me always work; the rest need "Allow Cheats". */
+  override canCommandSenderUseCommand(_level: number, command: string): boolean {
+    if (command === 'seed' || command === 'tell' || command === 'help' || command === 'me') return true;
+    return this.worldObj.worldInfo.allowCommands;
+  }
+
+  /** Signs open the sign editor, command blocks the command screen (both use this hook in 1.5.2). */
+  override displayGUIEditSign(te: TileEntity): void {
+    if (Array.isArray((te as unknown as { signText?: unknown }).signText)) this.mc.displayGuiScreen(new GuiEditSign(te));
+    else if (isCommandBlock(te)) this.mc.displayGuiScreen(new GuiCommandBlock(te));
   }
 }
