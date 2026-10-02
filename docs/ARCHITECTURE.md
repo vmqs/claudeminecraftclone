@@ -170,6 +170,10 @@ The main thread (`world/ChunkProviderClient`) posts `{type:'request', cx, cz}`, 
   `MinecraftServer.initialWorldChunkLoad` order, so the spawn area is populated in the same
   order as in 1.5.2 (which matters where features of neighbouring chunks overlap). After that,
   chunks are populated on demand, nearest to the player first.
+- **Light while populating.** `GenWorld` keeps light up to date during population like
+  `World.setBlock` (column sky light in `Chunk.relightBlock`, plus `updateLightByType` where every
+  chunk within 17 blocks is loaded), because flowers, grass, mushrooms, snow, ice and lake grass
+  test light. The light sent with a chunk is recomputed at finalization.
 - **Generators.** `ChunkProviderGenerate` (Default, Large Biomes) uses the `GenLayer` stack
   (`world/gen/layer/`, bit-exact 64-bit LCG, a tile cache in front of the river-mix layer),
   the original noise terrain, `MapGenCaves`/`MapGenRavine`, the four structure generators

@@ -14,10 +14,17 @@ import type { EntitySpawnDescriptor } from './WorldGenSpawning';
 import type { WorldProviderInfo } from '../IWorld';
 import type { BiomeSource } from './ChunkProviderGenerate';
 
+/** Facing offsets (down, up, north, south, west, east) and World.lightUpdateBlockList. */
+const SIDE_X = [0, 0, 0, 0, -1, 1];
+const SIDE_Y = [-1, 1, 0, 0, 0, 0];
+const SIDE_Z = [0, 0, -1, 1, 0, 0];
+const lightUpdateBlockList = new Int32Array(32768);
+
 /**
  * The world-generation worker's world: a set of chunks being generated and populated. It
- * implements just enough of IWorld for terrain features and block callbacks. Lighting during
- * population is only the per-column skylight; the final light is computed on finalization.
+ * implements just enough of IWorld for terrain features and block callbacks. Light is kept up to
+ * date during population as in the original (it decides where some features go); the light sent
+ * with a finished chunk is recomputed on finalization.
  */
 export class GenWorld implements ChunkHost {
   readonly isRemote = false;
@@ -118,6 +125,7 @@ export class GenWorld implements ChunkHost {
     const c = this.chunkAt(x, z);
     if (!c) return false;
     const changed = c.setBlockIDWithMetadata(x & 15, y, z & 15, id, meta);
+    this.updateAllLightTypes(x, y, z);
     if (changed && (flags & 1) !== 0) this.notifyBlocksOfNeighborChange(x, y, z, id);
     return changed;
   }
@@ -170,11 +178,16 @@ export class GenWorld implements ChunkHost {
   }
 
   // ---------------------------------------------------------------- light
+  /** World.getSavedLightValue: the default (sky 15, block 0) where no chunk is loaded; never loads one. */
   getSavedLightValue(type: EnumSkyBlock, x: number, y: number, z: number): number {
     if (y < 0) y = 0;
     if (y >= 256) y = 255;
-    const c = this.chunkAt(x, z);
+    const c = this.chunks.get(GenWorld.key(x >> 4, z >> 4));
     return c ? c.getSavedLightValue(type, x & 15, y, z & 15) : type === EnumSkyBlock.Sky ? 15 : 0;
+  }
+  setLightValue(type: EnumSkyBlock, x: number, y: number, z: number, v: number): void {
+    if (y < 0 || y >= 256) return;
+    this.chunks.get(GenWorld.key(x >> 4, z >> 4))?.setLightValue(type, x & 15, y, z & 15, v);
   }
   getFullBlockLightValue(x: number, y: number, z: number): number {
     if (y < 0) return 0;
@@ -224,8 +237,87 @@ export class GenWorld implements ChunkHost {
     }
     return -1;
   }
-  updateLightByType(): void {}
-  updateAllLightTypes(): void {}
+  /**
+   * World.updateAllLightTypes. Like the original, every block change during population updates
+   * light incrementally, but only where all chunks within 17 blocks are loaded; elsewhere just the
+   * column sky light of Chunk.relightBlock changes. Features such as flowers, snow and lake grass
+   * read this light, so it decides where they generate.
+   */
+  updateAllLightTypes(x: number, y: number, z: number): void {
+    this.updateLightByType(EnumSkyBlock.Sky, x, y, z);
+    this.updateLightByType(EnumSkyBlock.Block, x, y, z);
+  }
+
+  private computeLightValue(x: number, y: number, z: number, type: EnumSkyBlock): number {
+    if (type === EnumSkyBlock.Sky && this.canBlockSeeTheSky(x, y, z)) return 15;
+    const id = this.getBlockId(x, y, z);
+    let light = type === EnumSkyBlock.Sky ? 0 : Block.lightValue[id];
+    let op = Block.lightOpacity[id];
+    if (op >= 15 && Block.lightValue[id] > 0) op = 1;
+    if (op < 1) op = 1;
+    if (op >= 15) return 0;
+    if (light >= 14) return light;
+    for (let s = 0; s < 6; s++) {
+      const v = this.getSavedLightValue(type, x + SIDE_X[s], y + SIDE_Y[s], z + SIDE_Z[s]) - op;
+      if (v > light) light = v;
+      if (light >= 14) return light;
+    }
+    return light;
+  }
+
+  /** World.updateLightByType: darkens then re-brightens up to 17 blocks around (x, y, z). */
+  updateLightByType(type: EnumSkyBlock, x: number, y: number, z: number): void {
+    if (!this.doChunksNearChunkExist(x, y, z, 17)) return;
+    const list = lightUpdateBlockList;
+    let read = 0;
+    let write = 0;
+    const saved = this.getSavedLightValue(type, x, y, z);
+    const computed = this.computeLightValue(x, y, z, type);
+    if (computed > saved) {
+      list[write++] = 133152;
+    } else if (computed < saved) {
+      list[write++] = 133152 | (saved << 18);
+      while (read < write) {
+        const e = list[read++];
+        const ex = (e & 63) - 32 + x;
+        const ey = ((e >> 6) & 63) - 32 + y;
+        const ez = ((e >> 12) & 63) - 32 + z;
+        const level = (e >> 18) & 15;
+        if (this.getSavedLightValue(type, ex, ey, ez) !== level) continue;
+        this.setLightValue(type, ex, ey, ez, 0);
+        if (level <= 0 || Math.abs(ex - x) + Math.abs(ey - y) + Math.abs(ez - z) >= 17) continue;
+        for (let s = 0; s < 6; s++) {
+          const nx = ex + SIDE_X[s];
+          const ny = ey + SIDE_Y[s];
+          const nz = ez + SIDE_Z[s];
+          const op = Math.max(1, Block.lightOpacity[this.getBlockId(nx, ny, nz)]);
+          if (this.getSavedLightValue(type, nx, ny, nz) === level - op && write < list.length) {
+            list[write++] = (nx - x + 32) | ((ny - y + 32) << 6) | ((nz - z + 32) << 12) | ((level - op) << 18);
+          }
+        }
+      }
+      read = 0;
+    }
+    while (read < write) {
+      const e = list[read++];
+      const ex = (e & 63) - 32 + x;
+      const ey = ((e >> 6) & 63) - 32 + y;
+      const ez = ((e >> 12) & 63) - 32 + z;
+      const cur = this.getSavedLightValue(type, ex, ey, ez);
+      const val = this.computeLightValue(ex, ey, ez, type);
+      if (val === cur) continue;
+      this.setLightValue(type, ex, ey, ez, val);
+      if (val <= cur || Math.abs(ex - x) + Math.abs(ey - y) + Math.abs(ez - z) >= 17 || write >= list.length - 6) continue;
+      const base = (ey - y + 32) << 6;
+      const zb = (ez - z + 32) << 12;
+      if (this.getSavedLightValue(type, ex - 1, ey, ez) < val) list[write++] = ex - 1 - x + 32 + base + zb;
+      if (this.getSavedLightValue(type, ex + 1, ey, ez) < val) list[write++] = ex + 1 - x + 32 + base + zb;
+      if (this.getSavedLightValue(type, ex, ey - 1, ez) < val) list[write++] = ex - x + 32 + ((ey - 1 - y + 32) << 6) + zb;
+      if (this.getSavedLightValue(type, ex, ey + 1, ez) < val) list[write++] = ex - x + 32 + ((ey + 1 - y + 32) << 6) + zb;
+      if (this.getSavedLightValue(type, ex, ey, ez - 1) < val) list[write++] = ex - x + 32 + base + ((ez - 1 - z + 32) << 12);
+      if (this.getSavedLightValue(type, ex, ey, ez + 1) < val) list[write++] = ex - x + 32 + base + ((ez + 1 - z + 32) << 12);
+    }
+  }
 
   isBlockFreezable(x: number, y: number, z: number): boolean {
     if (this.getBiomeGenForCoords(x, z).getFloatTemperature() > 0.15) return false;
