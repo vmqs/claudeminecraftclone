@@ -1,6 +1,5 @@
 import { AxisAlignedBB } from '../../core/AxisAlignedBB';
 import type { EntityLiving } from '../EntityLiving';
-import type { EntityPlayer } from '../EntityPlayer';
 import { EntityAITarget } from './EntityAITarget';
 
 /**
@@ -46,6 +45,6 @@ export class EntityAIHurtByTarget extends EntityAITarget {
 
   override resetTask(): void {
     const t = this.taskOwner.getAttackTarget();
-    if (t && t.isPlayerEntity && (t as unknown as EntityPlayer).capabilities.disableDamage) super.resetTask();
+    if (t && t.isPlayerEntity && t.isCreativeInvulnerable()) super.resetTask();
   }
 }

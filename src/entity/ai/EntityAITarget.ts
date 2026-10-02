@@ -1,6 +1,5 @@
 import { MathHelper } from '../../core/MathHelper';
 import type { EntityLiving } from '../EntityLiving';
-import type { EntityPlayer } from '../EntityPlayer';
 import { EntityList } from '../EntityList';
 import { EntityAIBase } from './EntityAIBase';
 
@@ -71,7 +70,7 @@ export abstract class EntityAITarget extends EntityAIBase {
       const other = asTameable(target);
       if (other && other.isTamed()) return false;
       if (target === tame.getOwner()) return false;
-    } else if (target.isPlayerEntity && !allowInvulnerable && (target as unknown as EntityPlayer).capabilities.disableDamage) {
+    } else if (target.isPlayerEntity && !allowInvulnerable && target.isCreativeInvulnerable()) {
       return false;
     }
     if (!this.taskOwner.isWithinHomeDistance(MathHelper.floor_double(target.posX), MathHelper.floor_double(target.posY), MathHelper.floor_double(target.posZ))) return false;
