@@ -8,6 +8,32 @@ function parseJavaInt(s: string): number {
   return n > 0x7fffffff || n < -0x80000000 ? Number.NaN : n;
 }
 
+/** FlatLayerInfo.toString: "NxID:META" with the count and meta left out when 1 and 0. */
+function layerToString(l: FlatLayerInfo): string {
+  let s = String(l.blockId);
+  if (l.count > 1) s = `${l.count}x${s}`;
+  if (l.meta > 0) s = `${s}:${l.meta}`;
+  return s;
+}
+
+/** Java String.hashCode. */
+function stringHash(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+  return h;
+}
+
+/** The iteration order of a java.util.HashMap (Java 8+) holding these keys, inserted in order. */
+function javaHashMapOrder(keys: string[]): string[] {
+  let cap = 16;
+  while (keys.length > cap * 0.75) cap *= 2;
+  const idx = (k: string) => {
+    const h = stringHash(k);
+    return (h ^ (h >>> 16)) & (cap - 1);
+  };
+  return keys.map((k, i) => ({ k, i })).sort((a, b) => idx(a.k) - idx(b.k) || a.i - b.i).map((e) => e.k);
+}
+
 /** One run of identical blocks in a superflat preset (FlatLayerInfo). */
 export interface FlatLayerInfo {
   count: number;
@@ -25,6 +51,27 @@ export class FlatGeneratorInfo {
   /** Feature name -> options (village, biome_1, mineshaft, stronghold, decoration, lake, lava_lake, dungeon). */
   readonly worldFeatures = new Map<string, Map<string, string>>();
   biome = 1;
+
+  /**
+   * toString: the preset string ("2;layers;biome;features"), with the features in the order the
+   * original's HashMap lists them (Java 8+ iteration order, as on the reference client).
+   */
+  toString(): string {
+    const layers = this.flatLayers.map(layerToString).join(',');
+    let out = `2;${layers};${this.biome}`;
+    if (this.worldFeatures.size === 0) return out + ';';
+    out += ';';
+    out += javaHashMapOrder([...this.worldFeatures.keys()])
+      .map((name) => {
+        const opts = this.worldFeatures.get(name)!;
+        if (opts.size === 0) return name.toLowerCase();
+        return `${name.toLowerCase()}(${javaHashMapOrder([...opts.keys()])
+          .map((k) => `${k}=${opts.get(k)}`)
+          .join(' ')})`;
+      })
+      .join(',');
+    return out;
+  }
 
   /** func_82645_d: stacks the layers from y = 0. */
   updateLayers(): void {

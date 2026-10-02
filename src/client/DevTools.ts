@@ -177,7 +177,8 @@ export class DevTools {
 }
 
 /**
- * URL hooks: ?dev=1 exposes window.mc; ?autostart=1&seed=&type= creates a world directly;
+ * URL hooks: ?dev=1 exposes window.mc; ?autostart=1&seed=&type= creates a world directly
+ * (&structures=0, &bonus=1 and &preset=<superflat string> as on the More World Options page);
  * ?hotbar=1 fills the hotbar; ?time= sets the world time; ?pos=x,y,z[,yaw,pitch] teleports
  * (feet position); ?fly=1 starts flying.
  */
@@ -187,7 +188,13 @@ export function installDevHooks(mc: Minecraft, params: URLSearchParams): void {
   if (!params.has('autostart')) return;
   const seed = GuiCreateWorld.parseSeed(params.get('seed') ?? '') ?? undefined;
   const type = params.get('type') ?? 'default';
-  mc.launchIntegratedServer('dev', 'New World', { seed, terrainType: type, mapFeatures: true });
+  mc.launchIntegratedServer('dev', 'New World', {
+    seed,
+    terrainType: type,
+    mapFeatures: params.get('structures') !== '0',
+    generatorOptions: params.get('preset') ?? undefined,
+    bonusChest: params.get('bonus') === '1',
+  });
   let applied = false;
   mc.frameListeners.push(() => {
     if (applied || !mc.thePlayer || !mc.theWorld) return;

@@ -61,10 +61,11 @@ export interface WorldSettings {
   seed?: bigint;
   terrainType: string;
   mapFeatures: boolean;
-  /** Superflat preset text (FlatGeneratorInfo format). */
+  /** Superflat preset text (FlatGeneratorInfo format), for terrainType 'flat'. */
   generatorOptions?: string;
   /** "Allow Cheats" (default on: worlds are creative). */
   allowCommands?: boolean;
+  /** "Bonus Chest". */
   bonusChest?: boolean;
   /** EnumGameType id (0 survival, 1 creative, 2 adventure); creative when absent. */
   gameType?: number;
@@ -736,9 +737,10 @@ export class Minecraft implements SettingsListener {
     info.allowCommands = ws.allowCommands ?? true;
     info.gameType = ws.gameType ?? 1;
     info.hardcore = ws.hardcore ?? false;
+    info.bonusChest = ws.bonusChest ?? false;
     SaveFormatMemory.instance.create(folder, info);
     const world = new World(info);
-    const provider = new ChunkProviderClient(world, info.seed, ws.terrainType, ws.mapFeatures, info.generatorOptions);
+    const provider = new ChunkProviderClient(world, info.seed, ws.terrainType, ws.mapFeatures, { generatorOptions: info.generatorOptions, bonusChest: info.bonusChest });
     this.chunkProvider = provider;
     this.pendingWorld = { world, provider, phase: 'spawn' };
     this.loadingScreen.resetProgressAndMessage(I18n.translateToLocal('menu.loadingLevel'));
@@ -758,7 +760,7 @@ export class Minecraft implements SettingsListener {
     const e = saves.resume(folder);
     if (!e || !e.world || !e.provider) return;
     const info = e.info;
-    const provider = new ChunkProviderClient(e.world, info.seed, info.terrainType, info.mapFeaturesEnabled, info.generatorOptions);
+    const provider = new ChunkProviderClient(e.world, info.seed, info.terrainType, info.mapFeaturesEnabled, { generatorOptions: info.generatorOptions, bonusChest: info.bonusChest });
     provider.adoptStore(e.provider);
     e.provider.dispose();
     this.chunkProvider = provider;

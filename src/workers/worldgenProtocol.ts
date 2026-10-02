@@ -1,14 +1,30 @@
 import type { TagCompound } from '../item/ItemStack';
 import type { EntitySpawnDescriptor } from '../world/gen/WorldGenSpawning';
+import type { TerrainChunk } from '../world/gen/TerrainChunk';
 
 /** Messages between the main thread and worldgen.worker.ts (see ARCHITECTURE.md §5.2). */
 export type WorldGenRequest =
-  | { type: 'init'; seed: string; worldType: string; mapFeatures: boolean; generatorOptions?: string }
+  | {
+      type: 'init';
+      seed: string;
+      /** 'default', 'flat' or 'largeBiomes'. */
+      worldType: string;
+      /** "Generate Structures". */
+      mapFeatures: boolean;
+      /** Superflat preset string (FlatGeneratorInfo); absent for the default preset. */
+      generatorOptions?: string | null;
+      /** "Bonus Chest". */
+      bonusChest?: boolean;
+      /** Chunk radius of the spawn area generated in the original order (default 12). */
+      initialRadius?: number;
+    }
   | { type: 'request'; cx: number; cz: number }
   | { type: 'cancel'; cx: number; cz: number }
   | { type: 'player'; cx: number; cz: number; radius: number }
   /** WorldServer.createSpawnPosition: answered with a 'spawn' message. */
-  | { type: 'findSpawn' };
+  | { type: 'findSpawn' }
+  /** World.findClosestStructure ("Stronghold" for eyes of ender): answered with 'structure'. */
+  | { type: 'findStructure'; id: number; name: string; x: number; y: number; z: number };
 
 export interface SectionPayload {
   y: number;
@@ -27,10 +43,23 @@ export interface ChunkPayload {
   biomes: Uint8Array;
   /** Scheduled ticks created while generating: [x, y, z, blockId, delay]. */
   pendingTicks: number[][];
-  /** Tile entities placed by generation (TileEntity.writeToNBT: spawner mob, chest contents). */
+  /**
+   * Tile entities placed by generation as 1.5.2 NBT: {id: 'Chest' | 'Trap', x, y, z, Items:
+   * [{Slot, id, Count, Damage, tag?}]}, {id: 'MobSpawner', EntityId, Delay, ...}, and tags of
+   * tile entities the blocks created themselves (TileEntity.writeToNBT).
+   */
   tileEntities: TagCompound[];
-  /** Animals placed by world generation (EntityList names). */
+  /** Entities placed by world generation (EntityList names): animals, villagers, minecarts. */
   entities: EntitySpawnDescriptor[];
 }
 
-export type WorldGenResponse = { type: 'ready' } | { type: 'spawn'; x: number; y: number; z: number } | ChunkPayload;
+export type WorldGenResponse =
+  | { type: 'ready' }
+  | { type: 'spawn'; x: number; y: number; z: number }
+  | { type: 'structure'; id: number; pos: [number, number, number] | null }
+  | ChunkPayload;
+
+/** Messages from the world-generation worker to its terrain worker (terrain.worker.ts). */
+export type TerrainRequest = { type: 'init'; seed: string; worldType: string } | { type: 'terrain'; cx: number; cz: number };
+
+export type TerrainResponse = { type: 'terrain'; chunk: TerrainChunk } | { type: 'failed'; cx: number; cz: number };

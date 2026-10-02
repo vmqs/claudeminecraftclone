@@ -9,20 +9,22 @@ import { getBiome, type BiomeGenBase } from '../biome/BiomeGenBase';
 import { Chunk, type ChunkHost } from '../Chunk';
 import { EnumSkyBlock } from '../IBlockAccess';
 import type { TileEntity } from '../tileentity/TileEntity';
+import type { TagCompound } from '../../item/ItemStack';
 import type { EntitySpawnDescriptor } from './WorldGenSpawning';
 import type { WorldProviderInfo } from '../IWorld';
 import type { BiomeSource } from './ChunkProviderGenerate';
 
-/** Records population writes that land in another chunk, so regenerating it can replay them. */
-export interface WriteLog {
-  seq: number;
-  ops: number[];
-}
+/** Facing offsets (down, up, north, south, west, east) and World.lightUpdateBlockList. */
+const SIDE_X = [0, 0, 0, 0, -1, 1];
+const SIDE_Y = [-1, 1, 0, 0, 0, 0];
+const SIDE_Z = [0, 0, -1, 1, 0, 0];
+const lightUpdateBlockList = new Int32Array(32768);
 
 /**
  * The world-generation worker's world: a set of chunks being generated and populated. It
- * implements just enough of IWorld for terrain features and block callbacks. Lighting during
- * population is only the per-column skylight; the final light is computed on finalization.
+ * implements just enough of IWorld for terrain features and block callbacks. Light is kept up to
+ * date during population as in the original (it decides where some features go); the light sent
+ * with a finished chunk is recomputed on finalization.
  */
 export class GenWorld implements ChunkHost {
   readonly isRemote = false;
@@ -30,11 +32,19 @@ export class GenWorld implements ChunkHost {
   readonly provider: WorldProviderInfo = { dimensionId: 0, isHellWorld: false, hasNoSky: false };
   readonly chunks = new Map<number, Chunk>();
   scheduledUpdatesAreImmediate = false;
-  /** Chunk key of the chunk currently being populated (or null). */
-  populatingKey: number | null = null;
-  /** target chunk key -> source chunk key -> logged writes [x, y, z, id, meta, seq]... */
-  readonly foreignWrites = new Map<number, Map<number, number[]>>();
-  private writeSeq = 0;
+  /** WorldProvider.getAverageGroundLevel of this world (64, or 4 for superflat). */
+  averageGroundLevel = 64;
+  /**
+   * Generated tile entities as NBT (chest and dispenser contents, spawner mobs), by chunk key and
+   * Chunk.teKey. They travel with the chunk payload; the main thread loads them through
+   * TileEntity.createAndLoadEntity once the block classes exist.
+   */
+  readonly tileTags = new Map<number, Map<number, TagCompound>>();
+  /**
+   * Called for a chunk that is not present while a feature reads or writes it (the original
+   * loads or generates it then); returns the chunk or undefined.
+   */
+  missingChunk: ((cx: number, cz: number) => Chunk | undefined) | null = null;
 
   constructor(readonly biomeSource: BiomeSource) {}
 
@@ -42,8 +52,38 @@ export class GenWorld implements ChunkHost {
     return (cx + 0x200000) * 0x400000 + (cz + 0x200000);
   }
 
+  /** The last chunk looked up (keys are not small integers, so Map lookups are slow). */
+  private lastCx = 0x7fffffff;
+  private lastCz = 0x7fffffff;
+  private lastChunk: Chunk | undefined = undefined;
+
+  /** The loaded chunk (cx, cz), or undefined; never loads one. */
+  loadedChunk(cx: number, cz: number): Chunk | undefined {
+    if (cx === this.lastCx && cz === this.lastCz) return this.lastChunk;
+    const c = this.chunks.get(GenWorld.key(cx, cz));
+    if (c) {
+      this.lastCx = cx;
+      this.lastCz = cz;
+      this.lastChunk = c;
+    }
+    return c;
+  }
+
+  /** The last chunk range checkChunksExist found loaded (min cx, min cz, max cx, max cz). */
+  private readonly lastExisting = new Int32Array([1, 1, 0, 0]);
+
+  /** Removes a chunk from the working set. */
+  unloadChunk(k: number): void {
+    this.chunks.delete(k);
+    this.lastExisting.set([1, 1, 0, 0]);
+    this.lastCx = this.lastCz = 0x7fffffff;
+    this.lastChunk = undefined;
+  }
+
   chunkAt(x: number, z: number): Chunk | undefined {
-    return this.chunks.get(GenWorld.key(x >> 4, z >> 4));
+    const c = this.loadedChunk(x >> 4, z >> 4);
+    if (c || !this.missingChunk) return c;
+    return this.missingChunk(x >> 4, z >> 4);
   }
 
   // ---------------------------------------------------------------- block access
@@ -100,7 +140,18 @@ export class GenWorld implements ChunkHost {
   }
   checkChunksExist(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): boolean {
     if (y1 < 0 || y0 >= 256) return false;
-    for (let cx = x0 >> 4; cx <= x1 >> 4; cx++) for (let cz = z0 >> 4; cz <= z1 >> 4; cz++) if (!this.chunks.has(GenWorld.key(cx, cz))) return false;
+    const ax = x0 >> 4;
+    const az = z0 >> 4;
+    const bx = x1 >> 4;
+    const bz = z1 >> 4;
+    // Chunks only leave the working set through unloadChunk, so a positive answer stays valid.
+    const ok = this.lastExisting;
+    if (ok[0] <= ax && ok[1] <= az && ok[2] >= bx && ok[3] >= bz) return true;
+    for (let cx = ax; cx <= bx; cx++) for (let cz = az; cz <= bz; cz++) if (!this.loadedChunk(cx, cz)) return false;
+    ok[0] = ax;
+    ok[1] = az;
+    ok[2] = bx;
+    ok[3] = bz;
     return true;
   }
   doChunksNearChunkExist(x: number, y: number, z: number, r: number): boolean {
@@ -110,19 +161,10 @@ export class GenWorld implements ChunkHost {
   setBlock(x: number, y: number, z: number, id: number, meta = 0, flags = 3): boolean {
     if (y < 0 || y >= 256) return false;
     if (id !== 0 && !Block.blocksList[id]) return false;
-    const cx = x >> 4;
-    const cz = z >> 4;
-    const key = GenWorld.key(cx, cz);
-    const c = this.chunks.get(key);
+    const c = this.chunkAt(x, z);
     if (!c) return false;
-    if (this.populatingKey !== null && this.populatingKey !== key) {
-      let bySource = this.foreignWrites.get(key);
-      if (!bySource) this.foreignWrites.set(key, (bySource = new Map()));
-      let ops = bySource.get(this.populatingKey);
-      if (!ops) bySource.set(this.populatingKey, (ops = []));
-      ops.push(x, y, z, id, meta, this.writeSeq++);
-    }
     const changed = c.setBlockIDWithMetadata(x & 15, y, z & 15, id, meta);
+    this.updateAllLightTypes(x, y, z);
     if (changed && (flags & 1) !== 0) this.notifyBlocksOfNeighborChange(x, y, z, id);
     return changed;
   }
@@ -175,11 +217,16 @@ export class GenWorld implements ChunkHost {
   }
 
   // ---------------------------------------------------------------- light
+  /** World.getSavedLightValue: the default (sky 15, block 0) where no chunk is loaded; never loads one. */
   getSavedLightValue(type: EnumSkyBlock, x: number, y: number, z: number): number {
     if (y < 0) y = 0;
     if (y >= 256) y = 255;
-    const c = this.chunkAt(x, z);
+    const c = this.loadedChunk(x >> 4, z >> 4);
     return c ? c.getSavedLightValue(type, x & 15, y, z & 15) : type === EnumSkyBlock.Sky ? 15 : 0;
+  }
+  setLightValue(type: EnumSkyBlock, x: number, y: number, z: number, v: number): void {
+    if (y < 0 || y >= 256) return;
+    this.loadedChunk(x >> 4, z >> 4)?.setLightValue(type, x & 15, y, z & 15, v);
   }
   getFullBlockLightValue(x: number, y: number, z: number): number {
     if (y < 0) return 0;
@@ -229,8 +276,87 @@ export class GenWorld implements ChunkHost {
     }
     return -1;
   }
-  updateLightByType(): void {}
-  updateAllLightTypes(): void {}
+  /**
+   * World.updateAllLightTypes. Like the original, every block change during population updates
+   * light incrementally, but only where all chunks within 17 blocks are loaded; elsewhere just the
+   * column sky light of Chunk.relightBlock changes. Features such as flowers, snow and lake grass
+   * read this light, so it decides where they generate.
+   */
+  updateAllLightTypes(x: number, y: number, z: number): void {
+    this.updateLightByType(EnumSkyBlock.Sky, x, y, z);
+    this.updateLightByType(EnumSkyBlock.Block, x, y, z);
+  }
+
+  private computeLightValue(x: number, y: number, z: number, type: EnumSkyBlock): number {
+    if (type === EnumSkyBlock.Sky && this.canBlockSeeTheSky(x, y, z)) return 15;
+    const id = this.getBlockId(x, y, z);
+    let light = type === EnumSkyBlock.Sky ? 0 : Block.lightValue[id];
+    let op = Block.lightOpacity[id];
+    if (op >= 15 && Block.lightValue[id] > 0) op = 1;
+    if (op < 1) op = 1;
+    if (op >= 15) return 0;
+    if (light >= 14) return light;
+    for (let s = 0; s < 6; s++) {
+      const v = this.getSavedLightValue(type, x + SIDE_X[s], y + SIDE_Y[s], z + SIDE_Z[s]) - op;
+      if (v > light) light = v;
+      if (light >= 14) return light;
+    }
+    return light;
+  }
+
+  /** World.updateLightByType: darkens then re-brightens up to 17 blocks around (x, y, z). */
+  updateLightByType(type: EnumSkyBlock, x: number, y: number, z: number): void {
+    if (!this.doChunksNearChunkExist(x, y, z, 17)) return;
+    const list = lightUpdateBlockList;
+    let read = 0;
+    let write = 0;
+    const saved = this.getSavedLightValue(type, x, y, z);
+    const computed = this.computeLightValue(x, y, z, type);
+    if (computed > saved) {
+      list[write++] = 133152;
+    } else if (computed < saved) {
+      list[write++] = 133152 | (saved << 18);
+      while (read < write) {
+        const e = list[read++];
+        const ex = (e & 63) - 32 + x;
+        const ey = ((e >> 6) & 63) - 32 + y;
+        const ez = ((e >> 12) & 63) - 32 + z;
+        const level = (e >> 18) & 15;
+        if (this.getSavedLightValue(type, ex, ey, ez) !== level) continue;
+        this.setLightValue(type, ex, ey, ez, 0);
+        if (level <= 0 || Math.abs(ex - x) + Math.abs(ey - y) + Math.abs(ez - z) >= 17) continue;
+        for (let s = 0; s < 6; s++) {
+          const nx = ex + SIDE_X[s];
+          const ny = ey + SIDE_Y[s];
+          const nz = ez + SIDE_Z[s];
+          const op = Math.max(1, Block.lightOpacity[this.getBlockId(nx, ny, nz)]);
+          if (this.getSavedLightValue(type, nx, ny, nz) === level - op && write < list.length) {
+            list[write++] = (nx - x + 32) | ((ny - y + 32) << 6) | ((nz - z + 32) << 12) | ((level - op) << 18);
+          }
+        }
+      }
+      read = 0;
+    }
+    while (read < write) {
+      const e = list[read++];
+      const ex = (e & 63) - 32 + x;
+      const ey = ((e >> 6) & 63) - 32 + y;
+      const ez = ((e >> 12) & 63) - 32 + z;
+      const cur = this.getSavedLightValue(type, ex, ey, ez);
+      const val = this.computeLightValue(ex, ey, ez, type);
+      if (val === cur) continue;
+      this.setLightValue(type, ex, ey, ez, val);
+      if (val <= cur || Math.abs(ex - x) + Math.abs(ey - y) + Math.abs(ez - z) >= 17 || write >= list.length - 6) continue;
+      const base = (ey - y + 32) << 6;
+      const zb = (ez - z + 32) << 12;
+      if (this.getSavedLightValue(type, ex - 1, ey, ez) < val) list[write++] = ex - 1 - x + 32 + base + zb;
+      if (this.getSavedLightValue(type, ex + 1, ey, ez) < val) list[write++] = ex + 1 - x + 32 + base + zb;
+      if (this.getSavedLightValue(type, ex, ey - 1, ez) < val) list[write++] = ex - x + 32 + ((ey - 1 - y + 32) << 6) + zb;
+      if (this.getSavedLightValue(type, ex, ey + 1, ez) < val) list[write++] = ex - x + 32 + ((ey + 1 - y + 32) << 6) + zb;
+      if (this.getSavedLightValue(type, ex, ey, ez - 1) < val) list[write++] = ex - x + 32 + base + ((ez - 1 - z + 32) << 12);
+      if (this.getSavedLightValue(type, ex, ey, ez + 1) < val) list[write++] = ex - x + 32 + base + ((ez + 1 - z + 32) << 12);
+    }
+  }
 
   isBlockFreezable(x: number, y: number, z: number): boolean {
     if (this.getBiomeGenForCoords(x, z).getFloatTemperature() > 0.15) return false;
@@ -281,6 +407,15 @@ export class GenWorld implements ChunkHost {
   }
 
   // ---------------------------------------------------------------- tile entities (not ticked here)
+  /** GenTileEntitySink: remembers generated tile-entity NBT for the chunk payload. */
+  setGenTileEntity(x: number, y: number, z: number, tag: TagCompound): void {
+    if (y < 0 || y >= 256) return;
+    const k = GenWorld.key(x >> 4, z >> 4);
+    let m = this.tileTags.get(k);
+    if (!m) this.tileTags.set(k, (m = new Map()));
+    m.set(Chunk.teKey(x & 15, y, z & 15), tag);
+  }
+
   /** Tile entities placed while generating travel with the chunk payload as descriptors. */
   getBlockTileEntity(x: number, y: number, z: number): TileEntity | null {
     if (y < 0 || y >= 256) return null;

@@ -51,6 +51,8 @@ export class WorldInfo {
   /** EnumGameType id: 0 survival, 1 creative, 2 adventure (always creative here). */
   gameType = 1;
   hardcore = false;
+  /** "Bonus Chest" (kept so a resumed world's regenerated spawn chunks still hold it). */
+  bonusChest = false;
   /** "Allow Cheats": commands other than the chat ones need it. */
   allowCommands = true;
   /** For the world list (milliseconds since the epoch). */

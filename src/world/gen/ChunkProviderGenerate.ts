@@ -4,8 +4,16 @@ import { JavaRandom } from '../../core/JavaRandom';
 import { MathHelper } from '../../core/MathHelper';
 import { Biomes, type BiomeGenBase } from '../biome/BiomeGenBase';
 import type { IWorld } from '../IWorld';
-import { BiomeDecorator } from './BiomeDecorator';
+import { BiomeDecoration } from './BiomeDecorator';
+import { WorldGenDungeons } from './feature/WorldGenDungeons';
 import { NoiseGeneratorOctaves } from './NoiseGeneratorOctaves';
+import { MapGenCaves } from './MapGenCaves';
+import { MapGenMineshaft } from './structure/Mineshaft';
+import { MapGenScatteredFeature } from './structure/ScatteredFeatures';
+import { MapGenStronghold } from './structure/Stronghold';
+import { MapGenVillage } from './structure/Village';
+import { MapGenRavine } from './MapGenRavine';
+import { WorldChunkManager } from './WorldChunkManager';
 import { WorldGenLakes } from './WorldGenLakes';
 import { performWorldGenSpawning, type SpawnRecorder } from './WorldGenSpawning';
 
@@ -20,41 +28,20 @@ export interface BiomeSource {
   /** loadBlockGeneratorData: per-column biomes for a 16x16 area. */
   loadBlockGeneratorData(x: number, z: number, w: number, h: number): BiomeGenBase[];
   getBiomeGenAt(x: number, z: number): BiomeGenBase;
-  /** findBiomePosition when the source answers it directly (single-biome worlds). */
-  findBiomePosition?(x: number, z: number, range: number, allowed: BiomeGenBase[], rand: JavaRandom): [number, number] | null;
+  /** findBiomePosition: a random allowed 1:4 cell within range of (x, z), or null. */
+  findBiomePosition(x: number, z: number, range: number, allowed: readonly BiomeGenBase[], rand: JavaRandom): [number, number] | null;
+  /** areBiomesViable: every 1:4 cell within radius of (x, z) is allowed. */
+  areBiomesViable(x: number, z: number, radius: number, allowed: readonly BiomeGenBase[]): boolean;
 }
 
 /**
- * Stand-in until the GenLayer stack is ported: 64x64 cells of Plains or Forest (same terrain
- * heights) chosen by a seeded hash, so terrain is plains-like and has oak trees.
+ * Raw generated chunk: block ids in the original's x<<11 | z<<7 | y layout (height 128), or
+ * x<<12 | z<<8 | y for 256-high superflat chunks, and biomes.
  */
-export class PlaceholderBiomeSource implements BiomeSource {
-  private readonly salt: number;
-
-  constructor(seed: bigint) {
-    this.salt = Number(BigInt.asIntN(32, seed ^ (seed >> 32n)));
-  }
-
-  getBiomeGenAt(x: number, z: number): BiomeGenBase {
-    let h = Math.imul((x >> 6) ^ this.salt, 0x27d4eb2d) ^ Math.imul(z >> 6, 0x165667b1);
-    h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
-    return ((h ^ (h >>> 13)) & 3) === 0 ? Biomes.plains : Biomes.forest;
-  }
-  getBiomesForGeneration(x: number, z: number, w: number, h: number): BiomeGenBase[] {
-    const out: BiomeGenBase[] = new Array(w * h);
-    for (let k = 0; k < h; k++) for (let i = 0; i < w; i++) out[i + k * w] = this.getBiomeGenAt((x + i) * 4, (z + k) * 4);
-    return out;
-  }
-  loadBlockGeneratorData(x: number, z: number, w: number, h: number): BiomeGenBase[] {
-    const out: BiomeGenBase[] = new Array(w * h);
-    for (let k = 0; k < h; k++) for (let i = 0; i < w; i++) out[i + k * w] = this.getBiomeGenAt(x + i, z + k);
-    return out;
-  }
-}
-
-/** Raw generated chunk: block ids in the original's x<<11 | z<<7 | y layout (0..127) and biomes. */
 export interface GeneratedChunk {
   blocks: Uint8Array;
+  /** 128 (default) or 256. */
+  height?: number;
   /** Block metadata in the same layout (superflat layers); absent means all zero. */
   meta?: Uint8Array;
   biomes: Uint8Array;
@@ -64,9 +51,18 @@ export interface GeneratedChunk {
 export interface ChunkGenerator {
   readonly biomeSource: BiomeSource;
   provideChunk(cx: number, cz: number): GeneratedChunk;
+  /**
+   * The terrain part of provideChunk alone, a pure function of the seed and position (the
+   * terrain worker runs it); recordStructures must then run for the chunk on the populating side.
+   */
+  provideTerrain?(cx: number, cz: number): GeneratedChunk;
+  /** The structure part of provideChunk: records the structure starts around the chunk. */
+  recordStructures?(cx: number, cz: number): void;
   populate(world: IWorld, cx: number, cz: number): void;
   /** WorldProvider.getAverageGroundLevel: the spawn search height (64, or 4 for superflat). */
   getAverageGroundLevel(): number;
+  /** findClosestStructure: the nearest stronghold to (x, y, z) for eyes of ender. */
+  findClosestStructure?(name: string, x: number, y: number, z: number): [number, number, number] | null;
 }
 
 /**
@@ -91,12 +87,22 @@ export class ChunkProviderGenerate implements ChunkGenerator {
   private noise6: Float64Array | null = null;
   private parabolicField: Float32Array | null = null;
   private biomesForGeneration: BiomeGenBase[] = [];
+  private readonly decoration = new BiomeDecoration();
+  private readonly caveGenerator = new MapGenCaves();
+  private readonly ravineGenerator = new MapGenRavine();
+  readonly strongholdGenerator = new MapGenStronghold();
+  readonly villageGenerator = new MapGenVillage();
+  readonly mineshaftGenerator = new MapGenMineshaft();
+  readonly scatteredFeatureGenerator = new MapGenScatteredFeature();
+
+  readonly biomeSource: WorldChunkManager;
 
   constructor(
     readonly seed: bigint,
     readonly mapFeaturesEnabled: boolean,
-    readonly biomeSource: BiomeSource = new PlaceholderBiomeSource(seed),
+    worldType = 'default',
   ) {
+    this.biomeSource = new WorldChunkManager(seed, worldType);
     this.rand = new JavaRandom(seed);
     this.noiseGen1 = new NoiseGeneratorOctaves(this.rand, 16);
     this.noiseGen2 = new NoiseGeneratorOctaves(this.rand, 16);
@@ -208,16 +214,44 @@ export class ChunkProviderGenerate implements ChunkGenerator {
     return 64;
   }
 
+  /** findClosestStructure: the nearest stronghold's portal room (eyes of ender). */
+  findClosestStructure(name: string, x: number, y: number, z: number): [number, number, number] | null {
+    return name === 'Stronghold' ? this.strongholdGenerator.getNearestInstance(this, x, y, z) : null;
+  }
+
+  /** Whether (x, y, z) is inside a witch hut (getPossibleCreatures then spawns witches in swamps). */
+  isInScatteredFeature(x: number, y: number, z: number): boolean {
+    return this.scatteredFeatureGenerator.hasStructureAt(x, y, z);
+  }
+
   /** provideChunk: terrain + surface for one chunk (no population). */
   provideChunk(cx: number, cz: number): GeneratedChunk {
+    const out = this.provideTerrain(cx, cz);
+    this.recordStructures(cx, cz);
+    return out;
+  }
+
+  /** Terrain, surface, caves and ravines of one chunk. */
+  provideTerrain(cx: number, cz: number): GeneratedChunk {
     this.rand.setSeed(BigInt(cx) * 341873128712n + BigInt(cz) * 132897987541n);
     const blocks = new Uint8Array(32768);
     this.generateTerrain(cx, cz, blocks);
     const biomes = this.biomeSource.loadBlockGeneratorData(cx * 16, cz * 16, 16, 16);
     this.replaceBlocksForBiome(cx, cz, blocks, biomes);
+    this.caveGenerator.generate(this, cx, cz, blocks);
+    this.ravineGenerator.generate(this, cx, cz, blocks);
     const ids = new Uint8Array(256);
     for (let i = 0; i < 256; i++) ids[i] = biomes[i].biomeID;
     return { blocks, biomes: ids };
+  }
+
+  /** The structure generators' part of provideChunk (it writes no blocks). */
+  recordStructures(cx: number, cz: number): void {
+    if (!this.mapFeaturesEnabled) return;
+    this.mineshaftGenerator.generate(this, cx, cz, null);
+    this.villageGenerator.generate(this, cx, cz, null);
+    this.strongholdGenerator.generate(this, cx, cz, null);
+    this.scatteredFeatureGenerator.generate(this, cx, cz, null);
   }
 
   private initializeNoiseField(out: Float64Array | null, x: number, y: number, z: number, sx: number, sy: number, sz: number): Float64Array {
@@ -312,7 +346,13 @@ export class ChunkProviderGenerate implements ChunkGenerator {
     const a = (this.rand.nextLong() / 2n) * 2n + 1n;
     const b = (this.rand.nextLong() / 2n) * 2n + 1n;
     this.rand.setSeed((BigInt(cx) * a + BigInt(cz) * b) ^ this.seed);
-    const village = false;
+    let village = false;
+    if (this.mapFeaturesEnabled) {
+      this.mineshaftGenerator.generateStructuresInChunk(world, this.rand, cx, cz);
+      village = this.villageGenerator.generateStructuresInChunk(world, this.rand, cx, cz);
+      this.strongholdGenerator.generateStructuresInChunk(world, this.rand, cx, cz);
+      this.scatteredFeatureGenerator.generateStructuresInChunk(world, this.rand, cx, cz);
+    }
     if (!village && this.rand.nextInt(4) === 0) {
       const lx = x + this.rand.nextInt(16) + 8;
       const ly = this.rand.nextInt(128);
@@ -325,13 +365,13 @@ export class ChunkProviderGenerate implements ChunkGenerator {
       const lz = z + this.rand.nextInt(16) + 8;
       if (ly < 63 || this.rand.nextInt(10) === 0) new WorldGenLakes(BlockIds.lavaStill).generate(world, this.rand, lx, ly, lz);
     }
-    // Dungeons are not generated yet; the coordinate rolls are kept so later features stay in step.
     for (let i = 0; i < 8; i++) {
-      this.rand.nextInt(16);
-      this.rand.nextInt(128);
-      this.rand.nextInt(16);
+      const dx = x + this.rand.nextInt(16) + 8;
+      const dy = this.rand.nextInt(128);
+      const dz = z + this.rand.nextInt(16) + 8;
+      new WorldGenDungeons().generate(world, this.rand, dx, dy, dz);
     }
-    new BiomeDecorator(biome).decorate(world, this.rand, x, z);
+    this.decoration.decorate(biome, world, this.rand, x, z);
     if ('recordSpawn' in world) performWorldGenSpawning(world as IWorld & SpawnRecorder, biome, x + 8, z + 8, 16, 16, this.rand);
     x += 8;
     z += 8;
