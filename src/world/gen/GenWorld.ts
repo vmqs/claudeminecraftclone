@@ -52,8 +52,36 @@ export class GenWorld implements ChunkHost {
     return (cx + 0x200000) * 0x400000 + (cz + 0x200000);
   }
 
+  /** The last chunk looked up (keys are not small integers, so Map lookups are slow). */
+  private lastCx = 0x7fffffff;
+  private lastCz = 0x7fffffff;
+  private lastChunk: Chunk | undefined = undefined;
+
+  /** The loaded chunk (cx, cz), or undefined; never loads one. */
+  loadedChunk(cx: number, cz: number): Chunk | undefined {
+    if (cx === this.lastCx && cz === this.lastCz) return this.lastChunk;
+    const c = this.chunks.get(GenWorld.key(cx, cz));
+    if (c) {
+      this.lastCx = cx;
+      this.lastCz = cz;
+      this.lastChunk = c;
+    }
+    return c;
+  }
+
+  /** The last chunk range checkChunksExist found loaded (min cx, min cz, max cx, max cz). */
+  private readonly lastExisting = new Int32Array([1, 1, 0, 0]);
+
+  /** Removes a chunk from the working set. */
+  unloadChunk(k: number): void {
+    this.chunks.delete(k);
+    this.lastExisting.set([1, 1, 0, 0]);
+    this.lastCx = this.lastCz = 0x7fffffff;
+    this.lastChunk = undefined;
+  }
+
   chunkAt(x: number, z: number): Chunk | undefined {
-    const c = this.chunks.get(GenWorld.key(x >> 4, z >> 4));
+    const c = this.loadedChunk(x >> 4, z >> 4);
     if (c || !this.missingChunk) return c;
     return this.missingChunk(x >> 4, z >> 4);
   }
@@ -112,7 +140,18 @@ export class GenWorld implements ChunkHost {
   }
   checkChunksExist(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): boolean {
     if (y1 < 0 || y0 >= 256) return false;
-    for (let cx = x0 >> 4; cx <= x1 >> 4; cx++) for (let cz = z0 >> 4; cz <= z1 >> 4; cz++) if (!this.chunks.has(GenWorld.key(cx, cz))) return false;
+    const ax = x0 >> 4;
+    const az = z0 >> 4;
+    const bx = x1 >> 4;
+    const bz = z1 >> 4;
+    // Chunks only leave the working set through unloadChunk, so a positive answer stays valid.
+    const ok = this.lastExisting;
+    if (ok[0] <= ax && ok[1] <= az && ok[2] >= bx && ok[3] >= bz) return true;
+    for (let cx = ax; cx <= bx; cx++) for (let cz = az; cz <= bz; cz++) if (!this.loadedChunk(cx, cz)) return false;
+    ok[0] = ax;
+    ok[1] = az;
+    ok[2] = bx;
+    ok[3] = bz;
     return true;
   }
   doChunksNearChunkExist(x: number, y: number, z: number, r: number): boolean {
@@ -182,12 +221,12 @@ export class GenWorld implements ChunkHost {
   getSavedLightValue(type: EnumSkyBlock, x: number, y: number, z: number): number {
     if (y < 0) y = 0;
     if (y >= 256) y = 255;
-    const c = this.chunks.get(GenWorld.key(x >> 4, z >> 4));
+    const c = this.loadedChunk(x >> 4, z >> 4);
     return c ? c.getSavedLightValue(type, x & 15, y, z & 15) : type === EnumSkyBlock.Sky ? 15 : 0;
   }
   setLightValue(type: EnumSkyBlock, x: number, y: number, z: number, v: number): void {
     if (y < 0 || y >= 256) return;
-    this.chunks.get(GenWorld.key(x >> 4, z >> 4))?.setLightValue(type, x & 15, y, z & 15, v);
+    this.loadedChunk(x >> 4, z >> 4)?.setLightValue(type, x & 15, y, z & 15, v);
   }
   getFullBlockLightValue(x: number, y: number, z: number): number {
     if (y < 0) return 0;

@@ -2,7 +2,6 @@ import { BlockIds } from '../../block/BlockIds';
 import { JavaRandom } from '../../core/JavaRandom';
 import type { TagCompound } from '../../item/ItemStack';
 import { Chunk } from '../Chunk';
-import { ChunkSection } from '../ChunkSection';
 import type { ChunkPayload, SectionPayload } from '../../workers/worldgenProtocol';
 import { BONUS_CHEST_CONTENT } from './ChestLoot';
 import { ChunkProviderFlat } from './ChunkProviderFlat';
@@ -11,6 +10,7 @@ import { WorldGeneratorBonusChest } from './feature/WorldGeneratorBonusChest';
 import { computeChunkLight } from './GenLighting';
 import { GenStore } from './GenStore';
 import { GenWorld } from './GenWorld';
+import { chunkFromTerrain, type TerrainChunk, toTerrainChunk } from './TerrainChunk';
 import { SPAWN_BIOMES } from './WorldChunkManager';
 
 export interface WorldGenOptions {
@@ -41,6 +41,8 @@ export class WorldGenServer {
   readonly world: GenWorld;
   private readonly store = new GenStore();
   private readonly populated = new Set<number>();
+  /** Terrain made ahead by the terrain worker, not yet taken into the world. */
+  private readonly prefetched = new Map<number, TerrainChunk>();
   /** Chunks the original's ChunkProviderServer would hold while creating the world. */
   private readonly vanillaLoaded = new Set<number>();
   private vanillaMode = false;
@@ -75,36 +77,61 @@ export class WorldGenServer {
       }
       return c;
     }
-    const gen = this.provider.provideChunk(cx, cz);
-    c = new Chunk(w, cx, cz);
-    const src = gen.blocks;
-    const meta = gen.meta;
-    const height = gen.height ?? 128;
-    const xs = height === 256 ? 12 : 11;
-    const zs = height === 256 ? 8 : 7;
-    for (let sy = 0; sy < height >> 4; sy++) {
-      let s: ChunkSection | null = null;
-      for (let x = 0; x < 16; x++) {
-        for (let z = 0; z < 16; z++) {
-          const base = (x << xs) | (z << zs) | (sy << 4);
-          for (let y = 0; y < 16; y++) {
-            const id = src[base + y];
-            if (id === 0) continue;
-            if (!s) s = new ChunkSection(sy << 4);
-            s.blocks[(y << 8) | (z << 4) | x] = id;
-            if (meta && meta[base + y] !== 0) s.setExtBlockMetadata(x, y, z, meta[base + y]);
-          }
-        }
-      }
-      if (s) {
-        s.recount();
-        c.sections[sy] = s;
+    const pre = this.prefetched.get(k);
+    if (pre) {
+      // Terrain made by the terrain worker: identical to provideTerrain here.
+      this.prefetched.delete(k);
+      this.provider.recordStructures!(cx, cz);
+      c = chunkFromTerrain(w, pre);
+    } else {
+      c = chunkFromTerrain(w, toTerrainChunk(cx, cz, this.provider.provideChunk(cx, cz)));
+    }
+    w.chunks.set(k, c);
+    return c;
+  }
+
+  /** Whether the generator's terrain can be made elsewhere (the terrain worker). */
+  get canPrefetchTerrain(): boolean {
+    return this.provider.provideTerrain !== undefined && this.provider.recordStructures !== undefined;
+  }
+
+  /** Whether chunk terrain is at hand (generated, stored or prefetched). */
+  hasTerrain(cx: number, cz: number): boolean {
+    const k = key(cx, cz);
+    return this.world.chunks.has(k) || this.store.has(k) || this.prefetched.has(k);
+  }
+
+  /**
+   * Terrain made ahead by the terrain worker. It is only taken into the world when generation
+   * asks for that chunk, so what is loaded (which gates light updates) never depends on timing.
+   */
+  offerTerrain(t: TerrainChunk): void {
+    if (!this.hasTerrain(t.cx, t.cz)) this.prefetched.set(key(t.cx, t.cz), t);
+  }
+
+  /** Makes a chunk's terrain here ahead of need (like the terrain worker would). */
+  prefetchTerrain(cx: number, cz: number): void {
+    if (this.hasTerrain(cx, cz)) return;
+    this.prefetched.set(key(cx, cz), toTerrainChunk(cx, cz, this.provider.provideTerrain!(cx, cz)));
+  }
+
+  /** The chunks whose terrain finalizeChunk(cx, cz) will need and that are not at hand yet. */
+  missingTerrainFor(cx: number, cz: number, out: [number, number][] = []): [number, number][] {
+    const seen = new Set<number>();
+    const want = (x: number, z: number) => {
+      const k = key(x, z);
+      if (seen.has(k)) return;
+      seen.add(k);
+      if (!this.hasTerrain(x, z)) out.push([x, z]);
+    };
+    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) want(cx + dx, cz + dz);
+    for (let dx = -2; dx <= 1; dx++) {
+      for (let dz = -2; dz <= 1; dz++) {
+        if (this.populated.has(key(cx + dx, cz + dz))) continue;
+        for (let ex = 0; ex <= 1; ex++) for (let ez = 0; ez <= 1; ez++) want(cx + dx + ex, cz + dz + ez);
       }
     }
-    c.biomes.set(gen.biomes);
-    w.chunks.set(k, c);
-    c.generateSkylightMap();
-    return c;
+    return out;
   }
 
   /** A chunk a feature touches outside the populated area (the original loads it then). */
@@ -208,6 +235,14 @@ export class WorldGenServer {
    * (the spawn area generated and populated in the original order).
    */
   createSpawnPosition(): [number, number, number] {
+    const spawn = this.findSpawnPoint();
+    for (const [cx, cz] of this.spawnAreaOrder()) this.loadSpawnAreaChunk(cx, cz);
+    this.finishSpawnArea();
+    return spawn;
+  }
+
+  /** WorldServer.createSpawnPosition and the bonus chest; the spawn area loads afterwards. */
+  findSpawnPoint(): [number, number, number] {
     this.vanillaMode = true;
     const rand = new JavaRandom(this.options.seed);
     const allowed = SPAWN_BIOMES;
@@ -224,10 +259,25 @@ export class WorldGenServer {
     }
     this.spawn = [x, y, z];
     if (this.options.bonusChest) this.createBonusChest(x, z);
-    const r = this.options.initialRadius ?? 12;
-    for (let dx = -r * 16; dx <= r * 16; dx += 16) for (let dz = -r * 16; dz <= r * 16; dz += 16) this.vanillaLoad((x + dx) >> 4, (z + dz) >> 4);
-    this.vanillaMode = false;
     return this.spawn;
+  }
+
+  /** The chunks of MinecraftServer.initialWorldChunkLoad, in its order. */
+  spawnAreaOrder(): [number, number][] {
+    const [x, , z] = this.spawn!;
+    const r = this.options.initialRadius ?? 12;
+    const out: [number, number][] = [];
+    for (let dx = -r * 16; dx <= r * 16; dx += 16) for (let dz = -r * 16; dz <= r * 16; dz += 16) out.push([(x + dx) >> 4, (z + dz) >> 4]);
+    return out;
+  }
+
+  /** One step of the spawn-area load (call in spawnAreaOrder order). */
+  loadSpawnAreaChunk(cx: number, cz: number): void {
+    this.vanillaLoad(cx, cz);
+  }
+
+  finishSpawnArea(): void {
+    this.vanillaMode = false;
   }
 
   /** WorldServer.createBonusChest (the original uses the world's unseeded random here). */
@@ -265,8 +315,13 @@ export class WorldGenServer {
       if (Math.max(Math.abs(c.xPosition - pcx), Math.abs(c.zPosition - pcz)) <= radius || keep(k)) continue;
       this.store.put(k, c, w.tileTags.get(k));
       w.tileTags.delete(k);
-      w.chunks.delete(k);
+      w.unloadChunk(k);
     }
+  }
+
+  /** Drops prefetched terrain farther than `radius` from (pcx, pcz) (it can be made again). */
+  dropPrefetched(pcx: number, pcz: number, radius: number): void {
+    for (const [k, t] of this.prefetched) if (Math.max(Math.abs(t.cx - pcx), Math.abs(t.cz - pcz)) > radius) this.prefetched.delete(k);
   }
 
   stats(): { live: number; stored: number; storedBytes: number; populated: number } {

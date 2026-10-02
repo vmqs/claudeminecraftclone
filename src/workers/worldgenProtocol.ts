@@ -1,5 +1,6 @@
 import type { TagCompound } from '../item/ItemStack';
 import type { EntitySpawnDescriptor } from '../world/gen/WorldGenSpawning';
+import type { TerrainChunk } from '../world/gen/TerrainChunk';
 
 /** Messages between the main thread and worldgen.worker.ts (see ARCHITECTURE.md §5.2). */
 export type WorldGenRequest =
@@ -57,3 +58,8 @@ export type WorldGenResponse =
   | { type: 'spawn'; x: number; y: number; z: number }
   | { type: 'structure'; id: number; pos: [number, number, number] | null }
   | ChunkPayload;
+
+/** Messages from the world-generation worker to its terrain worker (terrain.worker.ts). */
+export type TerrainRequest = { type: 'init'; seed: string; worldType: string } | { type: 'terrain'; cx: number; cz: number };
+
+export type TerrainResponse = { type: 'terrain'; chunk: TerrainChunk } | { type: 'failed'; cx: number; cz: number };

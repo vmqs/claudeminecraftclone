@@ -51,6 +51,13 @@ export interface GeneratedChunk {
 export interface ChunkGenerator {
   readonly biomeSource: BiomeSource;
   provideChunk(cx: number, cz: number): GeneratedChunk;
+  /**
+   * The terrain part of provideChunk alone, a pure function of the seed and position (the
+   * terrain worker runs it); recordStructures must then run for the chunk on the populating side.
+   */
+  provideTerrain?(cx: number, cz: number): GeneratedChunk;
+  /** The structure part of provideChunk: records the structure starts around the chunk. */
+  recordStructures?(cx: number, cz: number): void;
   populate(world: IWorld, cx: number, cz: number): void;
   /** WorldProvider.getAverageGroundLevel: the spawn search height (64, or 4 for superflat). */
   getAverageGroundLevel(): number;
@@ -219,6 +226,13 @@ export class ChunkProviderGenerate implements ChunkGenerator {
 
   /** provideChunk: terrain + surface for one chunk (no population). */
   provideChunk(cx: number, cz: number): GeneratedChunk {
+    const out = this.provideTerrain(cx, cz);
+    this.recordStructures(cx, cz);
+    return out;
+  }
+
+  /** Terrain, surface, caves and ravines of one chunk. */
+  provideTerrain(cx: number, cz: number): GeneratedChunk {
     this.rand.setSeed(BigInt(cx) * 341873128712n + BigInt(cz) * 132897987541n);
     const blocks = new Uint8Array(32768);
     this.generateTerrain(cx, cz, blocks);
@@ -226,15 +240,18 @@ export class ChunkProviderGenerate implements ChunkGenerator {
     this.replaceBlocksForBiome(cx, cz, blocks, biomes);
     this.caveGenerator.generate(this, cx, cz, blocks);
     this.ravineGenerator.generate(this, cx, cz, blocks);
-    if (this.mapFeaturesEnabled) {
-      this.mineshaftGenerator.generate(this, cx, cz, null);
-      this.villageGenerator.generate(this, cx, cz, null);
-      this.strongholdGenerator.generate(this, cx, cz, null);
-      this.scatteredFeatureGenerator.generate(this, cx, cz, null);
-    }
     const ids = new Uint8Array(256);
     for (let i = 0; i < 256; i++) ids[i] = biomes[i].biomeID;
     return { blocks, biomes: ids };
+  }
+
+  /** The structure generators' part of provideChunk (it writes no blocks). */
+  recordStructures(cx: number, cz: number): void {
+    if (!this.mapFeaturesEnabled) return;
+    this.mineshaftGenerator.generate(this, cx, cz, null);
+    this.villageGenerator.generate(this, cx, cz, null);
+    this.strongholdGenerator.generate(this, cx, cz, null);
+    this.scatteredFeatureGenerator.generate(this, cx, cz, null);
   }
 
   private initializeNoiseField(out: Float64Array | null, x: number, y: number, z: number, sx: number, sy: number, sz: number): Float64Array {
