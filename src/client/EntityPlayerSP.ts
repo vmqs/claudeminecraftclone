@@ -6,6 +6,8 @@ import type { GuiNewChat } from '../gui/GuiNewChat';
 import type { GuiScreen } from '../gui/GuiScreen';
 import { GuiChest } from '../gui/inventory/GuiChest';
 import { GuiCrafting } from '../gui/inventory/GuiCrafting';
+import { GuiEditSign } from '../gui/GuiEditSign';
+import type { TileEntity } from '../world/tileentity/TileEntity';
 import type { IInventory } from '../gui/inventory/IInventory';
 import { EntityCrit2FX } from '../render/particle/EntityCrit2FX';
 import type { EntityFX } from '../render/particle/EntityFX';
@@ -101,6 +103,10 @@ export class EntityPlayerSP extends EntityPlayer {
 
   override displayGUIWorkbench(x: number, y: number, z: number): void {
     this.mc.displayGuiScreen(new GuiCrafting(this.inventory, this.worldObj, x, y, z));
+  }
+
+  override displayGUIEditSign(te: TileEntity): void {
+    this.mc.displayGuiScreen(new GuiEditSign(te));
   }
 
   override onItemPickup(item: Entity, _count: number): void {
