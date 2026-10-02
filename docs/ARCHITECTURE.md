@@ -371,6 +371,10 @@ folders are preloaded. The audio context starts on the first user gesture. Missi
 files are skipped. Looping entity sounds (`playEntitySound`, keyed by entity id) are the only
 sounds the pause menu pauses and `stopAllSounds` (world change) stops; `closeMinecraft` stops
 everything. `sndManager.debugLog` / `getDebugInfo()` expose what was requested and started.
+Survival mining (PlayerControllerMP) plays the block's step sound every fourth damage tick at
+`(volume + 1) / 8`, pitch `* 0.5`: use `BlockMiningSounds` (`src/audio/BlockSounds.ts`) —
+`onDamageTick(mc.sndManager, block.stepSound, x, y, z)` each tick, `reset()` on a new block or
+break — next to `effectRenderer.addBlockHitEffects`.
 
 ## 11. Input
 
