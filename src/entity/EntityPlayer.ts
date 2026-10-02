@@ -106,15 +106,18 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
   getItemInUseDuration(): number {
     return this.isUsingItem() ? this.itemInUse!.getMaxItemUseDuration() - this.itemInUseCount : 0;
   }
+  /** Starts using an item; the eating flag is what other players' clients see of it. */
   setItemInUse(stack: ItemStack | null, count: number): void {
     if (stack !== this.itemInUse) {
       this.itemInUse = stack;
       this.itemInUseCount = count;
+      if (!this.worldObj.isRemote) this.setEating(true);
     }
   }
   clearItemInUse(): void {
     this.itemInUse = null;
     this.itemInUseCount = 0;
+    if (!this.worldObj.isRemote) this.setEating(false);
   }
   stopUsingItem(): void {
     if (this.itemInUse) this.itemInUse.onPlayerStoppedUsing(this.worldObj, this, this.itemInUseCount);
