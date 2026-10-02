@@ -1,7 +1,9 @@
 import { I18n } from '../core/I18n';
 import { GL } from '../render/gl/GL';
 import { GuiButton } from './GuiButton';
+import { GuiDisconnected } from './GuiDisconnected';
 import { GuiMainMenu } from './GuiMainMenu';
+import { GuiMultiplayer } from './GuiMultiplayer';
 import { GuiScreen } from './GuiScreen';
 import { SaveFormatMemory } from '../world/storage/SaveFormatMemory';
 
@@ -30,11 +32,13 @@ export class GuiGameOver extends GuiScreen {
 
   protected override actionPerformed(b: GuiButton): void {
     if (b.id === 1 && this.isHardcore()) {
-      // The integrated server deletes a hardcore world when its owner respawns (deleteWorldAndStopServer).
+      // The respawn request makes the integrated server kick its owner ("Game over, man") and
+      // delete the world (deleteWorldAndStopServer); the kick lands on GuiDisconnected, whose
+      // button leads to the multiplayer screen, as in 1.5.2.
       const folder = SaveFormatMemory.instance.currentFolder;
       this.mc.loadWorld(null);
       if (folder !== null) SaveFormatMemory.instance.deleteWorldDirectory(folder);
-      this.mc.displayGuiScreen(new GuiMainMenu());
+      this.mc.displayGuiScreen(new GuiDisconnected(new GuiMultiplayer(new GuiMainMenu()), 'disconnect.disconnected', 'disconnect.genericReason', "You have died. Game over, man, it's game over!"));
     } else if (b.id === 1) {
       this.mc.thePlayer!.respawnPlayer();
       this.mc.displayGuiScreen(null);

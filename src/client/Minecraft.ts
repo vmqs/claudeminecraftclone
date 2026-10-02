@@ -606,7 +606,7 @@ export class Minecraft implements SettingsListener {
     }
   }
 
-  /** Pick block: puts the targeted block in the hotbar (creative). */
+  /** Pick block: selects the targeted block in the hotbar (and creates it in Creative). */
   private clickMiddleMouseButton(): void {
     const mop = this.objectMouseOver;
     if (!mop || mop.typeOfHit !== EnumMovingObjectType.TILE) return;
@@ -618,7 +618,8 @@ export class Minecraft implements SettingsListener {
     const subtypes = Item.itemsList[id]!.getHasSubtypes();
     const src = id < 256 && !block.isFlowerPot() ? id : block.blockID;
     const damage = Block.blocksList[src]?.getDamageValue(w, mop.blockX, mop.blockY, mop.blockZ) ?? 0;
-    this.thePlayer!.inventory.setCurrentItem(id, damage, subtypes, true);
+    // Only Creative conjures the block; otherwise pick block just selects a matching hotbar slot.
+    this.thePlayer!.inventory.setCurrentItem(id, damage, subtypes, this.thePlayer!.capabilities.isCreativeMode);
   }
 
   // ------------------------------------------------------------------ screens and focus
