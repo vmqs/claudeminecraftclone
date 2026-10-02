@@ -61,6 +61,12 @@ export abstract class MobSpawnerBaseLogic {
   private mobID = 'Pig';
   private spawnPotentials: WeightedRandomMinecart[] | null = null;
   private randomMinecart: WeightedRandomMinecart | null = null;
+  /**
+   * The client copy's delay (the client half of the original keeps its own spawnDelay): read
+   * with the spawner, counted down every tick and set to minSpawnDelay by block event 1. It
+   * only drives the cage spin, which speeds up from 2.5 to 5 degrees a tick.
+   */
+  private clientDelay = 20;
   /** Rotation of the mob in the cage (field_98287_c), degrees. */
   spin = 0;
   /** Previous tick's rotation (field_98284_d). */
@@ -102,8 +108,9 @@ export abstract class MobSpawnerBaseLogic {
     const pz = this.getSpawnerZ() + w.rand.nextFloat();
     w.spawnParticle('smoke', px, py, pz, 0, 0, 0);
     w.spawnParticle('flame', px, py, pz, 0, 0, 0);
+    if (this.clientDelay > 0) this.clientDelay--;
     this.prevSpin = this.spin;
-    this.spin = (this.spin + Math.fround(1000 / Math.fround(this.spawnDelay + 200))) % 360;
+    this.spin = (this.spin + Math.fround(1000 / Math.fround(this.clientDelay + 200))) % 360;
     // Server half: count down, then spawn.
     if (this.spawnDelay === -1) this.resetTimer();
     if (this.spawnDelay > 0) {
@@ -126,7 +133,8 @@ export abstract class MobSpawnerBaseLogic {
     let spawned = false;
     for (let i = 0; i < this.spawnCount; i++) {
       let e = EntityList.createEntityByName(this.getEntityNameToSpawn(), w as unknown as World);
-      if (!e) return spawned;
+      // Unknown mob: give up this tick without resetting the delay (it tries again next tick).
+      if (!e) return false;
       const box = AxisAlignedBB.getBoundingBox(x, y, z, x + 1, y + 1, z + 1).expand(this.spawnRange * 2, 4, this.spawnRange * 2);
       const cls = e.constructor;
       const nearby = w.getEntitiesWithinAABBExcludingEntity(null, box).filter((o) => o instanceof cls).length;
@@ -174,6 +182,7 @@ export abstract class MobSpawnerBaseLogic {
   readFromNBT(tag: TagCompound): void {
     this.mobID = nbt.getString(tag, 'EntityId');
     this.spawnDelay = nbt.getShort(tag, 'Delay');
+    this.clientDelay = this.spawnDelay;
     if (Array.isArray(tag.SpawnPotentials)) this.spawnPotentials = (tag.SpawnPotentials as TagCompound[]).map((t) => WeightedRandomMinecart.fromPotential(t));
     else this.spawnPotentials = null;
     if (tag.SpawnData && typeof tag.SpawnData === 'object') this.setRandomMinecart(new WeightedRandomMinecart(1, tag.SpawnData as TagCompound, this.mobID));
@@ -219,7 +228,9 @@ export abstract class MobSpawnerBaseLogic {
 
   /** setDelayToMin: block event 1 tells the client the delay was reset. */
   setDelayToMin(id: number): boolean {
-    return id === 1;
+    if (id !== 1) return false;
+    this.clientDelay = this.minSpawnDelay;
+    return true;
   }
 
   getRandomMinecart(): WeightedRandomMinecart | null {
