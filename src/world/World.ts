@@ -8,6 +8,8 @@ import { JavaRandom } from '../core/JavaRandom';
 import { MathHelper } from '../core/MathHelper';
 import type { MovingObjectPosition } from '../core/MovingObjectPosition';
 import { Vec3 } from '../core/Vec3';
+import { PathFinder } from '../entity/ai/PathFinder';
+import type { PathEntity } from '../entity/ai/PathEntity';
 import type { Entity } from '../entity/Entity';
 import type { EntityPlayer } from '../entity/EntityPlayer';
 import type { ItemStack } from '../item/ItemStack';
@@ -47,8 +49,13 @@ export class WorldInfo {
   };
 }
 
-/** Factory for dropped item entities (installed by the entity code; null = items vanish). */
-export type ItemDropFactory = (w: World, x: number, y: number, z: number, stack: ItemStack) => Entity | null;
+/** An EntityItem as the world sees it. */
+export interface DroppedItemEntity extends Entity {
+  delayBeforeCanPickup: number;
+}
+
+/** Factory for dropped item entities (installed by EntityItem; null = items vanish). */
+export type ItemDropFactory = (w: World, x: number, y: number, z: number, stack: ItemStack) => DroppedItemEntity | null;
 
 /**
  * The client world. There is no integrated server: this is authoritative and runs the
@@ -742,10 +749,18 @@ export class World implements IWorld, IBlockAccess {
     if (i >= 0) this.playerEntities.splice(i, 1);
   }
 
+  /** A new (not yet spawned) EntityItem, or null when no item entity is installed. */
+  createItemEntity(x: number, y: number, z: number, stack: ItemStack): DroppedItemEntity | null {
+    return World.itemDropFactory?.(this, x, y, z, stack) ?? null;
+  }
+
+  /** Block drops (Block.dropBlockAsItem_do): honours doTileDrops, pickup delay 10. */
   dropItemStack(x: number, y: number, z: number, stack: ItemStack): void {
     if (!this.worldInfo.gameRules.doTileDrops) return;
-    const e = World.itemDropFactory?.(this, x, y, z, stack);
-    if (e) this.spawnEntityInWorld(e);
+    const e = this.createItemEntity(x, y, z, stack);
+    if (!e) return;
+    e.delayBeforeCanPickup = 10;
+    this.spawnEntityInWorld(e);
   }
 
   getCollidingBoundingBoxes(e: Entity | null, box: AxisAlignedBB): AxisAlignedBB[] {
@@ -965,6 +980,59 @@ export class World implements IWorld, IBlockAccess {
 
   getClosestPlayerToEntity(e: Entity, maxDist: number): EntityPlayer | null {
     return this.getClosestPlayer(e.posX, e.posY, e.posZ, maxDist);
+  }
+
+  /**
+   * The closest player a mob may target: not invulnerable (Creative players are ignored), with
+   * the range shortened for sneaking (x0.8) and invisible players.
+   */
+  getClosestVulnerablePlayer(x: number, y: number, z: number, maxDist: number): EntityPlayer | null {
+    let best = -1;
+    let found: EntityPlayer | null = null;
+    for (const p of this.playerEntities) {
+      if (p.capabilities.disableDamage || !p.isEntityAlive()) continue;
+      const d = p.getDistanceSq(x, y, z);
+      let range = maxDist;
+      if (p.isSneaking()) range = maxDist * Math.fround(0.8);
+      if (p.isInvisible()) range *= Math.fround(0.7) * Math.max(0.1, p.getArmorVisibility());
+      if ((maxDist < 0 || d < range * range) && (best === -1 || d < best)) {
+        best = d;
+        found = p;
+      }
+    }
+    return found;
+  }
+
+  getClosestVulnerablePlayerToEntity(e: Entity, maxDist: number): EntityPlayer | null {
+    return this.getClosestVulnerablePlayer(e.posX, e.posY, e.posZ, maxDist);
+  }
+
+  getPlayerEntityByName(name: string): EntityPlayer | null {
+    return this.playerEntities.find((p) => p.username === name) ?? null;
+  }
+
+  /** The matching entity nearest to `from` inside the box (findNearestEntityWithinAABB). */
+  findNearestEntityWithinAABB(filter: (e: Entity) => boolean, box: AxisAlignedBB, from: Entity): Entity | null {
+    let best = Number.MAX_VALUE;
+    let found: Entity | null = null;
+    for (const e of this.getEntitiesWithinAABBExcludingEntity(null, box, filter)) {
+      if (e === from) continue;
+      const d = from.getDistanceSqToEntity(e);
+      if (d <= best) {
+        best = d;
+        found = e;
+      }
+    }
+    return found;
+  }
+
+  /** A* path towards an entity within a box of range + 16 (getPathEntityToEntity). */
+  getPathEntityToEntity(e: Entity, target: Entity, range: number, openDoors: boolean, breakDoors: boolean, avoidWater: boolean, canSwim: boolean): PathEntity | null {
+    return new PathFinder(this, openDoors, breakDoors, avoidWater, canSwim).createEntityPathToEntity(e, target, range);
+  }
+
+  getEntityPathToXYZ(e: Entity, x: number, y: number, z: number, range: number, openDoors: boolean, breakDoors: boolean, avoidWater: boolean, canSwim: boolean): PathEntity | null {
+    return new PathFinder(this, openDoors, breakDoors, avoidWater, canSwim).createEntityPathToXYZ(e, x, y, z, range);
   }
 
   /** World.updateEntities: ticks weather effects and entities, removes dead ones. */

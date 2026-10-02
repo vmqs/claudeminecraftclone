@@ -120,7 +120,9 @@ export class PlayerControllerCreative {
     return false;
   }
 
-  attackEntity(_p: EntityPlayer, _e: Entity): void {}
+  attackEntity(p: EntityPlayer, e: Entity): void {
+    p.attackTargetEntityWithCurrentItem(e);
+  }
 
   interactWithEntity(p: EntityPlayer, e: Entity): boolean {
     return p.interactWith(e);

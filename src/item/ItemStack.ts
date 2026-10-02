@@ -96,6 +96,7 @@ export class ItemStack {
     if (!this.isItemStackDamageable()) return;
     this.itemDamage += amount;
     if (this.itemDamage > this.getMaxDamage()) {
+      entity.renderBrokenItemStack(this);
       this.stackSize--;
       if (this.stackSize < 0) this.stackSize = 0;
       this.itemDamage = 0;

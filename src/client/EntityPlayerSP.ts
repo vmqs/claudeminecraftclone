@@ -1,5 +1,9 @@
 import { MathHelper } from '../core/MathHelper';
+import type { Entity } from '../entity/Entity';
 import { EntityPlayer } from '../entity/EntityPlayer';
+import { EntityCrit2FX } from '../render/particle/EntityCrit2FX';
+import type { EntityFX } from '../render/particle/EntityFX';
+import { EntityPickupFX } from '../render/particle/EntityPickupFX';
 import type { World } from '../world/World';
 import { MovementInput } from './MovementInput';
 
@@ -9,6 +13,7 @@ const f = Math.fround;
 export interface PlayerClient {
   displayGuiScreen(screen: null): void;
   playSoundFX(name: string, volume: number, pitch: number): void;
+  readonly effectRenderer: { addEffect(fx: EntityFX): void };
 }
 
 /** The local player: input-driven movement, sprint/fly double-taps, FOV modifier. */
@@ -45,6 +50,18 @@ export class EntityPlayerSP extends EntityPlayer {
 
   protected override isClientWorld(): boolean {
     return true;
+  }
+
+  override onCriticalHit(target: Entity): void {
+    this.mc.effectRenderer.addEffect(new EntityCrit2FX(this.worldObj, target));
+  }
+
+  override onEnchantmentCritical(target: Entity): void {
+    this.mc.effectRenderer.addEffect(new EntityCrit2FX(this.worldObj, target, 'magicCrit'));
+  }
+
+  override onItemPickup(item: Entity, _count: number): void {
+    this.mc.effectRenderer.addEffect(new EntityPickupFX(this.worldObj, item, this, -0.5));
   }
 
   /** EntityClientPlayerMP.onUpdate: the player only updates once its chunk is present. */

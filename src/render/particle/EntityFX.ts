@@ -72,6 +72,18 @@ export class EntityFX extends Entity {
     this.particleAlpha = a;
   }
 
+  getRedColorF(): number {
+    return this.particleRed;
+  }
+
+  getGreenColorF(): number {
+    return this.particleGreen;
+  }
+
+  getBlueColorF(): number {
+    return this.particleBlue;
+  }
+
   protected override canTriggerWalking(): boolean {
     return false;
   }

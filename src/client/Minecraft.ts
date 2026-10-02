@@ -1,6 +1,8 @@
 import type { ResourceManager } from '../assets/ResourceManager';
 import { SoundManager } from '../audio/SoundManager';
 import { Block } from '../block/Block';
+import '../entity/Entities';
+import '../render/particle/ParticleRegistry';
 import { I18n } from '../core/I18n';
 import { JavaRandom } from '../core/JavaRandom';
 import { MathHelper } from '../core/MathHelper';
@@ -12,7 +14,7 @@ import { GuiGameStopped } from '../gui/GuiGameStopped';
 import { GuiIngame } from '../gui/GuiIngame';
 import { GuiIngameMenu } from '../gui/GuiIngameMenu';
 import { GuiMainMenu } from '../gui/GuiMainMenu';
-import type { GuiScreen } from '../gui/GuiScreen';
+import { GuiScreen } from '../gui/GuiScreen';
 import { LoadingScreenRenderer } from '../gui/LoadingScreenRenderer';
 import { ScaledResolution } from '../gui/ScaledResolution';
 import { Item } from '../item/Item';
@@ -432,7 +434,7 @@ export class Minecraft implements SettingsListener {
     const gs = this.gameSettings;
     const p = this.thePlayer!;
     while (gs.keyBindInventory.isPressed());
-    while (gs.keyBindDrop.isPressed());
+    while (gs.keyBindDrop.isPressed()) p.dropOneItem(GuiScreen.isCtrlKeyDown());
     while (gs.keyBindChat.isPressed());
     if (this.currentScreen === null) gs.keyBindCommand.isPressed();
     if (p.isUsingItem()) {

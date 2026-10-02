@@ -117,6 +117,10 @@ export class Item {
   getDamageVsEntity(_e: Entity): number {
     return 1;
   }
+  /** Armour points when worn (ItemArmor.damageReduceAmount; 0 for everything else). */
+  getArmorReduction(): number {
+    return 0;
+  }
   canHarvestBlock(_b: Block): boolean {
     return false;
   }

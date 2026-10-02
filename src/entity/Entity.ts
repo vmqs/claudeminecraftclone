@@ -6,7 +6,7 @@ import { AxisAlignedBB } from '../core/AxisAlignedBB';
 import { JavaRandom } from '../core/JavaRandom';
 import { MathHelper } from '../core/MathHelper';
 import { Vec3 } from '../core/Vec3';
-import type { ItemStack } from '../item/ItemStack';
+import { ItemStack } from '../item/ItemStack';
 import type { World } from '../world/World';
 import { DamageSource } from './DamageSource';
 import type { EntityPlayer } from './EntityPlayer';
@@ -26,6 +26,14 @@ export abstract class Entity {
   forceSpawn = false;
   /** True for EntityPlayer instances; avoids a runtime import cycle. */
   get isPlayerEntity(): boolean {
+    return false;
+  }
+  /** True for EntityLiving instances (instanceof without the import cycle). */
+  get isLivingEntity(): boolean {
+    return false;
+  }
+  /** Hostile (implements IMob in the original): monsters, slimes, ghasts. */
+  get isIMob(): boolean {
     return false;
   }
   worldObj: World;
@@ -667,9 +675,59 @@ export abstract class Entity {
     return this.height / 2;
   }
 
-  /** Drops a stack at the entity's feet plus a vertical offset. */
-  entityDropItem(stack: ItemStack, yOff: number): void {
-    this.worldObj.dropItemStack(this.posX, this.posY + yOff, this.posZ, stack);
+  dropItem(id: number, count: number): Entity | null {
+    return this.dropItemWithOffset(id, count, 0);
+  }
+
+  dropItemWithOffset(id: number, count: number, yOff: number): Entity | null {
+    return this.entityDropItem(new ItemStack(id, count, 0), yOff);
+  }
+
+  /** Drops a stack at the entity's feet plus a vertical offset (an EntityItem, pickup delay 10). */
+  entityDropItem(stack: ItemStack, yOff: number): Entity | null {
+    const item = this.worldObj.createItemEntity(this.posX, this.posY + yOff, this.posZ, stack);
+    if (!item) return null;
+    item.delayBeforeCanPickup = 10;
+    this.worldObj.spawnEntityInWorld(item);
+    return item;
+  }
+
+  /** Called on the attacker when it kills `e`. */
+  onKillEntity(_e: Entity): void {}
+
+  /** A tamed wolf (its kills count as the owner's for loot). */
+  isTamedWolf(): boolean {
+    return false;
+  }
+
+  /** func_85031_j: true when the hit is absorbed (item frames, paintings). */
+  hitByEntity(_e: Entity): boolean {
+    return false;
+  }
+
+  /** func_82143_as: how far a pathing walker may drop. */
+  getMaxFallHeight(): number {
+    return 3;
+  }
+
+  addToPlayerScore(_e: Entity, _score: number): void {}
+
+  /** Client-side entity status (2 = hurt, 3 = dead, ...); unused without a server, kept for mobs. */
+  handleHealthUpdate(_status: number): void {}
+
+  performHurtAnimation(): void {}
+
+  /** Held item and armour (EntityLiving.equipment), or null for entities without any. */
+  getLastActiveItems(): (ItemStack | null)[] | null {
+    return null;
+  }
+
+  setCurrentItemOrArmor(_slot: number, _stack: ItemStack | null): void {}
+
+  onStruckByLightning(_bolt: Entity): void {
+    this.dealFireDamage(5);
+    this.fire++;
+    if (this.fire === 0) this.setFire(8);
   }
 
   isEntityAlive(): boolean {
@@ -779,9 +837,6 @@ export abstract class Entity {
     this.motionY = y;
     this.motionZ = z;
   }
-
-  handleHealthUpdate(_status: number): void {}
-  performHurtAnimation(): void {}
 
   getHeldItem(): ItemStack | null {
     return null;
