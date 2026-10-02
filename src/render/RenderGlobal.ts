@@ -157,7 +157,7 @@ export class RenderGlobal implements IWorldAccess {
 
   /** Sends the atlas layout, colormaps and settings to the meshers (after stitching). */
   initMeshers(): void {
-    const settings = { aoLevel: this.mc.gameSettings.ambientOcclusion, fancyGraphics: this.mc.gameSettings.fancyGraphics };
+    const settings = { aoLevel: this.mc.gameSettings.ambientOcclusion, fancyGraphics: this.mc.gameSettings.fancyGraphics, anaglyph: this.mc.gameSettings.anaglyph };
     (Blocks.leaves as BlockLeaves).setGraphicsLevel(settings.fancyGraphics);
     const icons = this.mc.renderEngine.textureMapBlocks.getIconTable();
     for (const w of this.workers) {
@@ -211,7 +211,7 @@ export class RenderGlobal implements IWorldAccess {
     const wide = Math.trunc(width / 16) + 1;
     this.renderChunksWide = wide;
     this.renderRadius = Math.trunc((wide - 1) / 2);
-    const settings = { aoLevel: gs.ambientOcclusion, fancyGraphics: gs.fancyGraphics };
+    const settings = { aoLevel: gs.ambientOcclusion, fancyGraphics: gs.fancyGraphics, anaglyph: gs.anaglyph };
     (Blocks.leaves as BlockLeaves).setGraphicsLevel(gs.fancyGraphics);
     for (const w of this.workers) w.worker.postMessage({ type: 'settings', settings } satisfies MesherRequest);
     this.markAllDirty();
@@ -553,7 +553,10 @@ export class RenderGlobal implements IWorldAccess {
     const ter = TileEntityRenderer.instance;
     for (const te of w.loadedTileEntityList) {
       if (te.isInvalid() || !ter.hasSpecialRenderer(te)) continue;
-      if (!frustum.isBoxInFrustum(te.xCoord - 1, te.yCoord - 1, te.zCoord - 1, te.xCoord + 2, te.yCoord + 2, te.zCoord + 2)) continue;
+      // 1.5.2 draws every tile entity of the built sections; the box test is only a shortcut
+      // for the ones drawn within their block, so far-reaching ones (beacon beams) skip it.
+      const farReaching = te.getMaxRenderDistanceSquared() > 4096;
+      if (!farReaching && !frustum.isBoxInFrustum(te.xCoord - 1, te.yCoord - 1, te.zCoord - 1, te.xCoord + 2, te.yCoord + 2, te.zCoord + 2)) continue;
       ter.renderTileEntity(te, pt);
     }
     this.mc.entityRenderer.disableLightmap(pt);

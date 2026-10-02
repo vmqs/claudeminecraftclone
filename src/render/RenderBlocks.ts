@@ -5,6 +5,9 @@ import { BlockIds } from '../block/BlockIds';
 import type { Material } from '../block/Material';
 import { MathHelper } from '../core/MathHelper';
 import type { IBlockAccess } from '../world/IBlockAccess';
+import { renderBlockAsItem as renderBlockAsItemImpl, renderItemIn3d as renderItemIn3dImpl } from './blocks/RenderBlockItem';
+import { RENDER_TYPES } from './blocks/RenderTypes';
+import { renderBlockAnvilMetadata, renderPistonBaseAllFaces, renderPistonExtensionAllFaces } from './blocks/RenderStructures';
 import { Tessellator } from './gl/Tessellator';
 import type { Icon } from './texture/Icon';
 
@@ -288,6 +291,8 @@ export interface ItemRenderGL {
   color(r: number, g: number, b: number, a: number): void;
   rotate(angle: number, x: number, y: number, z: number): void;
   translate(x: number, y: number, z: number): void;
+  /** glEnable(GL_RESCALE_NORMAL) after a chest item (optional). */
+  enableRescaleNormal?(): void;
 }
 
 /**
@@ -344,6 +349,13 @@ export class RenderBlocks {
   }
   hasOverrideBlockTexture(): boolean {
     return this.overrideBlockTexture !== null;
+  }
+  getOverrideBlockTexture(): Icon | null {
+    return this.overrideBlockTexture;
+  }
+  /** EntityRenderer.anaglyphEnable as seen by this renderer (the mesher gets it with its settings). */
+  isAnaglyph(): boolean {
+    return RenderBlocks.anaglyphEnable;
   }
 
   private updatePartialBounds(): void {
@@ -423,19 +435,15 @@ export class RenderBlocks {
       case 13:
         return this.renderBlockCactus(block, x, y, z);
       default: {
-        const custom = RenderBlocks.renderers.get(type);
-        if (custom) return custom(this, block, x, y, z);
-        // TODO: port the remaining render types; draw a cube meanwhile.
-        return this.renderStandardBlock(block, x, y, z);
+        const render = RENDER_TYPES.get(type) ?? RenderBlocks.renderers.get(type);
+        return render ? render(this, block, x, y, z) : false;
       }
     }
   }
 
   renderStandardBlock(block: Block, x: number, y: number, z: number): boolean {
-    const c = block.colorMultiplier(this.blockAccess!, x, y, z);
-    const r = ((c >> 16) & 255) / 255;
-    const g = ((c >> 8) & 255) / 255;
-    const b = (c & 255) / 255;
+    let [r, g, b] = rgb(block.colorMultiplier(this.blockAccess!, x, y, z));
+    if (RenderBlocks.anaglyphEnable) [r, g, b] = anaglyph(r, g, b);
     if (RenderBlocks.aoLevel === 0 || Block.lightValue[block.blockID] !== 0) return this.renderStandardBlockWithColorMultiplier(block, x, y, z, r, g, b);
     return this.partialRenderBounds
       ? this.renderStandardBlockWithAmbientOcclusionPartial(block, x, y, z, r, g, b)
@@ -495,90 +503,28 @@ export class RenderBlocks {
   }
 
   static renderItemIn3d(type: number): boolean {
-    return [0, 31, 39, 13, 10, 11, 27, 22, 21, 16, 26, 32, 34, 35].includes(type);
+    return renderItemIn3dImpl(type);
   }
 
-  /** Draws a block for item rendering (GUI slots, held items, dropped items). */
+  /** Draws a block for item rendering (GUI slots, held items, dropped items); main thread only. */
   renderBlockAsItem(block: Block, meta: number, brightness: number): void {
-    const t = Tessellator.instance;
-    const gl = RenderBlocks.itemGL!;
-    const isGrass = block.blockID === BlockIds.grass;
-    if (block.blockID === BlockIds.dispenser || block.blockID === BlockIds.dropper || block.blockID === BlockIds.furnaceIdle) meta = 3;
-    if (this.useInventoryTint) {
-      const c = isGrass ? 0xffffff : block.getRenderColor(meta);
-      gl.color((((c >> 16) & 255) / 255) * brightness, (((c >> 8) & 255) / 255) * brightness, ((c & 255) / 255) * brightness, 1);
-    }
-    const type = block.getRenderType();
-    this.setRenderBoundsFromBlock(block);
-    if (type === 1) {
-      t.startDrawingQuads();
-      t.setNormal(0, -1, 0);
-      this.drawCrossedSquares(block, meta, -0.5, -0.5, -0.5, 1);
-      t.draw();
-    } else if (type === 13) {
-      block.setBlockBoundsForItemRender();
-      gl.translate(-0.5, -0.5, -0.5);
-      const inset = 0.0625;
-      const face = (nx: number, ny: number, nz: number, tx: number, tz: number, fn: () => void) => {
-        t.startDrawingQuads();
-        t.setNormal(nx, ny, nz);
-        t.addTranslation(tx, 0, tz);
-        fn();
-        t.addTranslation(-tx, 0, -tz);
-        t.draw();
-      };
-      face(0, -1, 0, 0, 0, () => this.renderFaceYNeg(block, 0, 0, 0, this.getBlockIconFromSide(block, 0)));
-      face(0, 1, 0, 0, 0, () => this.renderFaceYPos(block, 0, 0, 0, this.getBlockIconFromSide(block, 1)));
-      face(0, 0, -1, 0, inset, () => this.renderFaceZNeg(block, 0, 0, 0, this.getBlockIconFromSide(block, 2)));
-      face(0, 0, 1, 0, -inset, () => this.renderFaceZPos(block, 0, 0, 0, this.getBlockIconFromSide(block, 3)));
-      face(-1, 0, 0, inset, 0, () => this.renderFaceXNeg(block, 0, 0, 0, this.getBlockIconFromSide(block, 4)));
-      face(1, 0, 0, -inset, 0, () => this.renderFaceXPos(block, 0, 0, 0, this.getBlockIconFromSide(block, 5)));
-      gl.translate(0.5, 0.5, 0.5);
-    } else if (type === 2) {
-      t.startDrawingQuads();
-      t.setNormal(0, -1, 0);
-      this.renderTorchAtAngle(block, -0.5, -0.5, -0.5, 0, 0, 0);
-      t.draw();
-    } else {
-      // Types 0, 31, 39, 16, 26 and (until ported) every other type: a lit cube.
-      if (type === 16) meta = 1;
-      block.setBlockBoundsForItemRender();
-      this.setRenderBoundsFromBlock(block);
-      gl.rotate(90, 0, 1, 0);
-      gl.translate(-0.5, -0.5, -0.5);
-      t.startDrawingQuads();
-      t.setNormal(0, -1, 0);
-      this.renderFaceYNeg(block, 0, 0, 0, this.getBlockIconFromSideAndMetadata(block, 0, meta));
-      t.draw();
-      if (isGrass && this.useInventoryTint) {
-        const c = block.getRenderColor(meta);
-        gl.color((((c >> 16) & 255) / 255) * brightness, (((c >> 8) & 255) / 255) * brightness, ((c & 255) / 255) * brightness, 1);
-      }
-      t.startDrawingQuads();
-      t.setNormal(0, 1, 0);
-      this.renderFaceYPos(block, 0, 0, 0, this.getBlockIconFromSideAndMetadata(block, 1, meta));
-      t.draw();
-      if (isGrass && this.useInventoryTint) gl.color(brightness, brightness, brightness, 1);
-      t.startDrawingQuads();
-      t.setNormal(0, 0, -1);
-      this.renderFaceZNeg(block, 0, 0, 0, this.getBlockIconFromSideAndMetadata(block, 2, meta));
-      t.draw();
-      t.startDrawingQuads();
-      t.setNormal(0, 0, 1);
-      this.renderFaceZPos(block, 0, 0, 0, this.getBlockIconFromSideAndMetadata(block, 3, meta));
-      t.draw();
-      t.startDrawingQuads();
-      t.setNormal(-1, 0, 0);
-      this.renderFaceXNeg(block, 0, 0, 0, this.getBlockIconFromSideAndMetadata(block, 4, meta));
-      t.draw();
-      t.startDrawingQuads();
-      t.setNormal(1, 0, 0);
-      this.renderFaceXPos(block, 0, 0, 0, this.getBlockIconFromSideAndMetadata(block, 5, meta));
-      t.draw();
-      gl.translate(0.5, 0.5, 0.5);
-    }
+    renderBlockAsItemImpl(this, RenderBlocks.itemGL!, block, meta, brightness);
   }
 
+  /** The moving piston's base, always drawn extended with every face (TileEntityRendererPiston). */
+  renderPistonBaseAllFaces(block: Block, x: number, y: number, z: number): void {
+    renderPistonBaseAllFaces(this, block, x, y, z);
+  }
+
+  /** The moving piston's head; `fullRod` false draws the half-length rod. */
+  renderPistonExtensionAllFaces(block: Block, x: number, y: number, z: number, fullRod: boolean): void {
+    renderPistonExtensionAllFaces(this, block, x, y, z, fullRod);
+  }
+
+  /** A falling anvil keeps the metadata it fell with. */
+  renderBlockAnvilMetadata(block: Block, x: number, y: number, z: number, meta: number): boolean {
+    return renderBlockAnvilMetadata(this, block, x, y, z, meta);
+  }
 
   // Standard blocks: flat shading, smooth lighting, and the per-face quad builder.
 
@@ -1045,10 +991,11 @@ export class RenderBlocks {
       this.getFluidHeight(x + 1, y, z + 1, material),
       this.getFluidHeight(x + 1, y, z, material),
     ];
-    const gap = 0.001;
+    // 0.001F widened to double, as in the original.
+    const gap = Math.fround(0.001);
     if (this.renderAllFaces || renderTop) {
       rendered = true;
-      const flow = BlockFluid.getFlowDirection(access, x, y, z, material);
+      const flow = Math.fround(BlockFluid.getFlowDirection(access, x, y, z, material));
       const icon = this.getBlockIconFromSideAndMetadata(block, flow > -999.0 ? 2 : 1, meta);
       for (let i = 0; i < 4; i++) h[i] -= gap;
       const us: number[] = [];
@@ -1061,12 +1008,13 @@ export class RenderBlocks {
         }
       } else {
         // The texture turns so that it scrolls with the flow: corner i samples 8 + 16 * w[i].
-        const s = MathHelper.sin(flow) * 0.25;
-        const c = MathHelper.cos(flow) * 0.25;
-        const w = [-c - s, -c + s, c + s, c - s];
+        const fr = Math.fround;
+        const s = fr(MathHelper.sin(flow) * 0.25);
+        const c = fr(MathHelper.cos(flow) * 0.25);
+        const w = [fr(-c - s), fr(-c + s), fr(c + s), fr(c - s)].map((v) => fr(8.0 + fr(v * 16.0)));
         for (let i = 0; i < 4; i++) {
-          us.push(icon.getInterpolatedU(8.0 + w[i] * 16.0));
-          vs.push(icon.getInterpolatedV(8.0 + w[(i + 1) & 3] * 16.0));
+          us.push(icon.getInterpolatedU(w[i]));
+          vs.push(icon.getInterpolatedV(w[(i + 1) & 3]));
         }
       }
       t.setBrightness(block.getMixedBrightnessForBlock(access, x, y, z));
@@ -1128,16 +1076,16 @@ export class RenderBlocks {
       if (m === material) {
         const level = this.blockAccess!.getBlockMetadata(cx, y, cz);
         if (level >= 8 || level === 0) {
-          total += BlockFluid.getFluidHeightPercent(level) * 10.0;
+          total = Math.fround(total + Math.fround(BlockFluid.getFluidHeightPercent(level) * 10.0));
           weight += 10;
         }
-        total += BlockFluid.getFluidHeightPercent(level);
+        total = Math.fround(total + BlockFluid.getFluidHeightPercent(level));
         weight++;
       } else if (!m.isSolid()) {
-        total++;
+        total = Math.fround(total + 1);
         weight++;
       }
     }
-    return 1.0 - total / weight;
+    return Math.fround(1.0 - Math.fround(total / weight));
   }
 }

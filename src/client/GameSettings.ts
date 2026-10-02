@@ -224,7 +224,11 @@ export class GameSettings {
       this.advancedOpengl = !this.advancedOpengl;
       this.listener?.loadRenderers?.();
     }
-    if (o === EnumOptions.ANAGLYPH) this.anaglyph = !this.anaglyph;
+    if (o === EnumOptions.ANAGLYPH) {
+      this.anaglyph = !this.anaglyph;
+      // 1.5.2 reloads every texture here, which also rebuilds the chunk meshes with the new colours.
+      this.listener?.loadRenderers?.();
+    }
     if (o === EnumOptions.FRAMERATE_LIMIT) this.limitFramerate = (this.limitFramerate + step + 3) % 3;
     if (o === EnumOptions.DIFFICULTY) this.difficulty = (this.difficulty + step) & 3;
     if (o === EnumOptions.GRAPHICS) {

@@ -4,6 +4,8 @@ import type { SectionSnapshot } from '../world/ChunkCache';
 export interface MesherSettings {
   aoLevel: number;
   fancyGraphics: boolean;
+  /** gameSettings.anaglyph: RenderBlocks mixes block colours for red/cyan glasses. */
+  anaglyph?: boolean;
 }
 
 export type MesherRequest =

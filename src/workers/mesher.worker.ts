@@ -14,6 +14,8 @@ const register = new IconTableRegister();
 const missing = new Icon('missingno');
 const mesher = new SectionMesher();
 let iconsRegistered = false;
+// Items.ts runs Block.initializeBlock on the main thread; fire needs it here for its flammability table.
+for (const b of Block.blocksList) b?.initializeBlock();
 
 function applyIcons(table: IconTable): void {
   if (!iconsRegistered) {
@@ -29,6 +31,7 @@ function applyIcons(table: IconTable): void {
 function applySettings(s: MesherSettings): void {
   RenderBlocks.aoLevel = s.aoLevel;
   RenderBlocks.fancyGrass = s.fancyGraphics;
+  RenderBlocks.anaglyphEnable = s.anaglyph ?? false;
   (Blocks.leaves as BlockLeaves).setGraphicsLevel(s.fancyGraphics);
 }
 
