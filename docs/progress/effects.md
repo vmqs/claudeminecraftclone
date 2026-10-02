@@ -20,6 +20,9 @@ Branch `w1/effects`. Owner area: `src/audio/**`, `src/render/particle/**`.
       every-4th-tick mining step sound; hit/break particles, tool break (iconcrack), damage/eat/
       burp/levelup/orb sound names all resolve through the pools.
 - [x] Scenario pins world time after load (slow loads used to drift into night).
+- [x] Review fixes: firework _far from the local viewer (EffectRenderer.viewer), audio
+      `unlocked` follows the real context state (no stale burst), background warm-up of the
+      rest of sound3 (compressed), only the 12 records fetched as .mus, 20 min terrain wait.
 
 ## Notes
 - Vanilla references for the particle gallery are in scratchpad/ref/extra/effects/ (captured
