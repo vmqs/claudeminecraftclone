@@ -24,6 +24,7 @@ import { Explosion } from './Explosion';
 import { SpawnerAnimals } from './SpawnerAnimals';
 import { WeatherCycle } from './WeatherCycle';
 import { VillageCollection } from './village/VillageCollection';
+import { VillageSiege } from './village/VillageSiege';
 import { NextTickListEntry, TickScheduler } from './NextTickListEntry';
 import type { TileEntity } from './tileentity/TileEntity';
 import { WorldProvider } from './WorldProvider';
@@ -138,6 +139,8 @@ export class World implements IWorld, IBlockAccess {
   private blockEventCacheIndex = 0;
   /** The villages of this world (VillageCollection), ticked after the block ticks. */
   readonly villageCollectionObj: VillageCollection = new VillageCollection(this);
+  /** Zombie sieges of villages at midnight (VillageSiege), ticked after the villages. */
+  readonly villageSiegeObj: VillageSiege = new VillageSiege(this);
   /**
    * Natural mob spawning each tick (doMobSpawning): SpawnerAnimals by default, hostile mobs
    * only above Peaceful, animals every 400 ticks. Replaceable for tests.
@@ -1768,6 +1771,7 @@ export class World implements IWorld, IBlockAccess {
     this.tickUpdates(false);
     this.runNaturally(() => this.tickBlocksAndAmbiance());
     this.villageCollectionObj.tick();
+    this.villageSiegeObj.tick();
     this.sendAndApplyBlockEvents();
   }
 
