@@ -9,15 +9,10 @@ import { getBiome, type BiomeGenBase } from '../biome/BiomeGenBase';
 import { Chunk, type ChunkHost } from '../Chunk';
 import { EnumSkyBlock } from '../IBlockAccess';
 import type { TileEntity } from '../tileentity/TileEntity';
+import type { TagCompound } from '../../item/ItemStack';
 import type { EntitySpawnDescriptor } from './WorldGenSpawning';
 import type { WorldProviderInfo } from '../IWorld';
 import type { BiomeSource } from './ChunkProviderGenerate';
-
-/** Records population writes that land in another chunk, so regenerating it can replay them. */
-export interface WriteLog {
-  seq: number;
-  ops: number[];
-}
 
 /**
  * The world-generation worker's world: a set of chunks being generated and populated. It
@@ -30,11 +25,17 @@ export class GenWorld implements ChunkHost {
   readonly provider: WorldProviderInfo = { dimensionId: 0, isHellWorld: false, hasNoSky: false };
   readonly chunks = new Map<number, Chunk>();
   scheduledUpdatesAreImmediate = false;
-  /** Chunk key of the chunk currently being populated (or null). */
-  populatingKey: number | null = null;
-  /** target chunk key -> source chunk key -> logged writes [x, y, z, id, meta, seq]... */
-  readonly foreignWrites = new Map<number, Map<number, number[]>>();
-  private writeSeq = 0;
+  /**
+   * Generated tile entities as NBT (chest and dispenser contents, spawner mobs), by chunk key and
+   * Chunk.teKey. They travel with the chunk payload; the main thread loads them through
+   * TileEntity.createAndLoadEntity once the block classes exist.
+   */
+  readonly tileTags = new Map<number, Map<number, TagCompound>>();
+  /**
+   * Called for a chunk that is not present while a feature reads or writes it (the original
+   * loads or generates it then); returns the chunk or undefined.
+   */
+  missingChunk: ((cx: number, cz: number) => Chunk | undefined) | null = null;
 
   constructor(readonly biomeSource: BiomeSource) {}
 
@@ -43,7 +44,9 @@ export class GenWorld implements ChunkHost {
   }
 
   chunkAt(x: number, z: number): Chunk | undefined {
-    return this.chunks.get(GenWorld.key(x >> 4, z >> 4));
+    const c = this.chunks.get(GenWorld.key(x >> 4, z >> 4));
+    if (c || !this.missingChunk) return c;
+    return this.missingChunk(x >> 4, z >> 4);
   }
 
   // ---------------------------------------------------------------- block access
@@ -110,18 +113,8 @@ export class GenWorld implements ChunkHost {
   setBlock(x: number, y: number, z: number, id: number, meta = 0, flags = 3): boolean {
     if (y < 0 || y >= 256) return false;
     if (id !== 0 && !Block.blocksList[id]) return false;
-    const cx = x >> 4;
-    const cz = z >> 4;
-    const key = GenWorld.key(cx, cz);
-    const c = this.chunks.get(key);
+    const c = this.chunkAt(x, z);
     if (!c) return false;
-    if (this.populatingKey !== null && this.populatingKey !== key) {
-      let bySource = this.foreignWrites.get(key);
-      if (!bySource) this.foreignWrites.set(key, (bySource = new Map()));
-      let ops = bySource.get(this.populatingKey);
-      if (!ops) bySource.set(this.populatingKey, (ops = []));
-      ops.push(x, y, z, id, meta, this.writeSeq++);
-    }
     const changed = c.setBlockIDWithMetadata(x & 15, y, z & 15, id, meta);
     if (changed && (flags & 1) !== 0) this.notifyBlocksOfNeighborChange(x, y, z, id);
     return changed;
@@ -281,6 +274,15 @@ export class GenWorld implements ChunkHost {
   }
 
   // ---------------------------------------------------------------- tile entities (not ticked here)
+  /** GenTileEntitySink: remembers generated tile-entity NBT for the chunk payload. */
+  setGenTileEntity(x: number, y: number, z: number, tag: TagCompound): void {
+    if (y < 0 || y >= 256) return;
+    const k = GenWorld.key(x >> 4, z >> 4);
+    let m = this.tileTags.get(k);
+    if (!m) this.tileTags.set(k, (m = new Map()));
+    m.set(Chunk.teKey(x & 15, y, z & 15), tag);
+  }
+
   /** Tile entities placed while generating travel with the chunk payload as descriptors. */
   getBlockTileEntity(x: number, y: number, z: number): TileEntity | null {
     if (y < 0 || y >= 256) return null;

@@ -12,6 +12,13 @@ const MASK_24 = 0xffffff;
 const MUL_HI = 0x5de;
 const MUL_LO = 0xece66d;
 const MASK_48 = (1n << 48n) - 1n;
+const INV_2_24 = 1 / TWO_24;
+const POW2 = new Float64Array(49);
+const INV_POW2 = new Float64Array(49);
+for (let i = 0; i <= 48; i++) {
+  POW2[i] = 2 ** i;
+  INV_POW2[i] = 1 / 2 ** i;
+}
 
 let seedUniquifier = 8682522807148012n;
 
@@ -71,19 +78,18 @@ export class JavaRandom {
   }
 
   protected next(bits: number): number {
-    const p0 = this.lo * MUL_LO + 0xb;
-    const carry = Math.floor(p0 / TWO_24);
+    // Multiplying by exact powers of two keeps every step exact and avoids division.
+    const lo = this.lo;
+    const p0 = lo * MUL_LO + 0xb;
+    const carry = Math.floor(p0 * INV_2_24);
     const newLo = p0 - carry * TWO_24;
-    const p1 = this.hi * MUL_LO + this.lo * MUL_HI + carry;
-    const newHi = p1 % TWO_24;
-    this.hi = newHi;
+    let p1 = this.hi * MUL_LO + lo * MUL_HI + carry;
+    p1 -= Math.floor(p1 * INV_2_24) * TWO_24;
+    this.hi = p1;
     this.lo = newLo;
     // (int)(seed >>> (48 - bits))
-    if (bits <= 24) {
-      return Math.floor(newHi / 2 ** (24 - bits));
-    }
-    const shift = 48 - bits; // 16..23
-    return (newHi * 2 ** (bits - 24) + Math.floor(newLo / 2 ** shift)) | 0;
+    if (bits <= 24) return Math.floor(p1 * INV_POW2[24 - bits]);
+    return (p1 * POW2[bits - 24] + Math.floor(newLo * INV_POW2[48 - bits])) | 0;
   }
 
   nextInt(bound?: number): number {

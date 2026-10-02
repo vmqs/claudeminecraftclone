@@ -111,6 +111,62 @@ export abstract class GenLayer {
   }
 
   abstract getInts(x: number, z: number, w: number, h: number): Int32Array;
+
+  setParent(parent: GenLayer): void {
+    this.parent = parent;
+  }
+}
+
+const TILE = 16;
+const TILE_LIMIT = 4096;
+
+/**
+ * A cache in front of a layer: areas are assembled from 16x16-cell tiles computed once. The
+ * layers are pure functions of position, so this changes speed, not results.
+ */
+export class GenLayerCache extends GenLayer {
+  private readonly tiles = new Map<number, Int32Array>();
+
+  constructor(private readonly inner: GenLayer) {
+    super(0);
+  }
+
+  override initWorldGenSeed(seed: bigint): void {
+    this.inner.initWorldGenSeed(seed);
+    this.tiles.clear();
+  }
+
+  private tile(tx: number, tz: number): Int32Array {
+    const k = (tx + 0x100000) * 0x200000 + (tz + 0x100000);
+    let t = this.tiles.get(k);
+    if (t) return t;
+    t = this.inner.getInts(tx * TILE, tz * TILE, TILE, TILE);
+    this.tiles.set(k, t);
+    if (this.tiles.size > TILE_LIMIT) this.tiles.delete(this.tiles.keys().next().value!);
+    return t;
+  }
+
+  getInts(x: number, z: number, w: number, h: number): Int32Array {
+    const out = new Int32Array(w * h);
+    const tx0 = Math.floor(x / TILE);
+    const tz0 = Math.floor(z / TILE);
+    const tx1 = Math.floor((x + w - 1) / TILE);
+    const tz1 = Math.floor((z + h - 1) / TILE);
+    for (let tz = tz0; tz <= tz1; tz++) {
+      for (let tx = tx0; tx <= tx1; tx++) {
+        const t = this.tile(tx, tz);
+        const ax = Math.max(x, tx * TILE);
+        const bx = Math.min(x + w, tx * TILE + TILE);
+        const az = Math.max(z, tz * TILE);
+        const bz = Math.min(z + h, tz * TILE + TILE);
+        for (let zz = az; zz < bz; zz++) {
+          const src = (zz - tz * TILE) * TILE + (ax - tx * TILE);
+          out.set(t.subarray(src, src + (bx - ax)), (zz - z) * w + (ax - x));
+        }
+      }
+    }
+    return out;
+  }
 }
 
 /** BigInt reference of the LCG, for checks (not used by generation). */

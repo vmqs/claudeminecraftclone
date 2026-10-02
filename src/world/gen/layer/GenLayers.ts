@@ -1,5 +1,5 @@
 import { Biomes } from '../../biome/BiomeGenBase';
-import { GenLayer } from './GenLayer';
+import { GenLayer, GenLayerCache } from './GenLayer';
 
 const OCEAN = Biomes.ocean.biomeID;
 const PLAINS = Biomes.plains.biomeID;
@@ -522,5 +522,8 @@ export function initializeAllBiomeGenerators(seed: bigint, worldType: string): [
   const voronoi = new GenLayerVoronoiZoom(10, mix);
   mix.initWorldGenSeed(seed);
   voronoi.initWorldGenSeed(seed);
-  return [mix, voronoi];
+  // Both outputs read the river-mix layer through one tile cache (identical values, less work).
+  const cached = new GenLayerCache(mix);
+  voronoi.setParent(cached);
+  return [cached, voronoi];
 }

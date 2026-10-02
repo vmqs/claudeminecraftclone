@@ -3,7 +3,8 @@ import { BlockSand } from '../../block/BlockSand';
 import { JavaRandom } from '../../core/JavaRandom';
 import { BiomeGenBase, Biomes } from '../biome/BiomeGenBase';
 import type { IWorld } from '../IWorld';
-import { BiomeDecorator } from './BiomeDecorator';
+import { BiomeDecoration } from './BiomeDecorator';
+import { WorldGenDungeons } from './feature/WorldGenDungeons';
 import type { BiomeSource, ChunkGenerator, GeneratedChunk } from './ChunkProviderGenerate';
 import { FlatGeneratorInfo } from './FlatGeneratorInfo';
 import { WorldGenLakes } from './WorldGenLakes';
@@ -47,12 +48,14 @@ export class ChunkProviderFlat implements ChunkGenerator {
   private readonly layerMeta = new Uint8Array(256);
   readonly biomeSource: SingleBiomeSource;
   private readonly decorate: boolean;
+  private readonly decoration = new BiomeDecoration();
   private readonly waterLakes: WorldGenLakes | null;
   private readonly lavaLakes: WorldGenLakes | null;
 
   constructor(
     readonly seed: bigint,
     generatorOptions: string | null,
+    readonly mapFeaturesEnabled = true,
   ) {
     this.random = new JavaRandom(seed);
     this.info = FlatGeneratorInfo.createFlatGeneratorFromString(generatorOptions);
@@ -113,14 +116,14 @@ export class ChunkProviderFlat implements ChunkGenerator {
       if (ly < 63 || this.random.nextInt(10) === 0) this.lavaLakes.generate(world, this.random, lx, ly, lz);
     }
     if (this.info.worldFeatures.has('dungeon')) {
-      // Dungeons are not ported; their coordinate rolls keep decoration in step.
       for (let i = 0; i < 8; i++) {
-        this.random.nextInt(16);
-        this.random.nextInt(128);
-        this.random.nextInt(16);
+        const dx = x + this.random.nextInt(16) + 8;
+        const dy = this.random.nextInt(128);
+        const dz = z + this.random.nextInt(16) + 8;
+        new WorldGenDungeons().generate(world, this.random, dx, dy, dz);
       }
     }
-    if (this.decorate) new BiomeDecorator(biome).decorate(world, this.random, x, z);
+    if (this.decorate) this.decoration.decorate(biome, world, this.random, x, z);
     BlockSand.fallInstantly = false;
   }
 }

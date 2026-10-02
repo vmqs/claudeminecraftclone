@@ -4,7 +4,8 @@ import { JavaRandom } from '../../core/JavaRandom';
 import { MathHelper } from '../../core/MathHelper';
 import { Biomes, type BiomeGenBase } from '../biome/BiomeGenBase';
 import type { IWorld } from '../IWorld';
-import { BiomeDecorator } from './BiomeDecorator';
+import { BiomeDecoration } from './BiomeDecorator';
+import { WorldGenDungeons } from './feature/WorldGenDungeons';
 import { NoiseGeneratorOctaves } from './NoiseGeneratorOctaves';
 import { MapGenCaves } from './MapGenCaves';
 import { MapGenRavine } from './MapGenRavine';
@@ -44,6 +45,8 @@ export interface ChunkGenerator {
   populate(world: IWorld, cx: number, cz: number): void;
   /** WorldProvider.getAverageGroundLevel: the spawn search height (64, or 4 for superflat). */
   getAverageGroundLevel(): number;
+  /** findClosestStructure: the nearest stronghold to (x, y, z) for eyes of ender. */
+  findClosestStructure?(name: string, x: number, y: number, z: number): [number, number, number] | null;
 }
 
 /**
@@ -68,6 +71,7 @@ export class ChunkProviderGenerate implements ChunkGenerator {
   private noise6: Float64Array | null = null;
   private parabolicField: Float32Array | null = null;
   private biomesForGeneration: BiomeGenBase[] = [];
+  private readonly decoration = new BiomeDecoration();
   private readonly caveGenerator = new MapGenCaves();
   private readonly ravineGenerator = new MapGenRavine();
 
@@ -309,13 +313,13 @@ export class ChunkProviderGenerate implements ChunkGenerator {
       const lz = z + this.rand.nextInt(16) + 8;
       if (ly < 63 || this.rand.nextInt(10) === 0) new WorldGenLakes(BlockIds.lavaStill).generate(world, this.rand, lx, ly, lz);
     }
-    // Dungeons are not generated yet; the coordinate rolls are kept so later features stay in step.
     for (let i = 0; i < 8; i++) {
-      this.rand.nextInt(16);
-      this.rand.nextInt(128);
-      this.rand.nextInt(16);
+      const dx = x + this.rand.nextInt(16) + 8;
+      const dy = this.rand.nextInt(128);
+      const dz = z + this.rand.nextInt(16) + 8;
+      new WorldGenDungeons().generate(world, this.rand, dx, dy, dz);
     }
-    new BiomeDecorator(biome).decorate(world, this.rand, x, z);
+    this.decoration.decorate(biome, world, this.rand, x, z);
     if ('recordSpawn' in world) performWorldGenSpawning(world as IWorld & SpawnRecorder, biome, x + 8, z + 8, 16, 16, this.rand);
     x += 8;
     z += 8;

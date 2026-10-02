@@ -6,6 +6,17 @@ import { initializeAllBiomeGenerators } from './layer/GenLayers';
 
 const CACHE_LIMIT = 4096;
 
+/** WorldChunkManager.getBiomesToSpawnIn: where createSpawnPosition looks for the world spawn. */
+export const SPAWN_BIOMES: readonly BiomeGenBase[] = [
+  Biomes.forest,
+  Biomes.plains,
+  Biomes.taiga,
+  Biomes.taigaHills,
+  Biomes.forestHills,
+  Biomes.jungle,
+  Biomes.jungleHills,
+];
+
 /**
  * WorldChunkManager: biomes of the Default and Large Biomes world types from the GenLayer
  * stack, with BiomeCache's per-chunk cache of the 1:1 layer.
@@ -15,16 +26,7 @@ export class WorldChunkManager implements BiomeSource {
   private readonly biomeIndexLayer: GenLayer;
   /** chunk key -> 256 biome ids (x + z * 16), least recently used first. */
   private readonly cache = new Map<number, Uint8Array>();
-  /** getBiomesToSpawnIn: where createSpawnPosition looks for the world spawn. */
-  readonly biomesToSpawnIn: BiomeGenBase[] = [
-    Biomes.forest,
-    Biomes.plains,
-    Biomes.taiga,
-    Biomes.taigaHills,
-    Biomes.forestHills,
-    Biomes.jungle,
-    Biomes.jungleHills,
-  ];
+  readonly biomesToSpawnIn = SPAWN_BIOMES;
 
   constructor(seed: bigint, worldType: string) {
     [this.genBiomes, this.biomeIndexLayer] = initializeAllBiomeGenerators(seed, worldType);

@@ -1,23 +1,16 @@
 /// <reference lib="webworker" />
 import '../block/Blocks';
-import { BlockIds } from '../block/BlockIds';
-import { Chunk } from '../world/Chunk';
-import { ChunkSection } from '../world/ChunkSection';
-import { JavaRandom } from '../core/JavaRandom';
-import { Biomes, type BiomeGenBase } from '../world/biome/BiomeGenBase';
-import { ChunkProviderFlat } from '../world/gen/ChunkProviderFlat';
-import { type ChunkGenerator, ChunkProviderGenerate } from '../world/gen/ChunkProviderGenerate';
-import { computeChunkLight } from '../world/gen/GenLighting';
+import { WorldGenServer } from '../world/gen/WorldGenServer';
 import { GenWorld } from '../world/gen/GenWorld';
-import type { TagCompound } from '../item/ItemStack';
-import type { ChunkPayload, SectionPayload, WorldGenRequest } from './worldgenProtocol';
+import type { WorldGenRequest, WorldGenResponse } from './worldgenProtocol';
 
 declare const self: DedicatedWorkerGlobalScope;
 
-let provider: ChunkGenerator | null = null;
-let worldSeed = 0n;
-let world: GenWorld | null = null;
-const populated = new Set<number>();
+/**
+ * The world-generation worker (see ARCHITECTURE.md §5.2): answers chunk requests nearest to
+ * the player first with finalized chunks, the spawn search and structure queries.
+ */
+let server: WorldGenServer | null = null;
 const requested = new Map<number, [number, number]>();
 let playerCX = 0;
 let playerCZ = 0;
@@ -27,150 +20,13 @@ let scheduled = false;
 
 const key = GenWorld.key;
 
-function ensureTerrain(cx: number, cz: number): Chunk {
-  const w = world!;
-  const k = key(cx, cz);
-  let c = w.chunks.get(k);
-  if (c) return c;
-  const gen = provider!.provideChunk(cx, cz);
-  c = new Chunk(w, cx, cz);
-  const src = gen.blocks;
-  const meta = gen.meta;
-  for (let sy = 0; sy < 8; sy++) {
-    let s: ChunkSection | null = null;
-    for (let x = 0; x < 16; x++) {
-      for (let z = 0; z < 16; z++) {
-        const base = (x << 11) | (z << 7) | (sy << 4);
-        for (let y = 0; y < 16; y++) {
-          const id = src[base + y];
-          if (id === 0) continue;
-          if (!s) s = new ChunkSection(sy << 4);
-          s.blocks[(y << 8) | (z << 4) | x] = id;
-          if (meta && meta[base + y] !== 0) s.setExtBlockMetadata(x, y, z, meta[base + y]);
-        }
-      }
-    }
-    if (s) {
-      s.recount();
-      c.sections[sy] = s;
-    }
-  }
-  c.biomes.set(gen.biomes);
-  w.chunks.set(k, c);
-  c.generateSkylightMap();
-  // Replay population writes that neighbours already made into this chunk.
-  const logs = w.foreignWrites.get(k);
-  if (logs) {
-    const ops: number[][] = [];
-    for (const [srcKey, list] of logs) {
-      if (!populated.has(srcKey)) continue;
-      for (let i = 0; i < list.length; i += 6) ops.push(list.slice(i, i + 6));
-    }
-    ops.sort((a, b) => a[5] - b[5]);
-    for (const [x, y, z, id, meta] of ops) c.setBlockIDWithMetadata(x & 15, y, z & 15, id, meta);
-  }
-  return c;
-}
-
-function ensurePopulated(cx: number, cz: number): void {
-  const k = key(cx, cz);
-  if (populated.has(k)) return;
-  for (let dx = 0; dx <= 1; dx++) for (let dz = 0; dz <= 1; dz++) ensureTerrain(cx + dx, cz + dz);
-  const w = world!;
-  w.populatingKey = k;
-  try {
-    provider!.populate(w, cx, cz);
-  } finally {
-    w.populatingKey = null;
-  }
-  populated.add(k);
-}
-
-function finalizeChunk(cx: number, cz: number): ChunkPayload {
-  for (let dx = -2; dx <= 1; dx++) for (let dz = -2; dz <= 1; dz++) ensurePopulated(cx + dx, cz + dz);
-  const around: Chunk[] = [];
-  for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) around.push(ensureTerrain(cx + dx, cz + dz));
-  const c = around[4];
-  computeChunkLight(around, c);
-  const sections: SectionPayload[] = [];
-  for (const s of c.sections) {
-    if (!s || s.isEmpty()) continue;
-    sections.push({ y: s.yBase, blocks: s.blocks.slice(), meta: s.meta.slice(), skyLight: s.skyLight.slice(), blockLight: s.blockLight.slice() });
-  }
-  const ticks = c.pendingTicks.filter((t) => t[0] >> 4 === cx && t[2] >> 4 === cz);
-  const tileEntities: TagCompound[] = [];
-  for (const te of c.chunkTileEntityMap.values()) {
-    if (te.isInvalid()) continue;
-    const tag: TagCompound = {};
-    te.writeToNBT(tag);
-    tileEntities.push(tag);
-  }
-  const entities = c.pendingSpawns.filter((d) => Math.floor(d.x) >> 4 === cx && Math.floor(d.z) >> 4 === cz);
-  return { type: 'chunk', cx, cz, sections, heightMap: c.heightMap.slice(), biomes: c.biomes.slice(), pendingTicks: ticks, tileEntities, entities };
-}
-
-/** WorldChunkManager.findBiomePosition over the 1:4 biome grid (reservoir pick). */
-function findBiomePosition(x: number, z: number, range: number, allowed: BiomeGenBase[], rand: JavaRandom): [number, number] | null {
-  return provider!.biomeSource.findBiomePosition(x, z, range, allowed, rand);
-}
-
-/** World.getFirstUncoveredBlock on generated (unpopulated) terrain. */
-function getFirstUncoveredBlock(x: number, z: number): number {
-  ensureTerrain(x >> 4, z >> 4);
-  const w = world!;
-  let y = 63;
-  while (w.getBlockId(x, y + 1, z) !== 0) y++;
-  return w.getBlockId(x, y, z);
-}
-
-/** WorldServer.createSpawnPosition: a spawn biome near the origin, then a random walk to grass. */
-function createSpawnPosition(seed: bigint): [number, number, number] {
-  const rand = new JavaRandom(seed);
-  const allowed = [Biomes.forest, Biomes.plains, Biomes.taiga, Biomes.taigaHills, Biomes.forestHills, Biomes.jungle, Biomes.jungleHills];
-  const pos = findBiomePosition(0, 0, 256, allowed, rand);
-  let x = pos ? pos[0] : 0;
-  let z = pos ? pos[1] : 0;
-  let tries = 0;
-  while (getFirstUncoveredBlock(x, z) !== BlockIds.grass) {
-    x += rand.nextInt(64) - rand.nextInt(64);
-    z += rand.nextInt(64) - rand.nextInt(64);
-    if (++tries === 1000) break;
-  }
-  return [x, provider!.getAverageGroundLevel(), z];
-}
-
-function evict(): void {
-  const w = world!;
-  const far = (k: number, c: Chunk) => Math.max(Math.abs(c.xPosition - playerCX), Math.abs(c.zPosition - playerCZ)) > keepRadius && !requested.has(k);
-  const drop = new Set<number>();
-  for (const [k, c] of w.chunks) if (far(k, c)) drop.add(k);
-  // A populated chunk stays while a chunk its population wrote into is kept.
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const k of drop) {
-      if (!populated.has(k)) continue;
-      const c = w.chunks.get(k)!;
-      for (const [dx, dz] of [[1, 0], [0, 1], [1, 1]]) {
-        const t = key(c.xPosition + dx, c.zPosition + dz);
-        if (w.chunks.has(t) && !drop.has(t)) {
-          drop.delete(k);
-          changed = true;
-          break;
-        }
-      }
-    }
-  }
-  for (const k of drop) {
-    w.chunks.delete(k);
-    if (populated.delete(k)) for (const logs of w.foreignWrites.values()) logs.delete(k);
-  }
-  for (const [t, logs] of w.foreignWrites) if (logs.size === 0) w.foreignWrites.delete(t);
+function post(m: WorldGenResponse, transfer: Transferable[] = []): void {
+  self.postMessage(m, transfer);
 }
 
 function pump(): void {
   scheduled = false;
-  if (!provider || requested.size === 0) return;
+  if (!server || requested.size === 0) return;
   let best = -1;
   let bestD = Infinity;
   for (const [k, [cx, cz]] of requested) {
@@ -182,13 +38,14 @@ function pump(): void {
   }
   const [cx, cz] = requested.get(best)!;
   requested.delete(best);
-  const payload = finalizeChunk(cx, cz);
+  const payload = server.finalizeChunk(cx, cz);
   const transfer: Transferable[] = [payload.heightMap.buffer, payload.biomes.buffer];
   for (const s of payload.sections) transfer.push(s.blocks.buffer, s.meta.buffer, s.skyLight.buffer, s.blockLight.buffer);
-  self.postMessage(payload, transfer);
+  post(payload, transfer);
   if (++sinceEvict >= 32) {
     sinceEvict = 0;
-    evict();
+    // Keep two rings beyond the loaded area: finalizing needs populated neighbours.
+    server.evict(playerCX, playerCZ, keepRadius, (k) => requested.has(k));
   }
   schedule();
 }
@@ -205,16 +62,18 @@ function schedule(): void {
 self.onmessage = (e: MessageEvent<WorldGenRequest>) => {
   const m = e.data;
   switch (m.type) {
-    case 'init': {
-      const seed = BigInt(m.seed);
-      worldSeed = seed;
-      provider = m.worldType === 'flat' ? new ChunkProviderFlat(seed, null) : new ChunkProviderGenerate(seed, m.mapFeatures, m.worldType);
-      world = new GenWorld(provider.biomeSource);
-      populated.clear();
+    case 'init':
+      server = new WorldGenServer({
+        seed: BigInt(m.seed),
+        worldType: m.worldType,
+        mapFeatures: m.mapFeatures,
+        generatorOptions: m.generatorOptions ?? null,
+        bonusChest: m.bonusChest ?? false,
+        initialRadius: m.initialRadius,
+      });
       requested.clear();
-      self.postMessage({ type: 'ready' });
+      post({ type: 'ready' });
       break;
-    }
     case 'request':
       requested.set(key(m.cx, m.cz), [m.cx, m.cz]);
       schedule();
@@ -223,11 +82,15 @@ self.onmessage = (e: MessageEvent<WorldGenRequest>) => {
       requested.delete(key(m.cx, m.cz));
       break;
     case 'findSpawn': {
-      const [x, y, z] = createSpawnPosition(worldSeed);
-      self.postMessage({ type: 'spawn', x, y, z });
+      const [x, y, z] = server!.createSpawnPosition();
+      post({ type: 'spawn', x, y, z });
       playerCX = x >> 4;
       playerCZ = z >> 4;
-      evict();
+      break;
+    }
+    case 'findStructure': {
+      const pos = server!.findClosestStructure(m.name, m.x, m.y, m.z);
+      post({ type: 'structure', id: m.id, pos });
       break;
     }
     case 'player':
