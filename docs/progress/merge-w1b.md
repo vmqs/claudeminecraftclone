@@ -9,7 +9,7 @@ Order: w1/worldgen, w1/items, w1/entities, w1/effects, w1/gui, w1/blocks, w1/sky
 - [x] effects (up to date)
 - [x] gui (DevTools/EntityPlayerSP: gui moved methods to end; kept HEAD, onItemPickup stays dropped)
 - [x] blocks, sky (up to date)
-- [ ] vite build
-- [ ] wire hooks / dedupe
+- [x] vite build
+- [x] wire hooks / dedupe (eye of ender StructureLocator direct import; command block executor + /testfor via instanceof TileEntityCommandBlock; dropped unused world/gen/FlatPresets.ts dup of gui FlatPresets)
 - [ ] smoke test
 - [ ] ARCHITECTURE §13

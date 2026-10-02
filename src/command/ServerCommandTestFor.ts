@@ -1,4 +1,5 @@
 import { CommandBase } from './CommandBase';
+import { isCommandBlock } from './CommandBlockExecutor';
 import { CommandException, WrongUsageException } from './CommandException';
 import type { ICommandSender } from './ICommandSender';
 
@@ -14,7 +15,7 @@ export class ServerCommandTestFor extends CommandBase {
 
   processCommand(sender: ICommandSender, args: string[]): void {
     if (args.length !== 1) throw new WrongUsageException('commands.testfor.usage');
-    if (!(sender as { isCommandBlock?: boolean }).isCommandBlock) throw new CommandException('commands.testfor.failed');
+    if (!isCommandBlock(sender)) throw new CommandException('commands.testfor.failed');
     CommandBase.getPlayer(sender, args[0]);
   }
 
