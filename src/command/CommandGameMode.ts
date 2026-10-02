@@ -33,12 +33,20 @@ export class CommandGameMode extends CommandBase {
     else CommandBase.notifyAdminsWithFlags(sender, 1, 'commands.gamemode.success.self', name);
   }
 
-  /** EntityPlayerMP.setGameType: the capabilities of the mode. */
+  /** Told when a player's game mode changes (the client's PlayerController follows it). */
+  static gameTypeListener: ((player: EntityPlayer, mode: number) => void) | null = null;
+
+  /**
+   * EntityPlayerMP.setGameType: the capabilities of the mode, then Packet70GameEvent 3, which
+   * the client answers with "Your game mode has been updated".
+   */
   static setGameType(player: EntityPlayer, mode: number): void {
     const caps = player.capabilities;
     caps.allowFlying = caps.isCreativeMode = caps.disableDamage = mode === 1;
     caps.allowEdit = mode !== 2;
     if (mode !== 1) caps.isFlying = false;
+    CommandGameMode.gameTypeListener?.(player, mode);
+    player.addChatMessage('gameMode.changed');
   }
 
   protected getGameModeFromCommand(sender: ICommandSender, s: string): number {
