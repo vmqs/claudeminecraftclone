@@ -1,10 +1,7 @@
-import { Block } from '../../block/Block';
 import { BlockIds as B, ItemIds as I } from '../../block/BlockIds';
-import { Material } from '../../block/Material';
 import { Item } from '../Item';
 import { ItemStack } from '../ItemStack';
-import { ItemSword, ItemHoe } from '../ItemSword';
-import { ItemTool } from '../ItemTool';
+import { TileEntityFurnace } from '../../world/tileentity/TileEntityFurnace';
 
 /**
  * Smelting results and experience (FurnaceRecipes): input id -> result, and the experience a
@@ -66,22 +63,7 @@ export class FurnaceRecipes {
  * wooden blocks 300, wooden tools 200, sticks and saplings 100, coal 1600, lava 20000, blaze rods 2400.
  */
 export function getItemBurnTime(stack: ItemStack | null): number {
-  if (!stack) return 0;
-  const id = stack.itemID;
-  const item = Item.itemsList[id];
-  if (id < 256 && Block.blocksList[id]) {
-    const b = Block.blocksList[id]!;
-    if (id === B.woodSingleSlab) return 150;
-    if (b.blockMaterial === Material.wood) return 300;
-  }
-  if (item instanceof ItemTool && item.getToolMaterialName() === 'WOOD') return 200;
-  if (item instanceof ItemSword && item.getToolMaterialName() === 'WOOD') return 200;
-  if (item instanceof ItemHoe && item.getMaterialName() === 'WOOD') return 200;
-  if (id === I.stick) return 100;
-  if (id === I.coal) return 1600;
-  if (id === I.bucketLava) return 20000;
-  if (id === B.sapling) return 100;
-  return id === I.blazeRod ? 2400 : 0;
+  return TileEntityFurnace.getItemBurnTime(stack);
 }
 
 /** TileEntityFurnace.isItemFuel */

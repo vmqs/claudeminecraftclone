@@ -9,6 +9,6 @@ Order: w1/blocks, w1/items, w1/entities, w1/effects, w1/sky, w1/gui -> claude/mi
 - [x] sky (TESTING.md doc conflict only)
 - [x] gui (DevTools both; EntityPlayerSP: gui overrides kept, onItemPickup dropped for entities collectEffect; GuiIngame: sky ScreenOverlays kept, gui duplicate pumpkin/portal removed)
 - [x] vite build
-- [ ] wire cross-slice hooks / dedupe
+- [x] wire cross-slice hooks / dedupe (HarvestModifiers->EnchantmentHelper, SkyHooks.potionDuration, furnace smelting, scoreboard death/kill counts; dropped items PotionBindings dup of entities ItemHooksInstall; burn time single impl)
 - [ ] smoke test (title, spawn, interact + slice scenarios)
 - [ ] ARCHITECTURE §13

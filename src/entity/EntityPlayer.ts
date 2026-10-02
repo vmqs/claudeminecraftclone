@@ -4,6 +4,7 @@ import { AxisAlignedBB } from '../core/AxisAlignedBB';
 import { Vec3 } from '../core/Vec3';
 import { EnumAction } from '../item/Item';
 import { getServer } from '../command/CommandServer';
+import { getScoreboard, ScoreObjectiveCriteria } from '../command/scoreboard/Scoreboard';
 import type { ICommandSender } from '../command/ICommandSender';
 import { I18n } from '../core/I18n';
 import { MathHelper } from '../core/MathHelper';
@@ -596,6 +597,7 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
   /** The death message goes to chat; the inventory drops unless keepInventory; the body falls over. */
   override onDeath(src: DamageSource): void {
     getServer()?.sendChatMsg(src.getDeathMessage(this));
+    getScoreboard(this.worldObj).increaseScores(ScoreObjectiveCriteria.deathCount, this.getEntityName());
     super.onDeath(src);
     this.setSize(f(0.2), f(0.2));
     this.setPosition(this.posX, this.posY, this.posZ);
@@ -607,8 +609,13 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     this.yOffset = f(0.1);
   }
 
-  override addToPlayerScore(_e: Entity, n: number): void {
-    this.score += n;
+  /** Also counts the kill for the totalKillCount (and, for a player, playerKillCount) objectives. */
+  override addToPlayerScore(e: Entity, n: number): void {
+    this.addScore(n);
+    const board = getScoreboard(this.worldObj);
+    const name = this.getEntityName();
+    board.increaseScores(ScoreObjectiveCriteria.totalKillCount, name);
+    if (e instanceof EntityPlayer) board.increaseScores(ScoreObjectiveCriteria.playerKillCount, name);
   }
 
   addScore(n: number): void {
