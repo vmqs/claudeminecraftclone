@@ -3,10 +3,6 @@ import type { MerchantRecipe } from './MerchantRecipe';
 
 /** A villager's trades in offer order (MerchantRecipeList). */
 export class MerchantRecipeList extends Array<MerchantRecipe> {
-  static get [Symbol.species](): ArrayConstructor {
-    return Array;
-  }
-
   /**
    * The trade the two input stacks pay for: the trade at `index` (when 1 or more) or else the
    * first one they satisfy, or null.
