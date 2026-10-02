@@ -287,12 +287,12 @@ export class ComponentStrongholdStairs2 extends ComponentStrongholdStairs {
 }
 
 export class ComponentStrongholdCorridor extends ComponentStronghold {
-  field_74993_a = 0;
+  steps = 0;
   constructor(type: number, rand: JavaRandom, box: StructureBoundingBox, facing: number) {
     super(type);
     this.coordBaseMode = facing;
     this.boundingBox = box;
-    this.field_74993_a = facing !== 2 && facing !== 0 ? box.getXSize() : box.getZSize();
+    this.steps = facing !== 2 && facing !== 0 ? box.getXSize() : box.getZSize();
   }
   static findPieceBox(list: StructureComponent[], rand: JavaRandom, x: number, y: number, z: number, facing: number): StructureBoundingBox | null {
     let bb = StructureBoundingBox.getComponentToAddBoundingBox(x, y, z, -1, -1, 0, 5, 5, 4, facing);
@@ -315,7 +315,7 @@ export class ComponentStrongholdCorridor extends ComponentStronghold {
     if (this.isLiquidInStructureBoundingBox(w, box)) {
       return false;
     } else {
-      for (let z = 0; z < this.field_74993_a; z++) {
+      for (let z = 0; z < this.steps; z++) {
         this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 0, 0, z, box);
         this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 1, 0, z, box);
         this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 2, 0, z, box);
@@ -396,19 +396,19 @@ export class ComponentStrongholdChestCorridor extends ComponentStronghold {
 
 export class ComponentStrongholdCrossing extends ComponentStronghold {
   doorType = EnumDoor.OPENING;
-  field_74996_b = false;
-  field_74997_c = false;
-  field_74995_d = false;
-  field_74999_h = false;
+  leftLow = false;
+  leftHigh = false;
+  rightLow = false;
+  rightHigh = false;
   constructor(type: number, rand: JavaRandom, box: StructureBoundingBox, facing: number) {
     super(type);
     this.coordBaseMode = facing;
     this.doorType = this.getRandomDoor(rand);
     this.boundingBox = box;
-    this.field_74996_b = rand.nextBoolean();
-    this.field_74997_c = rand.nextBoolean();
-    this.field_74995_d = rand.nextBoolean();
-    this.field_74999_h = rand.nextInt(3) > 0;
+    this.leftLow = rand.nextBoolean();
+    this.leftHigh = rand.nextBoolean();
+    this.rightLow = rand.nextBoolean();
+    this.rightHigh = rand.nextInt(3) > 0;
   }
   static findValidPlacement(
     list: StructureComponent[],
@@ -432,16 +432,16 @@ export class ComponentStrongholdCrossing extends ComponentStronghold {
       i2 = 8 - i2;
     }
     this.getNextComponentNormal(start as ComponentStrongholdStairs2, list, rand, 5, 1);
-    if (this.field_74996_b) {
+    if (this.leftLow) {
       this.getNextComponentX(start as ComponentStrongholdStairs2, list, rand, i, 1);
     }
-    if (this.field_74997_c) {
+    if (this.leftHigh) {
       this.getNextComponentX(start as ComponentStrongholdStairs2, list, rand, i2, 7);
     }
-    if (this.field_74995_d) {
+    if (this.rightLow) {
       this.getNextComponentZ(start as ComponentStrongholdStairs2, list, rand, i, 1);
     }
-    if (this.field_74999_h) {
+    if (this.rightHigh) {
       this.getNextComponentZ(start as ComponentStrongholdStairs2, list, rand, i2, 7);
     }
   }
@@ -451,16 +451,16 @@ export class ComponentStrongholdCrossing extends ComponentStronghold {
     } else {
       this.fillWithRandomizedBlocks(w, box, 0, 0, 0, 9, 8, 10, true, rand, STRONGHOLD_STONES);
       this.placeDoor(w, rand, box, this.doorType, 4, 3, 0);
-      if (this.field_74996_b) {
+      if (this.leftLow) {
         this.fillWithBlocks(w, box, 0, 3, 1, 0, 5, 3, 0, 0, false);
       }
-      if (this.field_74995_d) {
+      if (this.rightLow) {
         this.fillWithBlocks(w, box, 9, 3, 1, 9, 5, 3, 0, 0, false);
       }
-      if (this.field_74997_c) {
+      if (this.leftHigh) {
         this.fillWithBlocks(w, box, 0, 5, 7, 0, 7, 9, 0, 0, false);
       }
-      if (this.field_74999_h) {
+      if (this.rightHigh) {
         this.fillWithBlocks(w, box, 9, 5, 7, 9, 7, 9, 0, 0, false);
       }
       this.fillWithBlocks(w, box, 5, 1, 10, 7, 3, 10, 0, 0, false);
