@@ -53,6 +53,18 @@ export class JavaRandom {
     this.haveNextNextGaussian = false;
   }
 
+  /**
+   * setSeed for a 64-bit value given as signed 32-bit halves (only the low 48 bits matter);
+   * world generation uses it to avoid BigInt in per-chunk seeding.
+   */
+  setSeedHiLo(hi: number, lo: number): void {
+    const h = (hi ^ 0x5) & 0xffff;
+    const l = (lo ^ 0xdeece66d) >>> 0;
+    this.lo = l & MASK_24;
+    this.hi = ((h << 8) | (l >>> 24)) & MASK_24;
+    this.haveNextNextGaussian = false;
+  }
+
   /** Returns the current internal 48-bit seed (for debugging / cloning). */
   getSeed48(): bigint {
     return (BigInt(this.hi) << 24n) | BigInt(this.lo);

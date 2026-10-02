@@ -6,6 +6,8 @@ import { Biomes, type BiomeGenBase } from '../biome/BiomeGenBase';
 import type { IWorld } from '../IWorld';
 import { BiomeDecorator } from './BiomeDecorator';
 import { NoiseGeneratorOctaves } from './NoiseGeneratorOctaves';
+import { MapGenCaves } from './MapGenCaves';
+import { MapGenRavine } from './MapGenRavine';
 import { WorldChunkManager } from './WorldChunkManager';
 import { WorldGenLakes } from './WorldGenLakes';
 import { performWorldGenSpawning, type SpawnRecorder } from './WorldGenSpawning';
@@ -66,6 +68,8 @@ export class ChunkProviderGenerate implements ChunkGenerator {
   private noise6: Float64Array | null = null;
   private parabolicField: Float32Array | null = null;
   private biomesForGeneration: BiomeGenBase[] = [];
+  private readonly caveGenerator = new MapGenCaves();
+  private readonly ravineGenerator = new MapGenRavine();
 
   readonly biomeSource: WorldChunkManager;
 
@@ -193,6 +197,8 @@ export class ChunkProviderGenerate implements ChunkGenerator {
     this.generateTerrain(cx, cz, blocks);
     const biomes = this.biomeSource.loadBlockGeneratorData(cx * 16, cz * 16, 16, 16);
     this.replaceBlocksForBiome(cx, cz, blocks, biomes);
+    this.caveGenerator.generate(this, cx, cz, blocks);
+    this.ravineGenerator.generate(this, cx, cz, blocks);
     const ids = new Uint8Array(256);
     for (let i = 0; i < 256; i++) ids[i] = biomes[i].biomeID;
     return { blocks, biomes: ids };
