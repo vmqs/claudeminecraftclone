@@ -8,6 +8,10 @@ import { BiomeDecoration } from './BiomeDecorator';
 import { WorldGenDungeons } from './feature/WorldGenDungeons';
 import { NoiseGeneratorOctaves } from './NoiseGeneratorOctaves';
 import { MapGenCaves } from './MapGenCaves';
+import { MapGenMineshaft } from './structure/Mineshaft';
+import { MapGenScatteredFeature } from './structure/ScatteredFeatures';
+import { MapGenStronghold } from './structure/Stronghold';
+import { MapGenVillage } from './structure/Village';
 import { MapGenRavine } from './MapGenRavine';
 import { WorldChunkManager } from './WorldChunkManager';
 import { WorldGenLakes } from './WorldGenLakes';
@@ -74,6 +78,10 @@ export class ChunkProviderGenerate implements ChunkGenerator {
   private readonly decoration = new BiomeDecoration();
   private readonly caveGenerator = new MapGenCaves();
   private readonly ravineGenerator = new MapGenRavine();
+  readonly strongholdGenerator = new MapGenStronghold();
+  readonly villageGenerator = new MapGenVillage();
+  readonly mineshaftGenerator = new MapGenMineshaft();
+  readonly scatteredFeatureGenerator = new MapGenScatteredFeature();
 
   readonly biomeSource: WorldChunkManager;
 
@@ -194,6 +202,16 @@ export class ChunkProviderGenerate implements ChunkGenerator {
     return 64;
   }
 
+  /** findClosestStructure: the nearest stronghold's portal room (eyes of ender). */
+  findClosestStructure(name: string, x: number, y: number, z: number): [number, number, number] | null {
+    return name === 'Stronghold' ? this.strongholdGenerator.getNearestInstance(this, x, y, z) : null;
+  }
+
+  /** Whether (x, y, z) is inside a witch hut (getPossibleCreatures then spawns witches in swamps). */
+  isInScatteredFeature(x: number, y: number, z: number): boolean {
+    return this.scatteredFeatureGenerator.hasStructureAt(x, y, z);
+  }
+
   /** provideChunk: terrain + surface for one chunk (no population). */
   provideChunk(cx: number, cz: number): GeneratedChunk {
     this.rand.setSeed(BigInt(cx) * 341873128712n + BigInt(cz) * 132897987541n);
@@ -203,6 +221,12 @@ export class ChunkProviderGenerate implements ChunkGenerator {
     this.replaceBlocksForBiome(cx, cz, blocks, biomes);
     this.caveGenerator.generate(this, cx, cz, blocks);
     this.ravineGenerator.generate(this, cx, cz, blocks);
+    if (this.mapFeaturesEnabled) {
+      this.mineshaftGenerator.generate(this, cx, cz, null);
+      this.villageGenerator.generate(this, cx, cz, null);
+      this.strongholdGenerator.generate(this, cx, cz, null);
+      this.scatteredFeatureGenerator.generate(this, cx, cz, null);
+    }
     const ids = new Uint8Array(256);
     for (let i = 0; i < 256; i++) ids[i] = biomes[i].biomeID;
     return { blocks, biomes: ids };
@@ -300,7 +324,13 @@ export class ChunkProviderGenerate implements ChunkGenerator {
     const a = (this.rand.nextLong() / 2n) * 2n + 1n;
     const b = (this.rand.nextLong() / 2n) * 2n + 1n;
     this.rand.setSeed((BigInt(cx) * a + BigInt(cz) * b) ^ this.seed);
-    const village = false;
+    let village = false;
+    if (this.mapFeaturesEnabled) {
+      this.mineshaftGenerator.generateStructuresInChunk(world, this.rand, cx, cz);
+      village = this.villageGenerator.generateStructuresInChunk(world, this.rand, cx, cz);
+      this.strongholdGenerator.generateStructuresInChunk(world, this.rand, cx, cz);
+      this.scatteredFeatureGenerator.generateStructuresInChunk(world, this.rand, cx, cz);
+    }
     if (!village && this.rand.nextInt(4) === 0) {
       const lx = x + this.rand.nextInt(16) + 8;
       const ly = this.rand.nextInt(128);

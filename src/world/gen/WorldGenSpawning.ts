@@ -1,22 +1,36 @@
 import type { JavaRandom } from '../../core/JavaRandom';
+import type { TagCompound } from '../../item/ItemStack';
 import { WeightedRandom } from '../../core/WeightedRandom';
 import type { BiomeGenBase } from '../biome/BiomeGenBase';
 import { EnumCreatureType } from '../biome/SpawnListEntry';
 import type { IWorld } from '../IWorld';
 import { canCreatureTypeSpawnAtLocation } from '../SpawnRules';
 
-/** An entity placed by world generation, created on the main thread through EntityList. */
+/**
+ * An entity placed by world generation, created on the main thread through EntityList:
+ * animals (performWorldGenSpawning), villagers ({Profession}), witches, chest minecarts
+ * ({Items}). `data` is 1.5.2 entity NBT for readEntityFromNBT; `init` (default true) says
+ * whether the original called initCreature on it.
+ */
 export interface EntitySpawnDescriptor {
   name: string;
   x: number;
   y: number;
   z: number;
   yaw: number;
+  pitch?: number;
+  data?: TagCompound;
+  init?: boolean;
 }
 
-/** Receives the animals placed while populating (GenWorld keeps them per chunk). */
+/** Receives the entities placed while populating (GenWorld keeps them per chunk). */
 export interface SpawnRecorder {
   recordSpawn(d: EntitySpawnDescriptor): void;
+}
+
+/** World.spawnEntityInWorld for generation: records the descriptor when the world can. */
+export function spawnGenEntity(w: IWorld, d: EntitySpawnDescriptor): void {
+  if ('recordSpawn' in w) (w as IWorld & SpawnRecorder).recordSpawn(d);
 }
 
 const f = Math.fround;

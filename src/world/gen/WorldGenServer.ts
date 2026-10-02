@@ -52,6 +52,7 @@ export class WorldGenServer {
     this.provider =
       options.worldType === 'flat' ? new ChunkProviderFlat(seed, options.generatorOptions ?? null, options.mapFeatures) : new ChunkProviderGenerate(seed, options.mapFeatures, options.worldType);
     this.world = new GenWorld(this.provider.biomeSource);
+    this.world.averageGroundLevel = this.provider.getAverageGroundLevel();
     this.world.missingChunk = (cx, cz) => (this.populating > 0 ? this.loadForFeature(cx, cz) : undefined);
   }
 

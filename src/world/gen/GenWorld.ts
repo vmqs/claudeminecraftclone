@@ -25,6 +25,8 @@ export class GenWorld implements ChunkHost {
   readonly provider: WorldProviderInfo = { dimensionId: 0, isHellWorld: false, hasNoSky: false };
   readonly chunks = new Map<number, Chunk>();
   scheduledUpdatesAreImmediate = false;
+  /** WorldProvider.getAverageGroundLevel of this world (64, or 4 for superflat). */
+  averageGroundLevel = 64;
   /**
    * Generated tile entities as NBT (chest and dispenser contents, spawner mobs), by chunk key and
    * Chunk.teKey. They travel with the chunk payload; the main thread loads them through
