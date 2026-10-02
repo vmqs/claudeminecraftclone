@@ -1,5 +1,6 @@
 import type { Block } from '../block/Block';
 import { Material } from '../block/Material';
+import { AxisAlignedBB } from '../core/AxisAlignedBB';
 import { Vec3 } from '../core/Vec3';
 import { EnumAction } from '../item/Item';
 import { getServer } from '../command/CommandServer';
@@ -14,11 +15,24 @@ import type { TileEntity } from '../world/tileentity/TileEntity';
 import type { World } from '../world/World';
 import { type DamageSource, EntityDamageSource } from './DamageSource';
 import type { Entity } from './Entity';
+import { applyThorns, EnchantmentHooks } from './EnchantmentHooks';
 import { ChunkCoordinates, EntityLiving } from './EntityLiving';
+import { EntityList } from './EntityList';
 import { InventoryPlayer } from './InventoryPlayer';
 import { PlayerCapabilities } from './PlayerCapabilities';
+import { PotionId } from './PotionEffects';
 
 const f = Math.fround;
+
+/** The parts of a tame wolf (EntityWolf / EntityTameable) that alertWolves uses. */
+interface WolfLike {
+  isTamed(): boolean;
+  getOwnerName(): string;
+  isSitting(): boolean;
+  setSitting(sitting: boolean): void;
+  getEntityToAttack(): Entity | null;
+  setTarget(e: Entity | null): void;
+}
 const PI_F = f(Math.PI);
 
 /** A player: inventory, capabilities (creative flying), camera bob and eye height. */
@@ -29,6 +43,12 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
   experienceTotal = 0;
   /** Progress towards the next level, 0..1. */
   experience = 0;
+  /** The bobber of this player's cast fishing rod (EntityFishHook), if any. */
+  fishEntity: Entity | null = null;
+  /** Ticks until the next experience orb can be collected. */
+  xpCooldown = 0;
+  /** ticksExisted of the last level-up sound (field_82249_h). */
+  private lastLevelUpTick = 0;
   /** The player's own inventory window; openContainer is it whenever no other window is open. */
   inventoryContainer: Container;
   openContainer: Container;
@@ -106,6 +126,7 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
         if (--this.itemInUseCount === 0 && !this.worldObj.isRemote) this.onItemUseFinish();
       }
     }
+    if (this.xpCooldown > 0) this.xpCooldown--;
     super.onUpdate();
     if (!this.worldObj.isRemote && !this.openContainer.canInteractWith(this)) {
       this.closeScreen();
@@ -160,6 +181,26 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     this.clearItemInUse();
   }
 
+  /**
+   * The local player's own hurt and death sounds are already played locally by EntityPlayerSP
+   * (the server's copies skip the player), so the status echo only replays the hurt animation.
+   */
+  override handleHealthUpdate(status: number): void {
+    if (status === 2) {
+      this.limbYaw = f(1.5);
+      this.hurtResistantTime = this.maxHurtResistantTime;
+      this.hurtTime = this.maxHurtTime = 10;
+      this.attackedAtYaw = 0;
+    } else if (status !== 3 && status !== 9) {
+      super.handleHealthUpdate(status);
+    }
+  }
+
+  /** Creative players are never targeted by hostile mobs (EntityAITarget.isSuitableTarget). */
+  override isCreativeInvulnerable(): boolean {
+    return this.capabilities.disableDamage;
+  }
+
   protected override isDamageDisabled(): boolean {
     return this.capabilities.disableDamage;
   }
@@ -169,9 +210,18 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
   }
 
   override updateRidden(): void {
+    const yaw = this.rotationYaw;
+    const pitch = this.rotationPitch;
     super.updateRidden();
     this.prevCameraYaw = this.cameraYaw;
     this.cameraYaw = 0;
+    const mount = this.ridingEntity as Entity | null;
+    if (mount && EntityList.getEntityString(mount) === 'Pig') {
+      // A pig steered with a carrot keeps the rider's own view.
+      this.rotationPitch = pitch;
+      this.rotationYaw = yaw;
+      this.renderYawOffset = (mount as EntityLiving).renderYawOffset;
+    }
   }
 
   override preparePlayerToSpawn(): void {
@@ -210,9 +260,27 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     }
   }
 
+  /**
+   * Digging speed against `b`: the held tool, efficiency (only for a tool that already helps),
+   * haste / mining fatigue (20% per level), and a fifth under water (without aqua affinity) or
+   * in the air.
+   */
   getCurrentPlayerStrVsBlock(b: Block, _canHarvest: boolean): number {
     let s = this.inventory.getStrVsBlock(b);
-    if (this.isInsideOfMaterial(Material.water)) s = f(s / 5);
+    if (s > 1) {
+      const eff = EnchantmentHooks.efficiency?.(this) ?? 0;
+      const held = this.inventory.getCurrentItem();
+      if (eff > 0 && held) {
+        const bonus = f(eff * eff + 1);
+        if (!held.canHarvestBlock(b) && !(s > 1)) s = f(s + f(bonus * f(0.08)));
+        else s = f(s + bonus);
+      }
+    }
+    const haste = this.getActivePotionEffect(PotionId.digSpeed);
+    if (haste) s = f(s * f(1 + f((haste.getAmplifier() + 1) * f(0.2))));
+    const fatigue = this.getActivePotionEffect(PotionId.digSlowdown);
+    if (fatigue) s = f(s * f(1 - f((fatigue.getAmplifier() + 1) * f(0.2))));
+    if (this.isInsideOfMaterial(Material.water) && !(EnchantmentHooks.aquaAffinity?.(this) ?? false)) s = f(s / 5);
     if (!this.onGround) s = f(s / 5);
     return s;
   }
@@ -229,13 +297,101 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     this.yOffset = f(1.62);
   }
 
+  /**
+   * Creative players only take void and /kill damage. Mob-caused damage is scaled by
+   * difficulty (none on Peaceful, half+1 on Easy, x1.5 on Hard), and whoever hurt the player
+   * (an arrow's shooter) is set upon by the player's tame wolves.
+   */
   override attackEntityFrom(src: DamageSource, amount: number): boolean {
     if (this.isEntityInvulnerable()) return false;
     if (this.capabilities.disableDamage && !src.canHarmInCreative()) return false;
     this.entityAge = 0;
     if (this.getHealth() <= 0) return false;
+    if (this.isPlayerSleeping() && !this.worldObj.isRemote) this.wakeUpPlayer(true, true, false);
+    if (src.isDifficultyScaled()) {
+      const diff = this.worldObj.difficultySetting;
+      if (diff === 0) amount = 0;
+      if (diff === 1) amount = Math.trunc(amount / 2) + 1;
+      if (diff === 3) amount = Math.trunc((amount * 3) / 2);
+    }
     if (amount === 0) return false;
+    let attacker = src.getEntity();
+    const shooter = attacker ? (attacker as Entity & { shootingEntity?: Entity | null }).shootingEntity : null;
+    if (attacker && EntityList.getEntityString(attacker) === 'Arrow' && shooter) attacker = shooter;
+    if (attacker && attacker.isLivingEntity) this.alertWolves(attacker as EntityLiving, false);
     return super.attackEntityFrom(src, amount);
+  }
+
+  /** Bed sleeping is not implemented yet; the original wakes the player when hurt. */
+  wakeUpPlayer(_resetTimer: boolean, _updateWorld: boolean, _setSpawn: boolean): void {}
+
+  /**
+   * Sends this player's tame wolves within 16 blocks (4 up/down) after `target`, unless it is
+   * a creeper, a ghast or one of the player's own wolves. When the player is the attacker
+   * (`playerAttacked`) sitting wolves stay put. Wolves are matched by EntityList name and
+   * duck-typed, so this works whichever class registers 'Wolf'.
+   */
+  protected alertWolves(target: EntityLiving, playerAttacked: boolean): void {
+    const kind = EntityList.getEntityString(target);
+    if (kind === 'Creeper' || kind === 'Ghast') return;
+    if (kind === 'Wolf') {
+      const w = target as EntityLiving & Partial<WolfLike>;
+      if (w.isTamed?.() && this.username === w.getOwnerName?.()) return;
+    }
+    // Teams (func_96122_a) do not exist here, so other players always count.
+    const box = AxisAlignedBB.getBoundingBox(this.posX, this.posY, this.posZ, this.posX + 1, this.posY + 1, this.posZ + 1).expand(16, 4, 16);
+    const isWolf = (e: Entity): e is EntityLiving & WolfLike => EntityList.getEntityString(e) === 'Wolf' && typeof (e as Partial<WolfLike>).isTamed === 'function';
+    for (const wolf of this.worldObj.getEntitiesWithinAABB(isWolf, box)) {
+      if (wolf.isTamed() && wolf.getEntityToAttack() === null && this.username === wolf.getOwnerName() && (!playerAttacked || !wolf.isSitting())) {
+        wolf.setSitting(false);
+        wolf.setTarget(target);
+      }
+    }
+  }
+
+  /** Worn armour loses a quarter of the damage taken (at least 1) as durability. */
+  protected override damageArmor(amount: number): void {
+    this.inventory.damageArmor(amount);
+  }
+
+  override isBlocking(): boolean {
+    return this.isUsingItem() && this.itemInUse!.getItemUseAction() === EnumAction.block;
+  }
+
+  /**
+   * Blocking with a sword halves blockable damage (rounding up), then armour, resistance and
+   * protection apply; every hit costs the source's hunger exhaustion.
+   */
+  protected override damageEntity(src: DamageSource, amount: number): void {
+    if (this.isEntityInvulnerable()) return;
+    if (!src.isUnblockableDamage() && this.isBlocking()) amount = (1 + amount) >> 1;
+    amount = this.applyArmorCalculations(src, amount);
+    amount = this.applyPotionDamageCalculations(src, amount);
+    this.addExhaustion(src.getHungerDamage());
+    this.setEntityHealth(this.getHealth() - amount);
+  }
+
+  /**
+   * Food exhaustion from actions (FoodStats.addExhaustion); nothing in Creative. Hunger is not
+   * implemented yet, so this is where the food code plugs in.
+   */
+  addExhaustion(amount: number): void {
+    if (this.capabilities.disableDamage || this.worldObj.isRemote) return;
+    EntityPlayer.exhaustionHook?.(this, amount);
+  }
+
+  /** FoodStats.addExhaustion, installed by the food code; null = no hunger. */
+  static exhaustionHook: ((player: EntityPlayer, amount: number) => void) | null = null;
+
+  /** A dead player drops 7 experience per level (at most 100), none with keepInventory. */
+  protected override getExperiencePoints(_player: EntityPlayer | null): number {
+    if (this.worldObj.worldInfo.gameRules.keepInventory) return 0;
+    const xp = this.experienceLevel * 7;
+    return xp > 100 ? 100 : xp;
+  }
+
+  protected override isPlayer(): boolean {
+    return true;
   }
 
   /** func_82243_bO: the fraction of armour slots in use (how visible an invisible player is). */
@@ -266,13 +422,34 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
   attackTargetEntityWithCurrentItem(target: Entity): void {
     if (!target.canAttackWithItem() || target.hitByEntity(this)) return;
     let damage = this.inventory.getDamageVsEntity(target);
+    const strength = this.getActivePotionEffect(PotionId.damageBoost);
+    if (strength) damage += 3 << strength.getAmplifier();
+    const weakness = this.getActivePotionEffect(PotionId.weakness);
+    if (weakness) damage -= 2 << weakness.getAmplifier();
     let knockback = 0;
-    const enchantDamage = 0;
+    let enchantDamage = 0;
+    if (target.isLivingEntity) {
+      enchantDamage = EnchantmentHooks.modifierLiving?.(this, target as EntityLiving) ?? 0;
+      knockback += EnchantmentHooks.knockback?.(this, target as EntityLiving) ?? 0;
+    }
     if (this.isSprinting()) knockback++;
     if (damage <= 0 && enchantDamage <= 0) return;
-    const critical = this.fallDistance > 0 && !this.onGround && !this.isOnLadder() && !this.isInWater() && this.ridingEntity === null && target.isLivingEntity;
+    const critical =
+      this.fallDistance > 0 &&
+      !this.onGround &&
+      !this.isOnLadder() &&
+      !this.isInWater() &&
+      !this.isPotionActive(PotionId.blindness) &&
+      this.ridingEntity === null &&
+      target.isLivingEntity;
     if (critical && damage > 0) damage += this.rand.nextInt(Math.trunc(damage / 2) + 2);
     damage += enchantDamage;
+    const fireAspect = EnchantmentHooks.fireAspect?.(this) ?? 0;
+    let litByAspect = false;
+    if (target.isLivingEntity && fireAspect > 0 && !target.isBurning()) {
+      litByAspect = true;
+      target.setFire(1);
+    }
     const hit = target.attackEntityFrom(EntityDamageSource.causePlayerDamage(this), damage);
     if (hit) {
       if (knockback > 0) {
@@ -285,12 +462,20 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
       if (critical) this.onCriticalHit(target);
       if (enchantDamage > 0) this.onEnchantmentCritical(target);
       this.setLastAttackingEntity(target);
+      if (target.isLivingEntity) applyThorns(this, target as EntityLiving, this.rand);
     }
     const held = this.getCurrentEquippedItem();
-    if (held && target.isLivingEntity) {
-      held.hitEntity(target as EntityLiving, this);
+    const victim = target.getMultiPartOwner() ?? target;
+    if (held && victim.isLivingEntity) {
+      held.hitEntity(victim as EntityLiving, this);
       if (held.stackSize <= 0) this.destroyCurrentEquippedItem();
     }
+    if (target.isLivingEntity) {
+      if (target.isEntityAlive()) this.alertWolves(target as EntityLiving, true);
+      if (fireAspect > 0 && hit) target.setFire(fireAspect * 4);
+      else if (litByAspect) target.extinguish();
+    }
+    this.addExhaustion(f(0.3));
   }
 
   /** Critical hit particles (EntityPlayerSP adds EntityCrit2FX). */
@@ -426,6 +611,45 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     this.score += n;
   }
 
+  addScore(n: number): void {
+    this.score += n;
+  }
+
+  /** Experience points from orbs (and /xp): fills the bar, levelling up as often as it overflows. */
+  addExperience(points: number): void {
+    this.addScore(points);
+    const room = 2147483647 - this.experienceTotal;
+    if (points > room) points = room;
+    this.experience = f(this.experience + f(points / this.xpBarCap()));
+    this.experienceTotal += points;
+    while (this.experience >= 1) {
+      this.experience = f(f(this.experience - 1) * this.xpBarCap());
+      this.addExperienceLevel(1);
+      this.experience = f(this.experience / this.xpBarCap());
+    }
+  }
+
+  /** Adds (or removes) whole levels; every fifth level plays the level-up sound. */
+  addExperienceLevel(levels: number): void {
+    this.experienceLevel += levels;
+    if (this.experienceLevel < 0) {
+      this.experienceLevel = 0;
+      this.experience = 0;
+      this.experienceTotal = 0;
+    }
+    if (levels > 0 && this.experienceLevel % 5 === 0 && f(this.lastLevelUpTick) < f(this.ticksExisted - 100)) {
+      const v = this.experienceLevel > 30 ? 1 : f(this.experienceLevel / 30);
+      this.worldObj.playSoundAtEntity(this, 'random.levelup', f(v * f(0.75)), 1);
+      this.lastLevelUpTick = this.ticksExisted;
+    }
+  }
+
+  /** Points needed for the next level. */
+  xpBarCap(): number {
+    if (this.experienceLevel >= 30) return 62 + (this.experienceLevel - 30) * 7;
+    return this.experienceLevel >= 15 ? 17 + (this.experienceLevel - 15) * 3 : 17;
+  }
+
   getScore(): number {
     return this.score;
   }
@@ -495,7 +719,10 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     this.setPlayerLocation(x, y, z, this.rotationYaw, this.rotationPitch);
   }
 
-  /** Entities this player collided with (Entity.onCollideWithPlayer) are handled by them. */
+  /**
+   * Right click on an entity: the entity's own interaction (mounting, milking, taming...), or the
+   * held item's (shears, saddles, dyes, name tags); a Creative player uses a copy of the stack.
+   */
   interactWith(e: Entity): boolean {
     if (e.interact(this)) return true;
     let held = this.getCurrentEquippedItem();
@@ -507,5 +734,16 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
       }
     }
     return false;
+  }
+
+  /** Right-clicking the entity being ridden gets off it (unmountEntity), anything else mounts. */
+  override mountEntity(e: Entity | null): void {
+    if (this.ridingEntity === e && e !== null) {
+      this.unmountEntity(e);
+      if (this.ridingEntity) this.ridingEntity.riddenByEntity = null;
+      this.ridingEntity = null;
+    } else {
+      super.mountEntity(e);
+    }
   }
 }

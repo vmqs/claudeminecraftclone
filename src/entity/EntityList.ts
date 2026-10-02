@@ -3,6 +3,28 @@ import type { Entity } from './Entity';
 
 export type EntityConstructor = new (world: World) => Entity;
 
+/**
+ * An entity described by plain data (world-generation payloads, spawners, /summon): the
+ * EntityList name, feet position and rotation, and optional savegame-style fields for the
+ * entity's own readEntityFromNBT (a chest minecart's "Items", a villager's "Profession"...).
+ */
+export interface EntityDescriptor {
+  name: string;
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  pitch?: number;
+  data?: Record<string, unknown>;
+  /** false: spawn as described, without initCreature's random set-up (structure mobs, loot carts). */
+  init?: boolean;
+}
+
+/** Entities that take savegame-style fields (EntityDescriptor.data). */
+export interface ReadsEntityData {
+  readEntityFromNBT(tag: Record<string, unknown>): void;
+}
+
 /** EntityEggInfo: the spawn egg colours of a living entity. */
 export interface EntityEggInfo {
   readonly spawnedID: number;
@@ -105,9 +127,50 @@ export class EntityList {
     EntityList.classToName.set(cls, name);
   }
 
+  /**
+   * Classes that have no savegame name in 1.5.2 (thrown eggs and fishing bobbers are never
+   * saved), labelled for the dev tools only; the save and network lookups ignore them.
+   */
+  private static readonly unsavedByLabel = new Map<string, EntityConstructor>();
+  private static readonly unsavedLabels = new Map<EntityConstructor, string>();
+
+  static addUnsaved(cls: EntityConstructor, label: string): void {
+    EntityList.unsavedByLabel.set(label, cls);
+    EntityList.unsavedLabels.set(cls, label);
+  }
+
+  /** The savegame name, or else the dev label of an unsaved class (for debugging). */
+  static getDebugName(e: Entity): string | null {
+    const cls = e.constructor as EntityConstructor;
+    return EntityList.classToName.get(cls) ?? EntityList.unsavedLabels.get(cls) ?? null;
+  }
+
+  /** getClassFromName, falling back to the unsaved classes' dev labels. */
+  static getClassForDebug(name: string): EntityConstructor | null {
+    return EntityList.nameToClass.get(name) ?? EntityList.unsavedByLabel.get(name) ?? null;
+  }
+
+  /** The class bound to a name, or null when it is not implemented yet. */
+  static getClassFromName(name: string): EntityConstructor | null {
+    return EntityList.nameToClass.get(name) ?? null;
+  }
+
   static createEntityByName(name: string, world: World): Entity | null {
     const cls = EntityList.nameToClass.get(name);
     return cls ? new cls(world) : null;
+  }
+
+  /**
+   * Creates an entity from a descriptor (not spawned): placed with setLocationAndAngles, then
+   * given the descriptor's data when the class reads any. Null for names without a class yet.
+   */
+  static fromDescriptor(d: EntityDescriptor, world: World): Entity | null {
+    const e = EntityList.createEntityByName(d.name, world);
+    if (!e) return null;
+    e.setLocationAndAngles(d.x, d.y, d.z, d.yaw, d.pitch ?? 0);
+    const reader = e as Entity & Partial<ReadsEntityData>;
+    if (d.data && typeof reader.readEntityFromNBT === 'function') reader.readEntityFromNBT(d.data);
+    return e;
   }
 
   static createEntityByID(id: number, world: World): Entity | null {

@@ -253,6 +253,20 @@ export class TextureMap implements IconRegister {
     }
   }
 
+  /**
+   * Puts frame `frame` of an animated sprite into the atlas now (the original swaps the
+   * compass frame like this to draw a framed compass, then restores it).
+   */
+  showFrame(icon: TextureStitched, frame: number): void {
+    if (!this.texture || frame === icon.shownFrame || frame < 0 || frame >= icon.frames.length) return;
+    const gl = GL.gl;
+    icon.shownFrame = frame;
+    gl.bindTexture(gl.TEXTURE_2D, this.texture);
+    GL.noteTextureBinding(this.texture);
+    const f = icon.frames[frame];
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, icon.originX, icon.originY, f.width, f.height, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(f.data.buffer, f.data.byteOffset, f.data.byteLength));
+  }
+
   /** Atlas layout for workers. */
   getIconTable(): IconTable {
     const icons: IconTable['icons'] = {};

@@ -21,7 +21,7 @@ export class EntityItem extends Entity {
   delayBeforeCanPickup = 0;
   private health = 5;
   /** Bobbing phase of the renderer. */
-  readonly hoverStart = f(Math.random() * Math.PI * 2);
+  hoverStart = f(Math.random() * Math.PI * 2);
   private stack: ItemStack | null = null;
 
   constructor(world: World, x?: number, y?: number, z?: number, stack?: ItemStack) {
@@ -58,7 +58,7 @@ export class EntityItem extends Entity {
         this.motionY = f(0.2);
         this.motionX = f(f(this.rand.nextFloat() - this.rand.nextFloat()) * f(0.2));
         this.motionZ = f(f(this.rand.nextFloat() - this.rand.nextFloat()) * f(0.2));
-        this.playSound('random.fizz', f(0.4), f(2 + f(this.rand.nextFloat() * f(0.4))));
+        this.playSoundEchoed('random.fizz', f(0.4), () => f(2 + f(this.rand.nextFloat() * f(0.4))));
       }
       this.searchForOtherItemsNearby();
     }

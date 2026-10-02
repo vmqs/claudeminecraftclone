@@ -48,6 +48,11 @@ export class RenderManager {
     for (const r of new Set(this.entityRenderMap.values())) r.updateIcons(reg);
   }
 
+  /** Every renderer's item-atlas icons (thrown items drawn as sprites). */
+  updateItemIcons(reg: IconRegister): void {
+    for (const r of new Set(this.entityRenderMap.values())) r.updateItemIcons(reg);
+  }
+
   /** Renderer for an entity, walking up its class chain. */
   getEntityRenderObject(e: Entity): Render | null {
     let proto = Object.getPrototypeOf(e) as { constructor: EntityClass } | null;

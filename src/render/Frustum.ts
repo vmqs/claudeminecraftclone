@@ -56,10 +56,11 @@ export class Frustum {
       const b = pl[i * 4 + 1];
       const c = pl[i * 4 + 2];
       const d = pl[i * 4 + 3];
-      // The corner furthest along the plane normal must be inside.
-      const px = a >= 0 ? maxX : minX;
-      const py = b >= 0 ? maxY : minY;
-      const pz = c >= 0 ? maxZ : minZ;
+      // The corner furthest along the plane normal must be inside. Like the original's test of
+      // all 8 corners this also works for inverted boxes (hanging entities have one).
+      const px = a >= 0 ? Math.max(minX, maxX) : Math.min(minX, maxX);
+      const py = b >= 0 ? Math.max(minY, maxY) : Math.min(minY, maxY);
+      const pz = c >= 0 ? Math.max(minZ, maxZ) : Math.min(minZ, maxZ);
       if (a * px + b * py + c * pz + d <= 0) return false;
     }
     return true;

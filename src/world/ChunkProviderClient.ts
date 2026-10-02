@@ -1,7 +1,7 @@
 import { MathHelper } from '../core/MathHelper';
 import type { Entity } from '../entity/Entity';
 import type { EntityLiving } from '../entity/EntityLiving';
-import { EntityList } from '../entity/EntityList';
+import { type EntityDescriptor, EntityList } from '../entity/EntityList';
 import type { ChunkPayload, WorldGenRequest, WorldGenResponse } from '../workers/worldgenProtocol';
 import { Chunk } from './Chunk';
 import { ChunkSection } from './ChunkSection';
@@ -159,11 +159,10 @@ export class ChunkProviderClient {
   /** performWorldGenSpawning's animals, created through EntityList (unknown names are skipped). */
   private spawnGeneratedEntities(m: ChunkPayload): void {
     for (const d of m.entities) {
-      const e = EntityList.createEntityByName(d.name, this.world);
+      const e = EntityList.fromDescriptor(d, this.world);
       if (!e) continue;
-      e.setLocationAndAngles(d.x, d.y, d.z, d.yaw, 0);
       this.world.spawnEntityInWorld(e);
-      if (e.isLivingEntity) (e as EntityLiving).initCreature();
+      if (e.isLivingEntity && (d as EntityDescriptor).init !== false) (e as EntityLiving).initCreature();
     }
   }
 

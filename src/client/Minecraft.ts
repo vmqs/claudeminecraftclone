@@ -2,6 +2,7 @@ import type { ResourceManager } from '../assets/ResourceManager';
 import { SoundManager } from '../audio/SoundManager';
 import { Block } from '../block/Block';
 import '../entity/Entities';
+import { installEntityClientHooks } from '../entity/ClientEntityHooks';
 import '../render/entity/EntityRenderers';
 import '../render/particle/ParticleRegistry';
 import '../render/tileentity/TileEntityRenderers';
@@ -129,6 +130,7 @@ export class Minecraft implements SettingsListener {
     this.mouseHelper = new MouseHelper(canvas);
     this.mouseHelper.onGrabFailed = () => this.onPointerLockFailed();
     this.sndManager = new SoundManager(this.gameSettings, resources);
+    installEntityClientHooks(this);
     this.loadingScreen = new LoadingScreenRenderer(this);
     this.playerController = new PlayerControllerCreative(this);
     this.updateDisplaySize();
@@ -182,6 +184,7 @@ export class Minecraft implements SettingsListener {
     this.renderEngine.textureMapItems.registrars.push((reg) => {
       for (const it of Item.itemsList) if (it && it.getSpriteNumber() === 1) it.registerIcons(reg);
       SlotArmor.registerIcons(reg);
+      RenderManager.instance.updateItemIcons(reg);
     });
     await this.renderEngine.refreshTextureMaps();
     RenderBlocks.missingIcon = this.renderEngine.textureMapBlocks.getMissingIcon();

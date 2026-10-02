@@ -4,7 +4,8 @@ import { AxisAlignedBB } from '../core/AxisAlignedBB';
 import { JavaRandom } from '../core/JavaRandom';
 import { MathHelper } from '../core/MathHelper';
 import { Vec3 } from '../core/Vec3';
-import { DamageSource, EntityDamageSource } from '../entity/DamageSource';
+import { DamageSource } from '../entity/DamageSource';
+import { blastProtectedKnockback } from '../entity/EnchantmentHooks';
 import type { Entity } from '../entity/Entity';
 import type { EntityLiving } from '../entity/EntityLiving';
 import type { EntityPlayer } from '../entity/EntityPlayer';
@@ -104,9 +105,8 @@ export class Explosion {
       dz /= len;
       const exposure = w.getBlockDensity(centre, e.boundingBox);
       const impact = (1 - dist) * exposure;
-      e.attackEntityFrom(this.getDamageSource(), Math.trunc(((impact * impact + impact) / 2) * 8 * this.explosionSize + 1));
-      // Blast protection would reduce this (EnchantmentProtection.func_92092_a).
-      const push = impact;
+      e.attackEntityFrom(DamageSource.setExplosionSource(this), Math.trunc(((impact * impact + impact) / 2) * 8 * this.explosionSize + 1));
+      const push = blastProtectedKnockback(e, impact);
       e.motionX += dx * push;
       e.motionY += dy * push;
       e.motionZ += dz * push;
@@ -115,10 +115,17 @@ export class Explosion {
     this.explosionSize = size;
   }
 
-  /** Sound, particles, block removal with 1/size drop chance, and fires when flaming. */
+  /**
+   * Sound, particles, block removal with 1/size drop chance, and fires when flaming. In single
+   * player both the integrated server and the client's copy of the explosion (Packet60) play
+   * the sound, so it is heard twice at two random pitches; the particles only exist once.
+   */
   doExplosionB(spawnParticles: boolean): void {
     const w = this.worldObj;
-    w.playSoundEffect(this.explosionX, this.explosionY, this.explosionZ, 'random.explode', 4, f(f(1 + f(f(w.rand.nextFloat() - w.rand.nextFloat()) * f(0.2))) * f(0.7)));
+    const rounds = spawnParticles ? 2 : 1;
+    for (let i = 0; i < rounds; i++) {
+      w.playSoundEffect(this.explosionX, this.explosionY, this.explosionZ, 'random.explode', 4, f(f(1 + f(f(w.rand.nextFloat() - w.rand.nextFloat()) * f(0.2))) * f(0.7)));
+    }
     w.spawnParticle(this.explosionSize >= 2 && this.isSmoking ? 'hugeexplosion' : 'largeexplode', this.explosionX, this.explosionY, this.explosionZ, 1, 0, 0);
     if (this.isSmoking) {
       for (const [x, y, z] of this.affectedBlockPositions) {
@@ -169,12 +176,5 @@ export class Explosion {
     const placer = (e as { getTntPlacedBy?(): EntityLiving | null }).getTntPlacedBy;
     if (placer) return placer.call(e);
     return e.isLivingEntity ? (e as EntityLiving) : null;
-  }
-
-  /** DamageSource.setExplosionSource */
-  private getDamageSource(): DamageSource {
-    const by = this.getExplosivePlacedBy();
-    const src = by ? new EntityDamageSource('explosion.player', by) : new DamageSource('explosion');
-    return src.setDifficultyScaled().setExplosion();
   }
 }

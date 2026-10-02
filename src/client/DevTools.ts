@@ -1,4 +1,7 @@
 import { Block } from '../block/Block';
+import type { Entity } from '../entity/Entity';
+import { DamageSource, EntityDamageSource } from '../entity/DamageSource';
+import { EntityList } from '../entity/EntityList';
 import { GuiCreateWorld } from '../gui/GuiCreateWorld';
 import { Item } from '../item/Item';
 import { ItemStack } from '../item/ItemStack';
@@ -105,6 +108,43 @@ export class DevTools {
   /** Simulates a mouse button (0 left, 1 right, 2 middle). */
   mouse(button: number, down: boolean): void {
     Mouse.push({ button, state: down, dWheel: 0, x: Mouse.x, y: Mouse.y });
+  }
+
+  /**
+   * Creates an entity by its EntityList name (or the dev label 'Egg' / 'FishHook'), passing the world and then `args` to the class
+   * constructor (e.g. newEntity('Arrow', mc.thePlayer, 2) is a fully drawn bow shot). The
+   * player can be passed as the string '@p'. Not spawned yet.
+   */
+  newEntity(name: string, ...args: unknown[]): Entity | null {
+    const w = this.mc.theWorld;
+    const cls = EntityList.getClassForDebug(name) as (new (...a: unknown[]) => Entity) | null;
+    if (!w || !cls) return null;
+    return new cls(w, ...args.map((a) => (a === '@p' ? this.mc.thePlayer : a)));
+  }
+
+  /** newEntity + World.spawnEntityInWorld; returns the entity (or null). */
+  spawn(name: string, ...args: unknown[]): Entity | null {
+    const e = this.newEntity(name, ...args);
+    if (e) this.mc.theWorld!.spawnEntityInWorld(e);
+    return e;
+  }
+
+  /** Registries for scenario scripts (Block, Item, ItemStack, EntityList, damage sources). */
+  get lib(): {
+    Block: typeof Block;
+    Item: typeof Item;
+    ItemStack: typeof ItemStack;
+    EntityList: typeof EntityList;
+    DamageSource: typeof DamageSource;
+    EntityDamageSource: typeof EntityDamageSource;
+  } {
+    return { Block, Item, ItemStack, EntityList, DamageSource, EntityDamageSource };
+  }
+
+  /** Loaded entities, optionally only those with an EntityList name. */
+  entities(name?: string): Entity[] {
+    const list = this.mc.theWorld?.loadedEntityList ?? [];
+    return name === undefined ? [...list] : list.filter((e) => EntityList.getDebugName(e) === name);
   }
 
   /** Block id under the crosshair, or -1. */

@@ -100,6 +100,7 @@ export class EntityRenderer {
     const view = this.mc.renderViewEntity;
     const w = this.mc.theWorld;
     if (!view || !w) return;
+    RenderManager.instance.pointedEntity = null;
     let reach = this.mc.playerController.getBlockReachDistance();
     this.mc.objectMouseOver = view.rayTrace(reach, pt);
     let hitDist = reach;
