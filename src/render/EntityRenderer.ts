@@ -16,12 +16,10 @@ import { OpenGlHelper } from './OpenGlHelper';
 import { RenderHelper } from './RenderHelper';
 import { ItemRenderer } from './ItemRenderer';
 import { withClientSkylight } from './sky/ClientWorldView';
+import { RenderRainSnow } from './sky/RenderRainSnow';
 
 const f = Math.fround;
 const PI_F = f(Math.PI);
-
-/** Hook for weather (rain/snow) rendering, installed by the weather port. */
-export type RainRenderer = (er: EntityRenderer, pt: number) => void;
 
 /**
  * EntityRenderer: camera (FOV, bobbing, hurt shake, third person), the lightmap, fog,
@@ -29,10 +27,10 @@ export type RainRenderer = (er: EntityRenderer, pt: number) => void;
  */
 export class EntityRenderer {
   static anaglyphEnable = false;
-  static rainRenderer: RainRenderer | null = null;
   farPlaneDistance = 0;
   readonly itemRenderer: ItemRenderer;
-  private rendererUpdateCount = 0;
+  /** Ticks since the renderer was created (rain animation, rain particle seed). */
+  rendererUpdateCount = 0;
   private pointedEntity: Entity | null = null;
   private thirdPersonDistance = 4;
   private thirdPersonDistanceTemp = 4;
@@ -64,9 +62,11 @@ export class EntityRenderer {
   debugViewDirection = 0;
   private prevFrameTime = performance.now();
   readonly frustum = new Frustum();
+  private readonly rainSnow: RenderRainSnow;
 
   constructor(private readonly mc: Minecraft) {
     this.itemRenderer = new ItemRenderer(mc);
+    this.rainSnow = new RenderRainSnow(mc);
     RenderManager.instance.itemRenderer = this.itemRenderer;
     this.lightmapTexture = mc.renderEngine.allocateTexture(16, 16, true);
   }
@@ -86,14 +86,28 @@ export class EntityRenderer {
       this.smoothCamYaw = 0;
       this.smoothCamPitch = 0;
     }
+    this.fogColor1 = f(this.fogColor1 + f(f(this.fogBrightnessTarget() - this.fogColor1) * f(0.1)));
+    this.rendererUpdateCount++;
+    this.itemRenderer.updateEquippedItem();
+    this.rainSnow.addRainParticles(this.rendererUpdateCount);
+  }
+
+  /**
+   * The fog brightness updateRenderer eases towards: the light at the viewer as the client sees
+   * it (always daylight, see withClientSkylight), raised towards 1 for shorter render distances.
+   */
+  private fogBrightnessTarget(): number {
     const view = this.mc.renderViewEntity!;
     const w = this.mc.theWorld!;
     const light = withClientSkylight(w, () => w.getLightBrightness(MathHelper.floor_double(view.posX), MathHelper.floor_double(view.posY), MathHelper.floor_double(view.posZ)));
     const dist = f((3 - this.mc.gameSettings.renderDistance) / 3);
-    const target = f(light * (1 - dist) + dist);
-    this.fogColor1 = f(this.fogColor1 + (target - this.fogColor1) * f(0.1));
-    this.rendererUpdateCount++;
-    this.itemRenderer.updateEquippedItem();
+    return f(f(light * f(1 - dist)) + dist);
+  }
+
+  /** Jumps the eased fog brightness to its target (for captures, as the reference harness does). */
+  settleFogBrightness(): void {
+    if (!this.mc.renderViewEntity || !this.mc.theWorld) return;
+    this.fogColor1 = this.fogColor2 = this.fogBrightnessTarget();
   }
 
   /** Picks the block (reach) or entity (3 blocks, 6 in creative) under the crosshair. */
@@ -487,7 +501,7 @@ export class EntityRenderer {
     GL.blendFunc(GL.SRC_ALPHA, GL.ONE);
     rg.drawBlockDamageTexture();
     GL.disable(GL.BLEND);
-    EntityRenderer.rainRenderer?.(this, pt);
+    this.rainSnow.render(pt, this.rendererUpdateCount, () => this.enableLightmap(pt), () => this.disableLightmap(pt));
     GL.disable(GL.FOG);
     if (view.posY >= 128) this.renderCloudsCheck(pt);
     GL.clear(GL.DEPTH_BUFFER_BIT);

@@ -2,6 +2,7 @@ import { Block } from '../block/Block';
 import { GuiCreateWorld } from '../gui/GuiCreateWorld';
 import { Item } from '../item/Item';
 import { ItemStack } from '../item/ItemStack';
+import { SkyDevTools } from '../render/sky/SkyDevTools';
 import { type WeatherKind, WeatherCycle } from '../world/WeatherCycle';
 import { Keyboard, Mouse } from './Keyboard';
 import type { Minecraft } from './Minecraft';
@@ -11,7 +12,12 @@ const DEV_HOTBAR = [1, 2, 3, 4, 5, 17, 20, 50, 276];
 
 /** Helpers exposed on `window.mc.dev` for automation (scripts/shot.mjs) and debugging. */
 export class DevTools {
-  constructor(private readonly mc: Minecraft) {}
+  /** Sky and weather helpers (pin, strike, setBiome, fill, helmet). */
+  readonly sky: SkyDevTools;
+
+  constructor(private readonly mc: Minecraft) {
+    this.sky = new SkyDevTools(mc);
+  }
 
   /** True once the player stands in a loaded, meshed area with no screen open. */
   isInGame(): boolean {
