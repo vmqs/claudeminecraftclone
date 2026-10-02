@@ -1,5 +1,6 @@
 import { MathHelper } from '../../core/MathHelper';
 import { ColorizerFoliage, ColorizerGrass } from './Colorizer';
+import { EnumCreatureType, spawnListEntry, type SpawnListEntry } from './SpawnListEntry';
 
 /**
  * Biome data of 1.5.2 (ids 0-22). Worker-safe and data-only: the world-generation code
@@ -14,8 +15,8 @@ export class BiomeGenBase {
   /** Block ids (byte) placed on top and below by replaceBlocksForBiome. */
   topBlock = 2;
   fillerBlock = 3;
-  /** field_76754_C in MCP: tint used by maps for some biomes. */
-  field_76754_C = 0x4ee031;
+  /** field_76754_C: a second colour wooded biomes set (func_76733_a); unused by 1.5.2. */
+  secondaryColor = 0x4ee031;
   minHeight = 0.1;
   maxHeight = 0.3;
   temperature = 0.5;
@@ -40,8 +41,45 @@ export class BiomeGenBase {
     generateLakes: true,
   };
 
+  /** Natural spawning by category, as EntityList names (BiomeGenBase constructor defaults). */
+  readonly spawnableMonsterList: SpawnListEntry[] = [
+    spawnListEntry('Spider', 10, 4, 4),
+    spawnListEntry('Zombie', 10, 4, 4),
+    spawnListEntry('Skeleton', 10, 4, 4),
+    spawnListEntry('Creeper', 10, 4, 4),
+    spawnListEntry('Slime', 10, 4, 4),
+    spawnListEntry('Enderman', 1, 1, 4),
+  ];
+  readonly spawnableCreatureList: SpawnListEntry[] = [
+    spawnListEntry('Sheep', 12, 4, 4),
+    spawnListEntry('Pig', 10, 4, 4),
+    spawnListEntry('Chicken', 10, 4, 4),
+    spawnListEntry('Cow', 8, 4, 4),
+  ];
+  readonly spawnableWaterCreatureList: SpawnListEntry[] = [spawnListEntry('Squid', 10, 4, 4)];
+  readonly spawnableCaveCreatureList: SpawnListEntry[] = [spawnListEntry('Bat', 10, 8, 8)];
+
   constructor(readonly biomeID: number) {
     BiomeGenBase.biomeList[biomeID] = this;
+  }
+
+  getSpawnableList(type: EnumCreatureType): SpawnListEntry[] {
+    switch (type) {
+      case EnumCreatureType.monster:
+        return this.spawnableMonsterList;
+      case EnumCreatureType.creature:
+        return this.spawnableCreatureList;
+      case EnumCreatureType.waterCreature:
+        return this.spawnableWaterCreatureList;
+      case EnumCreatureType.ambient:
+        return this.spawnableCaveCreatureList;
+    }
+  }
+
+  /** Per-biome changes to the spawn lists (BiomeGenForest, BiomeGenDesert, ...). */
+  editSpawns(fn: (b: this) => void): this {
+    fn(this);
+    return this;
   }
 
   setColor(c: number): this {
@@ -71,8 +109,9 @@ export class BiomeGenBase {
     this.enableSnow = true;
     return this;
   }
-  func_76733_a(c: number): this {
-    this.field_76754_C = c;
+  /** func_76733_a */
+  setSecondaryColor(c: number): this {
+    this.secondaryColor = c;
     return this;
   }
 
@@ -128,6 +167,7 @@ class BiomeGenSwamp extends BiomeGenBase {
     this.decorator.flowersPerChunk = -999;
     this.decorator.deadBushPerChunk = 1;
     this.decorator.mushroomsPerChunk = 8;
+    this.spawnableMonsterList.push(spawnListEntry('Slime', 1, 1, 1));
     this.decorator.reedsPerChunk = 10;
     this.decorator.clayPerChunk = 1;
     this.decorator.waterlilyPerChunk = 4;
@@ -189,8 +229,36 @@ function decorate(b: BiomeGenBase, d: Partial<BiomeGenBase['decorator']>): Biome
   return b;
 }
 
+/** Spawn-list edits of the biome subclasses of 1.5.2. */
+const noCreatures = (b: BiomeGenBase) => (b.spawnableCreatureList.length = 0); // ocean, river, desert, beach
+const wolves = (weight: number) => (b: BiomeGenBase) => b.spawnableCreatureList.push(spawnListEntry('Wolf', weight, 4, 4)); // forest 5, taiga 8
+const jungleSpawns = (b: BiomeGenBase) => {
+  b.spawnableMonsterList.push(spawnListEntry('Ozelot', 2, 1, 1));
+  b.spawnableCreatureList.push(spawnListEntry('Chicken', 10, 4, 4));
+};
+const mushroomSpawns = (b: BiomeGenBase) => {
+  b.spawnableMonsterList.length = 0;
+  b.spawnableCreatureList.length = 0;
+  b.spawnableWaterCreatureList.length = 0;
+  b.spawnableCreatureList.push(spawnListEntry('MushroomCow', 8, 4, 8));
+};
+const hellSpawns = (b: BiomeGenBase) => {
+  b.spawnableMonsterList.length = 0;
+  b.spawnableCreatureList.length = 0;
+  b.spawnableWaterCreatureList.length = 0;
+  b.spawnableCaveCreatureList.length = 0;
+  b.spawnableMonsterList.push(spawnListEntry('Ghast', 50, 4, 4), spawnListEntry('PigZombie', 100, 4, 4), spawnListEntry('LavaSlime', 1, 4, 4));
+};
+const endSpawns = (b: BiomeGenBase) => {
+  b.spawnableMonsterList.length = 0;
+  b.spawnableCreatureList.length = 0;
+  b.spawnableWaterCreatureList.length = 0;
+  b.spawnableCaveCreatureList.length = 0;
+  b.spawnableMonsterList.push(spawnListEntry('Enderman', 10, 4, 4));
+};
+
 export const Biomes = {
-  ocean: B(0).setColor(112).setBiomeName('Ocean').setMinMaxHeight(-1.0, 0.4),
+  ocean: B(0).setColor(112).setBiomeName('Ocean').setMinMaxHeight(-1.0, 0.4).editSpawns(noCreatures),
   plains: decorate(B(1).setColor(9286496).setBiomeName('Plains').setTemperatureRainfall(0.8, 0.4), {
     treesPerChunk: -999,
     flowersPerChunk: 4,
@@ -201,65 +269,65 @@ export const Biomes = {
     b.topBlock = SAND;
     b.fillerBlock = SAND;
     return decorate(b, { treesPerChunk: -999, deadBushPerChunk: 2, reedsPerChunk: 50, cactiPerChunk: 10 });
-  })(),
+  })().editSpawns(noCreatures),
   extremeHills: B(3).setColor(6316128).setBiomeName('Extreme Hills').setMinMaxHeight(0.3, 1.5).setTemperatureRainfall(0.2, 0.3),
-  forest: decorate(B(4).setColor(353825).setBiomeName('Forest').func_76733_a(5159473).setTemperatureRainfall(0.7, 0.8), {
+  forest: decorate(B(4).setColor(353825).setBiomeName('Forest').setSecondaryColor(5159473).setTemperatureRainfall(0.7, 0.8), {
     treesPerChunk: 10,
     grassPerChunk: 2,
-  }),
+  }).editSpawns(wolves(5)),
   taiga: decorate(
-    B(5).setColor(747097).setBiomeName('Taiga').func_76733_a(5159473).setEnableSnow().setTemperatureRainfall(0.05, 0.8).setMinMaxHeight(0.1, 0.4),
+    B(5).setColor(747097).setBiomeName('Taiga').setSecondaryColor(5159473).setEnableSnow().setTemperatureRainfall(0.05, 0.8).setMinMaxHeight(0.1, 0.4),
     { treesPerChunk: 10, grassPerChunk: 1 },
-  ),
-  swampland: new BiomeGenSwamp(6).setColor(522674).setBiomeName('Swampland').func_76733_a(9154376).setMinMaxHeight(-0.2, 0.1).setTemperatureRainfall(0.8, 0.9),
-  river: B(7).setColor(255).setBiomeName('River').setMinMaxHeight(-0.5, 0.0),
-  hell: B(8).setColor(16711680).setBiomeName('Hell').setDisableRain().setTemperatureRainfall(2.0, 0.0),
-  sky: B(9).setColor(8421631).setBiomeName('Sky').setDisableRain(),
-  frozenOcean: B(10).setColor(9474208).setBiomeName('FrozenOcean').setEnableSnow().setMinMaxHeight(-1.0, 0.5).setTemperatureRainfall(0.0, 0.5),
-  frozenRiver: B(11).setColor(10526975).setBiomeName('FrozenRiver').setEnableSnow().setMinMaxHeight(-0.5, 0.0).setTemperatureRainfall(0.0, 0.5),
+  ).editSpawns(wolves(8)),
+  swampland: new BiomeGenSwamp(6).setColor(522674).setBiomeName('Swampland').setSecondaryColor(9154376).setMinMaxHeight(-0.2, 0.1).setTemperatureRainfall(0.8, 0.9),
+  river: B(7).setColor(255).setBiomeName('River').setMinMaxHeight(-0.5, 0.0).editSpawns(noCreatures),
+  hell: B(8).setColor(16711680).setBiomeName('Hell').setDisableRain().setTemperatureRainfall(2.0, 0.0).editSpawns(hellSpawns),
+  sky: B(9).setColor(8421631).setBiomeName('Sky').setDisableRain().editSpawns(endSpawns),
+  frozenOcean: B(10).setColor(9474208).setBiomeName('FrozenOcean').setEnableSnow().setMinMaxHeight(-1.0, 0.5).setTemperatureRainfall(0.0, 0.5).editSpawns(noCreatures),
+  frozenRiver: B(11).setColor(10526975).setBiomeName('FrozenRiver').setEnableSnow().setMinMaxHeight(-0.5, 0.0).setTemperatureRainfall(0.0, 0.5).editSpawns(noCreatures),
   icePlains: B(12).setColor(16777215).setBiomeName('Ice Plains').setEnableSnow().setTemperatureRainfall(0.0, 0.5),
   iceMountains: B(13).setColor(10526880).setBiomeName('Ice Mountains').setEnableSnow().setMinMaxHeight(0.3, 1.3).setTemperatureRainfall(0.0, 0.5),
   mushroomIsland: (() => {
     const b = B(14).setColor(16711935).setBiomeName('MushroomIsland').setTemperatureRainfall(0.9, 1.0).setMinMaxHeight(0.2, 1.0);
     b.topBlock = MYCELIUM;
     return decorate(b, { treesPerChunk: -100, flowersPerChunk: -100, grassPerChunk: -100, mushroomsPerChunk: 1, bigMushroomsPerChunk: 1 });
-  })(),
+  })().editSpawns(mushroomSpawns),
   mushroomIslandShore: (() => {
     const b = B(15).setColor(10486015).setBiomeName('MushroomIslandShore').setTemperatureRainfall(0.9, 1.0).setMinMaxHeight(-1.0, 0.1);
     b.topBlock = MYCELIUM;
     return decorate(b, { treesPerChunk: -100, flowersPerChunk: -100, grassPerChunk: -100, mushroomsPerChunk: 1, bigMushroomsPerChunk: 1 });
-  })(),
+  })().editSpawns(mushroomSpawns),
   beach: (() => {
     const b = B(16).setColor(16440917).setBiomeName('Beach').setTemperatureRainfall(0.8, 0.4).setMinMaxHeight(0.0, 0.1);
     b.topBlock = SAND;
     b.fillerBlock = SAND;
     return decorate(b, { treesPerChunk: -999, deadBushPerChunk: 0, reedsPerChunk: 0, cactiPerChunk: 0 });
-  })(),
+  })().editSpawns(noCreatures),
   desertHills: (() => {
     const b = B(17).setColor(13786898).setBiomeName('DesertHills').setDisableRain().setTemperatureRainfall(2.0, 0.0).setMinMaxHeight(0.3, 0.8);
     b.topBlock = SAND;
     b.fillerBlock = SAND;
     return decorate(b, { treesPerChunk: -999, deadBushPerChunk: 2, reedsPerChunk: 50, cactiPerChunk: 10 });
-  })(),
-  forestHills: decorate(B(18).setColor(2250012).setBiomeName('ForestHills').func_76733_a(5159473).setTemperatureRainfall(0.7, 0.8).setMinMaxHeight(0.3, 0.7), {
+  })().editSpawns(noCreatures),
+  forestHills: decorate(B(18).setColor(2250012).setBiomeName('ForestHills').setSecondaryColor(5159473).setTemperatureRainfall(0.7, 0.8).setMinMaxHeight(0.3, 0.7), {
     treesPerChunk: 10,
     grassPerChunk: 2,
-  }),
+  }).editSpawns(wolves(5)),
   taigaHills: decorate(
-    B(19).setColor(1456435).setBiomeName('TaigaHills').setEnableSnow().func_76733_a(5159473).setTemperatureRainfall(0.05, 0.8).setMinMaxHeight(0.3, 0.8),
+    B(19).setColor(1456435).setBiomeName('TaigaHills').setEnableSnow().setSecondaryColor(5159473).setTemperatureRainfall(0.05, 0.8).setMinMaxHeight(0.3, 0.8),
     { treesPerChunk: 10, grassPerChunk: 1 },
-  ),
+  ).editSpawns(wolves(8)),
   extremeHillsEdge: B(20).setColor(7501978).setBiomeName('Extreme Hills Edge').setMinMaxHeight(0.2, 0.8).setTemperatureRainfall(0.2, 0.3),
-  jungle: decorate(B(21).setColor(5470985).setBiomeName('Jungle').func_76733_a(5470985).setTemperatureRainfall(1.2, 0.9).setMinMaxHeight(0.2, 0.4), {
+  jungle: decorate(B(21).setColor(5470985).setBiomeName('Jungle').setSecondaryColor(5470985).setTemperatureRainfall(1.2, 0.9).setMinMaxHeight(0.2, 0.4), {
     treesPerChunk: 50,
     grassPerChunk: 25,
     flowersPerChunk: 4,
-  }),
-  jungleHills: decorate(B(22).setColor(2900485).setBiomeName('JungleHills').func_76733_a(5470985).setTemperatureRainfall(1.2, 0.9).setMinMaxHeight(1.8, 0.5), {
+  }).editSpawns(jungleSpawns),
+  jungleHills: decorate(B(22).setColor(2900485).setBiomeName('JungleHills').setSecondaryColor(5470985).setTemperatureRainfall(1.2, 0.9).setMinMaxHeight(1.8, 0.5), {
     treesPerChunk: 50,
     grassPerChunk: 25,
     flowersPerChunk: 4,
-  }),
+  }).editSpawns(jungleSpawns),
 };
 
 /** Biome for an id, falling back to plains like Chunk.getBiomeGenForWorldCoords. */

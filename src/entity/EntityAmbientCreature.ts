@@ -1,3 +1,4 @@
+import { EnumCreatureType } from '../world/biome/SpawnListEntry';
 import type { World } from '../world/World';
 import { EntityLiving } from './EntityLiving';
 
@@ -5,5 +6,9 @@ import { EntityLiving } from './EntityLiving';
 export abstract class EntityAmbientCreature extends EntityLiving {
   constructor(world: World) {
     super(world);
+  }
+
+  override get creatureType(): EnumCreatureType {
+    return EnumCreatureType.ambient;
   }
 }

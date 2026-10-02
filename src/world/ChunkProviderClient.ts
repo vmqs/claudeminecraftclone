@@ -1,4 +1,7 @@
 import { MathHelper } from '../core/MathHelper';
+import type { Entity } from '../entity/Entity';
+import type { EntityLiving } from '../entity/EntityLiving';
+import { EntityList } from '../entity/EntityList';
 import type { ChunkPayload, WorldGenRequest, WorldGenResponse } from '../workers/worldgenProtocol';
 import { Chunk } from './Chunk';
 import { ChunkSection } from './ChunkSection';
@@ -17,6 +20,10 @@ export class ChunkProviderClient {
   private readonly incoming: ChunkPayload[] = [];
   /** Unloaded chunks kept in memory (player-modified or holding entities). */
   readonly stored = new Map<number, Chunk>();
+  /** Chunks that already received their world-generation animals (regenerating must not add more). */
+  private readonly populatedOnce = new Set<number>();
+  /** Entities of unloaded unmodified chunks: the terrain is regenerated, the entities come back. */
+  readonly storedEntities = new Map<number, Entity[]>();
   private ready = false;
   private spawnWaiters: ((p: { x: number; y: number; z: number }) => void)[] = [];
   private lastCX = Number.NaN;
@@ -114,6 +121,15 @@ export class ChunkProviderClient {
       const k = World.chunkKey(m.cx, m.cz);
       if (!this.requested.delete(k) || this.world.chunkExists(m.cx, m.cz)) continue;
       this.world.addChunk(this.makeChunk(m));
+      if (!this.populatedOnce.has(k)) {
+        this.populatedOnce.add(k);
+        this.spawnGeneratedEntities(m);
+      }
+      const kept = this.storedEntities.get(k);
+      if (kept) {
+        this.storedEntities.delete(k);
+        for (const e of kept) this.world.spawnEntityInWorld(e);
+      }
       n++;
       if (performance.now() - t0 > budgetMs) break;
     }
@@ -140,13 +156,30 @@ export class ChunkProviderClient {
     return c;
   }
 
+  /** performWorldGenSpawning's animals, created through EntityList (unknown names are skipped). */
+  private spawnGeneratedEntities(m: ChunkPayload): void {
+    for (const d of m.entities) {
+      const e = EntityList.createEntityByName(d.name, this.world);
+      if (!e) continue;
+      e.setLocationAndAngles(d.x, d.y, d.z, d.yaw, 0);
+      this.world.spawnEntityInWorld(e);
+      if (e.isLivingEntity) (e as EntityLiving).initCreature();
+    }
+  }
+
   unloadChunk(cx: number, cz: number): void {
     const c = this.world.removeChunk(cx, cz);
     if (!c) return;
     // Generation is deterministic: only chunks changed by players (not by the world's own
-    // ticking: leaf decay, grass, fluids settling) or holding entities need to be kept.
-    const hasEntities = c.entityLists.some((l) => l.some((e) => !e.isPlayerEntity));
-    if (c.playerModified || hasEntities) this.stored.set(World.chunkKey(cx, cz), c);
+    // ticking: leaf decay, grass, fluids settling) are kept whole; of the others only the
+    // entities are kept, to be put back into the regenerated terrain.
+    const k = World.chunkKey(cx, cz);
+    if (c.playerModified) {
+      this.stored.set(k, c);
+      return;
+    }
+    const entities = c.entityLists.flat().filter((e) => !e.isPlayerEntity && !e.isDead);
+    if (entities.length > 0) this.storedEntities.set(k, entities);
   }
 
   /** Whether every chunk within `radius` of the block position is present. */
@@ -166,6 +199,7 @@ export class ChunkProviderClient {
     this.incoming.length = 0;
     this.requested.clear();
     this.stored.clear();
+    this.storedEntities.clear();
   }
 
   private static unkey(k: number): [number, number] {

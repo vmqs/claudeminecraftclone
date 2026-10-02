@@ -1,6 +1,7 @@
 import { BlockIds, ItemIds } from '../block/BlockIds';
 import { MathHelper } from '../core/MathHelper';
 import type { ItemStack } from '../item/ItemStack';
+import { EnumCreatureType } from '../world/biome/SpawnListEntry';
 import type { World } from '../world/World';
 import type { DamageSource } from './DamageSource';
 import type { Entity } from './Entity';
@@ -20,6 +21,10 @@ export abstract class EntityAnimal extends EntityAgeable {
 
   constructor(world: World) {
     super(world);
+  }
+
+  override get creatureType(): EnumCreatureType {
+    return EnumCreatureType.creature;
   }
 
   protected override updateAITick(): void {

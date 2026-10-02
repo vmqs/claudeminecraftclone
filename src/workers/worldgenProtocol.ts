@@ -1,4 +1,5 @@
 import type { TagCompound } from '../item/ItemStack';
+import type { EntitySpawnDescriptor } from '../world/gen/WorldGenSpawning';
 
 /** Messages between the main thread and worldgen.worker.ts (see ARCHITECTURE.md §5.2). */
 export type WorldGenRequest =
@@ -28,6 +29,8 @@ export interface ChunkPayload {
   pendingTicks: number[][];
   /** Tile entities placed by generation (TileEntity.writeToNBT: spawner mob, chest contents). */
   tileEntities: TagCompound[];
+  /** Animals placed by world generation (EntityList names). */
+  entities: EntitySpawnDescriptor[];
 }
 
 export type WorldGenResponse = { type: 'ready' } | { type: 'spawn'; x: number; y: number; z: number } | ChunkPayload;

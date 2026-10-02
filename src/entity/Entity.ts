@@ -7,6 +7,7 @@ import { JavaRandom } from '../core/JavaRandom';
 import { MathHelper } from '../core/MathHelper';
 import { Vec3 } from '../core/Vec3';
 import { ItemStack } from '../item/ItemStack';
+import type { EnumCreatureType } from '../world/biome/SpawnListEntry';
 import type { Explosion } from '../world/Explosion';
 import type { World } from '../world/World';
 import { DamageSource } from './DamageSource';
@@ -36,6 +37,10 @@ export abstract class Entity {
   /** Hostile (implements IMob in the original): monsters, slimes, ghasts. */
   get isIMob(): boolean {
     return false;
+  }
+  /** Natural-spawning category this entity counts towards (animals, ambient, water), if any. */
+  get creatureType(): EnumCreatureType | null {
+    return null;
   }
   worldObj: World;
   prevPosX = 0;

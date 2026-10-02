@@ -102,7 +102,8 @@ function finalizeChunk(cx: number, cz: number): ChunkPayload {
     te.writeToNBT(tag);
     tileEntities.push(tag);
   }
-  return { type: 'chunk', cx, cz, sections, heightMap: c.heightMap.slice(), biomes: c.biomes.slice(), pendingTicks: ticks, tileEntities };
+  const entities = c.pendingSpawns.filter((d) => Math.floor(d.x) >> 4 === cx && Math.floor(d.z) >> 4 === cz);
+  return { type: 'chunk', cx, cz, sections, heightMap: c.heightMap.slice(), biomes: c.biomes.slice(), pendingTicks: ticks, tileEntities, entities };
 }
 
 /** WorldChunkManager.findBiomePosition over the 1:4 biome grid (reservoir pick). */

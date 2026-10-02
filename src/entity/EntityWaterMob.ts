@@ -1,4 +1,5 @@
 import { Material } from '../block/Material';
+import { EnumCreatureType } from '../world/biome/SpawnListEntry';
 import type { World } from '../world/World';
 import { DamageSource } from './DamageSource';
 import { EntityCreature } from './EntityCreature';
@@ -8,6 +9,10 @@ import type { EntityPlayer } from './EntityPlayer';
 export abstract class EntityWaterMob extends EntityCreature {
   constructor(world: World) {
     super(world);
+  }
+
+  override get creatureType(): EnumCreatureType {
+    return EnumCreatureType.waterCreature;
   }
 
   override canBreatheUnderwater(): boolean {

@@ -11,6 +11,7 @@ import { Vec3 } from '../core/Vec3';
 import { PathFinder } from '../entity/ai/PathFinder';
 import type { PathEntity } from '../entity/ai/PathEntity';
 import type { Entity } from '../entity/Entity';
+import type { EntityLiving } from '../entity/EntityLiving';
 import type { EntityPlayer } from '../entity/EntityPlayer';
 import type { ItemStack } from '../item/ItemStack';
 import { getBiome, type BiomeGenBase } from './biome/BiomeGenBase';
@@ -19,6 +20,7 @@ import { EnumSkyBlock, SKY_BLOCK_DEFAULT, type IBlockAccess } from './IBlockAcce
 import type { IWorld } from './IWorld';
 import type { IWorldAccess } from './IWorldAccess';
 import { Explosion } from './Explosion';
+import { SpawnerAnimals } from './SpawnerAnimals';
 import { NextTickListEntry, TickScheduler } from './NextTickListEntry';
 import type { TileEntity } from './tileentity/TileEntity';
 import { WorldProvider } from './WorldProvider';
@@ -102,8 +104,13 @@ export class World implements IWorld, IBlockAccess {
   private readonly collidingBoundingBoxes: AxisAlignedBB[] = [];
   /** >0 while the world changes itself (see runNaturally). */
   private naturalDepth = 0;
-  /** Spawn hook for natural mob spawning (SpawnerAnimals; installed by the mob code). */
-  mobSpawner: ((w: World) => void) | null = null;
+  /**
+   * Natural mob spawning each tick (doMobSpawning): SpawnerAnimals by default, hostile mobs
+   * only above Peaceful, animals every 400 ticks. Replaceable for tests.
+   */
+  mobSpawner: ((w: World) => void) | null = (w) => {
+    SpawnerAnimals.findChunksForSpawning(w, w.difficultySetting > 0, true, w.worldInfo.totalTime % 400 === 0);
+  };
 
   constructor(info: WorldInfo) {
     this.worldInfo = info;
@@ -1021,6 +1028,16 @@ export class World implements IWorld, IBlockAccess {
     return found;
   }
 
+  /** Entities passing `test`, not counting persistent ones (named or holding picked-up loot). */
+  countEntities(test: (e: Entity) => boolean): number {
+    let n = 0;
+    for (const e of this.loadedEntityList) {
+      if (e.isLivingEntity && (e as EntityLiving).isNoDespawnRequired()) continue;
+      if (test(e)) n++;
+    }
+    return n;
+  }
+
   getClosestPlayerToEntity(e: Entity, maxDist: number): EntityPlayer | null {
     return this.getClosestPlayer(e.posX, e.posY, e.posZ, maxDist);
   }
@@ -1651,7 +1668,7 @@ export class World implements IWorld, IBlockAccess {
     this.naturalDepth++;
     try {
       this.updateWeather();
-      this.mobSpawner?.(this);
+      if (this.worldInfo.gameRules.doMobSpawning) this.mobSpawner?.(this);
     } finally {
       this.naturalDepth--;
     }

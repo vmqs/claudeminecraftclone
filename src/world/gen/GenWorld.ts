@@ -9,6 +9,7 @@ import { getBiome, type BiomeGenBase } from '../biome/BiomeGenBase';
 import { Chunk, type ChunkHost } from '../Chunk';
 import { EnumSkyBlock } from '../IBlockAccess';
 import type { TileEntity } from '../tileentity/TileEntity';
+import type { EntitySpawnDescriptor } from './WorldGenSpawning';
 import type { WorldProviderInfo } from '../IWorld';
 import type { BiomeSource } from './ChunkProviderGenerate';
 
@@ -273,6 +274,11 @@ export class GenWorld implements ChunkHost {
     return false;
   }
   dropItemStack(_x: number, _y: number, _z: number, _s: ItemStack): void {}
+
+  /** World-generation animals travel with the chunk they stand in. */
+  recordSpawn(d: EntitySpawnDescriptor): void {
+    this.chunkAt(Math.floor(d.x), Math.floor(d.z))?.pendingSpawns.push(d);
+  }
 
   // ---------------------------------------------------------------- tile entities (not ticked here)
   /** Tile entities placed while generating travel with the chunk payload as descriptors. */

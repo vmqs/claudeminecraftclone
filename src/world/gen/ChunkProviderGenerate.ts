@@ -7,6 +7,7 @@ import type { IWorld } from '../IWorld';
 import { BiomeDecorator } from './BiomeDecorator';
 import { NoiseGeneratorOctaves } from './NoiseGeneratorOctaves';
 import { WorldGenLakes } from './WorldGenLakes';
+import { performWorldGenSpawning, type SpawnRecorder } from './WorldGenSpawning';
 
 const f = Math.fround;
 
@@ -314,6 +315,7 @@ export class ChunkProviderGenerate {
       this.rand.nextInt(16);
     }
     new BiomeDecorator(biome).decorate(world, this.rand, x, z);
+    if ('recordSpawn' in world) performWorldGenSpawning(world as IWorld & SpawnRecorder, biome, x + 8, z + 8, 16, 16, this.rand);
     x += 8;
     z += 8;
     for (let i = 0; i < 16; i++) {

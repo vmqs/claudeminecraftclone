@@ -8,6 +8,7 @@ import { EnumSkyBlock, SKY_BLOCK_DEFAULT } from './IBlockAccess';
 import type { IWorld } from './IWorld';
 import { Material } from '../block/Material';
 import { isTileEntityProvider, type TileEntity } from './tileentity/TileEntity';
+import type { EntitySpawnDescriptor } from './gen/WorldGenSpawning';
 
 /** What a Chunk needs from its world (the client World, or the generation world in the worker). */
 export interface ChunkHost extends IWorld {
@@ -50,6 +51,8 @@ export class Chunk {
    * generator they are natural (6th element missing or 1); ticks saved on unload keep their origin.
    */
   pendingTicks: number[][] = [];
+  /** Animals placed by world generation (performWorldGenSpawning), spawned when it loads. */
+  pendingSpawns: EntitySpawnDescriptor[] = [];
   private queuedLightChecks = 4096;
 
   constructor(
