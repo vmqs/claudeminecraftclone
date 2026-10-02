@@ -1,5 +1,6 @@
 import type { Material } from '../block/Material';
 import type { BiomeGenBase } from './biome/BiomeGenBase';
+import type { TileEntity } from './tileentity/TileEntity';
 
 /**
  * Read-only world view used by rendering code (RenderBlocks, Block.getBlockTexture,
@@ -21,6 +22,8 @@ export interface IBlockAccess {
   extendedLevelsInChunkCache(): boolean;
   doesBlockHaveSolidTopSurface(x: number, y: number, z: number): boolean;
   isBlockProvidingPowerTo(x: number, y: number, z: number, side: number): number;
+  /** The tile entity at a position; absent in the mesher's snapshot (ChunkCache). */
+  getBlockTileEntity?(x: number, y: number, z: number): TileEntity | null;
 }
 
 export enum EnumSkyBlock {
