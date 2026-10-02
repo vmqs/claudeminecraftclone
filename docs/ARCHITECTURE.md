@@ -306,10 +306,16 @@ bounds (`minX..maxZ` with `setBlockBounds`, `setBlockBoundsBasedOnState`, `setBl
 code only sees `IBlockAccess`.
 
 `RenderBlocks` (worker-safe) draws render types 0 (standard, with flat, smooth and partial-bounds
-smooth lighting), 1 (crossed squares), 2 (torch), 4 (fluids), 13 (cactus) and 31 (logs). Every
+smooth lighting), 1 (crossed squares), 2 (torch), 4 (fluids), 13 (cactus) and 31 (logs) itself;
+every other type of 1.5.2's `renderBlockByRenderType` (3, 5-12, 14-21, 23-30, 32-39) is in
+`src/render/blocks/` (`RenderShapes.ts`: thin and flat shapes; `RenderStructures.ts`: box-built
+shapes; dispatch table in `RenderTypes.ts`), and unknown types or chests (22) draw nothing. Every
 standard face goes through one quad builder, `renderFace(side, …)`, driven by the `FACES` table
-(geometry, UV layout per `uvRotate*` value, `flipTexture`, smooth-light sample order). Other
-render types fall back to a cube until they are ported (see §13).
+(geometry, UV layout per `uvRotate*` value, `flipTexture`, smooth-light sample order).
+`renderBlockAsItem` / `renderItemIn3d` (`RenderBlockItem.ts`) follow 1.5.2 per render type; chests
+as items draw the chest model through `ChestItemHook`. Tile-entity models (chests, signs, skulls,
+spawner mobs, moving pistons, the enchanting book, beacon beams, end portals) are registered in
+`src/render/tileentity/TileEntityRenderers.ts`.
 
 `Item` and `ItemStack` mirror the original in the same way (`itemID`, `maxStackSize`, `getIconFromDamage`,
 `getIconFromDamageForRenderPass`, `requiresMultipleRenderPasses`, `getColorFromItemStack`,
@@ -479,9 +485,7 @@ places: `src/item/ItemBindings.ts` (imported by `main.ts`; harvest enchantments,
 from `EntityLiving.getActivePotionEffect`, `TileEntityFurnace.smeltingResult` from `FurnaceRecipes`)
 and `src/entity/ItemHooksInstall.ts` (called by `installEntityClientHooks`; fills `ItemEntityFactories`
 with the real entity constructors, `EnchantmentHooks` from `EnchantmentHelper`, and `PotionHooks` from
-`Potion` / `PotionEffect` / `ItemPotion`). Still open after the merge: no `TileEntitySpecialRenderer`
-is registered yet (chests, signs, skulls, spawner cages and enchanting books are invisible in the
-world and `GuiEditSign` draws no sign); no `BlockGuiHooks` handler for furnace, dispenser, brewing
+`Potion` / `PotionEffect` / `ItemPotion`). Still open after the merge: no `BlockGuiHooks` handler for furnace, dispenser, brewing
 stand, enchanting, anvil, beacon or hopper windows (only the core chest and workbench GUIs exist);
 no creative inventory GUI using `CreativeTabs.displayAllReleventItems`; mobs (`Pig`, `Sheep`,
 `Chicken`, ...) that the items and entities slices call by duck typing; dynamic block ticks
