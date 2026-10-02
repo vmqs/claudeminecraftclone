@@ -4,6 +4,7 @@ import type { Minecraft } from '../../client/Minecraft';
 import { Render } from '../entity/Render';
 import { GL } from '../gl/GL';
 import { Tessellator } from '../gl/Tessellator';
+import { hasPotion, SkyPotion } from './SkyHooks';
 
 const f = Math.fround;
 
@@ -20,9 +21,10 @@ export const ScreenOverlays = {
     if (!p) return;
     const helmet = p.inventory.armorItemInSlot(3);
     if (mc.gameSettings.thirdPersonView === 0 && helmet && helmet.itemID === BlockIds.pumpkin) this.renderPumpkinBlur(mc, w, h);
-    // 1.5.2 skips the swirl under Nausea; potion effects do not exist here yet.
-    const portal = f(p.prevTimeInPortal + f(f(p.timeInPortal - p.prevTimeInPortal) * pt));
-    if (portal > 0) this.renderPortalOverlay(mc, portal, w, h);
+    if (!hasPotion(p, SkyPotion.confusion)) {
+      const portal = f(p.prevTimeInPortal + f(f(p.timeInPortal - p.prevTimeInPortal) * pt));
+      if (portal > 0) this.renderPortalOverlay(mc, portal, w, h);
+    }
   },
 
   /** misc/pumpkinblur.png stretched over the screen (GuiIngame.renderPumpkinBlur). */
