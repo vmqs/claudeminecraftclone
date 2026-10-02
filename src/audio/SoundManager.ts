@@ -20,6 +20,12 @@ const MAX_START_DELAY_MS = 1000;
 const CACHE_BUDGET = 64 * 1024 * 1024;
 /** Folders preloaded once the audio context exists: the sounds every session needs at once. */
 const PRELOAD = /^sound3\/(step|dig|random|liquid|damage)\//;
+/**
+ * After those, every other sound effect (mobs, notes, fireworks, ambient, ...) is fetched
+ * compressed in the background, so its first play only needs a quick decode and is not dropped
+ * by the start-delay limit on a slow connection. All of sound3 is about 6 MB compressed.
+ */
+const WARM = /^sound3\//;
 
 /** A playing (or loading) source on one of the 28 normal channels. */
 interface Voice {
@@ -120,6 +126,8 @@ export class SoundManager {
   private readonly scheduled: ScheduledSound[] = [];
   private readonly cache = new Map<string, CacheEntry>();
   private cacheBytes = 0;
+  /** Compressed files fetched (or being fetched) by the background warm-up, by path. */
+  private readonly rawCache = new Map<string, Promise<Uint8Array<ArrayBuffer> | null>>();
   private preloaded = false;
   private listenerX = 0;
   private listenerY = 0;
@@ -150,9 +158,9 @@ export class SoundManager {
     }
     const unlock = () => {
       const ctx = this.ensureContext();
-      if (!ctx) return;
-      this.unlocked = true;
-      if (ctx.state !== 'running') void ctx.resume().catch(() => undefined);
+      // Only a real user activation lets resume() succeed; `unlocked` follows the context's
+      // actual state (onstatechange), never the attempt.
+      if (ctx && ctx.state !== 'running') void ctx.resume().catch(() => undefined);
     };
     for (const ev of ['pointerdown', 'mousedown', 'keydown', 'touchstart']) window.addEventListener(ev, unlock, { capture: true });
     // Where autoplay is allowed (automation, a page that already had a gesture, Firefox's policy
@@ -164,15 +172,7 @@ export class SoundManager {
     } catch {
       // not supported
     }
-    if (allowed) {
-      const ctx = this.ensureContext();
-      if (ctx && ctx.state === 'running') this.unlocked = true;
-      else if (ctx) {
-        ctx.onstatechange = () => {
-          if (ctx.state === 'running') this.unlocked = true;
-        };
-      }
-    }
+    if (allowed) this.ensureContext();
     this.loaded = true;
   }
 
@@ -182,7 +182,13 @@ export class SoundManager {
       try {
         const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
         if (!Ctor) return null;
-        this.ctx = new Ctor({ latencyHint: 'interactive' });
+        const ctx = new Ctor({ latencyHint: 'interactive' });
+        this.ctx = ctx;
+        ctx.onstatechange = () => {
+          this.unlocked = ctx.state === 'running';
+          if (this.unlocked && !this.preloaded) this.preloadCommonSounds();
+        };
+        this.unlocked = ctx.state === 'running';
         this.master = this.ctx.createGain();
         this.master.connect(this.ctx.destination);
       } catch {
@@ -194,29 +200,62 @@ export class SoundManager {
     return this.ctx;
   }
 
-  /** True when sounds can actually be heard now (the original's `loaded`). */
+  /**
+   * True when sounds can actually be heard now (the original's `loaded`). While the context is
+   * suspended (no user activation yet) sounds are skipped rather than queued, so they do not
+   * all burst out once it finally resumes.
+   */
   private isRunning(): boolean {
     const ctx = this.ctx;
     if (!ctx || !this.loaded) return false;
-    if (ctx.state === 'running') {
-      this.unlocked = true;
-      if (!this.preloaded) this.preloadCommonSounds();
-      return true;
-    }
-    // Resuming after a gesture: sources started now play as soon as the context runs.
+    this.unlocked = ctx.state === 'running';
+    if (this.unlocked && !this.preloaded) this.preloadCommonSounds();
     return this.unlocked;
   }
 
-  /** Decodes the step, dig, random, liquid and damage sounds in the background. */
+  /**
+   * Decodes the step, dig, random, liquid and damage sounds in the background, then fetches
+   * the rest of the sound effects compressed (decoding them all would overrun the cache).
+   */
   private preloadCommonSounds(): void {
     this.preloaded = true;
-    const paths = this.resources.listSounds().filter((p) => PRELOAD.test(p));
+    const all = this.resources.listSounds();
+    const common = all.filter((p) => PRELOAD.test(p));
+    const rest = all.filter((p) => WARM.test(p) && !PRELOAD.test(p));
     let i = 0;
+    let running = 4;
     const next = (): void => {
-      if (i >= paths.length) return;
-      void this.load(paths[i++]).then(next, next);
+      if (i < common.length) {
+        void this.load(common[i++]).then(next, next);
+      } else if (--running === 0) {
+        this.warmSounds(rest);
+      }
     };
     for (let k = 0; k < 4; k++) next();
+  }
+
+  /** Fetches files compressed, two at a time, for later decoding. */
+  private warmSounds(paths: string[]): void {
+    let i = 0;
+    const next = (): void => {
+      while (i < paths.length && (this.cache.has(paths[i]) || this.rawCache.has(paths[i]))) i++;
+      if (i >= paths.length) return;
+      void this.fetchRaw(paths[i++]).then(next, next);
+    };
+    for (let k = 0; k < 2; k++) next();
+  }
+
+  /** The compressed file, fetched once (a network error is forgotten so it can be retried). */
+  private fetchRaw(path: string): Promise<Uint8Array<ArrayBuffer> | null> {
+    let p = this.rawCache.get(path);
+    if (!p) {
+      p = this.fetchSoundData(path);
+      this.rawCache.set(path, p);
+      p.catch(() => {
+        if (this.rawCache.get(path) === p) this.rawCache.delete(path);
+      });
+    }
+    return p;
   }
 
   // ------------------------------------------------------------------ data
@@ -236,15 +275,17 @@ export class SoundManager {
     const entry: CacheEntry = { promise: Promise.resolve(null), bytes: 0, lastUse: performance.now() };
     entry.promise = (async () => {
       let data: Uint8Array<ArrayBuffer> | null;
+      // A warmed file is kept compressed, so it is copied (decoding detaches its buffer).
+      const warmed = this.rawCache.get(path);
       try {
-        data = await this.fetchSoundData(path);
+        data = await (warmed ?? this.fetchSoundData(path));
       } catch {
         if (this.cache.get(path) === entry) this.cache.delete(path);
         return null;
       }
       if (!data) return null;
       try {
-        const buf = await ctx.decodeAudioData(data.buffer.byteLength === data.byteLength ? data.buffer : data.slice().buffer);
+        const buf = await ctx.decodeAudioData(!warmed && data.buffer.byteLength === data.byteLength ? data.buffer : data.slice().buffer);
         entry.bytes = buf.length * buf.numberOfChannels * 4;
         this.cacheBytes += entry.bytes;
         this.trimCache(path);
@@ -394,7 +435,7 @@ export class SoundManager {
         this.stopVoice(voice);
         return;
       }
-      if (!loop && performance.now() - requested > MAX_START_DELAY_MS) {
+      if (!loop && (performance.now() - requested > MAX_START_DELAY_MS || ctx.state !== 'running')) {
         this.log({ kind: 'dropped', name: entry.soundName, path: entry.path });
         this.stopVoice(voice);
         return;
@@ -756,6 +797,7 @@ export class SoundManager {
       entitySounds: this.entitySounds.size,
       cachedFiles: this.cache.size,
       cachedBytes: this.cacheBytes,
+      warmedFiles: this.rawCache.size,
       ticksBeforeMusic: this.ticksBeforeMusic,
       music: this.isStreamPlaying(this.bgMusic) ? this.bgMusic!.audio.currentSrc : null,
       record: this.isStreamPlaying(this.streaming) ? this.streaming!.audio.currentSrc || 'pending' : null,
