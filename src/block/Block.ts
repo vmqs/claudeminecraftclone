@@ -51,7 +51,8 @@ export class Block {
   stepSound: StepSound = StepSounds.soundPowderFootstep;
   blockParticleGravity = 1;
   slipperiness = 0.6;
-  private unlocalizedName = '';
+  /** null until setUnlocalizedName, like the original ("tile.null"). */
+  private unlocalizedName: string | null = null;
   protected blockIcon: Icon | null = null;
   private displayOnCreativeTab: CreativeTabs | null = null;
 
@@ -275,10 +276,10 @@ export class Block {
     return this.blockResistance / 5;
   }
   getUnlocalizedName(): string {
-    return 'tile.' + this.unlocalizedName;
+    return 'tile.' + (this.unlocalizedName ?? 'null');
   }
   getUnlocalizedName2(): string {
-    return this.unlocalizedName;
+    return this.unlocalizedName ?? 'null';
   }
   getLocalizedName(): string {
     return I18n.translateToLocal(this.getUnlocalizedName() + '.name');
@@ -368,7 +369,7 @@ export class Block {
   }
 
   registerIcons(reg: IconRegister): void {
-    this.blockIcon = reg.registerIcon(this.unlocalizedName);
+    this.blockIcon = reg.registerIcon(this.getUnlocalizedName2());
   }
 
   getBlockColor(): number {
