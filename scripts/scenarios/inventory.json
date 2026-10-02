@@ -1,19 +1,494 @@
 [
-  { "goto": "?dev=1&autostart=1&seed=-1357935714&hotbar=1&time=6000" },
-  { "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0", "timeout": 240000 },
-  { "eval": "(() => { mc.dev.press(18, 1); const s = mc.currentScreen; return { slots: s && s.inventorySlots.inventorySlots.length }; })()" },
-  { "move": [282, 374] },
-  { "wait": 400 },
-  { "shot": "inventory_tooltip.png" },
-  { "click": [282, 374] },
-  { "move": [300, 200] },
-  { "wait": 400 },
-  { "eval": "(() => ({ cursor: String(mc.thePlayer.inventory.getItemStack()), slot0: String(mc.thePlayer.inventory.mainInventory[0]) }))()" },
-  { "shot": "inventory_cursor.png" },
-  { "click": [282, 374] },
-  { "wait": 400 },
-  { "eval": "(() => ({ cursor: String(mc.thePlayer.inventory.getItemStack()), slot0: String(mc.thePlayer.inventory.mainInventory[0]) }))()" },
-  { "key": "e" },
-  { "wait": 400 },
-  { "eval": "String(mc.currentScreen)" }
+  {
+    "goto": "?dev=1&autostart=1&seed=-1357935714&hotbar=1&time=6000&pos=176.5,64,236.5,0,0"
+  },
+  {
+    "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0",
+    "timeout": 300000
+  },
+  {
+    "eval": "(() => { const w = mc.theWorld; const top = w.getHeightValue(176, 236); mc.dev.tp(176.5, top, 236.5, 0, 0); mc.dev.ticks(1); mc.dev.sky.pin(6000); window.T = mc.dev.lib.Item.itemsList[1].getCreativeTab().constructor; window.S = mc.dev.lib.ItemStack; window.B = mc.dev.lib.Block; window.slotAt = (i) => mc.currentScreen.inventorySlots.inventorySlots[i]; window.Y = top; window.useBlock = (x, z) => { const w = mc.theWorld; B.blocksList[w.getBlockId(x, Y, z)].onBlockActivated(w, x, Y, z, mc.thePlayer, 0, 0, 0, 0); return window.scr(); }; window.scr = () => { const s = mc.currentScreen; return s ? { open: s.inventorySlots === mc.thePlayer.openContainer, slots: s.inventorySlots && s.inventorySlots.inventorySlots.length, w: s.xSize, h: s.ySize } : null; }; window.closeScr = () => { if (mc.currentScreen) mc.thePlayer.closeScreen(); return mc.currentScreen === null; }; return { top, yaw: mc.thePlayer.rotationYaw, pitch: mc.thePlayer.rotationPitch, ground: w.getBlockId(176, top - 1, 236) }; })()"
+  },
+  {
+    "eval": "(() => { mc.dev.select(0); mc.dev.ticks(60); const p = mc.thePlayer; return [String(p.inventory.getCurrentItem()), p.rotationYaw, p.rotationPitch]; })()"
+  },
+  {
+    "wait": 600
+  },
+  {
+    "shot": "inv_held_stone.png"
+  },
+  {
+    "eval": "(() => { mc.dev.select(8); mc.dev.ticks(60); const p = mc.thePlayer; return [String(p.inventory.getCurrentItem()), p.rotationYaw, p.rotationPitch]; })()"
+  },
+  {
+    "wait": 600
+  },
+  {
+    "shot": "inv_held_diamond_sword.png"
+  },
+  {
+    "eval": "(() => { mc.dev.select(7); mc.dev.ticks(60); const p = mc.thePlayer; return [String(p.inventory.getCurrentItem()), p.rotationYaw, p.rotationPitch]; })()"
+  },
+  {
+    "wait": 600
+  },
+  {
+    "shot": "inv_held_torch.png"
+  },
+  {
+    "eval": "(() => { mc.dev.select(5); mc.dev.ticks(60); const p = mc.thePlayer; return [String(p.inventory.getCurrentItem()), p.rotationYaw, p.rotationPitch]; })()"
+  },
+  {
+    "wait": 600
+  },
+  {
+    "shot": "inv_held_log.png"
+  },
+  {
+    "eval": "(() => { const p = mc.thePlayer; p.inventory.currentItem = 4; p.inventory.mainInventory[4] = new S(358, 1, 0); mc.dev.ticks(60); return String(p.inventory.getCurrentItem()); })()"
+  },
+  {
+    "wait": 600
+  },
+  {
+    "shot": "inv_held_map.png"
+  },
+  {
+    "eval": "(() => { const p = mc.thePlayer; p.inventory.mainInventory[4] = new S(261, 1, 0); mc.dev.ticks(60); p.setItemInUse(p.inventory.getCurrentItem(), 72000 - 20); return [String(p.inventory.getCurrentItem()), p.getItemInUseCount()]; })()"
+  },
+  {
+    "wait": 600
+  },
+  {
+    "shot": "inv_held_bow_drawn.png"
+  },
+  {
+    "eval": "(() => { const p = mc.thePlayer; p.clearItemInUse(); p.inventory.mainInventory[4] = new S(320, 1, 0); mc.dev.ticks(60); p.setItemInUse(p.inventory.getCurrentItem(), 32 - 12); return [String(p.inventory.getCurrentItem()), p.getItemInUseCount()]; })()"
+  },
+  {
+    "wait": 600
+  },
+  {
+    "shot": "inv_held_eating.png"
+  },
+  {
+    "eval": "(() => { const p = mc.thePlayer; p.clearItemInUse(); p.inventory.currentItem = 8; mc.dev.ticks(60); p.setItemInUse(p.inventory.getCurrentItem(), 72000); return [String(p.inventory.getCurrentItem()), p.getItemInUseCount()]; })()"
+  },
+  {
+    "wait": 600
+  },
+  {
+    "shot": "inv_held_sword_blocking.png"
+  },
+  {
+    "eval": "(() => { const p = mc.thePlayer; p.clearItemInUse(); p.inventory.mainInventory[4] = new S(5, 1, 0); const s = new S(276, 1, 0); s.setTagCompound({ ench: [{ id: 16, lvl: 5 }] }); p.inventory.mainInventory[2] = s; p.inventory.currentItem = 2; mc.dev.ticks(60); return [String(s), s.hasEffect(), s.isItemEnchanted()]; })()"
+  },
+  {
+    "wait": 600
+  },
+  {
+    "shot": "inv_held_enchanted_sword.png"
+  },
+  {
+    "eval": "(() => { const p = mc.thePlayer; p.inventory.mainInventory[2] = new S(3, 1, 0); p.inventory.currentItem = 5; mc.dev.ticks(60); mc.gameSettings.thirdPersonView = 2; return String(p.inventory.getCurrentItem()); })()"
+  },
+  {
+    "wait": 800
+  },
+  {
+    "shot": "inv_thirdperson_front_log.png"
+  },
+  {
+    "eval": "(() => { mc.gameSettings.thirdPersonView = 0; mc.dev.fillHotbar(); mc.thePlayer.inventory.currentItem = 5; mc.dev.ticks(12); return 'ok'; })()"
+  },
+  {
+    "eval": "(() => { mc.dev.sky.unfreeze(); mc.dev.press(18, 1); return 'E'; })()"
+  },
+  {
+    "waitFor": "mc.currentScreen !== null && typeof mc.currentScreen.setCurrentCreativeTab === 'function'",
+    "timeout": 30000
+  },
+  {
+    "move": [
+      2,
+      2
+    ]
+  },
+  {
+    "move": [
+      0,
+      0
+    ]
+  },
+  {
+    "eval": "(() => { mc.currentScreen.setCurrentCreativeTab(T.creativeTabArray[0]); const c = mc.currentScreen.inventorySlots; return { tab: mc.currentScreen.getSelectedTabIndex(), items: c.itemList.length, slots: c.inventorySlots.length }; })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_creative_01_building_blocks.png"
+  },
+  {
+    "eval": "(() => { mc.currentScreen.setCurrentCreativeTab(T.creativeTabArray[1]); const c = mc.currentScreen.inventorySlots; return { tab: mc.currentScreen.getSelectedTabIndex(), items: c.itemList.length, slots: c.inventorySlots.length }; })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_creative_02_decoration_blocks.png"
+  },
+  {
+    "eval": "(() => { mc.currentScreen.setCurrentCreativeTab(T.creativeTabArray[2]); const c = mc.currentScreen.inventorySlots; return { tab: mc.currentScreen.getSelectedTabIndex(), items: c.itemList.length, slots: c.inventorySlots.length }; })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_creative_03_redstone.png"
+  },
+  {
+    "eval": "(() => { mc.currentScreen.setCurrentCreativeTab(T.creativeTabArray[3]); const c = mc.currentScreen.inventorySlots; return { tab: mc.currentScreen.getSelectedTabIndex(), items: c.itemList.length, slots: c.inventorySlots.length }; })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_creative_04_transportation.png"
+  },
+  {
+    "eval": "(() => { mc.currentScreen.setCurrentCreativeTab(T.creativeTabArray[4]); const c = mc.currentScreen.inventorySlots; return { tab: mc.currentScreen.getSelectedTabIndex(), items: c.itemList.length, slots: c.inventorySlots.length }; })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_creative_05_miscellaneous.png"
+  },
+  {
+    "eval": "(() => { mc.currentScreen.setCurrentCreativeTab(T.creativeTabArray[5]); const c = mc.currentScreen.inventorySlots; return { tab: mc.currentScreen.getSelectedTabIndex(), items: c.itemList.length, slots: c.inventorySlots.length }; })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_creative_06_search.png"
+  },
+  {
+    "eval": "(() => { mc.currentScreen.setCurrentCreativeTab(T.creativeTabArray[6]); const c = mc.currentScreen.inventorySlots; return { tab: mc.currentScreen.getSelectedTabIndex(), items: c.itemList.length, slots: c.inventorySlots.length }; })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_creative_07_foodstuffs.png"
+  },
+  {
+    "eval": "(() => { mc.currentScreen.setCurrentCreativeTab(T.creativeTabArray[7]); const c = mc.currentScreen.inventorySlots; return { tab: mc.currentScreen.getSelectedTabIndex(), items: c.itemList.length, slots: c.inventorySlots.length }; })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_creative_08_tools.png"
+  },
+  {
+    "eval": "(() => { mc.currentScreen.setCurrentCreativeTab(T.creativeTabArray[8]); const c = mc.currentScreen.inventorySlots; return { tab: mc.currentScreen.getSelectedTabIndex(), items: c.itemList.length, slots: c.inventorySlots.length }; })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_creative_09_combat.png"
+  },
+  {
+    "move": [
+      267,
+      157
+    ]
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_creative_tooltip_combat_slot0.png"
+  },
+  {
+    "move": [
+      0,
+      0
+    ]
+  },
+  {
+    "eval": "(() => { mc.currentScreen.setCurrentCreativeTab(T.creativeTabArray[9]); const c = mc.currentScreen.inventorySlots; return { tab: mc.currentScreen.getSelectedTabIndex(), items: c.itemList.length, slots: c.inventorySlots.length }; })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_creative_10_brewing.png"
+  },
+  {
+    "eval": "(() => { mc.currentScreen.setCurrentCreativeTab(T.creativeTabArray[10]); const c = mc.currentScreen.inventorySlots; return { tab: mc.currentScreen.getSelectedTabIndex(), items: c.itemList.length, slots: c.inventorySlots.length }; })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_creative_11_materials.png"
+  },
+  {
+    "eval": "(() => { mc.currentScreen.setCurrentCreativeTab(T.creativeTabArray[11]); const c = mc.currentScreen.inventorySlots; return { tab: mc.currentScreen.getSelectedTabIndex(), items: c.itemList.length, slots: c.inventorySlots.length }; })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_creative_12_survival_inventory.png"
+  },
+  {
+    "eval": "(() => { mc.currentScreen.setCurrentCreativeTab(T.creativeTabArray[0]); return 'ok'; })()"
+  },
+  {
+    "move": [
+      303,
+      157
+    ]
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_creative_tooltip_grass.png"
+  },
+  {
+    "eval": "(() => { mc.gameSettings.advancedItemTooltips = true; return 'adv'; })()"
+  },
+  {
+    "wait": 700
+  },
+  {
+    "shot": "inv_creative_tooltip_grass_advanced.png"
+  },
+  {
+    "eval": "(() => { mc.gameSettings.advancedItemTooltips = false; return 'ok'; })()"
+  },
+  {
+    "move": [
+      0,
+      0
+    ]
+  },
+  {
+    "eval": "(() => { const s = mc.currentScreen, inv = mc.thePlayer.inventory, r = {}; inv.setItemStack(null); s.handleMouseClick(slotAt(1), 1, 0, 0); r.pick = String(inv.getItemStack()); s.handleMouseClick(slotAt(1), 1, 0, 0); r.addOne = inv.getItemStack() && inv.getItemStack().stackSize; s.handleMouseClick(slotAt(1), 1, 0, 1); r.shiftFill = inv.getItemStack() && inv.getItemStack().stackSize; s.handleMouseClick(slotAt(1), 1, 1, 0); r.rightRemovesOne = inv.getItemStack() && inv.getItemStack().stackSize; s.handleMouseClick(slotAt(0), 0, 0, 0); r.otherDeletes = inv.getItemStack() === null; s.handleMouseClick(slotAt(2), 2, 0, 1); r.shiftPickFull = inv.getItemStack() && inv.getItemStack().stackSize; inv.mainInventory[2] = null; s.handleMouseClick(slotAt(45 + 2), 47, 0, 0); r.putInHotbar = String(inv.mainInventory[2]); r.heldAfterPut = String(inv.getItemStack()); s.handleMouseClick(slotAt(4), 4, 3, 2); r.numberKey = String(inv.mainInventory[3]); let n = mc.theWorld.loadedEntityList.length; s.handleMouseClick(slotAt(3), 3, 0, 4); r.qDrops = mc.theWorld.loadedEntityList.length - n; inv.setItemStack(null); s.handleMouseClick(slotAt(5), 5, 2, 3); r.middleClone = String(inv.getItemStack()); n = mc.theWorld.loadedEntityList.length; s.handleMouseClick(null, -999, 1, 0); r.outsideRightDropsOne = [mc.theWorld.loadedEntityList.length - n, inv.getItemStack() && inv.getItemStack().stackSize]; n = mc.theWorld.loadedEntityList.length; s.handleMouseClick(null, -999, 0, 0); r.outsideLeftDropsAll = [mc.theWorld.loadedEntityList.length - n, inv.getItemStack()]; return r; })()"
+  },
+  {
+    "eval": "(() => { const s = mc.currentScreen, c = s.inventorySlots; c.itemList.length = 0; T.creativeTabArray[0].displayAllReleventItems(c.itemList); const rows = Math.trunc(c.itemList.length / 9) - 4; c.scrollTo(1); return { rows, lastRowFirst: String(c.getSlot(0).getStack()), expected: String(c.itemList[rows * 9]) }; })()"
+  },
+  {
+    "eval": "(() => { mc.currentScreen.setCurrentCreativeTab(T.creativeTabArray[5]); return mc.currentScreen.getSelectedTabIndex(); })()"
+  },
+  {
+    "wait": 500
+  },
+  {
+    "type": "diam"
+  },
+  {
+    "wait": 1200
+  },
+  {
+    "eval": "(() => { const c = mc.currentScreen.inventorySlots; return { tab: mc.currentScreen.getSelectedTabIndex(), n: c.itemList.length, names: c.itemList.slice(0, 14).map((s) => s.getDisplayName()) }; })()"
+  },
+  {
+    "shot": "inv_creative_search_diam.png"
+  },
+  {
+    "eval": "(() => { const s = mc.currentScreen; s.setCurrentCreativeTab(T.creativeTabArray[11]); const inv = mc.thePlayer.inventory; inv.mainInventory[20] = new S(1, 64, 0); const c = s.inventorySlots; s.handleMouseClick(c.inventorySlots[20], 20, 0, 0); const held = String(inv.getItemStack()); s.handleMouseClick(c.inventorySlots[45], 45, 0, 0); return { held, binCleared: inv.getItemStack() === null, slotEmptied: inv.mainInventory[20] === null }; })()"
+  },
+  {
+    "eval": "(() => { const s = mc.currentScreen; const c = s.inventorySlots; s.handleMouseClick(c.inventorySlots[45], 45, 0, 1); return { allCleared: mc.thePlayer.inventory.mainInventory.every((x) => x === null) }; })()"
+  },
+  {
+    "key": "Escape"
+  },
+  {
+    "waitFor": "mc.currentScreen === null",
+    "timeout": 20000
+  },
+  {
+    "wait": 400
+  },
+  {
+    "eval": "(() => { mc.dev.sky.pin(6000); mc.dev.fillHotbar(); return { screen: mc.currentScreen === null, p: [mc.thePlayer.posX, mc.thePlayer.posY, mc.thePlayer.posZ] }; })()"
+  },
+  {
+    "eval": "(() => { const w = mc.theWorld; w.setBlock(176, Y, 238, 61); const te = w.getBlockTileEntity(176, Y, 238); te.setInventorySlotContents(0, new S(15, 8, 0)); te.setInventorySlotContents(1, new S(263, 4, 0)); mc.dev.ticks(300); const te2 = w.getBlockTileEntity(176, Y, 238); return { same: te === te2, out: String(te2.getStackInSlot(2)), fuel: String(te2.getStackInSlot(1)), lit: w.getBlockId(176, Y, 238), burn: te2.furnaceBurnTime, cook: te2.furnaceCookTime, scr: useBlock(176, 238) }; })()"
+  },
+  {
+    "eval": "(() => { mc.dev.ticks(5); return scr(); })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_furnace.png"
+  },
+  {
+    "eval": "(() => { const r = scr(); closeScr(); return r; })()"
+  },
+  {
+    "eval": "(() => { const w = mc.theWorld; w.setBlock(174, Y, 238, 54); const te = w.getBlockTileEntity(174, Y, 238); te.setInventorySlotContents(0, new S(264, 12, 0)); te.setInventorySlotContents(13, new S(1, 64, 0)); te.setInventorySlotContents(26, new S(276, 1, 0)); return useBlock(174, 238); })()"
+  },
+  {
+    "eval": "(() => { mc.dev.ticks(10); const te = mc.theWorld.getBlockTileEntity(174, Y, 238); return { scr: scr(), lid: te.lidAngle, users: te.numUsingPlayers }; })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_chest.png"
+  },
+  {
+    "eval": "(() => { closeScr(); mc.dev.ticks(20); const te = mc.theWorld.getBlockTileEntity(174, Y, 238); return { lid: te.lidAngle, users: te.numUsingPlayers, sounds: mc.sndManager.debugLog.filter((e) => /chest/.test(e.name || '')).map((e) => e.name + ':' + e.kind).slice(-6) }; })()"
+  },
+  {
+    "eval": "(() => { const w = mc.theWorld; w.setBlock(178, Y, 238, 54); w.setBlock(179, Y, 238, 54); w.getBlockTileEntity(178, Y, 238).setInventorySlotContents(0, new S(265, 30, 0)); w.getBlockTileEntity(179, Y, 238).setInventorySlotContents(26, new S(266, 5, 0)); return useBlock(179, 238); })()"
+  },
+  {
+    "eval": "(() => { mc.dev.ticks(5); return scr(); })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_double_chest.png"
+  },
+  {
+    "eval": "(() => { const r = scr(); closeScr(); return r; })()"
+  },
+  {
+    "eval": "(() => { const w = mc.theWorld; w.setBlock(172, Y, 238, 130); const r = useBlock(172, 238); mc.currentScreen.inventorySlots.getSlot(4).putStack(new S(368, 16, 0)); mc.dev.ticks(5); return r; })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_ender_chest.png"
+  },
+  {
+    "eval": "(() => { closeScr(); const w = mc.theWorld; w.setBlock(171, Y, 238, 130); useBlock(171, 238); const got = String(mc.currentScreen.inventorySlots.getSlot(4).getStack()); closeScr(); return { sharedBetweenEnderChests: got }; })()"
+  },
+  {
+    "eval": "(() => { const w = mc.theWorld; w.setBlock(180, Y, 238, 58); const r = useBlock(180, 238); const c = mc.currentScreen.inventorySlots; c.putStackInSlot(1, new S(5, 1, 0)); c.putStackInSlot(2, new S(5, 1, 0)); c.putStackInSlot(4, new S(5, 1, 0)); c.putStackInSlot(5, new S(5, 1, 0)); c.onCraftMatrixChanged(c.getSlot(1).inventory); return { r, out: String(c.getSlot(0).getStack()) }; })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_crafting.png"
+  },
+  {
+    "eval": "(() => { const c = mc.currentScreen.inventorySlots; const inv = mc.thePlayer.inventory; for (let i = 9; i < 36; i++) inv.mainInventory[i] = null; c.putStackInSlot(1, new S(17, 3, 0)); c.putStackInSlot(2, null); c.putStackInSlot(4, null); c.putStackInSlot(5, null); c.onCraftMatrixChanged(c.getSlot(1).inventory); const one = String(c.getSlot(0).getStack()); c.slotClick(0, 0, 1, mc.thePlayer); const planks = inv.mainInventory.filter((s) => s && s.itemID === 5).reduce((a, s) => a + s.stackSize, 0); const left = String(c.getSlot(1).getStack()); closeScr(); return { one, planksAfterShiftClick: planks, logsLeft: left }; })()"
+  },
+  {
+    "eval": "(() => { const w = mc.theWorld; w.setBlock(176, Y, 241, 116); for (let dx = -2; dx <= 2; dx++) { w.setBlock(176 + dx, Y, 243, 47); w.setBlock(176 + dx, Y + 1, 243, 47); } for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) if (dx || dz) { w.setBlockToAir(176 + dx, Y, 241 + dz); w.setBlockToAir(176 + dx, Y + 1, 241 + dz); } const r = useBlock(176, 241); const c = mc.currentScreen.inventorySlots; c.getSlot(0).putStack(new S(278, 1, 0)); mc.dev.ticks(2); return { r, levels: c.enchantLevels.join(',') }; })()"
+  },
+  {
+    "wait": 1200
+  },
+  {
+    "shot": "inv_enchant.png"
+  },
+  {
+    "eval": "(() => { const r = scr(); closeScr(); return r; })()"
+  },
+  {
+    "eval": "(() => { const w = mc.theWorld; w.setBlock(174, Y, 241, 145); const r = useBlock(174, 241); const c = mc.currentScreen.inventorySlots; const s = new S(278, 1, 0); s.setItemDamage(900); c.getSlot(0).putStack(s); c.getSlot(1).putStack(new S(264, 3, 0)); mc.dev.ticks(2); return { r, cost: c.maximumCost, out: String(c.getSlot(2).getStack()), dmg: c.getSlot(2).getStack() && c.getSlot(2).getStack().getItemDamage() }; })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_anvil.png"
+  },
+  {
+    "eval": "(() => { const r = scr(); closeScr(); return r; })()"
+  },
+  {
+    "eval": "(() => { const w = mc.theWorld; w.setBlock(178, Y, 241, 117); const te = w.getBlockTileEntity(178, Y, 241); te.setInventorySlotContents(3, new S(372, 3, 0)); for (let i = 0; i < 3; i++) te.setInventorySlotContents(i, new S(373, 1, 0)); mc.dev.ticks(100); const brew = te.getBrewTime(); const r = useBlock(178, 241); return { brew, r, meta: w.getBlockMetadata(178, Y, 241) }; })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_brewing.png"
+  },
+  {
+    "eval": "(() => { closeScr(); mc.dev.ticks(320); const te = mc.theWorld.getBlockTileEntity(178, Y, 241); return { done: [0, 1, 2].map((i) => String(te.getStackInSlot(i))), wart: String(te.getStackInSlot(3)) }; })()"
+  },
+  {
+    "eval": "(() => { const w = mc.theWorld; w.setBlock(180, Y, 241, 138); const r = useBlock(180, 241); mc.dev.ticks(2); return r; })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_beacon.png"
+  },
+  {
+    "eval": "(() => { const r = scr(); closeScr(); return r; })()"
+  },
+  {
+    "eval": "(() => { const w = mc.theWorld; w.setBlock(172, Y, 241, 154); const te = w.getBlockTileEntity(172, Y, 241); te.setInventorySlotContents(2, new S(318, 7, 0)); const r = useBlock(172, 241); mc.dev.ticks(2); return r; })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_hopper.png"
+  },
+  {
+    "eval": "(() => { const r = scr(); closeScr(); return r; })()"
+  },
+  {
+    "eval": "(() => { const w = mc.theWorld; w.setBlock(174, Y, 234, 23, 3, 3); const te = w.getBlockTileEntity(174, Y, 234); te.setInventorySlotContents(4, new S(262, 32, 0)); const r = useBlock(174, 234); mc.dev.ticks(2); return r; })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_dispenser.png"
+  },
+  {
+    "eval": "(() => { closeScr(); const w = mc.theWorld; w.setBlock(178, Y, 234, 158, 3, 3); const r = useBlock(178, 234); mc.dev.ticks(2); return { r, name: mc.currentScreen && mc.currentScreen.inventorySlots.getSlot(0).inventory.getInvName() }; })()"
+  },
+  {
+    "wait": 900
+  },
+  {
+    "shot": "inv_dropper.png"
+  },
+  {
+    "eval": "(() => { const r = scr(); closeScr(); return r; })()"
+  },
+  {
+    "eval": "(() => { const p = mc.thePlayer; mc.dev.fillHotbar(); p.inventory.currentItem = 0; mc.dev.press(4, 1); const k3 = p.inventory.currentItem; p.inventory.changeCurrentItem(-1); const wheelDown = p.inventory.currentItem; p.inventory.changeCurrentItem(1); p.inventory.changeCurrentItem(1); p.inventory.changeCurrentItem(1); const wrap = p.inventory.currentItem; return { key3: k3, wheelDown, wrapFrom3: wrap, screen: mc.currentScreen === null }; })()"
+  },
+  {
+    "eval": "(() => { const p = mc.thePlayer; p.inventory.currentItem = 0; p.inventory.mainInventory[0] = new S(1, 10, 0); let n = mc.theWorld.loadedEntityList.length; mc.dev.press(16, 1); const q = [mc.theWorld.loadedEntityList.length - n, String(p.inventory.getCurrentItem())]; n = mc.theWorld.loadedEntityList.length; mc.dev.key(29, true); mc.dev.press(16, 1); mc.dev.key(29, false); mc.dev.ticks(1); const ctrlQ = [mc.theWorld.loadedEntityList.length - n, String(p.inventory.getCurrentItem())]; return { q, ctrlQ }; })()"
+  },
+  {
+    "eval": "(() => { const p = mc.thePlayer; mc.dev.look(0, 35); mc.dev.ticks(2); const t = mc.objectMouseOver; const target = t && [t.blockX, t.blockY, t.blockZ, mc.theWorld.getBlockId(t.blockX, t.blockY, t.blockZ)]; p.inventory.mainInventory.fill(null, 0, 9); p.inventory.currentItem = 3; mc.dev.mouse(2, true); mc.dev.ticks(1); mc.dev.mouse(2, false); mc.dev.ticks(1); return { target, picked: String(p.inventory.getCurrentItem()), slot: p.inventory.currentItem }; })()"
+  },
+  {
+    "eval": "(() => { const w = mc.theWorld, p = mc.thePlayer; for (const [x, z] of [[176, 238], [174, 238], [178, 238], [179, 238], [172, 238], [171, 238], [180, 238]]) w.setBlockToAir(x, Y, z); mc.dev.ticks(1); for (const e of w.loadedEntityList.slice()) if (e !== p && e.getEntityItem) e.setDead(); mc.dev.ticks(1); const mk = (dx, dz, id, n) => { const e = w.createItemEntity(176.5 + dx, Y + 0.13, 236.5 + dz, new S(id, n, 0)); e.motionX = e.motionY = e.motionZ = 0; e.delayBeforeCanPickup = 1000; w.spawnEntityInWorld(e); return e; }; mk(-1.6, 3, 264, 1); mk(-0.5, 3, 264, 2); mk(0.6, 3, 264, 16); mk(1.7, 3, 264, 64); mk(-1.1, 4.4, 4, 1); mk(0, 4.4, 4, 30); mk(1.1, 4.4, 373, 8193); mc.dev.tp(176.5, Y, 236.5, 0, 25); mc.dev.ticks(3); return w.loadedEntityList.filter((e) => e.getEntityItem).length; })()"
+  },
+  {
+    "wait": 1000
+  },
+  {
+    "shot": "inv_dropped_items.png"
+  }
 ]

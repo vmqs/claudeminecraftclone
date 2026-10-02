@@ -6,6 +6,16 @@ import type { GuiNewChat } from '../gui/GuiNewChat';
 import type { GuiScreen } from '../gui/GuiScreen';
 import { GuiChest } from '../gui/inventory/GuiChest';
 import { GuiCrafting } from '../gui/inventory/GuiCrafting';
+import { GuiBeacon } from '../gui/inventory/GuiBeacon';
+import { GuiBrewingStand } from '../gui/inventory/GuiBrewingStand';
+import { GuiDispenser } from '../gui/inventory/GuiDispenser';
+import { GuiEnchantment } from '../gui/inventory/GuiEnchantment';
+import { GuiFurnace } from '../gui/inventory/GuiFurnace';
+import { GuiHopper } from '../gui/inventory/GuiHopper';
+import { GuiRepair } from '../gui/inventory/GuiRepair';
+import type { TileEntityBeacon } from '../world/tileentity/TileEntityBeacon';
+import type { TileEntityBrewingStand } from '../world/tileentity/TileEntityBrewingStand';
+import type { TileEntityFurnace } from '../world/tileentity/TileEntityFurnace';
 import { GuiEditSign } from '../gui/GuiEditSign';
 import { GuiCommandBlock, isCommandBlock } from '../gui/GuiCommandBlock';
 import type { TileEntity } from '../world/tileentity/TileEntity';
@@ -103,6 +113,38 @@ export class EntityPlayerSP extends EntityPlayer {
 
   override displayGUIWorkbench(x: number, y: number, z: number): void {
     this.mc.displayGuiScreen(new GuiCrafting(this.inventory, this.worldObj, x, y, z));
+  }
+
+  override displayGUIFurnace(furnace: IInventory): void {
+    this.mc.displayGuiScreen(new GuiFurnace(this.inventory, furnace as unknown as TileEntityFurnace));
+  }
+
+  override displayGUIDispenser(dispenser: IInventory): void {
+    this.mc.displayGuiScreen(new GuiDispenser(this.inventory, dispenser));
+  }
+
+  override displayGUIHopper(hopper: IInventory): void {
+    this.mc.displayGuiScreen(new GuiHopper(this.inventory, hopper));
+  }
+
+  override displayGUIHopperMinecart(cart: IInventory): void {
+    this.mc.displayGuiScreen(new GuiHopper(this.inventory, cart));
+  }
+
+  override displayGUIBrewingStand(stand: IInventory): void {
+    this.mc.displayGuiScreen(new GuiBrewingStand(this.inventory, stand as unknown as TileEntityBrewingStand));
+  }
+
+  override displayGUIEnchantment(x: number, y: number, z: number, customName: string | null): void {
+    this.mc.displayGuiScreen(new GuiEnchantment(this.inventory, this.worldObj, x, y, z, customName));
+  }
+
+  override displayGUIAnvil(x: number, y: number, z: number): void {
+    this.mc.displayGuiScreen(new GuiRepair(this.inventory, this.worldObj, x, y, z));
+  }
+
+  override displayGUIBeacon(beacon: IInventory): void {
+    this.mc.displayGuiScreen(new GuiBeacon(this.inventory, beacon as unknown as TileEntityBeacon));
   }
 
   /** EntityClientPlayerMP.onUpdate: the player only updates once its chunk is present. */

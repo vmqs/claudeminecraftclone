@@ -2,7 +2,7 @@ import { Block } from '../../block/Block';
 import { ItemIds } from '../../block/BlockIds';
 import type { EntityLiving } from '../../entity/EntityLiving';
 import { EnumAction, Item } from '../../item/Item';
-import type { ItemStack } from '../../item/ItemStack';
+import { ItemStack } from '../../item/ItemStack';
 import { GL } from '../gl/GL';
 import { RenderBlocks } from '../RenderBlocks';
 import { ModelBiped } from './ModelBiped';
@@ -83,6 +83,8 @@ export function renderHeldItem(r: RenderLiving, e: EntityLiving, held: ItemStack
   }
   model.bipedRightArm.postRender(SCALE);
   GL.translate(-SCALE, f(0.4375), SCALE);
+  // A player with a cast fishing line holds a plain stick (the line hangs from the hook).
+  if ((e as { fishEntity?: unknown }).fishEntity) held = new ItemStack(ItemIds.stick);
   const item = Item.itemsList[held.itemID]!;
   if (held.itemID < 256 && RenderBlocks.renderItemIn3d(Block.blocksList[held.itemID]!.getRenderType())) {
     let s = f(0.5);

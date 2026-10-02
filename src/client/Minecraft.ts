@@ -27,6 +27,7 @@ import { GuiMainMenu } from '../gui/GuiMainMenu';
 import { GuiChat } from '../gui/GuiChat';
 import { GuiScreen } from '../gui/GuiScreen';
 import { GuiInventory } from '../gui/inventory/GuiInventory';
+import { CONTAINER_TEXTURES } from '../gui/inventory/ContainerTextures';
 import { SlotArmor } from '../gui/inventory/SlotArmor';
 import { LoadingScreenRenderer } from '../gui/LoadingScreenRenderer';
 import { ScaledResolution } from '../gui/ScaledResolution';
@@ -44,6 +45,7 @@ import { ColorizerFoliage, ColorizerGrass, rgbaToIntBuffer } from '../world/biom
 import { World, WorldInfo } from '../world/World';
 import { type PlayerSnapshot, SaveFormatMemory } from '../world/storage/SaveFormatMemory';
 import { EntityPlayerSP } from './EntityPlayerSP';
+import { pickBlock } from './PickBlock';
 import { EnumOptions, GameSettings, type SettingsListener } from './GameSettings';
 import { installInput } from './Input';
 import { Keyboard, Keys, Mouse } from './Keyboard';
@@ -226,6 +228,7 @@ export class Minecraft implements SettingsListener {
       '/mob/char.png',
       ...[0, 1, 2, 3, 4, 5].map((i) => `/title/bg/panorama${i}.png`),
     ]);
+    void this.renderEngine.preload([...CONTAINER_TEXTURES]);
 
     this.renderGlobal = new RenderGlobal(this);
     this.renderGlobal.initMeshers();
@@ -607,19 +610,9 @@ export class Minecraft implements SettingsListener {
     }
   }
 
-  /** Pick block: puts the targeted block in the hotbar (creative). */
+  /** Pick block (middle click): selects the targeted block's item, or puts it in the hotbar in Creative. */
   private clickMiddleMouseButton(): void {
-    const mop = this.objectMouseOver;
-    if (!mop || mop.typeOfHit !== EnumMovingObjectType.TILE) return;
-    const w = this.theWorld!;
-    const block = Block.blocksList[w.getBlockId(mop.blockX, mop.blockY, mop.blockZ)];
-    if (!block) return;
-    const id = block.idPicked(w, mop.blockX, mop.blockY, mop.blockZ);
-    if (id === 0 || !Item.itemsList[id]) return;
-    const subtypes = Item.itemsList[id]!.getHasSubtypes();
-    const src = id < 256 && !block.isFlowerPot() ? id : block.blockID;
-    const damage = Block.blocksList[src]?.getDamageValue(w, mop.blockX, mop.blockY, mop.blockZ) ?? 0;
-    this.thePlayer!.inventory.setCurrentItem(id, damage, subtypes, true);
+    pickBlock(this.thePlayer!, this.theWorld!, this.objectMouseOver, (stack, slot) => this.playerController.sendSlotPacket(stack, slot));
   }
 
   // ------------------------------------------------------------------ screens and focus

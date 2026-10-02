@@ -15,6 +15,9 @@ import { RenderHelper } from './RenderHelper';
 import type { Icon } from './texture/Icon';
 import { withClientSkylight } from './sky/ClientWorldView';
 import { ScreenOverlays } from './sky/ScreenOverlays';
+import { MapItemRenderer } from './MapItemRenderer';
+import { ItemIds } from '../block/BlockIds';
+import type { ItemMap } from '../item/ItemMap';
 
 const f = Math.fround;
 const PI_F = f(Math.PI);
@@ -27,8 +30,11 @@ export class ItemRenderer {
   private readonly renderBlocksInstance = new RenderBlocks();
   private equippedItemSlot = -1;
   private readonly armModel = new ModelBiped(0);
+  readonly mapItemRenderer: MapItemRenderer;
 
-  constructor(private readonly mc: Minecraft) {}
+  constructor(private readonly mc: Minecraft) {
+    this.mapItemRenderer = new MapItemRenderer(() => mc.gameSettings.anaglyph);
+  }
 
   /** Draws a stack: 3D blocks through RenderBlocks, everything else as an extruded sprite. */
   renderItem(e: EntityLiving, stack: ItemStack, pass: number): void {
@@ -172,6 +178,10 @@ export class ItemRenderer {
     if (stack) {
       const c = Item.itemsList[stack.itemID]?.getColorFromItemStack(stack, 0) ?? 0xffffff;
       GL.color(((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255, 1);
+    }
+    if (stack && stack.itemID === ItemIds.map) {
+      this.renderMapInFirstPerson(stack, pitch, equip, pt);
+    } else if (stack) {
       GL.pushMatrix();
       const k = f(0.8);
       if (p.getItemInUseCount() > 0) {
@@ -198,6 +208,7 @@ export class ItemRenderer {
       }
       GL.translate(f(f(0.7) * k), f(f(f(-0.65) * k) - f(f(1 - equip) * f(0.6))), f(f(-0.9) * k));
       GL.rotate(45, 0, 1, 0);
+      GL.enable(GL.RESCALE_NORMAL);
       const sw = p.getSwingProgress(pt);
       const a = MathHelper.sin(f(f(sw * sw) * PI_F));
       const b = MathHelper.sin(f(MathHelper.sqrt_float(sw) * PI_F));
@@ -251,6 +262,7 @@ export class ItemRenderer {
       GL.translate(f(-b * f(0.3)), f(MathHelper.sin(f(f(MathHelper.sqrt_float(sw) * PI_F) * 2)) * f(0.4)), f(-a * f(0.4)));
       GL.translate(f(f(0.8) * k), f(f(f(-0.75) * k) - f(f(1 - equip) * f(0.6))), f(f(-0.9) * k));
       GL.rotate(45, 0, 1, 0);
+      GL.enable(GL.RESCALE_NORMAL);
       const sw2 = p.getSwingProgress(pt);
       const c = MathHelper.sin(f(f(sw2 * sw2) * PI_F));
       b = MathHelper.sin(f(MathHelper.sqrt_float(sw2) * PI_F));
@@ -265,7 +277,67 @@ export class ItemRenderer {
       this.renderFirstPersonArm();
       GL.popMatrix();
     }
+    GL.disable(GL.RESCALE_NORMAL);
     RenderHelper.disableStandardItemLighting();
+  }
+
+  /**
+   * A filled map held in both hands: the arms either side, the map lowered as the player looks
+   * up (fully raised when looking 45 degrees down), drawn on misc/mapbg.png.
+   */
+  private renderMapInFirstPerson(stack: ItemStack, pitch: number, equip: number, pt: number): void {
+    const p = this.mc.thePlayer!;
+    GL.pushMatrix();
+    const k = f(0.8);
+    let sw = p.getSwingProgress(pt);
+    let a = MathHelper.sin(f(sw * PI_F));
+    let b = MathHelper.sin(f(MathHelper.sqrt_float(sw) * PI_F));
+    GL.translate(f(-b * f(0.4)), f(MathHelper.sin(f(f(MathHelper.sqrt_float(sw) * PI_F) * 2)) * f(0.2)), f(-a * f(0.2)));
+    let lift = f(f(1 - f(pitch / 45)) + f(0.1));
+    if (lift < 0) lift = 0;
+    if (lift > 1) lift = 1;
+    lift = f(f(-MathHelper.cos(f(lift * PI_F)) * f(0.5)) + f(0.5));
+    GL.translate(0, f(f(f(f(0 * k) - f(f(1 - equip) * f(1.2))) - f(lift * f(0.5))) + f(0.04)), f(f(-0.9) * k));
+    GL.rotate(90, 0, 1, 0);
+    GL.rotate(f(lift * -85), 0, 0, 1);
+    GL.enable(GL.RESCALE_NORMAL);
+    this.mc.renderEngine.bindTexture(p.getTextureName());
+    for (let side = 0; side < 2; side++) {
+      const s = side * 2 - 1;
+      GL.pushMatrix();
+      GL.translate(-0, f(-0.6), f(f(1.1) * s));
+      GL.rotate(-45 * s, 1, 0, 0);
+      GL.rotate(-90, 0, 0, 1);
+      GL.rotate(59, 0, 0, 1);
+      GL.rotate(-65 * s, 0, 1, 0);
+      this.renderFirstPersonArm();
+      GL.popMatrix();
+    }
+    sw = p.getSwingProgress(pt);
+    a = MathHelper.sin(f(f(sw * sw) * PI_F));
+    b = MathHelper.sin(f(MathHelper.sqrt_float(sw) * PI_F));
+    GL.rotate(f(-a * 20), 0, 1, 0);
+    GL.rotate(f(-b * 20), 0, 0, 1);
+    GL.rotate(f(-b * 80), 1, 0, 0);
+    GL.scale(f(0.38), f(0.38), f(0.38));
+    GL.rotate(90, 0, 1, 0);
+    GL.rotate(180, 0, 0, 1);
+    GL.translate(-1, -1, 0);
+    GL.scale(f(0.015625), f(0.015625), f(0.015625));
+    this.mc.renderEngine.bindTexture('/misc/mapbg.png');
+    const t = Tessellator.instance;
+    const m = 7;
+    t.startDrawingQuads();
+    t.setNormal(0, 0, -1);
+    t.addVertexWithUV(0 - m, 128 + m, 0, 0, 1);
+    t.addVertexWithUV(128 + m, 128 + m, 0, 1, 1);
+    t.addVertexWithUV(128 + m, 0 - m, 0, 1, 0);
+    t.addVertexWithUV(0 - m, 0 - m, 0, 0, 0);
+    t.draw();
+    const item = stack.getItem() as unknown as Partial<ItemMap>;
+    const data = item.getMapData?.(stack, this.mc.theWorld!);
+    if (data) this.mapItemRenderer.renderMap(this.mc.renderEngine, data);
+    GL.popMatrix();
   }
 
   /** RenderPlayer.renderFirstPersonArm. */
