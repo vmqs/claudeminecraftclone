@@ -5,7 +5,7 @@ Order: w2/renderblocks, w2/inventory, w2/mobshostile, w2/mobspassive, w2/dynamic
 
 - [x] renderblocks (clean)
 - [x] inventory (EntityPlayerSP: kept inventory displayGUI* overrides, HEAD keeps canCommandSenderUseCommand/displayGUIEditSign at end; ARCH: HEAD potions/entities rows + inventory containers row)
-- [ ] mobshostile
+- [x] mobshostile (clean)
 - [ ] mobspassive
 - [ ] dynamics
 - [ ] vite build
