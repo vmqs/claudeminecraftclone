@@ -37,6 +37,18 @@ Branch `w1/worldgen`. Each step is committed; this file lists what is done and w
   and ticks of six areas with random prefetching, and the spawn/stronghold answers). The spawn
   area loads stepwise in the worker. One-entry chunk cache and positive existence cache in
   GenWorld. The GenStore keeps light (eviction round trip checked identical).
+- Browser check of this pass: scenario `worldgen` passes every assertion (spawns of "claude",
+  123456789, superflat and large biomes, biomes, cave, pond, stronghold 1160,264, desert
+  village) and the "claude" views still match the references block for block. In the headless
+  run (4 shared, saturated CPUs) the worker finalizes chunks far faster than the main thread
+  takes them in, and the spawn-area time is dominated by load noise (10-28 s either way); in
+  node, terrain is about 37% of the spawn-area work (2.7 of 7.4 s CPU), which the terrain
+  worker takes off the populating thread when a core is free.
+- At the wave base, many blocks generation places are not registered yet (farmland, crops,
+  chests, spawners, doors, fences, vines, lilies, mycelium, rails, stairs, ...), and GenWorld
+  skips unregistered ids, so desert-village fields fill with water and chests are absent until
+  the blocks branch is merged. With stub blocks for those ids the same village has 168 farmland,
+  168 crops, doors, a blacksmith chest and 9 villagers.
 
 ## Next
 - Cascading population (a feature reading an unloaded chunk loads and populates it in the
