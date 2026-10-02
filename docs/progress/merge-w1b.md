@@ -11,5 +11,5 @@ Order: w1/worldgen, w1/items, w1/entities, w1/effects, w1/gui, w1/blocks, w1/sky
 - [x] blocks, sky (up to date)
 - [x] vite build
 - [x] wire hooks / dedupe (eye of ender StructureLocator direct import; command block executor + /testfor via instanceof TileEntityCommandBlock; dropped unused world/gen/FlatPresets.ts dup of gui FlatPresets)
-- [ ] smoke test
+- [~] smoke test: title, spawn, interact (rose 0.000 known quirk), worldgen (all asserts; desert village now has 168 crops) exit 0; items, entities, gui pending
 - [x] ARCHITECTURE §13
