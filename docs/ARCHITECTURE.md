@@ -384,15 +384,39 @@ explicitly, as single player did:
 - `EntityLiving.onItemPickup` runs `EntityLiving.collectEffect` (Packet22, installed by
   `src/render/entity/EntityClientHooks.ts`): a second pop/orb sound and the `EntityPickupFX`.
 - `Explosion.doExplosionB(true)` plays `random.explode` twice (server and Packet60 echo).
+- Sounds that both the server entity and the client's copy play from their own update code are
+  played twice through `Entity.playSoundEchoed(name, volume, pitchFn)`, each with its own random
+  pitch: `fireworks.launch`, an arrow sticking in a block (`random.bowhit`), items and XP orbs
+  fizzing in lava. Code that only ran on one side in 1.5.2 (entity hits, fire extinguished in
+  water, server-only events) plays once. New entity code follows the same rule.
 
 Potion effects live on `EntityLiving.activePotionsMap` as `PotionEffectLike` objects
-(`src/entity/PotionEffects.ts`: `PotionId`, the swirl colour, and `PotionHooks` for the potion
-code to install `effectsFromDamage`, `liquidColorFromDamage`, `createEffect` and `affectEntity`).
+(`src/entity/PotionEffects.ts`: `PotionId`, the swirl colour, and `PotionHooks`: `effectsOf(stack)`,
+`liquidColorFromDamage`, `createEffect` and `affectEntity`). Every enchantment query of entity
+code goes through one table, `EnchantmentHooks` (`src/entity/EnchantmentHooks.ts`: protection,
+sharpness-type damage, knockback, fire aspect, respiration, efficiency, aqua affinity, looting,
+thorns, fire and blast protection, mob gear enchanting); absent entries mean "no enchantment".
+`src/entity/ItemHooksInstall.ts` connects the item, enchantment and potion code at start-up
+(`installEntityClientHooks` from Minecraft): it registers the entity constructors into the item
+code's `ItemEntityFactories` and fills `EnchantmentHooks` / `PotionHooks`. It finds those modules
+with `import.meta.glob`, so it builds before and after they exist; its `install*` functions are
+typed structurally and can be called with static imports instead.
 Creative players are never targeted: `Entity.isCreativeInvulnerable()` is true for a player whose
 capabilities disable damage. Mob code (AI target selection, creeper swelling, skeleton and blaze
 shooting, wolf anger) should test it wherever the original tests `capabilities.disableDamage`.
 World-generation entities come in as `EntityDescriptor`s through `EntityList.fromDescriptor`,
-which passes optional `data` to the entity's `readEntityFromNBT`.
+which passes optional `data` to the entity's `readEntityFromNBT`; `init: false` skips
+`initCreature` (structure mobs, loot carts).
+
+The player's damage follows 1.5.2: Creative players only take void and `/kill` damage; mob damage
+(`isDifficultyScaled`) is 0 / half+1 / full / x1.5 by difficulty; sword blocking halves blockable
+damage; worn `ItemArmor` gives its points and wears by a quarter of the damage; every hit and
+melee swing costs exhaustion through `EntityPlayer.addExhaustion` (`EntityPlayer.exhaustionHook`
+is where the food code plugs in); hurting the player or being hit by it sends its tame wolves
+(EntityList name 'Wolf', duck-typed: isTamed/getOwnerName/isSitting/setSitting/setTarget) after
+the other party; a dead player drops 7 XP per level (at most 100). Minecarts loop `minecart.base`
+and, while the local player rides, `minecart.inside` through `SoundUpdaterMinecart`
+(`EntityMinecart.soundUpdaterFactory`).
 
 `EntityPlayerSP` uses the original movement: `landMovementFactor 0.1`,
 `jumpMovementFactor 0.02`, sprint (double-tap forward), Creative flight (double-tap jump, vertical
@@ -495,7 +519,7 @@ registries are imported once by `src/client/Minecraft.ts`.
 | Crafting | All 229 recipes of 1.5.2 are registered by `src/item/crafting/Recipes.ts` the first time `CraftingManager.getInstance()` is used; more with `addRecipe(output, ['##', '##'], { '#': Block })`, `addShapelessRecipe(output, ...ingredients)`, `addRecipeObject(recipe)` (`IRecipe` over any `CraftingGrid`). The list sorts itself like `RecipeSorter`. Smelting: `FurnaceRecipes.smelting().getSmeltingResult(id)` / `getExperience(resultId)`; fuel: `getItemBurnTime(stack)` (`src/item/crafting/FurnaceRecipes.ts`). |
 | Potions and enchantments | `src/potion/` (`Potion.potionTypes`, `PotionEffect`, `PotionHelper` damage-value -> effects / colour / names and `applyIngredient`); entities receive effects through `applyPotionEffect(entity, effect)` / `clearPotionEffects(entity)`, which call `addPotionEffect` / `clearActivePotions` once EntityLiving has them. `PotionBindings` installs `PotionHooks.effectsFromDamage / liquidColorFromDamage / createEffect / affectEntity` for splash potions and particle colours. `ItemStack.damageItem` rolls Unbreaking per point (`attemptDamageItem`). `src/enchantment/` (`Enchantment.enchantmentsList`, `EnchantmentHelper` levels, modifiers and random enchanting; stacks carry `ench` / `StoredEnchantments` lists of `{id, lvl}`). |
 | Containers and GUIs | `IInventory` (or `InventoryBasic`), a `Container` subclass (`addSlotToContainer`, `transferStackInSlot`, `canInteractWith`, `canMergeSlot`), a `GuiContainer` subclass (`drawGuiContainerBackgroundLayer`, `drawGuiContainerForegroundLayer`). Open it from `EntityPlayerSP.displayGUI*` (hooks declared on `EntityPlayer`: chest, hopper, enchantment, anvil, workbench, furnace, dispenser, sign, brewing stand, beacon, merchant, book). The creative inventory replaces `GuiInventory` in its `initGui`/`updateScreen` and uses `PlayerControllerCreative.sendSlotPacket` (a no-op here). Armour slot backgrounds: `SlotArmor.emptySlotIcons`. Lists: subclass `GuiSlot`. |
-| Entities | Class in `src/entity/`, `EntityList.addMapping(cls, '<name>', id)` in `src/entity/Entities.ts` (eggs come from the `entityEggs` table), renderer via `RenderManager.instance.register(cls, render)` in `src/render/entity/EntityRenderers.ts` (renderers needing item-atlas sprites override `Render.updateItemIcons`). Client echoes: `World.setEntityState` → `handleHealthUpdate`, `EntityLiving.collectEffect`. Hooks for other code: `EntityLiving.addRandomEnchantment`, `EntityPlayer.enchantmentHooks`, `EntityArrow.thornsHook`, `Explosion.blastProtection`, `EntityFireworkRocket.explosionEffect` (or `World.makeFireworks`), `HopperTransfer.chestInventory`, `PotionHooks`; `BlockSand.createFallingEntity` is installed by `EntityFallingSand`. Mob bases: `EntityCreature`, `EntityAgeable`, `EntityAnimal`, `EntityMob`, `EntityTameable`, `EntityGolem`, `EntityWaterMob`, `EntityAmbientCreature`, `EntityFlying`; AI tasks extend `EntityAIBase` (`src/entity/ai/`). Factories for classes `World` cannot import: `World.itemDropFactory` (set by `EntityItem`), `EntityLiving.experienceOrbFactory`, `World.lightningBoltFactory`. |
+| Entities | Class in `src/entity/`, `EntityList.addMapping(cls, '<name>', id)` in `src/entity/Entities.ts` (eggs come from the `entityEggs` table), renderer via `RenderManager.instance.register(cls, render)` in `src/render/entity/EntityRenderers.ts` (renderers needing item-atlas sprites override `Render.updateItemIcons`). Client echoes: `World.setEntityState` → `handleHealthUpdate`, `EntityLiving.collectEffect`. Hooks for other code: `EnchantmentHooks`, `PotionHooks`, `EntityPlayer.exhaustionHook`, `EntityMinecart.soundUpdaterFactory`, `EntityItemFrame.getItemFrame(stack)`, `EntityFireworkRocket.explosionEffect` (or `World.makeFireworks`), `HopperTransfer.chestInventory`; `BlockSand.createFallingEntity` is installed by `EntityFallingSand`. Mob bases: `EntityCreature`, `EntityAgeable`, `EntityAnimal`, `EntityMob`, `EntityTameable`, `EntityGolem`, `EntityWaterMob`, `EntityAmbientCreature`, `EntityFlying`; AI tasks extend `EntityAIBase` (`src/entity/ai/`). Factories for classes `World` cannot import: `World.itemDropFactory` (set by `EntityItem`), `EntityLiving.experienceOrbFactory`, `World.lightningBoltFactory`. |
 | Spawning | Biome lists by `EntityList` name (`BiomeGenBase.getSpawnableList`, `editSpawns`), `SpawnRules` for the per-mob `getCanSpawnHere` data, `World.mobSpawner` (default `SpawnerAnimals.findChunksForSpawning`), world-generation animals in `WorldGenSpawning`. |
 | Particles | Every 1.5.2 name is registered in `src/render/particle/ParticleRegistry.ts`; add more with `RenderGlobal.particleFactories.set(name, (w, x, y, z, vx, vy, vz) => fx)` (culled beyond 16 blocks and by the particle setting), `unculledParticleFactories` (always created) or `particlePrefixFactories` (name families such as `iconcrack_`/`tilecrack_`) from `ParticleFactories.ts`. `EffectRenderer.addEffect(fx)` for direct effects (`EffectRenderer.instance`), `addBlockDestroyEffects` / `addBlockHitEffects` for blocks, `EntityRainFX` (or the factory `RenderGlobal.particleFactories.get('rain')`, an internal name for EntityRenderer.addRainParticles, not a vanilla spawnParticle name) for rain splashes, and `World.makeFireworks(x, y, z, vx, vy, vz, fireworksTag)` (func_92088_a) for a firework rocket's explosion. |
 | Sounds and world effects | `World.playSoundEffect` / `playSound` / `playSoundAtEntity`, `World.playAuxSFX(type, …)` (cases in `RenderGlobal.playAuxSFX`), `World.playRecord`, `World.broadcastSound`, `SoundManager.playEntitySound` for loops. |

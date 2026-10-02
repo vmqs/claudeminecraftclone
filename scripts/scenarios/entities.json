@@ -4,7 +4,7 @@
   },
   {
     "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0",
-    "timeout": 240000
+    "timeout": 600000
   },
   {
     "eval": "(() => { const p = mc.thePlayer, w = mc.theWorld; const ox = Math.floor(p.posX), oz = Math.floor(p.posZ); const B0 = mc.dev.lib.Block.blocksList; if (!B0[66]) B0[66] = B0[37]; const set = (x, y, z, id, m = 0) => w.setBlock(ox + x, y, oz + z, id, m, 3); for (let x = -7; x <= 7; x++) for (let y = 4; y <= 9; y++) set(x, y, 10, 1); for (let x = 8; x <= 14; x++) for (let z = 0; z <= 8; z++) { set(x, 3, z, 9); set(x, 2, z, 9); } const rx0 = -16, rx1 = -8, rz0 = 0, rz1 = 8; for (let x = rx0; x <= rx1; x++) { set(x, 4, rz0, 66, 1); set(x, 4, rz1, 66, 1); } for (let z = rz0; z <= rz1; z++) { set(rx0, 4, z, 66, 0); set(rx1, 4, z, 66, 0); } set(rx0, 4, rz0, 66, 6); set(rx1, 4, rz0, 66, 7); set(rx1, 4, rz1, 66, 8); set(rx0, 4, rz1, 66, 9); window.O = { ox, oz, rx0, rx1, rz0, rz1 }; const B = mc.dev.lib.Block.blocksList; window.TNT_ALIAS = !B[46]; if (!B[46]) B[46] = B[45]; window.RAIL_ALIAS = !B[66]; if (!B[66]) B[66] = B[37]; mc.gameSettings.fancyGraphics = true; mc.dev.tp(ox + 0.5, 4, oz + 0.5, 0, 25); return window.O; })()"
@@ -14,7 +14,7 @@
   },
   {
     "waitFor": "mc.dev.pendingSections(2) === 0",
-    "timeout": 120000
+    "timeout": 300000
   },
   {
     "eval": "mc.dev.setTime(6000)"

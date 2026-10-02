@@ -34,7 +34,7 @@ URL parameters (any combination):
 `newEntity(name, ...ctorArgs)` / `spawn(name, ...ctorArgs)` (an EntityList name, or `'Egg'` /
 `'FishHook'` for the two unsaved classes; the world is passed first and `'@p'` stands for the
 player, e.g. `spawn('Arrow', '@p', 2)` or `spawn('FishHook', '@p')`), `entities(name?)`,
-and `lib` (`Block`, `Item`, `ItemStack`, `EntityList`). Setting `mc.timer.timerSpeed = 0` freezes
+and `lib` (`Block`, `Item`, `ItemStack`, `EntityList`, `DamageSource`, `EntityDamageSource`). Setting `mc.timer.timerSpeed = 0` freezes
 game time (and partial ticks) for a capture while `mc.dev.ticks(n)` still advances it.
 `mc.dev.sky` (`src/render/sky/SkyDevTools.ts`): `pin(time?)` freezes the clock like the reference
 harness's `freeze` (partial tick 0, `mc.dev.ticks(n)` still steps) and pins cloud ticks, torch
@@ -59,7 +59,7 @@ node scripts/shot.mjs effects                # every particle type, spawn rules,
 node scripts/shot.mjs inventory              # E, slot tooltip, pick up and put back a stack
 node scripts/shot.mjs chat                   # chat line, /time, /give @p, /help, Tab completion, /kill
 node scripts/shot.mjs flat                   # a Superflat world (bedrock, dirt, dirt, grass; spawn y=4)
-node scripts/shot.mjs entities               # items, arrows, orbs, paintings, frames, TNT, boat, minecarts (checks in the log)
+node scripts/shot.mjs entities               # items, arrows, orbs, paintings, frames, TNT, boat, minecarts, player damage rules (checks in the log)
 node scripts/shot.mjs sky                    # sky, fog, clouds, render distances, rain, thunder and a bolt,
                                              # snow, desert, underwater, lava, in-wall and pumpkin overlays
 node scripts/shot.mjs worldgen               # seeds "claude"/123456789 vs the reference spawn, cave, biomes, village; flat and large biomes
