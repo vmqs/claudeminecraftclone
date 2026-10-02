@@ -15,12 +15,12 @@ import { GL } from './gl/GL';
 import { OpenGlHelper } from './OpenGlHelper';
 import { RenderHelper } from './RenderHelper';
 import { ItemRenderer } from './ItemRenderer';
+import { withClientSkylight } from './sky/ClientWorldView';
+import { RenderRainSnow } from './sky/RenderRainSnow';
+import { hasPotion, SkyHooks, SkyPotion } from './sky/SkyHooks';
 
 const f = Math.fround;
 const PI_F = f(Math.PI);
-
-/** Hook for weather (rain/snow) rendering, installed by the weather port. */
-export type RainRenderer = (er: EntityRenderer, pt: number) => void;
 
 /**
  * EntityRenderer: camera (FOV, bobbing, hurt shake, third person), the lightmap, fog,
@@ -28,10 +28,10 @@ export type RainRenderer = (er: EntityRenderer, pt: number) => void;
  */
 export class EntityRenderer {
   static anaglyphEnable = false;
-  static rainRenderer: RainRenderer | null = null;
   farPlaneDistance = 0;
   readonly itemRenderer: ItemRenderer;
-  private rendererUpdateCount = 0;
+  /** Ticks since the renderer was created (rain animation, rain particle seed). */
+  rendererUpdateCount = 0;
   private pointedEntity: Entity | null = null;
   private thirdPersonDistance = 4;
   private thirdPersonDistanceTemp = 4;
@@ -50,7 +50,7 @@ export class EntityRenderer {
   private fovModifierHandPrev = 0;
   private fovMultiplierTemp = 0;
   private cloudFog = false;
-  private lightmapUpdateNeeded = false;
+  lightmapUpdateNeeded = false;
   torchFlickerX = 0;
   torchFlickerDX = 0;
   torchFlickerY = 0;
@@ -63,9 +63,14 @@ export class EntityRenderer {
   debugViewDirection = 0;
   private prevFrameTime = performance.now();
   readonly frustum = new Frustum();
+  private readonly rainSnow: RenderRainSnow;
+  /** Boss darkening (field_82831_U and its previous value), faded in while SkyHooks.hasColorModifier is set. */
+  private bossColorModifier = 0;
+  private bossColorModifierPrev = 0;
 
   constructor(private readonly mc: Minecraft) {
     this.itemRenderer = new ItemRenderer(mc);
+    this.rainSnow = new RenderRainSnow(mc);
     RenderManager.instance.itemRenderer = this.itemRenderer;
     this.lightmapTexture = mc.renderEngine.allocateTexture(16, 16, true);
   }
@@ -85,14 +90,36 @@ export class EntityRenderer {
       this.smoothCamYaw = 0;
       this.smoothCamPitch = 0;
     }
-    const view = this.mc.renderViewEntity!;
-    const w = this.mc.theWorld!;
-    const light = w.getLightBrightness(MathHelper.floor_double(view.posX), MathHelper.floor_double(view.posY), MathHelper.floor_double(view.posZ));
-    const dist = f((3 - this.mc.gameSettings.renderDistance) / 3);
-    const target = f(light * (1 - dist) + dist);
-    this.fogColor1 = f(this.fogColor1 + (target - this.fogColor1) * f(0.1));
+    this.fogColor1 = f(this.fogColor1 + f(f(this.fogBrightnessTarget() - this.fogColor1) * f(0.1)));
     this.rendererUpdateCount++;
     this.itemRenderer.updateEquippedItem();
+    this.rainSnow.addRainParticles(this.rendererUpdateCount);
+    this.bossColorModifierPrev = this.bossColorModifier;
+    if (SkyHooks.hasColorModifier) {
+      this.bossColorModifier = f(this.bossColorModifier + f(0.05));
+      if (this.bossColorModifier > 1) this.bossColorModifier = 1;
+      SkyHooks.hasColorModifier = false;
+    } else if (this.bossColorModifier > 0) {
+      this.bossColorModifier = f(this.bossColorModifier - f(0.0125));
+    }
+  }
+
+  /**
+   * The fog brightness updateRenderer eases towards: the light at the viewer as the client sees
+   * it (always daylight, see withClientSkylight), raised towards 1 for shorter render distances.
+   */
+  private fogBrightnessTarget(): number {
+    const view = this.mc.renderViewEntity!;
+    const w = this.mc.theWorld!;
+    const light = withClientSkylight(w, () => w.getLightBrightness(MathHelper.floor_double(view.posX), MathHelper.floor_double(view.posY), MathHelper.floor_double(view.posZ)));
+    const dist = f((3 - this.mc.gameSettings.renderDistance) / 3);
+    return f(f(light * f(1 - dist)) + dist);
+  }
+
+  /** Jumps the eased fog brightness to its target (for captures, as the reference harness does). */
+  settleFogBrightness(): void {
+    if (!this.mc.renderViewEntity || !this.mc.theWorld) return;
+    this.fogColor1 = this.fogColor2 = this.fogBrightnessTarget();
   }
 
   /** Picks the block (reach) or entity (3 blocks, 6 in creative) under the crosshair. */
@@ -307,10 +334,24 @@ export class EntityRenderer {
     this.lightmapUpdateNeeded = true;
   }
 
+  /** Night vision brightness: full while more than 10 s remain, then flickering out. */
+  private getNightVisionBrightness(e: Entity, pt: number): number {
+    const d = SkyHooks.potionDuration(e, SkyPotion.nightVision);
+    return d > 200 ? 1 : f(f(0.7) + f(MathHelper.sin(f(f(f(d - pt) * PI_F) * f(0.2))) * f(0.3)));
+  }
+
+  /** Boss darkening at partial tick `pt` (0 without a darkening boss). */
+  private getBossColorModifier(pt: number): number {
+    return f(this.bossColorModifierPrev + f(f(this.bossColorModifier - this.bossColorModifierPrev) * pt));
+  }
+
   /** Rebuilds the 16x16 sky/block light colour table (EntityRenderer.updateLightmap). */
-  private updateLightmap(_pt: number): void {
+  private updateLightmap(pt: number): void {
     const w = this.mc.theWorld;
-    if (!w) return;
+    const player = this.mc.thePlayer;
+    if (!w || !player) return;
+    const boss = this.bossColorModifier > 0 ? this.getBossColorModifier(pt) : 0;
+    const nightVision = hasPotion(player, SkyPotion.nightVision) ? this.getNightVisionBrightness(player, pt) : -1;
     const table = w.provider.lightBrightnessTable;
     const sun = w.getSunBrightness(1);
     const gamma = this.mc.gameSettings.gammaSetting;
@@ -329,6 +370,19 @@ export class EntityRenderer {
       r = f(f(r * f(0.96)) + f(0.03));
       g = f(f(g * f(0.96)) + f(0.03));
       b = f(f(b * f(0.96)) + f(0.03));
+      if (boss > 0) {
+        r = f(f(r * f(1 - boss)) + f(f(r * f(0.7)) * boss));
+        g = f(f(g * f(1 - boss)) + f(f(g * f(0.6)) * boss));
+        b = f(f(b * f(1 - boss)) + f(f(b * f(0.6)) * boss));
+      }
+      if (nightVision >= 0) {
+        let k = f(1 / r);
+        if (k > f(1 / g)) k = f(1 / g);
+        if (k > f(1 / b)) k = f(1 / b);
+        r = f(f(r * f(1 - nightVision)) + f(f(r * k) * nightVision));
+        g = f(f(g * f(1 - nightVision)) + f(f(g * k) * nightVision));
+        b = f(f(b * f(1 - nightVision)) + f(f(b * k) * nightVision));
+      }
       if (r > 1) r = 1;
       if (g > 1) g = 1;
       if (b > 1) b = 1;
@@ -487,7 +541,7 @@ export class EntityRenderer {
     GL.blendFunc(GL.SRC_ALPHA, GL.ONE);
     rg.drawBlockDamageTexture();
     GL.disable(GL.BLEND);
-    EntityRenderer.rainRenderer?.(this, pt);
+    this.rainSnow.render(pt, this.rendererUpdateCount, () => this.enableLightmap(pt), () => this.disableLightmap(pt));
     GL.disable(GL.FOG);
     if (view.posY >= 128) this.renderCloudsCheck(pt);
     GL.clear(GL.DEPTH_BUFFER_BIT);
@@ -546,7 +600,7 @@ export class EntityRenderer {
     this.fogColorRed = f(this.fogColorRed + f(f(sr - this.fogColorRed) * distFactor));
     this.fogColorGreen = f(this.fogColorGreen + f(f(sg - this.fogColorGreen) * distFactor));
     this.fogColorBlue = f(this.fogColorBlue + f(f(sb - this.fogColorBlue) * distFactor));
-    const rain = w.getRainStrength(pt);
+    const rain = w.clientWeather.getRainStrength(pt);
     if (rain > 0) {
       const a = f(1 - f(rain * f(0.5)));
       const b = f(1 - f(rain * f(0.4)));
@@ -554,7 +608,7 @@ export class EntityRenderer {
       this.fogColorGreen = f(this.fogColorGreen * a);
       this.fogColorBlue = f(this.fogColorBlue * b);
     }
-    const thunder = w.getWeightedThunderStrength(pt);
+    const thunder = w.clientWeather.getWeightedThunderStrength(pt);
     if (thunder > 0) {
       const a = f(1 - f(thunder * f(0.5)));
       this.fogColorRed = f(this.fogColorRed * a);
@@ -582,12 +636,29 @@ export class EntityRenderer {
     this.fogColorGreen = f(this.fogColorGreen * bright);
     this.fogColorBlue = f(this.fogColorBlue * bright);
     let voidFog = (view.lastTickPosY + (view.posY - view.lastTickPosY) * pt) * w.provider.getVoidFogYFactor();
+    const blind = SkyHooks.potionDuration(view, SkyPotion.blindness);
+    if (blind >= 0) voidFog = blind < 20 ? voidFog * f(1 - f(blind / 20)) : 0;
     if (voidFog < 1) {
       if (voidFog < 0) voidFog = 0;
       voidFog *= voidFog;
       this.fogColorRed = f(this.fogColorRed * voidFog);
       this.fogColorGreen = f(this.fogColorGreen * voidFog);
       this.fogColorBlue = f(this.fogColorBlue * voidFog);
+    }
+    if (this.bossColorModifier > 0) {
+      const boss = this.getBossColorModifier(pt);
+      this.fogColorRed = f(f(this.fogColorRed * f(1 - boss)) + f(f(this.fogColorRed * f(0.7)) * boss));
+      this.fogColorGreen = f(f(this.fogColorGreen * f(1 - boss)) + f(f(this.fogColorGreen * f(0.6)) * boss));
+      this.fogColorBlue = f(f(this.fogColorBlue * f(1 - boss)) + f(f(this.fogColorBlue * f(0.6)) * boss));
+    }
+    if (hasPotion(view, SkyPotion.nightVision)) {
+      const nv = this.getNightVisionBrightness(this.mc.thePlayer!, pt);
+      let k = f(1 / this.fogColorRed);
+      if (k > f(1 / this.fogColorGreen)) k = f(1 / this.fogColorGreen);
+      if (k > f(1 / this.fogColorBlue)) k = f(1 / this.fogColorBlue);
+      this.fogColorRed = f(f(this.fogColorRed * f(1 - nv)) + f(f(this.fogColorRed * k) * nv));
+      this.fogColorGreen = f(f(this.fogColorGreen * f(1 - nv)) + f(f(this.fogColorGreen * k) * nv));
+      this.fogColorBlue = f(f(this.fogColorBlue * f(1 - nv)) + f(f(this.fogColorBlue * k) * nv));
     }
     GL.clearColor(this.fogColorRed, this.fogColorGreen, this.fogColorBlue, 0);
   }
@@ -601,12 +672,24 @@ export class EntityRenderer {
     GL.color(1, 1, 1, 1);
     const id = ActiveRenderInfo.getBlockIdAtEntityViewpoint(this.mc.theWorld!, view, pt);
     const mat = id > 0 ? Block.blocksList[id]?.blockMaterial : null;
-    if (this.cloudFog) {
+    const blind = SkyHooks.potionDuration(view, SkyPotion.blindness);
+    if (blind >= 0) {
+      let d = 5;
+      if (blind < 20) d = f(5 + f(f(this.farPlaneDistance - 5) * f(1 - f(blind / 20))));
+      GL.fogi(GL.LINEAR);
+      if (mode < 0) {
+        GL.setFogStart(0);
+        GL.setFogEnd(f(d * f(0.8)));
+      } else {
+        GL.setFogStart(f(d * f(0.25)));
+        GL.setFogEnd(d);
+      }
+    } else if (this.cloudFog) {
       GL.fogi(GL.EXP);
       GL.setFogDensity(f(0.1));
     } else if (mat === Material.water) {
       GL.fogi(GL.EXP);
-      GL.setFogDensity(f(0.1));
+      GL.setFogDensity(hasPotion(view, SkyPotion.waterBreathing) ? f(0.05) : f(0.1));
     } else if (mat === Material.lava) {
       GL.fogi(GL.EXP);
       GL.setFogDensity(2);

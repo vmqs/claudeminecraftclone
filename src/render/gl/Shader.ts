@@ -23,12 +23,14 @@ uniform mat3 u_normalMat;
 out vec2 v_uv;
 out vec4 v_color;
 out vec2 v_light;
-out vec3 v_eye;
+out float v_fogDist;
 
 void main() {
   vec4 eye = u_mv * vec4(a_pos * u_posScale, 1.0);
   gl_Position = u_proj * eye;
-  v_eye = eye.xyz;
+  // Fog distance per vertex, interpolated: GL_NV_fog_distance with GL_EYE_RADIAL_NV, which
+  // EntityRenderer.setupFog selects whenever the driver has it (NVIDIA, Mesa).
+  v_fogDist = length(eye.xyz);
   v_uv = (u_texMat * vec4(a_uv, 0.0, 1.0)).xy;
   vec4 c = a_color;
   if (u_lighting != 0) {
@@ -47,7 +49,7 @@ precision highp float;
 in vec2 v_uv;
 in vec4 v_color;
 in vec2 v_light;
-in vec3 v_eye;
+in float v_fogDist;
 
 uniform sampler2D u_tex;
 uniform sampler2D u_lightmap;
@@ -66,7 +68,7 @@ void main() {
   if (u_useLightmap != 0) c.rgb *= texture(u_lightmap, v_light).rgb;
   if (c.a <= u_alphaRef) discard;
   if (u_fogMode != 0) {
-    float dist = abs(v_eye.z); // eye-plane depth, as fixed-function GL computes fog
+    float dist = v_fogDist;
     float f;
     if (u_fogMode == 1) f = (u_fogParams.y - dist) / (u_fogParams.y - u_fogParams.x);
     else f = exp(-u_fogParams.z * dist);

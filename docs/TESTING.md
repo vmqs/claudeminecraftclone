@@ -28,13 +28,19 @@ URL parameters (any combination):
 
 `mc.dev` helpers (see `src/client/DevTools.ts`): `isInGame()`, `pendingSections(radius)`,
 `tp(x, y, z, yaw?, pitch?)`, `look(yaw, pitch)`, `setTime(t)`, `select(slot)`, `fillHotbar(ids?)`,
-`setFlying(on)`, `ticks(n)` (runs game ticks synchronously), `key(code, down)`,
+`setFlying(on)`, `ticks(n)` (runs game ticks synchronously), `weather(kind, ramp?)` (`'clear'`,
+`'rain'` or `'thunder'`; without `ramp` the fades are skipped), `key(code, down)`,
 `press(code, holdTicks)`, `mouse(button, down)`, `click(button, holdTicks)`, `target()`,
 `newEntity(name, ...ctorArgs)` / `spawn(name, ...ctorArgs)` (an EntityList name, or `'Egg'` /
 `'FishHook'` for the two unsaved classes; the world is passed first and `'@p'` stands for the
 player, e.g. `spawn('Arrow', '@p', 2)` or `spawn('FishHook', '@p')`), `entities(name?)`,
 and `lib` (`Block`, `Item`, `ItemStack`, `EntityList`). Setting `mc.timer.timerSpeed = 0` freezes
 game time (and partial ticks) for a capture while `mc.dev.ticks(n)` still advances it.
+`mc.dev.sky` (`src/render/sky/SkyDevTools.ts`): `pin(time?)` freezes the clock like the reference
+harness's `freeze` (partial tick 0, `mc.dev.ticks(n)` still steps) and pins cloud ticks, torch
+flicker, fog brightness, vignette and arm sway; `unfreeze()`; `strike(x, z)` (lightning bolt);
+`setBiome(id)` for every loaded column (12 Ice Plains = snow, 2 Desert = no rain);
+`fill(id, y0, y1, radius?)`; `helmet(id | null)` (86 = pumpkin).
 Key codes are LWJGL codes (`src/client/Keyboard.ts`, e.g. W = 17, space = 57, left shift = 42).
 A key or button must stay down for at least one tick to be seen by the player, which is what
 `press` and `click` do.
@@ -54,6 +60,8 @@ node scripts/shot.mjs inventory              # E, slot tooltip, pick up and put 
 node scripts/shot.mjs chat                   # chat line, /time, /give @p, /help, Tab completion, /kill
 node scripts/shot.mjs flat                   # a Superflat world (bedrock, dirt, dirt, grass; spawn y=4)
 node scripts/shot.mjs entities               # items, arrows, orbs, paintings, frames, TNT, boat, minecarts (checks in the log)
+node scripts/shot.mjs sky                    # sky, fog, clouds, render distances, rain, thunder and a bolt,
+                                             # snow, desert, underwater, lava, in-wall and pumpkin overlays
 node scripts/shot.mjs path/to/scenario.json --url http://localhost:5173/ --server none
 ```
 
@@ -84,6 +92,12 @@ SwiftShader renders on the CPU, so expect 1 to 5 fps in the harness while terrai
 before typing: at these frame rates several key events can land in one tick, and the ones that
 arrive before the screen opens act as game keys, exactly as they would in the original
 (`scripts/scenarios/chat.json` shows the pattern).
+
+The `sky` scenario stands at (8.5, 4, 8.5) on a Superflat world with Normal render distance, so
+its shots line up pixel for pixel with vanilla captures of the same scenes (Superflat presets
+`2;7,2x3,2;1`, `...;12`, `...;2`, water `2;7,2x3,2,5x9;1`, lava `2;7,2x3,2,3x11;1`); compare with
+ImageMagick (`compare -metric AE -fuzz 3%`) after masking the hand and hotbar. Sky, clouds, fog and
+the rain colours match to within a colour step; rain streaks differ by the renderer's tick count.
 
 ## Logic checks without a browser
 

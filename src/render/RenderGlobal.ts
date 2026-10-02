@@ -684,7 +684,7 @@ export class RenderGlobal implements IWorldAccess {
     GL.enable(GL.TEXTURE_2D);
     GL.blendFunc(GL.SRC_ALPHA, GL.ONE);
     GL.pushMatrix();
-    const rainFade = f(1 - w.getRainStrength(pt));
+    const rainFade = f(1 - w.clientWeather.getRainStrength(pt));
     GL.color(1, 1, 1, rainFade);
     GL.rotate(-90, 0, 1, 0);
     GL.rotate(f(w.getCelestialAngle(pt) * 360), 1, 0, 0);
