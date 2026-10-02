@@ -44,7 +44,7 @@ agent resumes from the first item that is not marked done or skipped. Status val
 | m12 | Weather: addWeatherEffect, lightning roll consuming RNG, hook | done (thunder roll before the ice/snow roll, World.lightningBoltFactory hook, weather effects rendered first in renderEntities) |
 | m13 | GuiSlot widget | todo |
 | m14 | pendingNear counts only results inside the radius | done |
-| m15 | Superflat world type | todo |
+| m15 | Superflat world type | done (FlatGeneratorInfo presets, ChunkProviderFlat with the default 2;7,2x3,2;1;village layers, SingleBiomeSource, spawn at y=4; villages not generated yet) |
 | m16 | Render distance change applies without crossing a chunk border | done |
 | m17 | Video Settings title at y=20 | done |
 | m18 | "Building terrain" screen has no progress bar | done |

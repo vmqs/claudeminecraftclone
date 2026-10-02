@@ -5,7 +5,8 @@ import { Chunk } from '../world/Chunk';
 import { ChunkSection } from '../world/ChunkSection';
 import { JavaRandom } from '../core/JavaRandom';
 import { Biomes, type BiomeGenBase } from '../world/biome/BiomeGenBase';
-import { ChunkProviderGenerate } from '../world/gen/ChunkProviderGenerate';
+import { ChunkProviderFlat } from '../world/gen/ChunkProviderFlat';
+import { type ChunkGenerator, ChunkProviderGenerate } from '../world/gen/ChunkProviderGenerate';
 import { computeChunkLight } from '../world/gen/GenLighting';
 import { GenWorld } from '../world/gen/GenWorld';
 import type { TagCompound } from '../item/ItemStack';
@@ -13,7 +14,7 @@ import type { ChunkPayload, SectionPayload, WorldGenRequest } from './worldgenPr
 
 declare const self: DedicatedWorkerGlobalScope;
 
-let provider: ChunkProviderGenerate | null = null;
+let provider: ChunkGenerator | null = null;
 let worldSeed = 0n;
 let world: GenWorld | null = null;
 const populated = new Set<number>();
@@ -34,6 +35,7 @@ function ensureTerrain(cx: number, cz: number): Chunk {
   const gen = provider!.provideChunk(cx, cz);
   c = new Chunk(w, cx, cz);
   const src = gen.blocks;
+  const meta = gen.meta;
   for (let sy = 0; sy < 8; sy++) {
     let s: ChunkSection | null = null;
     for (let x = 0; x < 16; x++) {
@@ -44,6 +46,7 @@ function ensureTerrain(cx: number, cz: number): Chunk {
           if (id === 0) continue;
           if (!s) s = new ChunkSection(sy << 4);
           s.blocks[(y << 8) | (z << 4) | x] = id;
+          if (meta && meta[base + y] !== 0) s.setExtBlockMetadata(x, y, z, meta[base + y]);
         }
       }
     }
@@ -108,6 +111,8 @@ function finalizeChunk(cx: number, cz: number): ChunkPayload {
 
 /** WorldChunkManager.findBiomePosition over the 1:4 biome grid (reservoir pick). */
 function findBiomePosition(x: number, z: number, range: number, allowed: BiomeGenBase[], rand: JavaRandom): [number, number] | null {
+  const direct = provider!.biomeSource.findBiomePosition;
+  if (direct) return direct.call(provider!.biomeSource, x, z, range, allowed, rand);
   const x0 = (x - range) >> 2;
   const z0 = (z - range) >> 2;
   const w = ((x + range) >> 2) - x0 + 1;
@@ -146,7 +151,7 @@ function createSpawnPosition(seed: bigint): [number, number, number] {
     z += rand.nextInt(64) - rand.nextInt(64);
     if (++tries === 1000) break;
   }
-  return [x, 64, z];
+  return [x, provider!.getAverageGroundLevel(), z];
 }
 
 function evict(): void {
@@ -218,7 +223,7 @@ self.onmessage = (e: MessageEvent<WorldGenRequest>) => {
     case 'init': {
       const seed = BigInt(m.seed);
       worldSeed = seed;
-      provider = new ChunkProviderGenerate(seed, m.mapFeatures);
+      provider = m.worldType === 'flat' ? new ChunkProviderFlat(seed, null) : new ChunkProviderGenerate(seed, m.mapFeatures);
       world = new GenWorld(provider.biomeSource);
       populated.clear();
       requested.clear();

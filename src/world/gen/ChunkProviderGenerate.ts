@@ -20,6 +20,8 @@ export interface BiomeSource {
   /** loadBlockGeneratorData: per-column biomes for a 16x16 area. */
   loadBlockGeneratorData(x: number, z: number, w: number, h: number): BiomeGenBase[];
   getBiomeGenAt(x: number, z: number): BiomeGenBase;
+  /** findBiomePosition when the source answers it directly (single-biome worlds). */
+  findBiomePosition?(x: number, z: number, range: number, allowed: BiomeGenBase[], rand: JavaRandom): [number, number] | null;
 }
 
 /**
@@ -53,14 +55,25 @@ export class PlaceholderBiomeSource implements BiomeSource {
 /** Raw generated chunk: block ids in the original's x<<11 | z<<7 | y layout (0..127) and biomes. */
 export interface GeneratedChunk {
   blocks: Uint8Array;
+  /** Block metadata in the same layout (superflat layers); absent means all zero. */
+  meta?: Uint8Array;
   biomes: Uint8Array;
+}
+
+/** What the world-generation worker needs from a generator (IChunkProvider on the server). */
+export interface ChunkGenerator {
+  readonly biomeSource: BiomeSource;
+  provideChunk(cx: number, cz: number): GeneratedChunk;
+  populate(world: IWorld, cx: number, cz: number): void;
+  /** WorldProvider.getAverageGroundLevel: the spawn search height (64, or 4 for superflat). */
+  getAverageGroundLevel(): number;
 }
 
 /**
  * The overworld generator ("RandomLevelSource"): density-noise terrain, biome surface
  * replacement and population. Caves, ravines and structures are not generated yet.
  */
-export class ChunkProviderGenerate {
+export class ChunkProviderGenerate implements ChunkGenerator {
   private readonly rand: JavaRandom;
   private readonly noiseGen1: NoiseGeneratorOctaves;
   private readonly noiseGen2: NoiseGeneratorOctaves;
@@ -189,6 +202,10 @@ export class ChunkProviderGenerate {
         }
       }
     }
+  }
+
+  getAverageGroundLevel(): number {
+    return 64;
   }
 
   /** provideChunk: terrain + surface for one chunk (no population). */
