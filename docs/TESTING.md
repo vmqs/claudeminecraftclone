@@ -57,10 +57,10 @@ node scripts/shot.mjs spawn --out shots      # spawn at noon, F3, selection outl
 node scripts/shot.mjs interact               # walk, fly, break and place, with assertions in the log
 node scripts/shot.mjs effects                # every particle type, spawn rules, sounds, records and music (asserts)
 node scripts/shot.mjs inventory              # E, slot tooltip, pick up and put back a stack
+node scripts/shot.mjs dynamics               # fluids over time, falling blocks, fire, trees, leaf decay, snow (counts in the log)
 node scripts/shot.mjs chat                   # chat line, /time, /give @p, /help, Tab completion, /kill
 node scripts/shot.mjs flat                   # a Superflat world (bedrock, dirt, dirt, grass; spawn y=4)
 node scripts/shot.mjs entities               # items, arrows, orbs, paintings, frames, TNT, boat, minecarts (checks in the log)
-node scripts/shot.mjs dynamics               # fluids over time, falling blocks, fire, trees, leaf decay, snow (counts in the log)
 node scripts/shot.mjs sky                    # sky, fog, clouds, render distances, rain, thunder and a bolt,
                                              # snow, desert, underwater, lava, in-wall and pumpkin overlays
 node scripts/shot.mjs path/to/scenario.json --url http://localhost:5173/ --server none
