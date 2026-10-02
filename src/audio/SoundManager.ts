@@ -221,20 +221,29 @@ export class SoundManager {
 
   // ------------------------------------------------------------------ data
 
-  /** Fetches and decodes a sound file once (null when missing or undecodable). */
+  /**
+   * Fetches and decodes a sound file once (null when missing or undecodable; a network error
+   * is not remembered, so a later request tries again).
+   */
   private load(path: string): Promise<AudioBuffer | null> {
     const hit = this.cache.get(path);
     if (hit) {
       hit.lastUse = performance.now();
       return hit.promise;
     }
+    const ctx = this.ctx;
+    if (!ctx) return Promise.resolve(null);
     const entry: CacheEntry = { promise: Promise.resolve(null), bytes: 0, lastUse: performance.now() };
     entry.promise = (async () => {
-      const ctx = this.ctx;
-      if (!ctx) return null;
+      let data: Uint8Array<ArrayBuffer> | null;
       try {
-        const data = await this.fetchSoundData(path);
-        if (!data) return null;
+        data = await this.fetchSoundData(path);
+      } catch {
+        if (this.cache.get(path) === entry) this.cache.delete(path);
+        return null;
+      }
+      if (!data) return null;
+      try {
         const buf = await ctx.decodeAudioData(data.buffer.byteLength === data.byteLength ? data.buffer : data.slice().buffer);
         entry.bytes = buf.length * buf.numberOfChannels * 4;
         this.cacheBytes += entry.bytes;
@@ -248,14 +257,9 @@ export class SoundManager {
     return entry.promise;
   }
 
-  /** The raw file (".mus" records already de-obfuscated), or null. */
+  /** The raw file (".mus" records already de-obfuscated); null when missing, throws on network errors. */
   private async fetchSoundData(path: string): Promise<Uint8Array<ArrayBuffer> | null> {
-    let raw: ArrayBuffer | null;
-    try {
-      raw = await this.resources.getArrayBuffer(path);
-    } catch {
-      return null;
-    }
+    const raw = await this.resources.getArrayBuffer(path);
     if (!raw) return null;
     if (path.toLowerCase().endsWith('.mus')) return decodeMus(raw, path) as Uint8Array<ArrayBuffer>;
     return new Uint8Array(raw);
@@ -580,7 +584,7 @@ export class SoundManager {
     void (async () => {
       let url: string | null;
       if (entry.path.toLowerCase().endsWith('.mus')) {
-        const data = await this.fetchSoundData(entry.path);
+        const data = await this.fetchSoundData(entry.path).catch(() => null);
         if (!data || voice.stopped) return fail();
         voice.objectUrl = URL.createObjectURL(new Blob([data], { type: 'audio/ogg' }));
         url = voice.objectUrl;
