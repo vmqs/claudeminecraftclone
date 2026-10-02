@@ -13,7 +13,8 @@ const f = Math.fround;
  * scaled by distance (full strength on a direct hit), then the 2002 splash effect.
  */
 export class EntityPotion extends EntityThrowable {
-  private potion: ItemStack | null = null;
+  /** The thrown potion stack (1.5.2's field name; item code sets it directly). */
+  potionDamage: ItemStack | null = null;
 
   constructor(world: World);
   constructor(world: World, thrower: EntityLiving, potion: number | ItemStack);
@@ -23,7 +24,7 @@ export class EntityPotion extends EntityThrowable {
     else if (typeof a === 'number') super(world, a, b as number, c!);
     else super(world, a);
     const p = typeof a === 'number' ? d : b;
-    if (p !== undefined) this.potion = typeof p === 'number' ? new ItemStack(ItemIds.potion, 1, p) : p;
+    if (p !== undefined) this.potionDamage = typeof p === 'number' ? new ItemStack(ItemIds.potion, 1, p) : p;
   }
 
   protected override getGravityVelocity(): number {
@@ -39,18 +40,19 @@ export class EntityPotion extends EntityThrowable {
   }
 
   setPotionDamage(damage: number): void {
-    this.potion ??= new ItemStack(ItemIds.potion, 1, 0);
-    this.potion.setItemDamage(damage);
+    this.potionDamage ??= new ItemStack(ItemIds.potion, 1, 0);
+    this.potionDamage.setItemDamage(damage);
   }
 
   getPotionDamage(): number {
-    this.potion ??= new ItemStack(ItemIds.potion, 1, 0);
-    return this.potion.getItemDamage();
+    this.potionDamage ??= new ItemStack(ItemIds.potion, 1, 0);
+    return this.potionDamage.getItemDamage();
   }
 
   protected onImpact(hit: MovingObjectPosition): void {
-    const effects = PotionHooks.effectsFromDamage?.(this.getPotionDamage()) ?? [];
-    if (effects.length > 0) {
+    this.getPotionDamage();
+    const effects = PotionHooks.effectsOf?.(this.potionDamage!) ?? null;
+    if (effects && effects.length > 0) {
       const box = this.boundingBox.expand(4, 2, 4);
       for (const e of this.worldObj.getEntitiesWithinAABBExcludingEntity(null, box, (x) => x.isLivingEntity)) {
         const living = e as EntityLiving;

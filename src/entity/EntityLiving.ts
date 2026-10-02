@@ -15,6 +15,8 @@ import { EntityMoveHelper } from './ai/EntityMoveHelper';
 import { EntitySenses } from './ai/EntitySenses';
 import { PathNavigate } from './ai/PathNavigate';
 import { DamageSource } from './DamageSource';
+import { EnchantmentHooks } from './EnchantmentHooks';
+import { armorPoints } from './InventoryPlayer';
 import { Entity } from './Entity';
 import { EntityList } from './EntityList';
 import type { EntityPlayer } from './EntityPlayer';
@@ -91,8 +93,6 @@ export abstract class EntityLiving extends Entity {
    * and the EntityPickupFX flying to the collector); installed by the renderer side.
    */
   static collectEffect: ((item: Entity, collector: EntityLiving) => void) | null = null;
-  /** Mob equipment enchanting (EnchantmentHelper.addRandomEnchantment), installed by the enchantment code. */
-  static addRandomEnchantment: ((rand: JavaRandom, stack: ItemStack, level: number) => void) | null = null;
   /** Chance per difficulty that a mob may pick up loot (pickUpLootProability). */
   static readonly pickUpLootProbability = [0, f(0.1), f(0.15), f(0.45)];
 
@@ -517,8 +517,10 @@ export abstract class EntityLiving extends Entity {
     }
   }
 
+  /** One less air per tick; respiration may skip the tick (1 - 1/(level+1) chance). */
   protected decreaseAirSupply(air: number): number {
-    return air - 1;
+    const respiration = EnchantmentHooks.respiration?.(this) ?? 0;
+    return respiration > 0 && this.rand.nextInt(respiration + 1) > 0 ? air : air - 1;
   }
 
   protected getExperiencePoints(_player: EntityPlayer | null): number {
@@ -704,7 +706,7 @@ export abstract class EntityLiving extends Entity {
 
   getTotalArmorValue(): number {
     let total = 0;
-    for (const s of this.getLastActiveItems()) if (s) total += s.getItem().getArmorReduction();
+    for (const s of this.getLastActiveItems()) if (s) total += armorPoints(s.getItem()) ?? 0;
     return total;
   }
 
@@ -741,9 +743,9 @@ export abstract class EntityLiving extends Entity {
     return amount;
   }
 
-  /** EnchantmentHelper.getEnchantmentModifierDamage over the equipment (no enchantments yet: 0). */
-  protected getEnchantmentModifierDamage(_src: DamageSource): number {
-    return 0;
+  /** EnchantmentHelper.getEnchantmentModifierDamage over the worn armour (EnchantmentHooks). */
+  protected getEnchantmentModifierDamage(src: DamageSource): number {
+    return EnchantmentHooks.modifierDamage?.(this, src) ?? 0;
   }
 
   protected damageEntity(src: DamageSource, amount: number): void {
@@ -786,9 +788,9 @@ export abstract class EntityLiving extends Entity {
     this.worldObj.setEntityState(this, 3);
   }
 
-  /** EnchantmentHelper.getLootingModifier of the killer's weapon (no enchantments yet: 0). */
-  protected getLootingModifier(_killer: EntityLiving): number {
-    return 0;
+  /** EnchantmentHelper.getLootingModifier of the killer's weapon (EnchantmentHooks). */
+  protected getLootingModifier(killer: EntityLiving): number {
+    return EnchantmentHooks.looting?.(killer) ?? 0;
   }
 
   protected dropRareDrop(_kind: number): void {}
@@ -1079,7 +1081,7 @@ export abstract class EntityLiving extends Entity {
 
   /** func_82162_bC: random enchantments on spawned equipment, by difficulty. */
   protected enchantEquipment(): void {
-    const enchant = EntityLiving.addRandomEnchantment;
+    const enchant = EnchantmentHooks.addRandomEnchantment;
     if (!enchant) return;
     const diff = this.worldObj.difficultySetting;
     const held = this.getHeldItem();

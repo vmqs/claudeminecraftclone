@@ -1,3 +1,4 @@
+import type { ItemStack } from '../item/ItemStack';
 import type { EntityLiving } from './EntityLiving';
 
 /**
@@ -77,8 +78,8 @@ export function areAllPotionsAmbient(effects: Iterable<PotionEffectLike>): boole
  * the potion code; null entries fall back to "no effects" and the water colour.
  */
 export const PotionHooks: {
-  /** ItemPotion.getEffects(damage): the effects of a potion item damage value. */
-  effectsFromDamage: ((damage: number) => PotionEffectLike[]) | null;
+  /** ItemPotion.getEffects(stack): the effects of a potion stack (custom effects tag included). */
+  effectsOf: ((potion: ItemStack) => PotionEffectLike[] | null) | null;
   /** PotionHelper.func_77915_a(damage, false): the liquid colour of a potion item damage value. */
   liquidColorFromDamage: ((damage: number) => number) | null;
   /** new PotionEffect(id, duration, amplifier). */
@@ -86,7 +87,7 @@ export const PotionHooks: {
   /** Potion.affectEntity for instant potions (healing, harming) scaled by the splash distance. */
   affectEntity: ((potionId: number, thrower: EntityLiving | null, target: EntityLiving, amplifier: number, scale: number) => void) | null;
 } = {
-  effectsFromDamage: null,
+  effectsOf: null,
   liquidColorFromDamage: null,
   createEffect: null,
   affectEntity: null,

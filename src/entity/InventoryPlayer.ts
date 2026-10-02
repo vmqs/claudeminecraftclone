@@ -5,6 +5,18 @@ import { ItemStack } from '../item/ItemStack';
 import type { Entity } from './Entity';
 import type { EntityPlayer } from './EntityPlayer';
 
+/**
+ * The armour points of an ItemArmor (its damageReduceAmount), or null for anything else
+ * (pumpkins and skulls can be worn but are not armour). Duck-typed so it does not depend on
+ * the armour item class.
+ */
+export function armorPoints(item: Item): number | null {
+  const a = item as Item & { damageReduceAmount?: unknown; armorType?: unknown };
+  if (typeof a.damageReduceAmount === 'number' && typeof a.armorType === 'number') return a.damageReduceAmount;
+  const r = item.getArmorReduction();
+  return r > 0 ? r : null;
+}
+
 /** The player's 36 main slots (0-8 = hotbar) plus 4 armour slots. */
 export class InventoryPlayer implements IInventory {
   mainInventory: (ItemStack | null)[] = new Array(36).fill(null);
@@ -257,8 +269,24 @@ export class InventoryPlayer implements IInventory {
     return this.armorInventory[slot];
   }
 
+  /** Armour points of the worn ItemArmor pieces. */
   getTotalArmorValue(): number {
-    return 0;
+    let total = 0;
+    for (const s of this.armorInventory) if (s) total += armorPoints(s.getItem()) ?? 0;
+    return total;
+  }
+
+  /** Each worn ItemArmor piece loses a quarter of `damage` (at least 1); broken pieces vanish. */
+  damageArmor(damage: number): void {
+    damage = Math.trunc(damage / 4);
+    if (damage < 1) damage = 1;
+    for (let i = 0; i < this.armorInventory.length; i++) {
+      const s = this.armorInventory[i];
+      if (s && armorPoints(s.getItem()) !== null) {
+        s.damageItem(damage, this.player);
+        if (s.stackSize === 0) this.armorInventory[i] = null;
+      }
+    }
   }
 
   onInventoryChanged(): void {

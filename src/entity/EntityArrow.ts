@@ -6,6 +6,7 @@ import { Vec3 } from '../core/Vec3';
 import { ItemStack } from '../item/ItemStack';
 import type { World } from '../world/World';
 import { DamageSource } from './DamageSource';
+import { applyThorns } from './EnchantmentHooks';
 import { Entity } from './Entity';
 import { EntityList } from './EntityList';
 import type { EntityLiving } from './EntityLiving';
@@ -272,7 +273,7 @@ export class EntityArrow extends Entity implements IProjectile {
           const h = MathHelper.sqrt_double(this.motionX * this.motionX + this.motionZ * this.motionZ);
           if (h > 0) target.addVelocity((this.motionX * this.knockbackStrength * f(0.6)) / h, 0.1, (this.motionZ * this.knockbackStrength * f(0.6)) / h);
         }
-        if (this.shootingEntity) EntityArrow.thornsHook?.(this.shootingEntity, living);
+        if (this.shootingEntity) applyThorns(this.shootingEntity, living, this.rand);
       }
       this.playSound('random.bowhit', 1, f(f(1.2) / f(f(this.rand.nextFloat() * f(0.2)) + f(0.9))));
       if (!isEnderman) this.setDead();
@@ -285,9 +286,6 @@ export class EntityArrow extends Entity implements IProjectile {
       this.ticksInAir = 0;
     }
   }
-
-  /** EnchantmentThorns.func_92096_a: thorns armour on the target hurts the shooter (enchantment code). */
-  static thornsHook: ((attacker: Entity, target: EntityLiving) => void) | null = null;
 
   /** Walks into a stuck arrow: picked up when allowed (Creative players take type-2 arrows without an item). */
   override onCollideWithPlayer(player: EntityPlayer): void {

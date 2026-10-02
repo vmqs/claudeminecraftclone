@@ -61,8 +61,16 @@ export abstract class EntityMinecart extends Entity {
   private displayTileOffset = 6;
   private hasCustomDisplayTile = false;
 
+  /**
+   * Creates the client's rolling-sound updater of a new cart (WorldClient.func_82735_a);
+   * installed on the main thread, null = silent carts.
+   */
+  static soundUpdaterFactory: ((cart: EntityMinecart) => { update(): void }) | null = null;
+  private readonly soundUpdater: { update(): void } | null;
+
   constructor(world: World, x?: number, y?: number, z?: number) {
     super(world);
+    this.soundUpdater = EntityMinecart.soundUpdaterFactory?.(this) ?? null;
     this.preventEntitySpawning = true;
     this.setSize(0.98, 0.7);
     this.yOffset = f(this.height / 2);
@@ -140,7 +148,14 @@ export abstract class EntityMinecart extends Entity {
     return !this.isDead;
   }
 
+  /** Dying stops the rolling sound at once. */
+  override setDead(): void {
+    super.setDead();
+    this.soundUpdater?.update();
+  }
+
   override onUpdate(): void {
+    this.soundUpdater?.update();
     if (this.getRollingAmplitude() > 0) this.setRollingAmplitude(this.getRollingAmplitude() - 1);
     if (this.getDamage() > 0) this.setDamage(this.getDamage() - 1);
     if (this.posY < -64) this.kill();

@@ -5,6 +5,7 @@ import { JavaRandom } from '../core/JavaRandom';
 import { MathHelper } from '../core/MathHelper';
 import { Vec3 } from '../core/Vec3';
 import { DamageSource } from '../entity/DamageSource';
+import { blastProtectedKnockback } from '../entity/EnchantmentHooks';
 import type { Entity } from '../entity/Entity';
 import type { EntityLiving } from '../entity/EntityLiving';
 import type { EntityPlayer } from '../entity/EntityPlayer';
@@ -105,7 +106,7 @@ export class Explosion {
       const exposure = w.getBlockDensity(centre, e.boundingBox);
       const impact = (1 - dist) * exposure;
       e.attackEntityFrom(DamageSource.setExplosionSource(this), Math.trunc(((impact * impact + impact) / 2) * 8 * this.explosionSize + 1));
-      const push = Explosion.blastProtection ? Explosion.blastProtection(e, impact) : impact;
+      const push = blastProtectedKnockback(e, impact);
       e.motionX += dx * push;
       e.motionY += dy * push;
       e.motionZ += dz * push;
@@ -176,7 +177,4 @@ export class Explosion {
     if (placer) return placer.call(e);
     return e.isLivingEntity ? (e as EntityLiving) : null;
   }
-
-  /** EnchantmentProtection.func_92092_a: Blast Protection lowers the push (installed by the enchantment code). */
-  static blastProtection: ((e: Entity, impact: number) => number) | null = null;
 }

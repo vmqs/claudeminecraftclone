@@ -1,6 +1,6 @@
 import { Container } from '../gui/inventory/Container';
 import { decrStackInArray, type IInventory, takeStackFromArray } from '../gui/inventory/IInventory';
-import { ItemStack } from '../item/ItemStack';
+import { ItemStack, type TagCompound } from '../item/ItemStack';
 import type { World } from '../world/World';
 import type { DamageSource } from './DamageSource';
 import { EntityItem } from './EntityItem';
@@ -101,9 +101,10 @@ export abstract class EntityMinecartContainer extends EntityMinecart implements 
     const items = tag['Items'];
     if (!Array.isArray(items)) return;
     this.items.fill(null);
-    for (const it of items as { Slot?: number; id?: number; Count?: number; Damage?: number }[]) {
+    // Full stack data, tag included (enchanted books in mineshaft carts keep their enchantments).
+    for (const it of items as ({ Slot?: number } & TagCompound)[]) {
       const slot = (it.Slot ?? -1) & 255;
-      if (slot >= 0 && slot < this.items.length && it.id) this.items[slot] = new ItemStack(it.id, it.Count ?? 1, it.Damage ?? 0);
+      if (slot >= 0 && slot < this.items.length) this.items[slot] = ItemStack.loadItemStackFromNBT(it);
     }
   }
 

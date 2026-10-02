@@ -12,6 +12,7 @@ import type { Explosion } from '../world/Explosion';
 import type { World } from '../world/World';
 import { I18n } from '../core/I18n';
 import { DamageSource } from './DamageSource';
+import { fireProtectedTicks } from './EnchantmentHooks';
 import { EntityList } from './EntityList';
 import type { EntityPlayer } from './EntityPlayer';
 
@@ -228,7 +229,7 @@ export abstract class Entity {
   }
 
   setFire(seconds: number): void {
-    const t = seconds * 20;
+    const t = fireProtectedTicks(this, seconds * 20);
     if (this.fire < t) this.fire = t;
   }
 
