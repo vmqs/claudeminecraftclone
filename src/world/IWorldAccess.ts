@@ -13,6 +13,10 @@ export interface IWorldAccess {
   onEntityCreate(e: Entity): void;
   onEntityDestroy(e: Entity): void;
   playAuxSFX(player: EntityPlayer | null, type: number, x: number, y: number, z: number, data: number): void;
+  /** A jukebox starts (or, with null, stops) a record. */
+  playRecord?(name: string | null, x: number, y: number, z: number): void;
+  /** Sounds every player hears from the direction of (x, y, z): wither spawn, dragon death. */
+  broadcastSound?(type: number, x: number, y: number, z: number, data: number): void;
   destroyBlockPartially(entityId: number, x: number, y: number, z: number, progress: number): void;
   onChunkLoaded?(cx: number, cz: number): void;
   onChunkUnloaded?(cx: number, cz: number): void;

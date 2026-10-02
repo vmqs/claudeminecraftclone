@@ -67,6 +67,8 @@ export type ItemDropFactory = (w: World, x: number, y: number, z: number, stack:
  */
 export class World implements IWorld, IBlockAccess {
   static itemDropFactory: ItemDropFactory | null = null;
+  /** Creates the EntityLightningBolt a thunderstorm strikes with (set by the weather code). */
+  static lightningBoltFactory: ((w: World, x: number, y: number, z: number) => Entity) | null = null;
 
   readonly isRemote = false;
   readonly rand = new JavaRandom();
@@ -707,6 +709,15 @@ export class World implements IWorld, IBlockAccess {
   }
 
   /** Level events (2001 = block break effect with id + meta << 12, ...). */
+  playRecord(name: string | null, x: number, y: number, z: number): void {
+    for (const a of this.worldAccesses) a.playRecord?.(name, x, y, z);
+  }
+
+  /** func_82739_e */
+  broadcastSound(type: number, x: number, y: number, z: number, data: number): void {
+    for (const a of this.worldAccesses) a.broadcastSound?.(type, x, y, z, data);
+  }
+
   playAuxSFX(type: number, x: number, y: number, z: number, data: number): void {
     this.playAuxSFXAtEntity(null, type, x, y, z, data);
   }
@@ -1093,6 +1104,12 @@ export class World implements IWorld, IBlockAccess {
 
   getEntityPathToXYZ(e: Entity, x: number, y: number, z: number, range: number, openDoors: boolean, breakDoors: boolean, avoidWater: boolean, canSwim: boolean): PathEntity | null {
     return new PathFinder(this, openDoors, breakDoors, avoidWater, canSwim).createEntityPathToXYZ(e, x, y, z, range);
+  }
+
+  /** Adds a lightning bolt (ticked in updateEntities, drawn with the other entities). */
+  addWeatherEffect(e: Entity): boolean {
+    this.weatherEffects.push(e);
+    return true;
   }
 
   /** World.updateEntities: ticks weather effects and entities, removes dead ones. */
@@ -1614,6 +1631,17 @@ export class World implements IWorld, IBlockAccess {
       const bz = chunk.zPosition * 16;
       this.moodSoundAndLightCheck(bx, bz, chunk);
       chunk.updateSkylight();
+      if (this.rand.nextInt(100000) === 0 && this.isRaining() && this.isThundering()) {
+        this.updateLCG = (Math.imul(this.updateLCG, 3) + 1013904223) | 0;
+        const r = this.updateLCG >> 2;
+        const lx = bx + (r & 15);
+        const lz = bz + ((r >> 8) & 15);
+        const ly = this.getPrecipitationHeight(lx, lz);
+        if (this.canLightningStrikeAt(lx, ly, lz)) {
+          const bolt = World.lightningBoltFactory?.(this, lx, ly, lz);
+          if (bolt) this.addWeatherEffect(bolt);
+        }
+      }
       if (this.rand.nextInt(16) === 0) {
         this.updateLCG = (Math.imul(this.updateLCG, 3) + 1013904223) | 0;
         const r = this.updateLCG >> 2;

@@ -66,6 +66,9 @@ export class SoundManager {
   private master: GainNode | null = null;
   private readonly soundPoolSounds = new SoundPool(true);
   private readonly soundPoolMusic = new SoundPool(true);
+  private readonly soundPoolStreaming = new SoundPool(false);
+  /** The jukebox record playing ("streaming" in the original sound system). */
+  private streaming: AudioBufferSourceNode | null = null;
   private readonly buffers = new Map<string, Promise<AudioBuffer | null>>();
   private readonly rand = new JavaRandom();
   private ticksBeforeMusic = this.rand.nextInt(12000);
@@ -87,6 +90,7 @@ export class SoundManager {
       if (p.startsWith('sound3/')) this.soundPoolSounds.addSound(p.slice(7), p);
       else if (p.startsWith('music/')) this.soundPoolMusic.addSound(p.slice(6), p);
       else if (p.startsWith('newmusic/')) this.soundPoolMusic.addSound(p.slice(9), p);
+      else if (p.startsWith('streaming/')) this.soundPoolStreaming.addSound(p.slice(10), p);
     }
     const resume = () => this.ensureContext();
     for (const ev of ['pointerdown', 'keydown', 'touchstart']) window.addEventListener(ev, resume, { capture: true });
@@ -221,6 +225,39 @@ export class SoundManager {
     });
   }
 
+  /**
+   * Plays a record at a jukebox, stopping the previous one and the background music; null
+   * just stops it. Heard up to 64 blocks away at half the sound volume.
+   */
+  playStreaming(name: string | null, x: number, y: number, z: number): void {
+    if (!this.loaded || (this.options.soundVolume === 0 && name !== null)) return;
+    this.streaming?.stop();
+    this.streaming = null;
+    if (name === null) return;
+    const path = this.soundPoolStreaming.getRandomSoundFromSoundPool(name, this.rand);
+    const ctx = this.ensureContext();
+    if (!path || !ctx) return;
+    if (this.music) this.music.pause();
+    this.music = null;
+    void this.load(path).then((buf) => {
+      if (!buf || !this.master) return;
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      const gain = ctx.createGain();
+      gain.gain.value = 0.5 * this.options.soundVolume;
+      const panner = this.makePanner(ctx, x, y, z, 16 * 4);
+      src.connect(gain);
+      gain.connect(panner);
+      panner.connect(this.master);
+      this.streaming?.stop();
+      this.streaming = src;
+      src.onended = () => {
+        if (this.streaming === src) this.streaming = null;
+      };
+      src.start();
+    });
+  }
+
   /** Positional sound ("step.grass", "random.click", ...). */
   playSound(name: string, x: number, y: number, z: number, volume: number, pitch: number): void {
     if (!this.loaded || this.options.soundVolume === 0 || volume <= 0) return;
@@ -343,6 +380,8 @@ export class SoundManager {
     this.scheduled.length = 0;
     if (this.music) this.music.pause();
     this.music = null;
+    this.streaming?.stop();
+    this.streaming = null;
   }
 }
 

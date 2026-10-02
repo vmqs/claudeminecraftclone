@@ -40,8 +40,8 @@ agent resumes from the first item that is not marked done or skipped. Status val
 | m8 | Extension points documented in ARCHITECTURE.md | todo |
 | m9 | EntityItem, World.itemDropFactory, drop key (Q) | done |
 | m10 | ModelBase texture offset map, named addBox | done |
-| m11 | playAuxSFX remaining cases | todo |
-| m12 | Weather: addWeatherEffect, lightning roll consuming RNG, hook | todo |
+| m11 | playAuxSFX remaining cases | done (ghast/zombie/wither/bat/anvil sounds, records with "Now playing" and SoundManager.playStreaming, potion splash, eye of ender, bone meal; broadcastSound 1013/1018) |
+| m12 | Weather: addWeatherEffect, lightning roll consuming RNG, hook | done (thunder roll before the ice/snow roll, World.lightningBoltFactory hook, weather effects rendered first in renderEntities) |
 | m13 | GuiSlot widget | todo |
 | m14 | pendingNear counts only results inside the radius | done |
 | m15 | Superflat world type | todo |

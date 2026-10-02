@@ -1,4 +1,5 @@
 import type { Minecraft } from '../client/Minecraft';
+import { hsbToRgb } from '../core/Color';
 import { JavaRandom } from '../core/JavaRandom';
 import { MathHelper } from '../core/MathHelper';
 import { Direction } from '../core/Facing';
@@ -22,6 +23,10 @@ export class GuiIngame extends Gui {
   static readonly itemRenderer = new RenderItem();
   private readonly rand = new JavaRandom();
   private updateCounter = 0;
+  /** "Now playing" line over the hotbar (jukebox records). */
+  private recordPlaying = '';
+  private recordPlayingUpFor = 0;
+  private recordIsPlaying = false;
   prevVignetteBrightness = 1;
   private remainingHighlightTicks = 0;
   private highlightingItemStack: ItemStack | null = null;
@@ -79,6 +84,20 @@ export class GuiIngame extends Gui {
       }
     }
     if (this.mc.gameSettings.showDebugInfo) this.renderDebugInfo(w);
+    if (this.recordPlayingUpFor > 0) {
+      const left = f(this.recordPlayingUpFor - pt);
+      const alpha = Math.min(255, Math.trunc(f(f(left * 256) / 20)));
+      if (alpha > 0) {
+        GL.pushMatrix();
+        GL.translate(Math.trunc(w / 2), h - 48, 0);
+        GL.enable(GL.BLEND);
+        GL.blendFunc(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA);
+        const color = this.recordIsPlaying ? hsbToRgb(f(left / 50), f(0.7), f(0.6)) & 0xffffff : 0xffffff;
+        fr.drawString(this.recordPlaying, -Math.trunc(fr.getStringWidth(this.recordPlaying) / 2), -4, (color + (alpha << 24)) | 0);
+        GL.disable(GL.BLEND);
+        GL.popMatrix();
+      }
+    }
     GL.enable(GL.BLEND);
     GL.blendFunc(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA);
     GL.disable(GL.ALPHA_TEST);
@@ -171,7 +190,14 @@ export class GuiIngame extends Gui {
     GuiIngame.itemRenderer.renderItemOverlayIntoGUI(this.mc.fontRenderer, this.mc.renderEngine, stack, x, y);
   }
 
+  setRecordPlayingMessage(title: string): void {
+    this.recordPlaying = 'Now playing: ' + title;
+    this.recordPlayingUpFor = 60;
+    this.recordIsPlaying = true;
+  }
+
   updateTick(): void {
+    if (this.recordPlayingUpFor > 0) this.recordPlayingUpFor--;
     this.updateCounter++;
     const p = this.mc.thePlayer;
     if (!p) return;

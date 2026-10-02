@@ -9,6 +9,8 @@ import { EnumMovingObjectType, type MovingObjectPosition } from '../core/MovingO
 import type { Entity } from '../entity/Entity';
 import type { EntityLiving } from '../entity/EntityLiving';
 import type { EntityPlayer } from '../entity/EntityPlayer';
+import { ItemIds } from '../block/BlockIds';
+import { Item } from '../item/Item';
 import type { ItemStack } from '../item/ItemStack';
 import type { MesherRequest, MesherResponse, MeshResult } from '../workers/mesherProtocol';
 import { allocSnapshot, SNAPSHOT_PAD, SNAPSHOT_SIZE, type SectionSnapshot } from '../world/ChunkCache';
@@ -70,6 +72,33 @@ export class WorldRenderer {
 interface MesherWorker {
   worker: Worker;
   busy: number;
+}
+
+/** playAuxSFX sounds at the block centre with pitch 1 +- 0.2: type -> [sound, volume]. */
+const AUX_SOUNDS: Record<number, [string, number]> = {
+  1007: ['mob.ghast.charge', 10.0],
+  1008: ['mob.ghast.fireball', 10.0],
+  1009: ['mob.ghast.fireball', 2.0],
+  1010: ['mob.zombie.wood', 2.0],
+  1011: ['mob.zombie.metal', 2.0],
+  1012: ['mob.zombie.woodbreak', 2.0],
+  1014: ['mob.wither.shoot', 2.0],
+  1015: ['mob.bat.takeoff', 0.05],
+  1016: ['mob.zombie.infect', 2.0],
+  1017: ['mob.zombie.unfect', 2.0],
+};
+
+/** Anvil sounds (pitch 0.9-1.0): type -> [sound, volume]. */
+const AUX_ANVIL_SOUNDS: Record<number, [string, number]> = {
+  1020: ['random.anvil_break', 1.0],
+  1021: ['random.anvil_use', 1.0],
+  1022: ['random.anvil_land', 0.3],
+};
+
+/** What ItemPotion adds that the splash effect needs. */
+interface PotionColours {
+  getColorFromDamage(damage: number): number;
+  isEffectInstant(damage: number): boolean;
 }
 
 /**
@@ -504,12 +533,17 @@ export class RenderGlobal implements IWorldAccess {
     TileEntityRenderer.staticPlayerY = RenderManager.renderPosY;
     TileEntityRenderer.staticPlayerZ = RenderManager.renderPosZ;
     this.mc.entityRenderer.enableLightmap(pt);
+    this.countEntitiesTotal = w.loadedEntityList.length;
+    for (const e of w.weatherEffects) {
+      this.countEntitiesRendered++;
+      if (e.isInRangeToRenderVec3D(camera as never)) RenderManager.instance.renderEntity(e, pt);
+    }
     for (const e of w.loadedEntityList) {
-      this.countEntitiesTotal++;
       const visible =
-        e.isInRangeToRenderVec3D(camera as never) && (e.ignoreFrustumCheck || frustum.isBoundingBoxInFrustum(e.boundingBox));
-      const self = e === this.mc.renderViewEntity && this.mc.gameSettings.thirdPersonView === 0;
-      if (visible && !self) {
+        e.isInRangeToRenderVec3D(camera as never) &&
+        (e.ignoreFrustumCheck || frustum.isBoundingBoxInFrustum(e.boundingBox) || e.riddenByEntity === this.mc.thePlayer);
+      const self = e === this.mc.renderViewEntity && this.mc.gameSettings.thirdPersonView === 0 && !viewer.isPlayerSleeping();
+      if (visible && !self && w.blockExists(MathHelper.floor_double(e.posX), 0, MathHelper.floor_double(e.posZ))) {
         this.countEntitiesRendered++;
         RenderManager.instance.renderEntity(e, pt);
       }
@@ -1016,6 +1050,78 @@ export class RenderGlobal implements IWorldAccess {
   onEntityCreate(_e: Entity): void {}
   onEntityDestroy(_e: Entity): void {}
 
+  /** A jukebox record: the "Now playing" line and the positional music. */
+  playRecord(name: string | null, x: number, y: number, z: number): void {
+    const item = name === null ? null : Item.itemsList.find((i) => i?.getRecordName() === name);
+    if (item) this.mc.ingameGUI.setRecordPlayingMessage(item.getRecordTitle());
+    this.mc.sndManager.playStreaming(name, x, y, z);
+  }
+
+  /** Wither spawn (1013) and dragon death (1018): played 2 blocks from the viewer towards the source. */
+  broadcastSound(type: number, x: number, y: number, z: number, _data: number): void {
+    const v = this.mc.renderViewEntity;
+    if (!v || (type !== 1013 && type !== 1018)) return;
+    const dx = x - v.posX;
+    const dy = y - v.posY;
+    const dz = z - v.posZ;
+    const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    let px = v.posX;
+    let py = v.posY;
+    let pz = v.posZ;
+    if (d > 0.0) {
+      px += (dx / d) * 2.0;
+      py += (dy / d) * 2.0;
+      pz += (dz / d) * 2.0;
+    }
+    if (type === 1013) this.theWorld!.playSound(px, py, pz, 'mob.wither.spawn', 1.0, 1.0, false);
+    else this.theWorld!.playSound(px, py, pz, 'mob.enderdragon.end', 5.0, 1.0, false);
+  }
+
+  /** 2002: a splash potion breaking, tinted with the potion colour. */
+  private spawnPotionSplash(x: number, y: number, z: number, damage: number): void {
+    const w = this.theWorld!;
+    const rand = w.rand;
+    const crack = 'iconcrack_' + ItemIds.potion;
+    for (let i = 0; i < 8; i++) this.spawnParticle(crack, x, y, z, rand.nextGaussian() * 0.15, rand.nextDouble() * 0.2, rand.nextGaussian() * 0.15);
+    const potion = Item.itemsList[ItemIds.potion] as (Item & Partial<PotionColours>) | null;
+    const color = potion?.getColorFromDamage ? potion.getColorFromDamage(damage) : 0x385dc6;
+    const r = f(((color >> 16) & 255) / 255);
+    const g = f(((color >> 8) & 255) / 255);
+    const b = f((color & 255) / 255);
+    const kind = potion?.isEffectInstant?.(damage) ? 'instantSpell' : 'spell';
+    for (let i = 0; i < 100; i++) {
+      const speed = rand.nextDouble() * 4.0;
+      const angle = rand.nextDouble() * Math.PI * 2.0;
+      const vx = Math.cos(angle) * speed;
+      const vy = 0.01 + rand.nextDouble() * 0.5;
+      const vz = Math.sin(angle) * speed;
+      const fx = this.doSpawnParticle(kind, x + vx * 0.1, y + 0.3, z + vz * 0.1, vx, vy, vz);
+      if (fx) {
+        const k = f(f(0.75) + f(rand.nextFloat() * f(0.25)));
+        fx.setRBGColorF(f(r * k), f(g * k), f(b * k));
+        fx.multiplyVelocity(f(speed));
+      }
+    }
+    w.playSound(x + 0.5, y + 0.5, z + 0.5, 'random.glass', 1.0, f(f(w.rand.nextFloat() * f(0.1)) + f(0.9)), false);
+  }
+
+  /** 2005 (ItemDye.func_96603_a): green sparkles where bone meal grew something. */
+  private spawnBoneMealParticles(x: number, y: number, z: number, count: number): void {
+    const w = this.theWorld!;
+    const id = w.getBlockId(x, y, z);
+    if (count === 0) count = 15;
+    const block = id > 0 && id < Block.blocksList.length ? Block.blocksList[id] : null;
+    if (!block) return;
+    block.setBlockBoundsBasedOnState(w, x, y, z);
+    const rand = Item.itemRand;
+    for (let i = 0; i < count; i++) {
+      const vx = rand.nextGaussian() * 0.02;
+      const vy = rand.nextGaussian() * 0.02;
+      const vz = rand.nextGaussian() * 0.02;
+      w.spawnParticle('happyVillager', f(x + rand.nextFloat()), y + rand.nextFloat() * block.getBlockBoundsMaxY(), f(z + rand.nextFloat()), vx, vy, vz);
+    }
+  }
+
   playAuxSFX(_player: EntityPlayer | null, type: number, x: number, y: number, z: number, data: number): void {
     const w = this.theWorld!;
     const rand = w.rand;
@@ -1034,6 +1140,35 @@ export class RenderGlobal implements IWorldAccess {
         break;
       case 1004:
         w.playSound(x + 0.5, y + 0.5, z + 0.5, 'random.fizz', 0.5, 2.6 + (rand.nextFloat() - rand.nextFloat()) * 0.8, false);
+        break;
+      case 1005: {
+        const record = Item.itemsList[data]?.getRecordName() ?? null;
+        w.playRecord(record, x, y, z);
+        break;
+      }
+      case 1020:
+      case 1021:
+      case 1022: {
+        const anvil = AUX_ANVIL_SOUNDS[type];
+        w.playSound(f(x + 0.5), f(y + 0.5), f(z + 0.5), anvil[0], anvil[1], f(f(w.rand.nextFloat() * f(0.1)) + f(0.9)), false);
+        break;
+      }
+      case 2002:
+        this.spawnPotionSplash(x, y, z, data);
+        break;
+      case 2003: {
+        const cx = x + 0.5;
+        const cz = z + 0.5;
+        const crack = 'iconcrack_' + ItemIds.eyeOfEnder;
+        for (let i = 0; i < 8; i++) this.spawnParticle(crack, cx, y, cz, rand.nextGaussian() * 0.15, rand.nextDouble() * 0.2, rand.nextGaussian() * 0.15);
+        for (let a = 0.0; a < Math.PI * 2; a += Math.PI / 20) {
+          this.spawnParticle('portal', cx + Math.cos(a) * 5.0, y - 0.4, cz + Math.sin(a) * 5.0, Math.cos(a) * -5.0, 0.0, Math.sin(a) * -5.0);
+          this.spawnParticle('portal', cx + Math.cos(a) * 5.0, y - 0.4, cz + Math.sin(a) * 5.0, Math.cos(a) * -7.0, 0.0, Math.sin(a) * -7.0);
+        }
+        break;
+      }
+      case 2005:
+        this.spawnBoneMealParticles(x, y, z, data);
         break;
       case 2000: {
         const dx = (data % 3) - 1;
@@ -1074,8 +1209,11 @@ export class RenderGlobal implements IWorldAccess {
           w.spawnParticle('flame', px, py, pz, 0, 0, 0);
         }
         break;
-      default:
+      default: {
+        const sound = AUX_SOUNDS[type];
+        if (sound) w.playSound(x + 0.5, y + 0.5, z + 0.5, sound[0], sound[1], f(f(f(rand.nextFloat() - rand.nextFloat()) * f(0.2)) + 1), false);
         break;
+      }
     }
   }
 

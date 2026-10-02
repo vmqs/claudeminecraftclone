@@ -1,4 +1,5 @@
 import { I18n } from '../core/I18n';
+import { JavaRandom } from '../core/JavaRandom';
 import { MathHelper } from '../core/MathHelper';
 import { Vec3 } from '../core/Vec3';
 import type { MovingObjectPosition } from '../core/MovingObjectPosition';
@@ -50,6 +51,8 @@ export interface RayTracer {
  * `itemsList[256 + index]`; blocks get an ItemBlock at their own id.
  */
 export class Item {
+  /** Item.itemRand: shared by item effects (bone meal particles, bow pitch...). */
+  static readonly itemRand = new JavaRandom();
   static readonly itemsList: (Item | null)[] = new Array(32000).fill(null);
 
   readonly itemID: number;
@@ -183,6 +186,14 @@ export class Item {
     return 0xffffff;
   }
   onUpdate(_stack: ItemStack, _world: IWorld, _e: Entity, _slot: number, _held: boolean): void {}
+  /** ItemRecord.recordName: the streaming sound a jukebox plays for this item, or null. */
+  getRecordName(): string | null {
+    return null;
+  }
+  /** ItemRecord.getRecordTitle: shown as "Now playing: ...". */
+  getRecordTitle(): string {
+    return 'C418 - ' + this.getRecordName();
+  }
   /** Called when the stack is taken out of a crafting or smelting result slot. */
   onCreated(_stack: ItemStack, _world: IWorld, _player: EntityPlayer): void {}
   /** False keeps the container item (bucket, bottle) in the grid instead of the inventory. */
