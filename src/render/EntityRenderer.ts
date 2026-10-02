@@ -15,6 +15,7 @@ import { GL } from './gl/GL';
 import { OpenGlHelper } from './OpenGlHelper';
 import { RenderHelper } from './RenderHelper';
 import { ItemRenderer } from './ItemRenderer';
+import { withClientSkylight } from './sky/ClientWorldView';
 
 const f = Math.fround;
 const PI_F = f(Math.PI);
@@ -87,7 +88,7 @@ export class EntityRenderer {
     }
     const view = this.mc.renderViewEntity!;
     const w = this.mc.theWorld!;
-    const light = w.getLightBrightness(MathHelper.floor_double(view.posX), MathHelper.floor_double(view.posY), MathHelper.floor_double(view.posZ));
+    const light = withClientSkylight(w, () => w.getLightBrightness(MathHelper.floor_double(view.posX), MathHelper.floor_double(view.posY), MathHelper.floor_double(view.posZ)));
     const dist = f((3 - this.mc.gameSettings.renderDistance) / 3);
     const target = f(light * (1 - dist) + dist);
     this.fogColor1 = f(this.fogColor1 + (target - this.fogColor1) * f(0.1));
