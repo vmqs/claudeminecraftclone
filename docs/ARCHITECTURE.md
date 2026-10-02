@@ -376,14 +376,32 @@ prints everything else as `<Player> text` in `GuiNewChat`.
 
 ## 10. Audio
 
-`SoundManager` uses Web Audio. Sounds are addressed like the original ("step.grass" picks a random
-`sound3/step/grass[1-4].ogg`; "random.click"; "mob.zombie.say"). `playSound(name, x, y, z, volume,
-pitch)` uses linear attenuation over `16 * max(1, volume)` blocks, with the listener tracking the
-camera. `playSoundFX` is for UI. Music plays a random `music/` or `newmusic/` track after a random
-delay of 0–12000 ticks, then waits 12000–24000 ticks between tracks. Volume settings work as in
-the original. The audio context is resumed on the first user gesture. Jukebox records play from
-`streaming/` at the jukebox (`playStreaming`, 64-block range) and stop the music. Looping entity
-sounds (`playEntitySound`, keyed by entity id) are the only sounds the pause menu pauses.
+`SoundManager` (`src/audio/`) uses Web Audio and follows 1.5.2 `SoundManager` on paulscode.
+Sounds are addressed like the original through `SoundPool`s: "step.grass" picks a random
+`sound3/step/grass[1-4].ogg` (trailing digits stripped, slashes become dots), "random.click",
+"mob.zombie.say"; records keep their digits ("13", "11"). `playSound(name, x, y, z, volume,
+pitch)` fades linearly to silence at `16 * max(1, volume)` blocks (a `PannerNode` with the
+linear model), clamps the volume to 1 (times the Sound slider) and the pitch to 0.5-2, and
+uses one of 28 channels (a source louder than 1 is a priority source that is never stolen; the
+oldest other one is). World sounds (`World.playSoundEffect` / `playSoundAtEntity`) arrive like
+`Packet62LevelSound`: position in 1/8 blocks, pitch in 1/63 steps, only within range of the
+viewer. The listener follows the player's eyes every frame. `playSoundFX` is for the GUI
+(quarter volume, not positional). Music plays a random `music/` or `newmusic/` track while in a
+world after a random delay of 0-12000 ticks, then waits 12000-24000 ticks between tracks (there
+is no menu music in 1.5.2). Jukebox records (`World.playRecord` -> `playStreaming`) play from
+`streaming/` at the jukebox (64-block range, half the sound volume) and stop the music; besides
+`13.ogg` and `cat.ogg` the records only exist as obfuscated `.mus` files, which the asset script
+fetches and `MusCodec` decodes. Changing either slider applies the music volume to the music and
+the record (an original quirk); music off stops both. Music and records stream through media
+elements; sounds are decoded on demand into an LRU cache, and the step/dig/random/liquid/damage
+folders are preloaded. The audio context starts on the first user gesture. Missing or broken
+files are skipped. Looping entity sounds (`playEntitySound`, keyed by entity id) are the only
+sounds the pause menu pauses and `stopAllSounds` (world change) stops; `closeMinecraft` stops
+everything. `sndManager.debugLog` / `getDebugInfo()` expose what was requested and started.
+Survival mining (PlayerControllerMP) plays the block's step sound every fourth damage tick at
+`(volume + 1) / 8`, pitch `* 0.5`: use `BlockMiningSounds` (`src/audio/BlockSounds.ts`) —
+`onDamageTick(mc.sndManager, block.stepSound, x, y, z)` each tick, `reset()` on a new block or
+break — next to `effectRenderer.addBlockHitEffects`.
 
 ## 11. Input
 
@@ -426,7 +444,7 @@ registries are imported once by `src/client/Minecraft.ts`.
 | Containers and GUIs | `IInventory` (or `InventoryBasic`), a `Container` subclass (`addSlotToContainer`, `transferStackInSlot`, `canInteractWith`, `canMergeSlot`), a `GuiContainer` subclass (`drawGuiContainerBackgroundLayer`, `drawGuiContainerForegroundLayer`). Open it from `EntityPlayerSP.displayGUI*` (hooks declared on `EntityPlayer`: chest, hopper, enchantment, anvil, workbench, furnace, dispenser, sign, brewing stand, beacon, merchant, book). The creative inventory replaces `GuiInventory` in its `initGui`/`updateScreen` and uses `PlayerControllerCreative.sendSlotPacket` (a no-op here). Armour slot backgrounds: `SlotArmor.emptySlotIcons`. Lists: subclass `GuiSlot`. |
 | Entities | Class in `src/entity/`, `EntityList.addMapping(cls, '<name>', id)` in `src/entity/Entities.ts` (eggs come from the `entityEggs` table), renderer via `RenderManager.instance.register(cls, render)` in `src/render/entity/EntityRenderers.ts` (renderers needing item-atlas sprites override `Render.updateItemIcons`). Client echoes: `World.setEntityState` → `handleHealthUpdate`, `EntityLiving.collectEffect`. Hooks for other code: `EntityLiving.addRandomEnchantment`, `EntityPlayer.enchantmentHooks`, `EntityArrow.thornsHook`, `Explosion.blastProtection`, `EntityFireworkRocket.explosionEffect` (or `World.makeFireworks`), `HopperTransfer.chestInventory`, `PotionHooks`; `BlockSand.createFallingEntity` is installed by `EntityFallingSand`. Mob bases: `EntityCreature`, `EntityAgeable`, `EntityAnimal`, `EntityMob`, `EntityTameable`, `EntityGolem`, `EntityWaterMob`, `EntityAmbientCreature`, `EntityFlying`; AI tasks extend `EntityAIBase` (`src/entity/ai/`). Factories for classes `World` cannot import: `World.itemDropFactory` (set by `EntityItem`), `EntityLiving.experienceOrbFactory`, `World.lightningBoltFactory`. |
 | Spawning | Biome lists by `EntityList` name (`BiomeGenBase.getSpawnableList`, `editSpawns`), `SpawnRules` for the per-mob `getCanSpawnHere` data, `World.mobSpawner` (default `SpawnerAnimals.findChunksForSpawning`), world-generation animals in `WorldGenSpawning`. |
-| Particles | `RenderGlobal.particleFactories.set(name, (w, x, y, z, vx, vy, vz) => fx)` in `src/render/particle/ParticleRegistry.ts`. |
+| Particles | Every 1.5.2 name is registered in `src/render/particle/ParticleRegistry.ts`; add more with `RenderGlobal.particleFactories.set(name, (w, x, y, z, vx, vy, vz) => fx)` (culled beyond 16 blocks and by the particle setting), `unculledParticleFactories` (always created) or `particlePrefixFactories` (name families such as `iconcrack_`/`tilecrack_`) from `ParticleFactories.ts`. `EffectRenderer.addEffect(fx)` for direct effects (`EffectRenderer.instance`), `addBlockDestroyEffects` / `addBlockHitEffects` for blocks, `EntityRainFX` (or the factory `RenderGlobal.particleFactories.get('rain')`, an internal name for EntityRenderer.addRainParticles, not a vanilla spawnParticle name) for rain splashes, and `World.makeFireworks(x, y, z, vx, vy, vz, fireworksTag)` (func_92088_a) for a firework rocket's explosion. |
 | Sounds and world effects | `World.playSoundEffect` / `playSound` / `playSoundAtEntity`, `World.playAuxSFX(type, …)` (cases in `RenderGlobal.playAuxSFX`), `World.playRecord`, `World.broadcastSound`, `SoundManager.playEntitySound` for loops. |
 | Weather | `World.updateWeather` (rain and thunder cycles), `World.weatherEffects` + `addWeatherEffect` (rendered before entities), `World.lightningBoltFactory` for the strike in `tickBlocksAndAmbiance`. Sky and fog read `getRainStrength` / `getWeightedThunderStrength`. |
 | Explosions | `World.createExplosion` / `newExplosion`; entities can veto blocks with `getBlockExplosionResistance` / `canExplosionDestroyBlock`. |

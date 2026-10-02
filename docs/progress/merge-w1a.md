@@ -5,7 +5,7 @@ Order: w1/blocks, w1/items, w1/entities, w1/effects, w1/sky, w1/gui -> claude/mi
 - [x] blocks
 - [x] items (Items.ts: took items registry; dropped src/block/BlockItems.ts duplicate, items ItemBlockVariants kept + fround)
 - [x] entities (EntityPlayer: kept both; itemUse finish keeps !isRemote)
-- [ ] effects
+- [x] effects (clean)
 - [ ] sky
 - [ ] gui
 - [ ] vite build

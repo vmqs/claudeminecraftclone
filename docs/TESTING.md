@@ -49,6 +49,7 @@ npm run build
 node scripts/shot.mjs title                  # scripts/scenarios/title.json
 node scripts/shot.mjs spawn --out shots      # spawn at noon, F3, selection outline
 node scripts/shot.mjs interact               # walk, fly, break and place, with assertions in the log
+node scripts/shot.mjs effects                # every particle type, spawn rules, sounds, records and music (asserts)
 node scripts/shot.mjs inventory              # E, slot tooltip, pick up and put back a stack
 node scripts/shot.mjs chat                   # chat line, /time, /give @p, /help, Tab completion, /kill
 node scripts/shot.mjs flat                   # a Superflat world (bedrock, dirt, dirt, grass; spawn y=4)
@@ -102,6 +103,16 @@ This is how tile-entity lifecycle, explosions, spawning and the RenderBlocks rew
 checked: the rewrite was compared byte for byte with the previous implementation over random
 `ChunkCache` snapshots (all render settings, rotations, overridden bounds and textures) and every
 block's item render. Keep such scripts outside the repository unless they become real tests.
+
+## Audio
+
+Headless Chromium has no speakers, but the harness allows autoplay, so the audio context runs and
+sounds really decode and start. `mc.sndManager.debugLog` lists the recent events (`requested`,
+`started`, `missing`, `dropped`, `failed`, `music`, `record`, `stopped`, with name, file, volume,
+pitch and position) and `mc.sndManager.getDebugInfo()` the context state, channels in use, cache,
+music countdown and the record pools; `scripts/scenarios/effects.json` asserts on them. With the
+game clock frozen (`mc.timer.timerSpeed = 0`) particles can be spawned and advanced tick by tick
+with `mc.dev.ticks(n)` for deterministic captures.
 
 ## Comparing with the original
 

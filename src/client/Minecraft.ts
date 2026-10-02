@@ -637,7 +637,7 @@ export class Minecraft implements SettingsListener {
   /** Quit Game: closes the tab when the page was opened by a script, otherwise says it stopped. */
   shutdown(): void {
     this.loadWorld(null);
-    this.sndManager.stopAllSounds();
+    this.sndManager.closeMinecraft();
     document.exitPointerLock?.();
     window.close();
     this.displayGuiScreen(new GuiGameStopped());
@@ -713,6 +713,7 @@ export class Minecraft implements SettingsListener {
   loadWorld(world: World | null): void {
     this.renderViewEntity = null;
     this.objectMouseOver = null;
+    this.sndManager.playStreaming(null, 0, 0, 0);
     this.sndManager.stopAllSounds();
     if (world === null) {
       this.pendingWorld = null;
