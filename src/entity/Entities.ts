@@ -59,3 +59,6 @@ EntityList.addMapping(EntityEnderCrystal, 'EnderCrystal');
 // only let the dev tools create and find them.
 EntityList.addUnsaved(EntityEgg, 'Egg');
 EntityList.addUnsaved(EntityFishHook, 'FishHook');
+
+// Hostile and Nether mobs (mobshostile slice).
+import './HostileMobs';
