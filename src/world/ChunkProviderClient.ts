@@ -7,6 +7,7 @@ import { Chunk } from './Chunk';
 import { ChunkSection } from './ChunkSection';
 import { TileEntity } from './tileentity/TileEntity';
 import { World } from './World';
+import { StructureLocator } from './gen/StructureLocator';
 
 /**
  * The main thread's chunk source: streams finalized chunks from the world-generation worker
@@ -32,16 +33,31 @@ export class ChunkProviderClient {
   /** Chunk radius kept loaded around the player. */
   loadRadius = 9;
 
+  /** findClosestStructure requests waiting for the worker. */
+  private readonly structureWaiters = new Map<number, (pos: [number, number, number] | null) => void>();
+  private nextStructureId = 0;
+
   constructor(
     readonly world: World,
     seed: bigint,
     worldType: string,
     mapFeatures: boolean,
+    options: { generatorOptions?: string | null; bonusChest?: boolean } = {},
   ) {
     this.worker = new Worker(new URL('../workers/worldgen.worker.ts', import.meta.url), { type: 'module' });
     this.worker.onmessage = (e: MessageEvent<WorldGenResponse>) => this.onMessage(e.data);
     this.worker.onerror = (e) => console.error('[worldgen]', e.message);
-    this.post({ type: 'init', seed: seed.toString(), worldType, mapFeatures });
+    this.post({ type: 'init', seed: seed.toString(), worldType, mapFeatures, generatorOptions: options.generatorOptions ?? null, bonusChest: options.bonusChest ?? false });
+    StructureLocator.provider = (name, x, y, z) => this.findClosestStructure(name, x, y, z);
+  }
+
+  /** World.findClosestStructure ("Stronghold"), answered by the world-generation worker. */
+  findClosestStructure(name: string, x: number, y: number, z: number): Promise<[number, number, number] | null> {
+    return new Promise((resolve) => {
+      const id = this.nextStructureId++;
+      this.structureWaiters.set(id, resolve);
+      this.post({ type: 'findStructure', id, name, x, y, z });
+    });
   }
 
   private post(m: WorldGenRequest): void {
@@ -54,6 +70,10 @@ export class ChunkProviderClient {
       const waiters = this.spawnWaiters;
       this.spawnWaiters = [];
       for (const w of waiters) w({ x: m.x, y: m.y, z: m.z });
+    } else if (m.type === 'structure') {
+      const w = this.structureWaiters.get(m.id);
+      this.structureWaiters.delete(m.id);
+      w?.(m.pos);
     } else if (m.type === 'chunk') this.incoming.push(m);
   }
 
@@ -161,9 +181,11 @@ export class ChunkProviderClient {
     for (const d of m.entities) {
       const e = EntityList.createEntityByName(d.name, this.world);
       if (!e) continue;
-      e.setLocationAndAngles(d.x, d.y, d.z, d.yaw, 0);
+      e.setLocationAndAngles(d.x, d.y, d.z, d.yaw, d.pitch ?? 0);
+      // Generation data in 1.5.2 NBT form (villager Profession, minecart Items), when the class reads it.
+      if (d.data) (e as Entity & { readEntityFromNBT?(t: object): void }).readEntityFromNBT?.(d.data);
       this.world.spawnEntityInWorld(e);
-      if (e.isLivingEntity) (e as EntityLiving).initCreature();
+      if (e.isLivingEntity && d.init !== false) (e as EntityLiving).initCreature();
     }
   }
 
@@ -195,6 +217,7 @@ export class ChunkProviderClient {
   }
 
   dispose(): void {
+    if (StructureLocator.provider) StructureLocator.provider = null;
     this.worker.terminate();
     this.incoming.length = 0;
     this.requested.clear();

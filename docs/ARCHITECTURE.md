@@ -21,8 +21,8 @@ In scope:
   (`World.getClosestVulnerablePlayer` skips players whose capabilities disable damage); they
   still fight each other (iron golems, wolves). Only out-of-world damage (`/kill`, falling into
   the void) kills the player, which shows the death screen and respawns at the world spawn.
-- World generation is a **close approximation** of 1.5.2. The same algorithms are welcome, but
-  seed-exact output is not a requirement.
+- World generation is a **port of 1.5.2's generator**: the same seed gives the same biomes,
+  terrain, caves, decoration and structures (Default, Large Biomes and Superflat with presets).
 - **No world saving.** Worlds live in memory for the session. Modified chunks are kept in memory
   when unloaded so builds survive flying away and back. Options and key bindings *are* kept in
   `localStorage`, like `options.txt`.
@@ -150,15 +150,40 @@ skylight), `heightMap: Int32Array(256)` (lowest y with full skylight), `biomes: 
 ### 5.2 World generation (worker)
 
 The main thread (`world/ChunkProviderClient`) posts `{type:'request', cx, cz}`, `{type:'cancel'}`,
-`{type:'player', cx, cz, radius}` and, once per world, `{type:'findSpawn'}` (answered with the
-`WorldServer.createSpawnPosition` result). Chunk `(x,z)` is
-**finalized** when population has run for `(x-1..x, z-1..z)`, the original's +8 offset rule, and
-its light has been computed from the populated 3×3 neighbourhood. Light can travel at most 15
-blocks, so the result is exact and seam-free. The worker transfers section arrays (as
-transferables), the height map, the biomes, and the tile-entity descriptors, such as spawner mob
-type and chest contents. The main thread never receives an unfinalized chunk, and the worker never
-mutates a chunk after sending it. The worker evicts its own copies far from the player. Generation
-is deterministic for `(seed, worldType, generateStructures)`.
+`{type:'player', cx, cz, radius}`, once per world `{type:'findSpawn'}` (answered with `spawn`) and
+`{type:'findStructure', id, name, x, y, z}` for eyes of ender (answered with `structure`;
+`world/gen/StructureLocator` wraps it as a promise). The worker's logic lives in
+`world/gen/WorldGenServer`; `workers/worldgen.worker.ts` only routes messages.
+
+- **Generate once, keep everything.** Like the original's region files, every chunk is generated
+  and populated exactly once per world. Chunks that leave the worker's working set (the loaded
+  area plus three rings) are compressed into a `GenStore` (run-length coded blocks and metadata,
+  generated tile entities, ticks and entity descriptors) and restored when needed again, so a
+  chunk that comes back is identical and structure or big-tree state never drifts.
+- **Finalization.** Chunk `(x,z)` is finalized when population has run for `(x-1..x, z-1..z)`
+  (the original's +8 offset rule) and its light has been computed from the populated 3x3
+  neighbourhood. The main thread never receives an unfinalized chunk, and the worker never
+  mutates a chunk after sending it.
+- **Original order at world creation.** `createSpawnPosition` runs the spawn search exactly as
+  `WorldServer.createSpawnPosition` (chunks loaded on demand, populated by `Chunk.populateChunk`'s
+  rules), places the bonus chest, then loads the 25x25 spawn area in
+  `MinecraftServer.initialWorldChunkLoad` order, so the spawn area is populated in the same
+  order as in 1.5.2 (which matters where features of neighbouring chunks overlap). After that,
+  chunks are populated on demand, nearest to the player first.
+- **Generators.** `ChunkProviderGenerate` (Default, Large Biomes) uses the `GenLayer` stack
+  (`world/gen/layer/`, bit-exact 64-bit LCG, a tile cache in front of the river-mix layer),
+  the original noise terrain, `MapGenCaves`/`MapGenRavine`, the four structure generators
+  (`world/gen/structure/`), lakes, dungeons, `BiomeDecoration` and world-generation animals.
+  `ChunkProviderFlat` uses `FlatGeneratorInfo` presets (`FlatPresets.ts` holds the presets list).
+- **Payload.** Section arrays (transferred), height map, biomes, pending ticks, generated tile
+  entities as 1.5.2 NBT (`{id:'Chest'|'Trap', Items:[{Slot,id,Count,Damage,tag?}]}`,
+  `{id:'MobSpawner', EntityId, ...}`; the client creates them through
+  `TileEntity.createAndLoadEntity`) and entity descriptors `{name, x, y, z, yaw, data?, init?}`
+  (animals, villagers with `{Profession}`, witches, `MinecartChest` with `{Items}`), created
+  through `EntityList.createEntityByName`; `data` goes to `readEntityFromNBT` when the class has
+  it, and `initCreature` runs unless `init` is false.
+- Generation is deterministic for `(seed, worldType, generateStructures, preset)`, except the
+  bonus chest, which uses an unseeded random like the original.
 
 `ChunkProviderClient` keeps the chunks within `RenderGlobal.renderRadius + 1` of the player
 loaded, adds arriving chunks within a per-frame time budget, unloads chunks two beyond the radius,
@@ -169,16 +194,10 @@ to 10 blocks, on `getTopSolidOrLiquidBlock`), then shows "Downloading terrain" u
 around the player is meshed. `Chunk` only needs a `ChunkHost` (an `IWorld` plus light and
 render-update hooks), which both the client `World` and the worker's `GenWorld` implement.
 
-The worker runs a `ChunkGenerator` (`world/gen/ChunkProviderGenerate.ts`): `ChunkProviderGenerate`
-for Default and Large Biomes, `ChunkProviderFlat` (presets parsed by `FlatGeneratorInfo`) for
-Superflat. Generation also records tile-entity NBT and the animals of `WorldGenSpawning`; the
-payload carries both, and the client creates them through `TileEntity.createAndLoadEntity` and
-`EntityList.createEntityByName`.
-
 Edits made by world simulation (block ticks, fluids, leaf decay, weather, light) run inside
 `World.runNaturally`; anything else marks the chunk `playerModified`. When a chunk unloads, a
-player-modified chunk is kept whole, otherwise only its entities are kept, and it is regenerated
-when it comes back.
+player-modified chunk is kept whole, otherwise only its entities are kept, and it is
+re-requested (the worker sends the same chunk again) when it comes back.
 
 ### 5.3 Lighting (main thread)
 
@@ -404,5 +423,5 @@ registries are imported once by `src/client/Minecraft.ts`.
 | Explosions | `World.createExplosion` / `newExplosion`; entities can veto blocks with `getBlockExplosionResistance` / `canExplosionDestroyBlock`. |
 | Commands | Subclass `CommandBase` (`src/command/`), register it in the `ServerCommandManager` constructor or with `ServerCommandManager.addCommand(() => new CommandX())` before a world starts. `getServer()` gives the worlds, players and `sendChatMsg`; results go through `CommandBase.notifyAdmins`; target selectors through `CommandBase.getPlayer` / `PlayerSelector`. |
 | Chat | `EntityPlayer.addChatMessage(langKey)`, `sendChatToPlayer(text)`, `Minecraft.ingameGUI.getChatGUI().printChatMessage(text)`. |
-| World generation | `ChunkGenerator` implementations in `src/world/gen/` (selected in `worldgen.worker.ts` on `init`), `BiomeSource` (`PlaceholderBiomeSource` is the stand-in for the GenLayer stack), `WorldGenerator` features run from `ChunkProviderGenerate.populate` / `BiomeDecorator`, superflat presets in `FlatGeneratorInfo`. Code here must stay worker-safe (`IWorld`, no DOM or GL). |
+| World generation | `ChunkGenerator` implementations in `src/world/gen/` (chosen by `WorldGenServer`), `BiomeSource` (`WorldChunkManager` over the GenLayer stack, `SingleBiomeSource` for Superflat), `WorldGenerator` features from `ChunkProviderGenerate.populate` / `BiomeDecoration`, structures as `MapGenStructure` + `StructureStart` + `StructureComponent` pieces in `src/world/gen/structure/`, chest/dispenser/spawner contents through `ChestLoot` (`putTileEntityTag`), entities through `spawnGenEntity`. Superflat presets: `FlatGeneratorInfo`, `FLAT_PRESETS`. World options: `WorldSettings.generatorOptions` / `bonusChest`. Stronghold queries: `StructureLocator.findClosestStructure`. Code here must stay worker-safe (`IWorld`, no DOM or GL). |
 | Dev hooks | `src/client/DevTools.ts` (`?dev=1` → `window.mc.dev`), scenarios in `scripts/scenarios/`. |

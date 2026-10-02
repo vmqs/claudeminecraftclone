@@ -19,7 +19,7 @@ URL parameters (any combination):
 | Parameter | Effect |
 |---|---|
 | `?dev=1` | exposes the `Minecraft` instance as `window.mc`, with helpers on `mc.dev` |
-| `?autostart=1&seed=<s>&type=<default\|flat\|largeBiomes>` | skips the menus and creates a world (`seed` is a number or text, as in Create World) |
+| `?autostart=1&seed=<s>&type=<default\|flat\|largeBiomes>` | skips the menus and creates a world (`seed` is a number or text, as in Create World); `&structures=0` turns structures off, `&bonus=1` adds the bonus chest, `&preset=<superflat string>` picks a Superflat preset |
 | `?hotbar=1` | fills the hotbar like the reference captures (stone, grass, dirt, cobblestone, planks, log, glass, torch, diamond sword when it exists) |
 | `?time=<ticks>` | sets the world time once the player exists (6000 = noon, 18000 = midnight) |
 | `?pos=x,y,z[,yaw,pitch]` | teleports the player (feet position) once the player exists |
@@ -47,6 +47,7 @@ node scripts/shot.mjs interact               # walk, fly, break and place, with 
 node scripts/shot.mjs inventory              # E, slot tooltip, pick up and put back a stack
 node scripts/shot.mjs chat                   # chat line, /time, /give @p, /help, Tab completion, /kill
 node scripts/shot.mjs flat                   # a Superflat world (bedrock, dirt, dirt, grass; spawn y=4)
+node scripts/shot.mjs worldgen               # seeds "claude"/123456789 vs the reference spawn, cave, biomes, village; flat and large biomes
 node scripts/shot.mjs path/to/scenario.json --url http://localhost:5173/ --server none
 ```
 
@@ -97,6 +98,6 @@ block's item render. Keep such scripts outside the repository unless they become
 Reference captures of the real 1.5.2 client with the bundled Faithful pack (854x480, GUI scale
 auto) are produced outside the repository; the useful ones are the title screen, spawn at noon
 with and without F3, the block outline while looking down, the loading screens, the pause and
-options menus, and HUD captures at each GUI scale. World generation is approximate (see
-`ARCHITECTURE.md`), so compare composition, colours, lighting and GUI layout rather than the
-exact terrain.
+options menus, and HUD captures at each GUI scale. World generation is a port of 1.5.2's,
+so the same seed gives the same terrain: the reference spawn, cave, water and biome positions of
+seeds "claude" and 123456789 are checked by `scripts/scenarios/worldgen.json`.

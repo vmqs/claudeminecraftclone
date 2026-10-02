@@ -53,6 +53,10 @@ export interface WorldSettings {
   seed?: bigint;
   terrainType: string;
   mapFeatures: boolean;
+  /** Superflat preset string (FlatGeneratorInfo), for terrainType 'flat'. */
+  generatorOptions?: string;
+  /** "Bonus Chest". */
+  bonusChest?: boolean;
 }
 
 interface PendingWorld {
@@ -651,7 +655,7 @@ export class Minecraft implements SettingsListener {
     info.terrainType = ws.terrainType;
     info.mapFeaturesEnabled = ws.mapFeatures;
     const world = new World(info);
-    const provider = new ChunkProviderClient(world, info.seed, ws.terrainType, ws.mapFeatures);
+    const provider = new ChunkProviderClient(world, info.seed, ws.terrainType, ws.mapFeatures, { generatorOptions: ws.generatorOptions, bonusChest: ws.bonusChest });
     this.chunkProvider = provider;
     this.pendingWorld = { world, provider, phase: 'spawn' };
     this.loadingScreen.resetProgressAndMessage(I18n.translateToLocal('menu.loadingLevel'));
