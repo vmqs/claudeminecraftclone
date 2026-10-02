@@ -111,7 +111,7 @@ export class Block {
     this.enableStats = false;
     return this;
   }
-  setCreativeTab(tab: CreativeTabs): this {
+  setCreativeTab(tab: CreativeTabs | null): this {
     this.displayOnCreativeTab = tab;
     return this;
   }
@@ -144,6 +144,12 @@ export class Block {
   /** Whether the world simulates redstone power at all (see {@link isPowered}). */
   static hasRedstone(w: IWorld): boolean {
     return typeof w.isBlockIndirectlyGettingPowered === 'function';
+  }
+
+  /** A game rule of the world (doTileDrops, mobGriefing, ...); `def` when the world has none. */
+  static getGameRule(w: IWorld, name: string, def = true): boolean {
+    const rules = (w as unknown as { worldInfo?: { gameRules?: Record<string, boolean> } }).worldInfo?.gameRules;
+    return rules && name in rules ? rules[name] : def;
   }
 
   /** The 4-way direction an entity faces: floor(yaw * 4 / 360 + offset) & 3 (0 south, 1 west, 2 north, 3 east). */
