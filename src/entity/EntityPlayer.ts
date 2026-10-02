@@ -763,6 +763,11 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     return this.username;
   }
 
+  /** Other players' names always float above them (func_94059_bO). */
+  override getAlwaysRenderNameTag(): boolean {
+    return true;
+  }
+
   sendPlayerAbilities(): void {}
 
   /** Closes any container window (EntityPlayerSP also closes the screen). */

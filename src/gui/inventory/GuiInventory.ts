@@ -5,16 +5,16 @@ import { OpenGlHelper } from '../../render/OpenGlHelper';
 import { RenderHelper } from '../../render/RenderHelper';
 import { RenderManager } from '../../render/entity/RenderManager';
 import type { Minecraft } from '../../client/Minecraft';
-import { GuiContainer } from './GuiContainer';
+import { InventoryEffectRenderer } from './InventoryEffectRenderer';
 
 const f = Math.fround;
 
 /**
  * The survival inventory (GuiInventory): 2x2 crafting, armour and the player model. In
  * Creative 1.5.2 swaps it for GuiContainerCreative in initGui/updateScreen; until that
- * screen exists this one is shown. Active potion effects (InventoryEffectRenderer) are not drawn.
+ * screen exists this one is shown. Active potion effects are listed on the left (InventoryEffectRenderer).
  */
-export class GuiInventory extends GuiContainer {
+export class GuiInventory extends InventoryEffectRenderer {
   private xSizeFloat = 0;
   private ySizeFloat = 0;
 

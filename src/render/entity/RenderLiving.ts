@@ -291,7 +291,7 @@ export class RenderLiving extends Render {
   /** Name tags of named mobs: always when set to, otherwise when looked at. */
   protected passSpecialRender(e: EntityLiving, x: number, y: number, z: number): void {
     const rm = this.renderManager;
-    if (rm.options?.hideGUI || e === rm.livingPlayer || !this.isVisibleToViewer(e)) return;
+    if (rm.options?.hideGUI || e === rm.livingPlayer || (e.isInvisible() && this.isVisibleToViewer(e))) return;
     if (!(e.getAlwaysRenderNameTag() || (e.hasCustomName() && e === rm.pointedEntity))) return;
     const scale = f(f(0.016666668) * f(1.6));
     const d2 = e.getDistanceSqToEntity(rm.livingPlayer!);

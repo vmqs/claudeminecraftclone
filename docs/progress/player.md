@@ -15,6 +15,6 @@ Branch `w2/player`, base 96e8639.
 - [x] Sleeping (EntityPlayer.sleepInBedAt/wakeUpPlayer/sleepTimer/bed spawn, World skip-night,
       camera, RenderManager view, RenderPlayer lying pose, bed respawn)
 - [x] FOV bow zoom, nausea distortion (timeInPortal, speed 7), blindness blocks sprinting
-- [ ] InventoryEffectRenderer (effect list beside the survival inventory)
+- [x] InventoryEffectRenderer (effect list beside the survival inventory)
 - [ ] RenderPlayer details (fishing rod -> stick, ...)
 - [ ] Node test + scripts/scenarios/player.json + screenshots
