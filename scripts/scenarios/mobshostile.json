@@ -1,0 +1,256 @@
+[
+ {
+  "goto": "?dev=1&autostart=1&seed=claude&type=flat&time=6000&pos=8.5,4,8.5,0,0"
+ },
+ {
+  "waitFor": "mc.dev.isInGame()",
+  "timeout": 600000
+ },
+ {
+  "eval": "(() => { const w = mc.theWorld; w.mobSpawner = null; mc.gameSettings.renderDistance = 1; mc.gameSettings.fancyGraphics = true; mc.gameSettings.clouds = true; mc.dev.weather('clear'); for (const e of [...w.loadedEntityList]) if (!e.isPlayerEntity) e.setDead(); window.MOBS = []; const S = mc.dev.lib.ItemStack; window.MOB = (name, o = {}) => { const p = mc.thePlayer; const e = mc.dev.lib.EntityList.createEntityByName(name, w); const dist = o.dist ?? 3, side = o.side ?? 0; const yr = p.rotationYaw * Math.PI / 180, fx = -Math.sin(yr), fz = Math.cos(yr); const x = o.x ?? p.posX + fx * dist + fz * side, z = o.z ?? p.posZ + fz * dist - fx * side; const y = o.y ?? w.getTopSolidOrLiquidBlock(Math.floor(x), Math.floor(z)); const yaw = o.yaw ?? p.rotationYaw + 180 + (o.turn ?? 0); e.setLocationAndAngles(x, y, z, yaw, 0); e.prevPosX = e.lastTickPosX = x; e.prevPosY = e.lastTickPosY = y; e.prevPosZ = e.lastTickPosZ = z; e.onGround = true; e.rotationYawHead = e.prevRotationYawHead = yaw; e.renderYawOffset = e.prevRenderYawOffset = yaw; if (name === 'Skeleton') { if (o.wither) { e.setSkeletonType(1); e.setCurrentItemOrArmor(0, new S(272, 1, 0)); } else e.setCurrentItemOrArmor(0, new S(261, 1, 0)); } if (name === 'PigZombie') e.setCurrentItemOrArmor(0, new S(283, 1, 0)); if (o.held) e.setCurrentItemOrArmor(0, new S(o.held, 1, 0)); if (o.size) e.setSlimeSize(o.size); if (o.setup) o.setup(e); e.ticksExisted = 3; w.spawnEntityInWorld(e); window.MOBS.push(e); return e; }; window.CLEAR = () => { for (const e of window.MOBS) e.setDead(); window.MOBS = []; mc.dev.ticks(1); }; window.SHOT = (yaw, pitch, fn) => { mc.dev.tp(8.5, 4, 8.5, yaw, pitch); window.CLEAR(); const pl = mc.thePlayer; pl.cameraPitch = pl.prevCameraPitch = pl.cameraYaw = pl.prevCameraYaw = 0; pl.prevDistanceWalkedModified = pl.distanceWalkedModified; mc.dev.tp(8.5, 4, 8.5, yaw, pitch); let err = null; try { fn(); } catch (x) { err = String(x && x.stack || x); } mc.dev.sky.pin(6000); if (err) return 'ERROR ' + err; return window.MOBS.map(m => mc.dev.lib.EntityList.getEntityString(m) + '@' + m.posX.toFixed(2) + ',' + m.posY.toFixed(2) + ',' + m.posZ.toFixed(2)); }; mc.dev.tp(8.5, 4, 8.5, 0, 0); return 'ok'; })()"
+ },
+ {
+  "wait": 1000
+ },
+ {
+  "waitFor": "mc.dev.pendingSections(6) === 0",
+  "timeout": 600000
+ },
+ {
+  "wait": 1000
+ },
+ {
+  "eval": "SHOT(0, 5, () => { MOB('Zombie', { dist: 3 }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "mob_zombie.png"
+ },
+ {
+  "eval": "SHOT(0, 5, () => { MOB('Zombie', { dist: 3, turn: 45 }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "mob_zombie_34.png"
+ },
+ {
+  "eval": "SHOT(0, 5, () => { MOB('Skeleton', { dist: 3 }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "mob_skeleton.png"
+ },
+ {
+  "eval": "SHOT(0, 5, () => { MOB('Skeleton', { dist: 3, turn: 45 }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "mob_skeleton_34.png"
+ },
+ {
+  "eval": "SHOT(0, 10, () => { MOB('Creeper', { dist: 3 }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "mob_creeper.png"
+ },
+ {
+  "eval": "SHOT(0, 10, () => { MOB('Creeper', { dist: 3, turn: 45 }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "mob_creeper_34.png"
+ },
+ {
+  "eval": "SHOT(0, 25, () => { MOB('Spider', { dist: 3 }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "mob_spider.png"
+ },
+ {
+  "eval": "SHOT(0, 25, () => { MOB('Spider', { dist: 3, turn: 45 }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "mob_spider_34.png"
+ },
+ {
+  "eval": "SHOT(0, -12, () => { MOB('Enderman', { dist: 4.5 }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "mob_enderman.png"
+ },
+ {
+  "eval": "SHOT(0, -12, () => { MOB('Enderman', { dist: 4.5, turn: 45 }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "mob_enderman_34.png"
+ },
+ {
+  "eval": "SHOT(0, 5, () => { MOB('PigZombie', { dist: 3, turn: 45 }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "mob_pigzombie_34.png"
+ },
+ {
+  "eval": "SHOT(0, 5, () => { MOB('Witch', { dist: 3, turn: 45 }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "mob_witch_34.png"
+ },
+ {
+  "eval": "SHOT(0, 20, () => { MOB('Slime', { dist: 3, size: 2, turn: 45 }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "mob_slime_size2_34.png"
+ },
+ {
+  "eval": "SHOT(0, 20, () => { MOB('CaveSpider', { dist: 2.5, turn: 45 }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "mob_cavespider_34.png"
+ },
+ {
+  "eval": "SHOT(0, 12, () => { MOB('Zombie', { dist: 7, side: 0 }); MOB('Skeleton', { dist: 7, side: 1.5 }); MOB('Creeper', { dist: 7, side: 3 }); MOB('Spider', { dist: 7, side: 4.5 }); MOB('Enderman', { dist: 7, side: 6.5 }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "mob_lineup_hostile.png"
+ },
+ {
+  "eval": "SHOT(0, 5, () => { MOB('Zombie', { dist: 4, side: -1.6, setup: (e) => e.setVillager(true) }); MOB('Zombie', { dist: 4, side: 0, setup: (e) => e.setChild(true) }); MOB('Zombie', { dist: 4, side: 1.6, held: 267, setup: (e) => { const S = mc.dev.lib.ItemStack; e.setCurrentItemOrArmor(4, new S(306, 1, 0)); e.setCurrentItemOrArmor(3, new S(307, 1, 0)); e.setCurrentItemOrArmor(2, new S(308, 1, 0)); e.setCurrentItemOrArmor(1, new S(309, 1, 0)); } }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "x_zombie_variants.png"
+ },
+ {
+  "eval": "SHOT(0, 5, () => { MOB('Skeleton', { dist: 4, side: -1.2, wither: true, turn: 30 }); MOB('Skeleton', { dist: 4, side: 1.2, turn: -30, setup: (e) => e.setCurrentItemOrArmor(4, new (mc.dev.lib.ItemStack)(86, 1, 0)) }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "x_skeletons.png"
+ },
+ {
+  "eval": "SHOT(0, 10, () => { MOB('Creeper', { dist: 4, side: -1, setup: (e) => { e.powered = true; } }); MOB('Creeper', { dist: 4, side: 1, setup: (e) => { e.timeSinceIgnited = e.lastActiveTime = 27; } }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "x_creepers.png"
+ },
+ {
+  "eval": "SHOT(0, -12, () => { MOB('Enderman', { dist: 4.5, turn: 30, setup: (e) => { e.setCarried(2); e.setScreaming(true); } }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "x_enderman_carry.png"
+ },
+ {
+  "eval": "SHOT(0, 20, () => { MOB('Slime', { dist: 5, side: -2.5, size: 1 }); MOB('Slime', { dist: 5, side: -1, size: 4 }); MOB('LavaSlime', { dist: 5, side: 1.3, size: 2 }); MOB('LavaSlime', { dist: 5, side: 3, size: 1 }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "x_slimes.png"
+ },
+ {
+  "eval": "SHOT(0, 5, () => { MOB('Blaze', { dist: 4, side: -1.2, turn: 20 }); MOB('Silverfish', { dist: 2.5, side: 0.6, turn: 60 }); MOB('Witch', { dist: 4, side: 1.6, turn: -20 }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "x_blaze_silverfish_witch.png"
+ },
+ {
+  "eval": "SHOT(0, -20, () => { MOB('Ghast', { dist: 9, turn: 20, y: 6 }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "x_ghast.png"
+ },
+ {
+  "eval": "SHOT(0, 15, () => { const s = MOB('Spider', { dist: 4, turn: 30 }); const k = MOB('Skeleton', { dist: 4, turn: 30 }); k.mountEntity(s); s.updateRiderPosition(); k.prevPosX = k.lastTickPosX = k.posX; k.prevPosY = k.lastTickPosY = k.posY; k.prevPosZ = k.lastTickPosZ = k.posZ; })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "x_spider_jockey.png"
+ },
+ {
+  "eval": "SHOT(0, -25, () => { MOB('Giant', { dist: 16, turn: 20 }) })"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "x_giant.png"
+ },
+ {
+  "eval": "(() => { try { CLEAR(); mc.dev.sky.unfreeze(); mc.dev.setTime(18000); const p = mc.thePlayer; const out = { creative: p.capabilities.disableDamage }; const z = MOB('Zombie', { dist: 5, side: -2 }); const s = MOB('Skeleton', { dist: 6, side: 2 }); const c = MOB('Creeper', { dist: 3 }); const sp = MOB('Spider', { dist: 5, side: 3 }); mc.dev.ticks(120); out.zombieTarget = z.getAttackTarget() === null ? null : 'player'; out.skeletonTarget = s.getAttackTarget() === null ? null : 'player'; out.creeperState = c.getCreeperState(); out.creeperAlive = !c.isDead; out.spiderTarget = sp.entityToAttack ? 'set' : null; out.arrows = mc.dev.entities('Arrow').length; return out; } catch (x) { return 'ERROR ' + (x && x.stack || x); } })()"
+ },
+ {
+  "eval": "(() => { try { const p = mc.thePlayer; const z = MOBS[0]; z.attackEntityFrom(mc.dev.lib.DamageSource.causePlayerDamage(p), 1); mc.dev.ticks(5); return { zombieRetaliates: z.getAttackTarget() === p, hurtTime: z.hurtTime }; } catch (x) { return 'ERROR ' + (x && x.stack || x); } })()"
+ },
+ {
+  "eval": "(() => { try { CLEAR(); const w = mc.theWorld; w.setBlock(8, 4, 14, 52, 0, 3); const te = w.getBlockTileEntity(8, 4, 14); te.getSpawnerLogic().setMobID('Zombie'); te.getSpawnerLogic().spawnDelay = 5; mc.dev.ticks(10); const zs = mc.dev.entities('Zombie'); for (const z of zs) window.MOBS.push(z); return { spawned: zs.length, delayAfter: te.getSpawnerLogic().spawnDelay, within4: zs.every(z => Math.abs(z.posX - 8) <= 5 && Math.abs(z.posZ - 14) <= 5) }; } catch (x) { return 'ERROR ' + (x && x.stack || x); } })()"
+ },
+ {
+  "eval": "(() => { try { mc.dev.tp(8.5, 4, 8.5, 0, 20); mc.dev.sky.pin(18000); return 'ok'; } catch (x) { return 'ERROR ' + (x && x.stack || x); } })()"
+ },
+ {
+  "wait": 700
+ },
+ {
+  "shot": "x_spawner_night.png"
+ }
+]

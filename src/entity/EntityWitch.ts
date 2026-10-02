@@ -123,8 +123,8 @@ export class EntityWitch extends EntityMob implements IRangedAttackMob {
 
   override handleHealthUpdate(status: number): void {
     if (status === 15) {
-      const n = this.rand.nextInt(35) + 10;
-      for (let i = 0; i < n; i++) {
+      // The bound is rolled again on every pass, as in the original loop condition.
+      for (let i = 0; i < this.rand.nextInt(35) + 10; i++) {
         this.worldObj.spawnParticle(
           'witchMagic',
           this.posX + this.rand.nextGaussian() * f(0.13),

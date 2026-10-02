@@ -19,6 +19,7 @@ import type { EntityCreeper } from '../src/entity/EntityCreeper';
 import type { EntitySlime } from '../src/entity/EntitySlime';
 import { chunkRandomWithSeed } from '../src/entity/EntitySlime';
 import type { EntityPigZombie } from '../src/entity/EntityPigZombie';
+import { TileEntityMobSpawner } from '../src/world/tileentity/TileEntityMobSpawner';
 import { check, report } from './harness';
 
 registerBlockItems();
@@ -49,6 +50,8 @@ function makeWorld(time = 18000): World {
     }
   }
   w.mobSpawner = null;
+  // What World.tick keeps up to date: night darkens the sky light by 11.
+  w.skylightSubtracted = w.calculateSkylightSubtracted(1);
   return w;
 }
 
@@ -108,7 +111,10 @@ for (const creative of [true, false]) {
   const creeper = spawn<EntityCreeper>(cw, 'Creeper', 0.5, 2.5, false);
   const ghast = spawn<EntityLiving>(w, 'Ghast', 0.5, -12.5, false);
   ghast.setPosition(0.5, 14, -12.5);
-  const witch = spawn<EntityLiving>(w, 'Witch', 0.5, 8.5, false);
+  // The witch also gets a world of its own: arrows hitting her start fights with the skeleton.
+  const ww = makeWorld();
+  const wp = addPlayer(ww, creative, 0.5, 0.5);
+  spawn<EntityLiving>(ww, 'Witch', 0.5, 8.5, false);
   let creeperSwelled = false;
   let arrows = 0;
   let fireballs = 0;
@@ -116,11 +122,14 @@ for (const creative of [true, false]) {
   for (let i = 0; i < 160; i++) {
     tick(w, 1);
     tick(cw, 1);
+    tick(ww, 1);
     cp.setLocationAndAngles(0.5, 5, 0.5, 0, 0);
+    wp.setLocationAndAngles(0.5, 5, 0.5, 0, 0);
+    if (!creative) wp.setEntityHealth(20);
     if (creeper.getCreeperState() > 0) creeperSwelled = true;
     arrows = Math.max(arrows, w.loadedEntityList.filter((e) => EntityList.getEntityString(e) === 'Arrow').length);
     fireballs = Math.max(fireballs, w.loadedEntityList.filter((e) => EntityList.getEntityString(e) === 'Fireball').length);
-    potions = Math.max(potions, w.loadedEntityList.filter((e) => EntityList.getEntityString(e) === 'ThrownPotion').length);
+    potions = Math.max(potions, ww.loadedEntityList.filter((e) => EntityList.getEntityString(e) === 'ThrownPotion').length);
     p.setLocationAndAngles(0.5, 5, 0.5, 0, 0);
     // Keep the survival target alive so every shooter gets its turn.
     if (!creative) p.setEntityHealth(20);
@@ -141,15 +150,31 @@ for (const creative of [true, false]) {
   }
 }
 
-// Revenge: hitting a mob in Creative makes it turn on you, as in 1.5.2.
+// Revenge on a Creative attacker: as in 1.5.2 the hurt-by task picks the player up again
+// every few ticks but drops it on the next one (players with disableDamage are never kept).
 {
   const w = makeWorld();
   const p = addPlayer(w, true, 0.5, 0.5);
   const zombie = spawn<EntityLiving>(w, 'Zombie', 3.5, 0.5, false);
   zombie.attackEntityFrom(DamageSource.causePlayerDamage(p), 1);
-  tick(w, 4);
-  check('zombie retaliates against a creative attacker', zombie.getAttackTarget() === p);
-  check('knockback on hit', zombie.motionY > 0 || zombie.posY > 5);
+  check('knockback on hit', zombie.motionY > 0);
+  let targeted = 0;
+  for (let i = 0; i < 30; i++) {
+    tick(w, 1);
+    if (zombie.getAttackTarget() === p) targeted++;
+  }
+  check('zombie turns towards a creative attacker', targeted > 0, `${targeted}`);
+  check('zombie never keeps a creative target', targeted <= 15, `${targeted}`);
+  const sp = addPlayer(w, false, 0.5, 4.5);
+  const z2 = spawn<EntityLiving>(w, 'Zombie', 3.5, 6.5, false);
+  z2.attackEntityFrom(DamageSource.causePlayerDamage(sp), 1);
+  let kept = 0;
+  for (let i = 0; i < 30; i++) {
+    tick(w, 1);
+    sp.setEntityHealth(20);
+    if (z2.getAttackTarget() === sp) kept++;
+  }
+  check('zombie keeps a survival attacker as target', kept >= 25, `${kept}`);
 }
 
 // Pigmen are neutral until a player hits one, then the group within 32 turns.
@@ -202,6 +227,36 @@ for (const creative of [true, false]) {
     p.rotationYaw = 0;
   }
   check('enderman ignores creative stare', !en.isScreaming());
+}
+
+// Mob spawner (MobSpawnerBaseLogic): idle without a player within 16, spawns up to 4 within
+// 4 blocks after its delay, then waits 200-799 ticks; stops at 6 of its kind nearby.
+{
+  const w = makeWorld();
+  w.setBlock(0, 5, 0, B.mobSpawner, 0, 3);
+  const te = w.getBlockTileEntity(0, 5, 0) as TileEntityMobSpawner;
+  check('spawner tile entity', te instanceof TileEntityMobSpawner);
+  const logic = te.getSpawnerLogic();
+  logic.setMobID('Zombie');
+  logic.spawnDelay = 3;
+  const far = addPlayer(w, true, 40.5, 0.5);
+  for (let i = 0; i < 10; i++) te.updateEntity();
+  check('spawner idle without a player in 16 blocks', logic.spawnDelay === 3);
+  far.setLocationAndAngles(10.5, 5, 0.5, 0, 0);
+  const zombies = () => w.loadedEntityList.filter((e) => EntityList.getEntityString(e) === 'Zombie' && !e.isDead);
+  let spawnedAt = -1;
+  for (let i = 0; i < 40 && spawnedAt < 0; i++) {
+    te.updateEntity();
+    if (zombies().length > 0) spawnedAt = i;
+  }
+  check('spawner spawns after its delay', spawnedAt >= 3 && zombies().length <= 4, `at ${spawnedAt}, ${zombies().length}`);
+  check('spawned within 4 blocks', zombies().every((z) => Math.abs(z.posX - 0) <= 4 && Math.abs(z.posZ - 0) <= 4));
+  check('spawner delay reset to 200-799', logic.spawnDelay >= 199 && logic.spawnDelay < 800, `${logic.spawnDelay}`);
+  for (let i = 0; i < 8; i++) spawn(w, 'Zombie', 2.5, 2.5, false);
+  const before = zombies().length;
+  logic.spawnDelay = 0;
+  te.updateEntity();
+  check('no spawn with 6 nearby', zombies().length === before && logic.spawnDelay >= 200, `${zombies().length} vs ${before}`);
 }
 
 // Slime chunks: Chunk.getRandomWithSeed with int overflow (stable values for this seed).

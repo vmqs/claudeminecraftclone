@@ -1,12 +1,10 @@
 import type { EntityLiving } from '../../entity/EntityLiving';
 import type { EntitySpider } from '../../entity/EntitySpider';
 import { GL } from '../gl/GL';
-import { OpenGlHelper } from '../OpenGlHelper';
+import { applyGlowingEyesLight } from './GlowingEyes';
 import { ModelSpider } from './ModelSpider';
 import { RenderLiving } from './RenderLiving';
 
-/** Lightmap coordinates of the glowing eyes (char 0xF0F0: full block light). */
-const EYES_LIGHT = 0xf0f0;
 
 /**
  * Spiders and cave spiders (RenderSpider): flip over on death (180 degrees), scaled by
@@ -31,8 +29,7 @@ export class RenderSpider extends RenderLiving {
     GL.disable(GL.ALPHA_TEST);
     GL.blendFunc(GL.ONE, GL.ONE);
     GL.depthMask(!e.isInvisible());
-    OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, EYES_LIGHT % 65536, Math.trunc(EYES_LIGHT / 65536));
-    GL.color(1, 1, 1, 1);
+    applyGlowingEyesLight();
     return 1;
   }
 

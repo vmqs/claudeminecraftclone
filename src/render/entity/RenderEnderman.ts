@@ -3,12 +3,12 @@ import { JavaRandom } from '../../core/JavaRandom';
 import type { EntityEnderman } from '../../entity/EntityEnderman';
 import type { EntityLiving } from '../../entity/EntityLiving';
 import { GL } from '../gl/GL';
+import { applyGlowingEyesLight } from './GlowingEyes';
 import { OpenGlHelper } from '../OpenGlHelper';
 import { ModelEnderman } from './ModelEnderman';
 import { RenderLiving } from './RenderLiving';
 
 const f = Math.fround;
-const EYES_LIGHT = 0xf0f0;
 
 /**
  * Endermen (RenderEnderman): jittering while screaming (open jaw), the carried block between
@@ -69,10 +69,8 @@ export class RenderEnderman extends RenderLiving {
     GL.blendFunc(GL.ONE, GL.ONE);
     GL.disable(GL.LIGHTING);
     GL.depthMask(!e.isInvisible());
-    OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, EYES_LIGHT % 65536, Math.trunc(EYES_LIGHT / 65536));
-    GL.color(1, 1, 1, 1);
     GL.enable(GL.LIGHTING);
-    GL.color(1, 1, 1, 1);
+    applyGlowingEyesLight();
     return 1;
   }
 }
