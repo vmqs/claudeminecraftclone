@@ -17,6 +17,7 @@ import type { Explosion } from '../world/Explosion';
 import type { World } from '../world/World';
 import { Material } from './Material';
 import { StepSounds, type StepSound } from './StepSound';
+import { HarvestModifiers, noteHarvest } from './HarvestModifiers';
 
 /**
  * Block base class with the 1.5.2 (MCP) API. Instances are created once in
@@ -564,8 +565,18 @@ export class Block {
     return 1;
   }
 
-  harvestBlock(w: IWorld, _p: EntityPlayer, x: number, y: number, z: number, meta: number): void {
-    this.dropBlockAsItem(w, x, y, z, meta, 0);
+  /**
+   * A player broke the block outside Creative: statistics, food exhaustion, then the drops
+   * (the block itself with Silk Touch where allowed, otherwise the normal drops with Fortune).
+   */
+  harvestBlock(w: IWorld, p: EntityPlayer, x: number, y: number, z: number, meta: number): void {
+    noteHarvest(p, this.blockID, true);
+    if (this.canSilkHarvest() && HarvestModifiers.silkTouch(p)) {
+      const stack = this.createStackedBlock(meta);
+      if (stack) this.dropBlockAsItem_do(w, x, y, z, stack);
+    } else {
+      this.dropBlockAsItem(w, x, y, z, meta, HarvestModifiers.fortune(p));
+    }
   }
 
   protected canSilkHarvest(): boolean {

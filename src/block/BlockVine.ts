@@ -1,3 +1,4 @@
+import { noteHarvest } from './HarvestModifiers';
 import type { AxisAlignedBB } from '../core/AxisAlignedBB';
 import { Direction } from '../core/Facing';
 import type { JavaRandom } from '../core/JavaRandom';
@@ -179,7 +180,10 @@ export class BlockVine extends Block {
   /** Only shears collect vines. */
   override harvestBlock(w: IWorld, p: EntityPlayer, x: number, y: number, z: number, meta: number): void {
     const held = p.getCurrentEquippedItem();
-    if (!w.isRemote && held && held.itemID === ItemIds.shears) this.dropBlockAsItem_do(w, x, y, z, new ItemStack(BlockIds.vine, 1, 0));
+    if (!w.isRemote && held && held.itemID === ItemIds.shears) {
+      noteHarvest(p, this.blockID, false);
+      this.dropBlockAsItem_do(w, x, y, z, new ItemStack(BlockIds.vine, 1, 0));
+    }
     else super.harvestBlock(w, p, x, y, z, meta);
   }
 }

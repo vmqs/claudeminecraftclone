@@ -6,6 +6,7 @@ import { ItemStack } from '../item/ItemStack';
 import type { IconRegister } from '../render/texture/Icon';
 import { EnumSkyBlock, type IBlockAccess } from '../world/IBlockAccess';
 import type { IWorld } from '../world/IWorld';
+import { noteHarvest } from './HarvestModifiers';
 import { Block } from './Block';
 import { BlockIds, ItemIds } from './BlockIds';
 import { Material } from './Material';
@@ -71,9 +72,10 @@ export class BlockSnow extends Block {
     return true;
   }
 
-  override harvestBlock(w: IWorld, _p: EntityPlayer, x: number, y: number, z: number, meta: number): void {
+  override harvestBlock(w: IWorld, p: EntityPlayer, x: number, y: number, z: number, meta: number): void {
     this.dropBlockAsItem_do(w, x, y, z, new ItemStack(ItemIds.snowball, (meta & 7) + 1, 0));
     w.setBlockToAir(x, y, z);
+    noteHarvest(p, this.blockID, false);
   }
 
   override idDropped(_meta: number, _rand: JavaRandom, _fortune: number): number {

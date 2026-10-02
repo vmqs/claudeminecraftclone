@@ -1,3 +1,4 @@
+import { noteHarvest } from './HarvestModifiers';
 import type { JavaRandom } from '../core/JavaRandom';
 import type { EntityPlayer } from '../entity/EntityPlayer';
 import { CreativeTabs } from '../item/CreativeTabs';
@@ -153,6 +154,7 @@ export class BlockLeaves extends BlockLeavesBase {
   override harvestBlock(w: IWorld, p: EntityPlayer, x: number, y: number, z: number, meta: number): void {
     const held = p.getCurrentEquippedItem();
     if (!w.isRemote && held && held.itemID === ItemIds.shears) {
+      noteHarvest(p, this.blockID, false);
       this.dropBlockAsItem_do(w, x, y, z, new ItemStack(BlockIds.leaves, 1, meta & 3));
     } else {
       super.harvestBlock(w, p, x, y, z, meta);
