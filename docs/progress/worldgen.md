@@ -31,6 +31,13 @@ Branch `w1/worldgen`. Each step is committed; this file lists what is done and w
   under canopies rendering about 15% darker than the reference; the client's light there equals
   the worker's computed light, so that needs a vanilla light dump to settle.
 
+- Second pass (this session): nested terrain worker (`workers/terrain.worker.ts`) making terrain
+  ahead while the generation worker populates; prefetched terrain is only adopted on demand, so
+  output is byte-identical (checked by hashing blocks, metadata, light, tile entities, entities
+  and ticks of six areas with random prefetching, and the spawn/stronghold answers). The spawn
+  area loads stepwise in the worker. One-entry chunk cache and positive existence cache in
+  GenWorld. The GenStore keeps light (eviction round trip checked identical).
+
 ## Next
 - Cascading population (a feature reading an unloaded chunk loads and populates it in the
   original) is not emulated; it only matters for features reaching more than 8 blocks out.

@@ -153,12 +153,21 @@ The main thread (`world/ChunkProviderClient`) posts `{type:'request', cx, cz}`, 
 `{type:'player', cx, cz, radius}`, once per world `{type:'findSpawn'}` (answered with `spawn`) and
 `{type:'findStructure', id, name, x, y, z}` for eyes of ender (answered with `structure`;
 `world/gen/StructureLocator` wraps it as a promise). The worker's logic lives in
-`world/gen/WorldGenServer`; `workers/worldgen.worker.ts` only routes messages.
+`world/gen/WorldGenServer`; `workers/worldgen.worker.ts` routes messages and schedules work.
+
+- **Terrain worker.** `worldgen.worker.ts` starts a nested `workers/terrain.worker.ts` that makes
+  raw terrain (`ChunkProviderGenerate.provideTerrain`: noise, surface, caves, ravines, as
+  `world/gen/TerrainChunk` sections) for the chunks the next jobs need, while the world-generation
+  worker populates and lights; it makes terrain itself when the terrain worker is behind or
+  missing (Superflat never uses it). Terrain is a pure function of seed and position, and
+  prefetched terrain is only taken into the generating world (with the structure-start part,
+  `recordStructures`) when generation asks for that chunk, so what is loaded, which gates light
+  updates, never depends on timing: the output is byte-identical with and without it.
 
 - **Generate once, keep everything.** Like the original's region files, every chunk is generated
   and populated exactly once per world. Chunks that leave the worker's working set (the loaded
-  area plus three rings) are compressed into a `GenStore` (run-length coded blocks and metadata,
-  generated tile entities, ticks and entity descriptors) and restored when needed again, so a
+  area plus three rings) are compressed into a `GenStore` (run-length coded blocks, metadata and
+  light, generated tile entities, ticks and entity descriptors) and restored when needed again, so a
   chunk that comes back is identical and structure or big-tree state never drifts.
 - **Finalization.** Chunk `(x,z)` is finalized when population has run for `(x-1..x, z-1..z)`
   (the original's +8 offset rule) and its light has been computed from the populated 3x3
@@ -168,7 +177,9 @@ The main thread (`world/ChunkProviderClient`) posts `{type:'request', cx, cz}`, 
   `WorldServer.createSpawnPosition` (chunks loaded on demand, populated by `Chunk.populateChunk`'s
   rules), places the bonus chest, then loads the 25x25 spawn area in
   `MinecraftServer.initialWorldChunkLoad` order, so the spawn area is populated in the same
-  order as in 1.5.2 (which matters where features of neighbouring chunks overlap). After that,
+  order as in 1.5.2 (which matters where features of neighbouring chunks overlap). The worker
+  loads that area one chunk per step (terrain comes from the terrain worker) and answers
+  `findSpawn` when it is done. After that,
   chunks are populated on demand, nearest to the player first.
 - **Light while populating.** `GenWorld` keeps light up to date during population like
   `World.setBlock` (column sky light in `Chunk.relightBlock`, plus `updateLightByType` where every
