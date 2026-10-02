@@ -3,7 +3,7 @@ import { BlockIds } from '../block/BlockIds';
 import { BlockFluid } from '../block/BlockFluid';
 import { Material } from '../block/Material';
 import { AxisAlignedBB } from '../core/AxisAlignedBB';
-import { Facing } from '../core/Facing';
+import { Direction, Facing } from '../core/Facing';
 import { JavaRandom } from '../core/JavaRandom';
 import { MathHelper } from '../core/MathHelper';
 import type { MovingObjectPosition } from '../core/MovingObjectPosition';
@@ -19,6 +19,7 @@ import { EnumSkyBlock, SKY_BLOCK_DEFAULT, type IBlockAccess } from './IBlockAcce
 import type { IWorld } from './IWorld';
 import type { IWorldAccess } from './IWorldAccess';
 import { NextTickListEntry, TickScheduler } from './NextTickListEntry';
+import type { TileEntity } from './tileentity/TileEntity';
 import { WorldProvider } from './WorldProvider';
 
 const f = Math.fround;
@@ -73,8 +74,13 @@ export class World implements IWorld, IBlockAccess {
   protected unloadedEntityList: Entity[] = [];
   readonly playerEntities: EntityPlayer[] = [];
   readonly weatherEffects: Entity[] = [];
-  /** Tile entities that tick (the tile-entity code fills this). */
-  readonly loadedTileEntityList: { updateEntity?(): void; isInvalid?(): boolean }[] = [];
+  /** Tile entities of loaded chunks, ticked every game tick. */
+  loadedTileEntityList: TileEntity[] = [];
+  /** Tile entities added while the list above is being ticked. */
+  private readonly addedTileEntityList: TileEntity[] = [];
+  /** Tile entities of unloaded chunks, removed after the tick (entityRemoval). */
+  private readonly tileEntityRemoval: TileEntity[] = [];
+  private scanningTileEntities = false;
   skylightSubtracted = 0;
   protected updateLCG = new JavaRandom().nextInt();
   protected prevRainingStrength = 0;
@@ -145,6 +151,7 @@ export class World implements IWorld, IBlockAccess {
     }
     chunk.pendingTicks = [];
     for (const list of chunk.entityLists) for (const e of list) this.addLoadedEntity(e);
+    this.addTileEntities(chunk.chunkTileEntityMap.values());
     for (const a of this.worldAccesses) a.onChunkLoaded?.(chunk.xPosition, chunk.zPosition);
     const x0 = chunk.xPosition * 16;
     const z0 = chunk.zPosition * 16;
@@ -164,6 +171,7 @@ export class World implements IWorld, IBlockAccess {
       c.pendingTicks.push([t.xCoord, t.yCoord, t.zCoord, t.blockID, Math.max(0, t.scheduledTime - this.worldInfo.totalTime), t.natural ? 1 : 0]);
     }
     for (const list of c.entityLists) for (const e of list) if (!(e as unknown as EntityPlayer).isPlayerEntity) this.unloadedEntityList.push(e);
+    for (const te of c.chunkTileEntityMap.values()) this.tileEntityRemoval.push(te);
     for (const a of this.worldAccesses) a.onChunkUnloaded?.(cx, cz);
     return c;
   }
@@ -1063,10 +1071,118 @@ export class World implements IWorld, IBlockAccess {
         this.releaseEntitySkin(e);
       }
     }
-    for (let i = 0; i < this.loadedTileEntityList.length; i++) {
-      const te = this.loadedTileEntityList[i];
-      if (te.isInvalid?.()) this.loadedTileEntityList.splice(i--, 1);
-      else te.updateEntity?.();
+    this.updateTileEntities();
+  }
+
+  /** Ticks tile entities, drops invalid ones, then applies the removals and additions queued meanwhile. */
+  private updateTileEntities(): void {
+    this.scanningTileEntities = true;
+    const list = this.loadedTileEntityList;
+    let kept = 0;
+    for (let i = 0; i < list.length; i++) {
+      const te = list[i];
+      if (!te.isInvalid() && te.hasWorldObj() && this.blockExists(te.xCoord, te.yCoord, te.zCoord)) te.updateEntity();
+      if (te.isInvalid()) {
+        if (this.chunkExists(te.xCoord >> 4, te.zCoord >> 4)) this.getChunkFromChunkCoords(te.xCoord >> 4, te.zCoord >> 4).removeChunkBlockTileEntity(te.xCoord & 15, te.yCoord, te.zCoord & 15);
+      } else {
+        list[kept++] = te;
+      }
+    }
+    list.length = kept;
+    this.scanningTileEntities = false;
+    if (this.tileEntityRemoval.length > 0) {
+      const gone = new Set(this.tileEntityRemoval);
+      this.loadedTileEntityList = this.loadedTileEntityList.filter((te) => !gone.has(te));
+      this.tileEntityRemoval.length = 0;
+    }
+    if (this.addedTileEntityList.length > 0) {
+      for (const te of this.addedTileEntityList) {
+        if (te.isInvalid()) continue;
+        if (!this.loadedTileEntityList.includes(te)) this.loadedTileEntityList.push(te);
+        if (this.chunkExists(te.xCoord >> 4, te.zCoord >> 4)) this.getChunkFromChunkCoords(te.xCoord >> 4, te.zCoord >> 4).setChunkBlockTileEntity(te.xCoord & 15, te.yCoord, te.zCoord & 15, te);
+        this.markBlockForUpdate(te.xCoord, te.yCoord, te.zCoord);
+      }
+      this.addedTileEntityList.length = 0;
+    }
+  }
+
+  /** World.addTileEntity(Collection): starts ticking tile entities (queued while ticking). */
+  addTileEntities(list: Iterable<TileEntity>): void {
+    if (this.scanningTileEntities) this.addedTileEntityList.push(...list);
+    else this.loadedTileEntityList.push(...list);
+  }
+
+  getBlockTileEntity(x: number, y: number, z: number): TileEntity | null {
+    if (y < 0 || y >= 256) return null;
+    const at = (te: TileEntity) => !te.isInvalid() && te.xCoord === x && te.yCoord === y && te.zCoord === z;
+    let te: TileEntity | null = null;
+    if (this.scanningTileEntities) te = this.addedTileEntityList.find(at) ?? null;
+    if (!te && this.chunkExists(x >> 4, z >> 4)) te = this.getChunkFromChunkCoords(x >> 4, z >> 4).getChunkBlockTileEntity(x & 15, y, z & 15);
+    if (!te) te = this.addedTileEntityList.find(at) ?? null;
+    return te;
+  }
+
+  setBlockTileEntity(x: number, y: number, z: number, te: TileEntity | null): void {
+    if (!te || te.isInvalid()) return;
+    if (this.scanningTileEntities) {
+      te.xCoord = x;
+      te.yCoord = y;
+      te.zCoord = z;
+      for (let i = this.addedTileEntityList.length - 1; i >= 0; i--) {
+        const o = this.addedTileEntityList[i];
+        if (o.xCoord === x && o.yCoord === y && o.zCoord === z) {
+          o.invalidate();
+          this.addedTileEntityList.splice(i, 1);
+        }
+      }
+      this.addedTileEntityList.push(te);
+    } else {
+      this.loadedTileEntityList.push(te);
+      if (this.chunkExists(x >> 4, z >> 4)) this.getChunkFromChunkCoords(x >> 4, z >> 4).setChunkBlockTileEntity(x & 15, y, z & 15, te);
+    }
+  }
+
+  removeBlockTileEntity(x: number, y: number, z: number): void {
+    const te = this.getBlockTileEntity(x, y, z);
+    if (te && this.scanningTileEntities) {
+      te.invalidate();
+      const i = this.addedTileEntityList.indexOf(te);
+      if (i >= 0) this.addedTileEntityList.splice(i, 1);
+      return;
+    }
+    if (te) {
+      let i = this.addedTileEntityList.indexOf(te);
+      if (i >= 0) this.addedTileEntityList.splice(i, 1);
+      i = this.loadedTileEntityList.indexOf(te);
+      if (i >= 0) this.loadedTileEntityList.splice(i, 1);
+    }
+    if (this.chunkExists(x >> 4, z >> 4)) this.getChunkFromChunkCoords(x >> 4, z >> 4).removeChunkBlockTileEntity(x & 15, y, z & 15);
+  }
+
+  /** Contents of a tile entity changed: the chunk must survive unloading. */
+  updateTileEntityChunkAndDoNothing(x: number, y: number, z: number, _te: TileEntity): void {
+    if (!this.blockExists(x, y, z)) return;
+    const c = this.getChunkFromBlockCoords(x, z);
+    c.isModified = true;
+    if (this.naturalDepth === 0) c.playerModified = true;
+  }
+
+  /** func_96440_m: comparators next to (or behind a solid block next to) a changed container update. */
+  notifyComparatorsOfChange(x: number, y: number, z: number, blockId: number): void {
+    const isComparator = (id: number) => id === BlockIds.redstoneComparatorIdle || id === BlockIds.redstoneComparatorActive;
+    for (let d = 0; d < 4; d++) {
+      let nx = x + Direction.offsetX[d];
+      let nz = z + Direction.offsetZ[d];
+      let id = this.getBlockId(nx, y, nz);
+      if (id === 0) continue;
+      if (isComparator(id)) {
+        Block.blocksList[id]?.onNeighborBlockChange(this, nx, y, nz, blockId);
+      } else if (Block.isNormalCube(id)) {
+        nx += Direction.offsetX[d];
+        nz += Direction.offsetZ[d];
+        id = this.getBlockId(nx, y, nz);
+        if (isComparator(id)) Block.blocksList[id]?.onNeighborBlockChange(this, nx, y, nz, blockId);
+      }
     }
   }
 

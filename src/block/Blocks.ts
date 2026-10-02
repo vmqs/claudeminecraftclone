@@ -1,4 +1,5 @@
 import { CreativeTabs } from '../item/CreativeTabs';
+import '../world/tileentity/TileEntities';
 import { Block } from './Block';
 import { BlockCactus } from './BlockCactus';
 import { BlockClay } from './BlockClay';

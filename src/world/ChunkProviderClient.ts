@@ -2,6 +2,7 @@ import { MathHelper } from '../core/MathHelper';
 import type { ChunkPayload, WorldGenRequest, WorldGenResponse } from '../workers/worldgenProtocol';
 import { Chunk } from './Chunk';
 import { ChunkSection } from './ChunkSection';
+import { TileEntity } from './tileentity/TileEntity';
 import { World } from './World';
 
 /**
@@ -130,6 +131,10 @@ export class ChunkProviderClient {
     c.heightMapMinimum = min;
     c.biomes.set(m.biomes);
     c.pendingTicks = m.pendingTicks;
+    for (const tag of m.tileEntities) {
+      const te = TileEntity.createAndLoadEntity(tag);
+      if (te) c.addTileEntity(te);
+    }
     c.isModified = false;
     c.playerModified = false;
     return c;

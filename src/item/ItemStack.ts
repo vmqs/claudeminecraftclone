@@ -167,6 +167,22 @@ export class ItemStack {
     this.getItem().onPlayerStoppedUsing(this, world, player, ticksLeft);
   }
 
+  /** writeToNBT: {id, Count, Damage, tag?} as plain data (tile entities, worker descriptors). */
+  writeToNBT(): TagCompound {
+    const t: TagCompound = { id: this.itemID, Count: this.stackSize, Damage: this.itemDamage };
+    if (this.stackTagCompound) t.tag = structuredClone(this.stackTagCompound);
+    return t;
+  }
+
+  /** loadItemStackFromNBT: null for unknown items. */
+  static loadItemStackFromNBT(t: TagCompound): ItemStack | null {
+    const id = Number(t.id);
+    if (!Item.itemsList[id]) return null;
+    const s = new ItemStack(id, Number(t.Count ?? 1), Number(t.Damage ?? 0));
+    if (t.tag && typeof t.tag === 'object') s.stackTagCompound = structuredClone(t.tag as TagCompound);
+    return s;
+  }
+
   hasTagCompound(): boolean {
     return this.stackTagCompound !== null;
   }

@@ -1,3 +1,5 @@
+import type { TagCompound } from '../item/ItemStack';
+
 /** Messages between the main thread and worldgen.worker.ts (see ARCHITECTURE.md §5.2). */
 export type WorldGenRequest =
   | { type: 'init'; seed: string; worldType: string; mapFeatures: boolean }
@@ -24,8 +26,8 @@ export interface ChunkPayload {
   biomes: Uint8Array;
   /** Scheduled ticks created while generating: [x, y, z, blockId, delay]. */
   pendingTicks: number[][];
-  /** Tile-entity descriptors (spawner mob, chest contents); none yet. */
-  tileEntities: unknown[];
+  /** Tile entities placed by generation (TileEntity.writeToNBT: spawner mob, chest contents). */
+  tileEntities: TagCompound[];
 }
 
 export type WorldGenResponse = { type: 'ready' } | { type: 'spawn'; x: number; y: number; z: number } | ChunkPayload;

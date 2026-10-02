@@ -8,6 +8,7 @@ import { Biomes, type BiomeGenBase } from '../world/biome/BiomeGenBase';
 import { ChunkProviderGenerate } from '../world/gen/ChunkProviderGenerate';
 import { computeChunkLight } from '../world/gen/GenLighting';
 import { GenWorld } from '../world/gen/GenWorld';
+import type { TagCompound } from '../item/ItemStack';
 import type { ChunkPayload, SectionPayload, WorldGenRequest } from './worldgenProtocol';
 
 declare const self: DedicatedWorkerGlobalScope;
@@ -94,7 +95,14 @@ function finalizeChunk(cx: number, cz: number): ChunkPayload {
     sections.push({ y: s.yBase, blocks: s.blocks.slice(), meta: s.meta.slice(), skyLight: s.skyLight.slice(), blockLight: s.blockLight.slice() });
   }
   const ticks = c.pendingTicks.filter((t) => t[0] >> 4 === cx && t[2] >> 4 === cz);
-  return { type: 'chunk', cx, cz, sections, heightMap: c.heightMap.slice(), biomes: c.biomes.slice(), pendingTicks: ticks, tileEntities: [] };
+  const tileEntities: TagCompound[] = [];
+  for (const te of c.chunkTileEntityMap.values()) {
+    if (te.isInvalid()) continue;
+    const tag: TagCompound = {};
+    te.writeToNBT(tag);
+    tileEntities.push(tag);
+  }
+  return { type: 'chunk', cx, cz, sections, heightMap: c.heightMap.slice(), biomes: c.biomes.slice(), pendingTicks: ticks, tileEntities };
 }
 
 /** WorldChunkManager.findBiomePosition over the 1:4 biome grid (reservoir pick). */

@@ -3,6 +3,7 @@ import type { AxisAlignedBB } from '../core/AxisAlignedBB';
 import type { Entity } from '../entity/Entity';
 import type { ItemStack } from '../item/ItemStack';
 import type { EnumSkyBlock, IBlockAccess } from './IBlockAccess';
+import type { TileEntity } from './tileentity/TileEntity';
 
 export interface WorldProviderInfo {
   dimensionId: number;
@@ -55,6 +56,14 @@ export interface IWorld extends IBlockAccess {
   playSound(x: number, y: number, z: number, name: string, volume: number, pitch: number, distanceDelay: boolean): void;
   playAuxSFX(type: number, x: number, y: number, z: number, data: number): void;
   spawnParticle(name: string, x: number, y: number, z: number, vx: number, vy: number, vz: number): void;
+
+  getBlockTileEntity(x: number, y: number, z: number): TileEntity | null;
+  setBlockTileEntity(x: number, y: number, z: number, te: TileEntity | null): void;
+  removeBlockTileEntity(x: number, y: number, z: number): void;
+  /** A tile entity's contents changed (marks the chunk modified). */
+  updateTileEntityChunkAndDoNothing(x: number, y: number, z: number, te: TileEntity): void;
+  /** func_96440_m: tells comparators next to (x, y, z) that the container changed. */
+  notifyComparatorsOfChange(x: number, y: number, z: number, blockId: number): void;
 
   spawnEntityInWorld(entity: Entity): boolean;
   /** Drops an item stack as an entity (Block.dropBlockAsItem_do); a no-op while generating. */

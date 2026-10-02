@@ -4,6 +4,7 @@ import { Block } from '../block/Block';
 import '../entity/Entities';
 import '../render/entity/EntityRenderers';
 import '../render/particle/ParticleRegistry';
+import '../render/tileentity/TileEntityRenderers';
 import { I18n } from '../core/I18n';
 import { JavaRandom } from '../core/JavaRandom';
 import { MathHelper } from '../core/MathHelper';

@@ -7,19 +7,12 @@ import { ChunkSection } from './ChunkSection';
 import { EnumSkyBlock, SKY_BLOCK_DEFAULT } from './IBlockAccess';
 import type { IWorld } from './IWorld';
 import { Material } from '../block/Material';
-
-/** Tile entity placeholder shape (the tile-entity agent adds real classes). */
-export interface TileEntityLike {
-  xCoord: number;
-  yCoord: number;
-  zCoord: number;
-  invalidate?(): void;
-  validate?(): void;
-  updateContainingBlockInfo?(): void;
-}
+import { isTileEntityProvider, type TileEntity } from './tileentity/TileEntity';
 
 /** What a Chunk needs from its world (the client World, or the generation world in the worker). */
 export interface ChunkHost extends IWorld {
+  /** Adds tile entities to the ticking list (World.addTileEntity(Collection)). */
+  addTileEntities(list: Iterable<TileEntity>): void;
   markBlocksDirtyVertical(x: number, z: number, y0: number, y1: number): void;
   markBlockForRenderUpdate(x: number, y: number, z: number): void;
   getChunkHeightMapMinimum(x: number, z: number): number;
@@ -50,7 +43,7 @@ export class Chunk {
   hasEntities = false;
   isTerrainPopulated = true;
   private isGapLightingUpdated = false;
-  readonly chunkTileEntityMap = new Map<number, TileEntityLike>();
+  readonly chunkTileEntityMap = new Map<number, TileEntity>();
   readonly entityLists: Entity[][] = Array.from({ length: 16 }, () => []);
   /**
    * Scheduled ticks waiting for the chunk to load: [x, y, z, blockId, delay, natural]. From the
@@ -287,8 +280,20 @@ export class Chunk {
       }
       this.propagateSkylightOcclusion(x, z);
     }
-    if (id !== 0 && !w.isRemote) Block.blocksList[id]?.onBlockAdded(w, wx, y, wz);
-    if (oldId !== id) this.chunkTileEntityMap.delete(Chunk.teKey(x, y, z));
+    const block = Block.blocksList[id];
+    if (id !== 0 && block) {
+      if (!w.isRemote) block.onBlockAdded(w, wx, y, wz);
+      if (isTileEntityProvider(block)) {
+        let te = this.getChunkBlockTileEntity(x, y, z);
+        if (!te) {
+          te = block.createNewTileEntity(w);
+          w.setBlockTileEntity(wx, y, wz, te);
+        }
+        te?.updateContainingBlockInfo();
+      }
+    } else if (oldId > 0 && isTileEntityProvider(Block.blocksList[oldId])) {
+      this.getChunkBlockTileEntity(x, y, z)?.updateContainingBlockInfo();
+    }
     this.isModified = true;
     return true;
   }
@@ -299,6 +304,14 @@ export class Chunk {
     if (s.getExtBlockMetadata(x, y & 15, z) === meta) return false;
     this.isModified = true;
     s.setExtBlockMetadata(x, y & 15, z, meta);
+    const id = s.getExtBlockID(x, y & 15, z);
+    if (id > 0 && isTileEntityProvider(Block.blocksList[id])) {
+      const te = this.getChunkBlockTileEntity(x, y, z);
+      if (te) {
+        te.updateContainingBlockInfo();
+        te.blockMetadata = meta;
+      }
+    }
     return true;
   }
 
@@ -391,24 +404,49 @@ export class Chunk {
     return (y << 8) | (z << 4) | x;
   }
 
-  getChunkBlockTileEntity(x: number, y: number, z: number): TileEntityLike | null {
-    return this.chunkTileEntityMap.get(Chunk.teKey(x, y, z)) ?? null;
+  /** The tile entity at a position, created on demand for container blocks without one. */
+  getChunkBlockTileEntity(x: number, y: number, z: number): TileEntity | null {
+    const k = Chunk.teKey(x, y, z);
+    let te = this.chunkTileEntityMap.get(k);
+    if (!te) {
+      const block = Block.blocksList[this.getBlockID(x, y, z)];
+      if (!block || !block.hasTileEntity() || !isTileEntityProvider(block)) return null;
+      this.worldObj.setBlockTileEntity(this.xPosition * 16 + x, y, this.zPosition * 16 + z, block.createNewTileEntity(this.worldObj));
+      te = this.chunkTileEntityMap.get(k);
+    }
+    if (te && te.isInvalid()) {
+      this.chunkTileEntityMap.delete(k);
+      return null;
+    }
+    return te ?? null;
   }
 
-  setChunkBlockTileEntity(x: number, y: number, z: number, te: TileEntityLike): void {
+  /** Adds a tile entity at its own coordinates (loading); ticked once the chunk is loaded. */
+  addTileEntity(te: TileEntity): void {
+    this.setChunkBlockTileEntity(te.xCoord - this.xPosition * 16, te.yCoord, te.zCoord - this.zPosition * 16, te);
+    if (this.isChunkLoaded) this.worldObj.addTileEntities([te]);
+  }
+
+  /** Stores a tile entity if the block there provides one (replacing and invalidating the old one). */
+  setChunkBlockTileEntity(x: number, y: number, z: number, te: TileEntity): void {
+    te.setWorldObj(this.worldObj);
     te.xCoord = this.xPosition * 16 + x;
     te.yCoord = y;
     te.zCoord = this.zPosition * 16 + z;
-    const old = this.chunkTileEntityMap.get(Chunk.teKey(x, y, z));
-    old?.invalidate?.();
-    te.validate?.();
-    this.chunkTileEntityMap.set(Chunk.teKey(x, y, z), te);
+    const id = this.getBlockID(x, y, z);
+    if (id === 0 || !isTileEntityProvider(Block.blocksList[id])) return;
+    const k = Chunk.teKey(x, y, z);
+    this.chunkTileEntityMap.get(k)?.invalidate();
+    te.validate();
+    this.chunkTileEntityMap.set(k, te);
   }
 
   removeChunkBlockTileEntity(x: number, y: number, z: number): void {
-    const te = this.chunkTileEntityMap.get(Chunk.teKey(x, y, z));
-    this.chunkTileEntityMap.delete(Chunk.teKey(x, y, z));
-    te?.invalidate?.();
+    if (!this.isChunkLoaded) return;
+    const k = Chunk.teKey(x, y, z);
+    const te = this.chunkTileEntityMap.get(k);
+    this.chunkTileEntityMap.delete(k);
+    te?.invalidate();
   }
 
   // ------------------------------------------------------------------ misc

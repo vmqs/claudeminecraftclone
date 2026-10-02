@@ -22,6 +22,7 @@ import { EntityDiggingFX } from './particle/EntityDiggingFX';
 import type { EntityFX } from './particle/EntityFX';
 import { RenderHelper } from './RenderHelper';
 import { RenderManager } from './entity/RenderManager';
+import { TileEntityRenderer } from './tileentity/TileEntityRenderer';
 
 const f = Math.fround;
 const S = SNAPSHOT_SIZE;
@@ -495,9 +496,13 @@ export class RenderGlobal implements IWorldAccess {
     this.countEntitiesTotal = 0;
     this.countEntitiesRendered = 0;
     this.countEntitiesHidden = 0;
+    TileEntityRenderer.instance.cacheActiveRenderInfo(w, this.mc.renderEngine, this.mc.fontRenderer, viewer, pt);
     RenderManager.renderPosX = viewer.lastTickPosX + (viewer.posX - viewer.lastTickPosX) * pt;
     RenderManager.renderPosY = viewer.lastTickPosY + (viewer.posY - viewer.lastTickPosY) * pt;
     RenderManager.renderPosZ = viewer.lastTickPosZ + (viewer.posZ - viewer.lastTickPosZ) * pt;
+    TileEntityRenderer.staticPlayerX = RenderManager.renderPosX;
+    TileEntityRenderer.staticPlayerY = RenderManager.renderPosY;
+    TileEntityRenderer.staticPlayerZ = RenderManager.renderPosZ;
     this.mc.entityRenderer.enableLightmap(pt);
     for (const e of w.loadedEntityList) {
       this.countEntitiesTotal++;
@@ -508,6 +513,14 @@ export class RenderGlobal implements IWorldAccess {
         this.countEntitiesRendered++;
         RenderManager.instance.renderEntity(e, pt);
       }
+    }
+    // Tile entities with special renderers (chests, signs, spawners...), visible ones only.
+    RenderHelper.enableStandardItemLighting();
+    const ter = TileEntityRenderer.instance;
+    for (const te of w.loadedTileEntityList) {
+      if (te.isInvalid() || !ter.hasSpecialRenderer(te)) continue;
+      if (!frustum.isBoxInFrustum(te.xCoord - 1, te.yCoord - 1, te.zCoord - 1, te.xCoord + 2, te.yCoord + 2, te.zCoord + 2)) continue;
+      ter.renderTileEntity(te, pt);
     }
     this.mc.entityRenderer.disableLightmap(pt);
   }

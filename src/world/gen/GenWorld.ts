@@ -8,6 +8,7 @@ import type { ItemStack } from '../../item/ItemStack';
 import { getBiome, type BiomeGenBase } from '../biome/BiomeGenBase';
 import { Chunk, type ChunkHost } from '../Chunk';
 import { EnumSkyBlock } from '../IBlockAccess';
+import type { TileEntity } from '../tileentity/TileEntity';
 import type { WorldProviderInfo } from '../IWorld';
 import type { BiomeSource } from './ChunkProviderGenerate';
 
@@ -269,6 +270,26 @@ export class GenWorld implements ChunkHost {
     return false;
   }
   dropItemStack(_x: number, _y: number, _z: number, _s: ItemStack): void {}
+
+  // ---------------------------------------------------------------- tile entities (not ticked here)
+  /** Tile entities placed while generating travel with the chunk payload as descriptors. */
+  getBlockTileEntity(x: number, y: number, z: number): TileEntity | null {
+    if (y < 0 || y >= 256) return null;
+    return this.chunkAt(x, z)?.getChunkBlockTileEntity(x & 15, y, z & 15) ?? null;
+  }
+  setBlockTileEntity(x: number, y: number, z: number, te: TileEntity | null): void {
+    if (te && !te.isInvalid()) this.chunkAt(x, z)?.setChunkBlockTileEntity(x & 15, y, z & 15, te);
+  }
+  removeBlockTileEntity(x: number, y: number, z: number): void {
+    const c = this.chunkAt(x, z);
+    if (!c) return;
+    const k = Chunk.teKey(x & 15, y, z & 15);
+    c.chunkTileEntityMap.get(k)?.invalidate();
+    c.chunkTileEntityMap.delete(k);
+  }
+  addTileEntities(): void {}
+  updateTileEntityChunkAndDoNothing(): void {}
+  notifyComparatorsOfChange(): void {}
   getEntitiesWithinAABBExcludingEntity(): Entity[] {
     return [];
   }

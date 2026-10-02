@@ -8,7 +8,7 @@ agent resumes from the first item that is not marked done or skipped. Status val
 
 | ID | Finding | Status |
 |---|---|---|
-| B1 | Tile entities: TileEntity + registry, BlockContainer, Chunk/World wiring, TileEntityRenderer, worldgen payload | todo |
+| B1 | Tile entities: TileEntity + registry, BlockContainer, Chunk/World wiring, TileEntityRenderer, worldgen payload | done (src/world/tileentity/, BlockContainer, World/Chunk/GenWorld wiring, payload descriptors, src/render/tileentity/) |
 | B2 | EntityList name/ID registry with egg table | done (src/entity/EntityList.ts + src/entity/Entities.ts) |
 | B3 | Container framework: IInventory, Slot, Container, ContainerPlayer, GuiContainer, displayGUI* hooks, inventory key | todo |
 | B4 | RenderBlocks transliteration rewritten as original TypeScript (golden byte-equality test), SRG names renamed | todo |
