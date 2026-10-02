@@ -4,8 +4,8 @@ A restarted agent continues from the first item not marked done. Status: todo / 
 
 | # | Item | Status |
 |---|---|---|
-| 1 | DamageSource: indirect/arrow/fireball/thrown/magic/thorns/explosion sources | todo |
-| 2 | Entity/EntityLiving completion: potions storage + hooks, loot pickup, armour helpers, setPositionAndRotation2, unmountEntity, creative-target helper | todo |
+| 1 | DamageSource: indirect/arrow/fireball/thrown/magic/thorns/explosion sources | done |
+| 2 | Entity/EntityLiving completion: potions storage + hooks, loot pickup, armour helpers, setPositionAndRotation2, unmountEntity, creative-target helper | done (World.setEntityState echo, collectEffect hook, PotionEffects.ts) |
 | 3 | EntityXPOrb + RenderXPOrb | todo |
 | 4 | EntityArrow + RenderArrow | todo |
 | 5 | EntityThrowable family (snowball, egg, pearl, exp bottle, potion) + RenderSnowball | todo |

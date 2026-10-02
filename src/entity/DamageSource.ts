@@ -30,6 +30,39 @@ export class DamageSource {
   static anvil = new DamageSource('anvil');
   static fallingBlock = new DamageSource('fallingBlock');
 
+  static causeMobDamage(e: Entity): DamageSource {
+    return new EntityDamageSource('mob', e);
+  }
+  static causePlayerDamage(e: Entity): DamageSource {
+    return new EntityDamageSource('player', e);
+  }
+  /** An arrow hit; the shooter (or the arrow when shot by nobody) gets the blame. */
+  static causeArrowDamage(arrow: Entity, shooter: Entity | null): DamageSource {
+    return new EntityDamageSourceIndirect('arrow', arrow, shooter).setProjectile();
+  }
+  /** A fireball hit: "fireball" when it has a shooter, otherwise plain "onFire". */
+  static causeFireballDamage(fireball: Entity, shooter: Entity | null): DamageSource {
+    return shooter === null
+      ? new EntityDamageSourceIndirect('onFire', fireball, fireball).setFireDamage().setProjectile()
+      : new EntityDamageSourceIndirect('fireball', fireball, shooter).setFireDamage().setProjectile();
+  }
+  /** Snowballs, eggs, ender pearls. */
+  static causeThrownDamage(thrown: Entity, thrower: Entity | null): DamageSource {
+    return new EntityDamageSourceIndirect('thrown', thrown, thrower).setProjectile();
+  }
+  /** Splash potions of harming. */
+  static causeIndirectMagicDamage(potion: Entity, thrower: Entity | null): DamageSource {
+    return new EntityDamageSourceIndirect('indirectMagic', potion, thrower).setDamageBypassesArmor().setMagicDamage();
+  }
+  static causeThornsDamage(e: Entity): DamageSource {
+    return new EntityDamageSource('thorns', e).setMagicDamage();
+  }
+  /** "explosion.player" naming whoever set it off, or a plain "explosion". */
+  static setExplosionSource(explosion: { getExplosivePlacedBy(): Entity | null } | null): DamageSource {
+    const by = explosion?.getExplosivePlacedBy() ?? null;
+    return by !== null ? new EntityDamageSource('explosion.player', by).setDifficultyScaled().setExplosion() : new DamageSource('explosion').setDifficultyScaled().setExplosion();
+  }
+
   setDamageBypassesArmor(): this {
     this.isUnblockable = true;
     this.hungerDamage = 0;
@@ -119,10 +152,35 @@ export class EntityDamageSource extends DamageSource {
     if (held?.hasDisplayName() && I18n.canTranslate(key + '.item')) return I18n.translateToLocalFormatted(key + '.item', victim.getEntityName(), this.source.getEntityName(), held.getDisplayName());
     return I18n.translateToLocalFormatted(key, victim.getEntityName(), this.source.getEntityName());
   }
-  static causeMobDamage(e: Entity): DamageSource {
-    return new EntityDamageSource('mob', e);
+  /** Scaled by difficulty when a mob (not a player) dealt it. */
+  override isDifficultyScaled(): boolean {
+    return this.source.isLivingEntity && !this.source.isPlayerEntity;
   }
-  static causePlayerDamage(e: Entity): DamageSource {
-    return new EntityDamageSource('player', e);
+}
+
+/**
+ * Damage dealt through another entity (EntityDamageSourceIndirect): an arrow, fireball or thrown
+ * item is the source, its shooter the one to blame.
+ */
+export class EntityDamageSourceIndirect extends EntityDamageSource {
+  constructor(
+    type: string,
+    direct: Entity,
+    private readonly indirectEntity: Entity | null,
+  ) {
+    super(type, direct);
+  }
+  override getSourceOfDamage(): Entity | null {
+    return this.source;
+  }
+  override getEntity(): Entity | null {
+    return this.indirectEntity;
+  }
+  override getDeathMessage(victim: EntityLiving): string {
+    const blamed = (this.indirectEntity ?? this.source).getEntityName();
+    const held = this.indirectEntity?.isLivingEntity ? (this.indirectEntity as EntityLiving).getHeldItem() : null;
+    const key = 'death.attack.' + this.damageType;
+    if (held?.hasDisplayName() && I18n.canTranslate(key + '.item')) return I18n.translateToLocalFormatted(key + '.item', victim.getEntityName(), blamed, held.getDisplayName());
+    return I18n.translateToLocalFormatted(key, victim.getEntityName(), blamed);
   }
 }

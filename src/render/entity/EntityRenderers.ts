@@ -1,4 +1,5 @@
 import { EntityItem } from '../../entity/EntityItem';
+import './EntityClientHooks';
 import { EntityPlayer } from '../../entity/EntityPlayer';
 import { RenderItem } from './RenderItem';
 import { RenderManager } from './RenderManager';

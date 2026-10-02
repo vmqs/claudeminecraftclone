@@ -776,6 +776,14 @@ export class World implements IWorld, IBlockAccess {
     if (i >= 0) this.playerEntities.splice(i, 1);
   }
 
+  /**
+   * Entity status events (Packet38EntityStatus): the client copy of the entity reacts in
+   * handleHealthUpdate (hurt/death sounds, hearts, smoke, eating, firework bursts...).
+   */
+  setEntityState(e: Entity, status: number): void {
+    e.handleHealthUpdate(status);
+  }
+
   /** createExplosion: a smoking (block-destroying), non-flaming explosion. */
   createExplosion(exploder: Entity | null, x: number, y: number, z: number, size: number, smoking: boolean): Explosion {
     return this.newExplosion(exploder, x, y, z, size, false, smoking);

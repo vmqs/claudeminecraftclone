@@ -842,6 +842,57 @@ export abstract class Entity {
     }
   }
 
+  /**
+   * Leaves the mount (or this position) for a free spot next to it with solid ground, checking
+   * the 8 neighbours one block up (Entity.unmountEntity, used by players getting off).
+   */
+  unmountEntity(mount: Entity | null): void {
+    let x = this.posX;
+    let y = this.posY;
+    let z = this.posZ;
+    if (mount) {
+      x = mount.posX;
+      y = mount.boundingBox.minY + mount.height;
+      z = mount.posZ;
+    }
+    const w = this.worldObj;
+    for (let dx = -1.5; dx < 2; dx++) {
+      for (let dz = -1.5; dz < 2; dz++) {
+        if (dx === 0 && dz === 0) continue;
+        const bx = Math.trunc(this.posX + dx);
+        const bz = Math.trunc(this.posZ + dz);
+        const box = this.boundingBox.getOffsetBoundingBox(dx, 1, dz);
+        if (w.getCollidingBlockBounds(box).length !== 0) continue;
+        if (w.doesBlockHaveSolidTopSurface(bx, Math.trunc(this.posY), bz)) {
+          this.setLocationAndAngles(this.posX + dx, this.posY + 1, this.posZ + dz, this.rotationYaw, this.rotationPitch);
+          return;
+        }
+        if (w.doesBlockHaveSolidTopSurface(bx, Math.trunc(this.posY) - 1, bz) || w.getBlockMaterial(bx, Math.trunc(this.posY) - 1, bz) === Material.water) {
+          x = this.posX + dx;
+          y = this.posY + 1;
+          z = this.posZ + dz;
+        }
+      }
+    }
+    this.setLocationAndAngles(x, y, z, this.rotationYaw, this.rotationPitch);
+  }
+
+  /**
+   * Network position update (setPositionAndRotation2); the client entity snaps to it. Living
+   * entities interpolate over the given number of ticks instead.
+   */
+  setPositionAndRotation2(x: number, y: number, z: number, yaw: number, pitch: number, _increments: number): void {
+    this.setPosition(x, y, z);
+    this.setRotation(yaw, pitch);
+    const boxes = this.worldObj.getCollidingBoundingBoxes(this, this.boundingBox.contract(f(0.03125), 0, f(0.03125)));
+    if (boxes.length > 0) {
+      let top = 0;
+      for (const b of boxes) if (b.maxY > top) top = b.maxY;
+      y += top - this.boundingBox.minY;
+      this.setPosition(x, y, z);
+    }
+  }
+
   getCollisionBorderSize(): number {
     return f(0.1);
   }
@@ -963,6 +1014,24 @@ export abstract class Entity {
   /** Sub-parts for multi-part entities (the dragon); null otherwise. */
   getParts(): Entity[] | null {
     return null;
+  }
+
+  /** The whole entity a part belongs to (EntityDragonPart.entityDragonObj); null for normal entities. */
+  getMultiPartOwner(): Entity | null {
+    return null;
+  }
+
+  /**
+   * True for a player whose capabilities disable damage (Creative): hostile AI never targets
+   * them, creepers do not swell for them and skeletons do not shoot them, as in 1.5.2.
+   */
+  isCreativeInvulnerable(): boolean {
+    return false;
+  }
+
+  /** Copies position, rotation and motion from another entity (copyDataFrom, used by conversions). */
+  copyLocationAndAnglesFrom(e: Entity): void {
+    this.setLocationAndAngles(e.posX, e.posY, e.posZ, e.rotationYaw, e.rotationPitch);
   }
 
   isEntityEqual(e: Entity): boolean {

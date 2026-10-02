@@ -1,5 +1,7 @@
 import type { Block } from '../block/Block';
 import { Material } from '../block/Material';
+import { Vec3 } from '../core/Vec3';
+import { EnumAction } from '../item/Item';
 import { getServer } from '../command/CommandServer';
 import type { ICommandSender } from '../command/ICommandSender';
 import { I18n } from '../core/I18n';
@@ -13,8 +15,10 @@ import type { World } from '../world/World';
 import { type DamageSource, EntityDamageSource } from './DamageSource';
 import type { Entity } from './Entity';
 import { ChunkCoordinates, EntityLiving } from './EntityLiving';
+import { EntityList } from './EntityList';
 import { InventoryPlayer } from './InventoryPlayer';
 import { PlayerCapabilities } from './PlayerCapabilities';
+import { PotionId } from './PotionEffects';
 
 const f = Math.fround;
 const PI_F = f(Math.PI);
@@ -96,8 +100,13 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
 
   override onUpdate(): void {
     if (this.itemInUse) {
-      if (this.inventory.getCurrentItem() !== this.itemInUse) this.clearItemInUse();
-      else if (--this.itemInUseCount === 0) this.clearItemInUse();
+      const held = this.inventory.getCurrentItem();
+      if (held !== this.itemInUse) {
+        this.clearItemInUse();
+      } else {
+        if (this.itemInUseCount <= 25 && this.itemInUseCount % 4 === 0) this.updateItemUse(held, 5);
+        if (--this.itemInUseCount === 0) this.onItemUseFinish();
+      }
     }
     super.onUpdate();
     if (!this.worldObj.isRemote && !this.openContainer.canInteractWith(this)) {
@@ -121,6 +130,58 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     this.chasingPosY += dy * 0.25;
   }
 
+  /** Drinking sounds, or eating sounds and crumbs of the food's icon in front of the face. */
+  protected updateItemUse(stack: ItemStack, crumbs: number): void {
+    const action = stack.getItemUseAction();
+    if (action === EnumAction.drink) this.playSound('random.drink', f(0.5), f(f(this.worldObj.rand.nextFloat() * f(0.1)) + f(0.9)));
+    if (action !== EnumAction.eat) return;
+    for (let i = 0; i < crumbs; i++) {
+      const v = new Vec3((this.rand.nextFloat() - 0.5) * 0.1, Math.random() * 0.1 + 0.1, 0);
+      v.rotateAroundX(f(f(-this.rotationPitch * PI_F) / 180));
+      v.rotateAroundY(f(f(-this.rotationYaw * PI_F) / 180));
+      let p = new Vec3((this.rand.nextFloat() - 0.5) * 0.3, -this.rand.nextFloat() * 0.6 - 0.3, 0.6);
+      p.rotateAroundX(f(f(-this.rotationPitch * PI_F) / 180));
+      p.rotateAroundY(f(f(-this.rotationYaw * PI_F) / 180));
+      p = p.addVector(this.posX, this.posY + this.getEyeHeight(), this.posZ);
+      this.worldObj.spawnParticle(`iconcrack_${stack.getItem().itemID}`, p.xCoord, p.yCoord, p.zCoord, v.xCoord, v.yCoord + 0.05, v.zCoord);
+    }
+    this.playSound('random.eat', f(f(0.5) + f(f(0.5) * this.rand.nextInt(2))), f(f(f(this.rand.nextFloat() - this.rand.nextFloat()) * f(0.2)) + 1));
+  }
+
+  /** Finished eating or drinking: the item's onEaten result replaces the held stack. */
+  protected onItemUseFinish(): void {
+    const using = this.itemInUse;
+    if (!using) return;
+    this.updateItemUse(using, 16);
+    const size = using.stackSize;
+    const result = using.getItem().onEaten(using, this.worldObj, this);
+    if (result !== using || (result !== null && result.stackSize !== size)) {
+      this.inventory.mainInventory[this.inventory.currentItem] = result;
+      if (result && result.stackSize === 0) this.inventory.mainInventory[this.inventory.currentItem] = null;
+    }
+    this.clearItemInUse();
+  }
+
+  /**
+   * The local player's own hurt and death sounds are already played locally by EntityPlayerSP
+   * (the server's copies skip the player), so the status echo only replays the hurt animation.
+   */
+  override handleHealthUpdate(status: number): void {
+    if (status === 2) {
+      this.limbYaw = f(1.5);
+      this.hurtResistantTime = this.maxHurtResistantTime;
+      this.hurtTime = this.maxHurtTime = 10;
+      this.attackedAtYaw = 0;
+    } else if (status !== 3 && status !== 9) {
+      super.handleHealthUpdate(status);
+    }
+  }
+
+  /** Creative players are never targeted by hostile mobs (EntityAITarget.isSuitableTarget). */
+  override isCreativeInvulnerable(): boolean {
+    return this.capabilities.disableDamage;
+  }
+
   protected override isDamageDisabled(): boolean {
     return this.capabilities.disableDamage;
   }
@@ -130,9 +191,18 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
   }
 
   override updateRidden(): void {
+    const yaw = this.rotationYaw;
+    const pitch = this.rotationPitch;
     super.updateRidden();
     this.prevCameraYaw = this.cameraYaw;
     this.cameraYaw = 0;
+    const mount = this.ridingEntity as Entity | null;
+    if (mount && EntityList.getEntityString(mount) === 'Pig') {
+      // A pig steered with a carrot keeps the rider's own view.
+      this.rotationPitch = pitch;
+      this.rotationYaw = yaw;
+      this.renderYawOffset = (mount as EntityLiving).renderYawOffset;
+    }
   }
 
   override preparePlayerToSpawn(): void {
@@ -227,13 +297,35 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
   attackTargetEntityWithCurrentItem(target: Entity): void {
     if (!target.canAttackWithItem() || target.hitByEntity(this)) return;
     let damage = this.inventory.getDamageVsEntity(target);
+    const strength = this.getActivePotionEffect(PotionId.damageBoost);
+    if (strength) damage += 3 << strength.getAmplifier();
+    const weakness = this.getActivePotionEffect(PotionId.weakness);
+    if (weakness) damage -= 2 << weakness.getAmplifier();
     let knockback = 0;
-    const enchantDamage = 0;
+    let enchantDamage = 0;
+    const hooks = EntityPlayer.enchantmentHooks;
+    if (target.isLivingEntity && hooks) {
+      enchantDamage = hooks.getEnchantmentModifierLiving(this, target as EntityLiving);
+      knockback += hooks.getKnockbackModifier(this, target as EntityLiving);
+    }
     if (this.isSprinting()) knockback++;
     if (damage <= 0 && enchantDamage <= 0) return;
-    const critical = this.fallDistance > 0 && !this.onGround && !this.isOnLadder() && !this.isInWater() && this.ridingEntity === null && target.isLivingEntity;
+    const critical =
+      this.fallDistance > 0 &&
+      !this.onGround &&
+      !this.isOnLadder() &&
+      !this.isInWater() &&
+      !this.isPotionActive(PotionId.blindness) &&
+      this.ridingEntity === null &&
+      target.isLivingEntity;
     if (critical && damage > 0) damage += this.rand.nextInt(Math.trunc(damage / 2) + 2);
     damage += enchantDamage;
+    const fireAspect = hooks ? hooks.getFireAspectModifier(this) : 0;
+    let litByAspect = false;
+    if (target.isLivingEntity && fireAspect > 0 && !target.isBurning()) {
+      litByAspect = true;
+      target.setFire(1);
+    }
     const hit = target.attackEntityFrom(EntityDamageSource.causePlayerDamage(this), damage);
     if (hit) {
       if (knockback > 0) {
@@ -248,11 +340,23 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
       this.setLastAttackingEntity(target);
     }
     const held = this.getCurrentEquippedItem();
-    if (held && target.isLivingEntity) {
-      held.hitEntity(target as EntityLiving, this);
+    const victim = target.getMultiPartOwner() ?? target;
+    if (held && victim.isLivingEntity) {
+      held.hitEntity(victim as EntityLiving, this);
       if (held.stackSize <= 0) this.destroyCurrentEquippedItem();
     }
+    if (target.isLivingEntity) {
+      if (fireAspect > 0 && hit) target.setFire(fireAspect * 4);
+      else if (litByAspect) target.extinguish();
+    }
   }
+
+  /** Weapon enchantments (EnchantmentHelper), installed by the enchantment code; null = none. */
+  static enchantmentHooks: {
+    getEnchantmentModifierLiving(attacker: EntityLiving, target: EntityLiving): number;
+    getKnockbackModifier(attacker: EntityLiving, target: EntityLiving): number;
+    getFireAspectModifier(attacker: EntityLiving): number;
+  } | null = null;
 
   /** Critical hit particles (EntityPlayerSP adds EntityCrit2FX). */
   onCriticalHit(_target: Entity): void {}
@@ -456,8 +560,31 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     this.setPlayerLocation(x, y, z, this.rotationYaw, this.rotationPitch);
   }
 
-  /** Entities this player collided with (Entity.onCollideWithPlayer) are handled by them. */
+  /**
+   * Right click on an entity: the entity's own interaction (mounting, milking, taming...), or the
+   * held item's (shears, saddles, dyes, name tags); a Creative player uses a copy of the stack.
+   */
   interactWith(e: Entity): boolean {
-    return e.interact(this);
+    if (e.interact(this)) return true;
+    let held = this.getCurrentEquippedItem();
+    if (held && e.isLivingEntity) {
+      if (this.capabilities.isCreativeMode) held = held.copy();
+      if (held.getItem().itemInteractionForEntity(held, e as EntityLiving)) {
+        if (held.stackSize <= 0 && !this.capabilities.isCreativeMode) this.destroyCurrentEquippedItem();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** Right-clicking the entity being ridden gets off it (unmountEntity), anything else mounts. */
+  override mountEntity(e: Entity | null): void {
+    if (this.ridingEntity === e && e !== null) {
+      this.unmountEntity(e);
+      if (this.ridingEntity) this.ridingEntity.riddenByEntity = null;
+      this.ridingEntity = null;
+    } else {
+      super.mountEntity(e);
+    }
   }
 }

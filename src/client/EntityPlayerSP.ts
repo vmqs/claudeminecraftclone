@@ -9,7 +9,6 @@ import { GuiCrafting } from '../gui/inventory/GuiCrafting';
 import type { IInventory } from '../gui/inventory/IInventory';
 import { EntityCrit2FX } from '../render/particle/EntityCrit2FX';
 import type { EntityFX } from '../render/particle/EntityFX';
-import { EntityPickupFX } from '../render/particle/EntityPickupFX';
 import type { World } from '../world/World';
 import { MovementInput } from './MovementInput';
 
@@ -101,10 +100,6 @@ export class EntityPlayerSP extends EntityPlayer {
 
   override displayGUIWorkbench(x: number, y: number, z: number): void {
     this.mc.displayGuiScreen(new GuiCrafting(this.inventory, this.worldObj, x, y, z));
-  }
-
-  override onItemPickup(item: Entity, _count: number): void {
-    this.mc.effectRenderer.addEffect(new EntityPickupFX(this.worldObj, item, this, -0.5));
   }
 
   /** EntityClientPlayerMP.onUpdate: the player only updates once its chunk is present. */
