@@ -155,13 +155,23 @@ export class SoundManager {
       if (ctx.state !== 'running') void ctx.resume().catch(() => undefined);
     };
     for (const ev of ['pointerdown', 'mousedown', 'keydown', 'touchstart']) window.addEventListener(ev, unlock, { capture: true });
-    // With autoplay allowed (kiosk, automation) the context runs without a gesture.
-    const ctx = this.ensureContext();
-    if (ctx && ctx.state === 'running') this.unlocked = true;
-    else if (ctx) {
-      ctx.onstatechange = () => {
-        if (ctx.state === 'running') this.unlocked = true;
-      };
+    // Where autoplay is allowed (automation, a page that already had a gesture, Firefox's policy
+    // API) the context can run at once; elsewhere creating it now would only log a warning.
+    const nav = navigator as Navigator & { getAutoplayPolicy?: (type: string) => string; userActivation?: { hasBeenActive: boolean } };
+    let allowed = navigator.webdriver || nav.userActivation?.hasBeenActive === true;
+    try {
+      if (nav.getAutoplayPolicy?.('audiocontext') === 'allowed') allowed = true;
+    } catch {
+      // not supported
+    }
+    if (allowed) {
+      const ctx = this.ensureContext();
+      if (ctx && ctx.state === 'running') this.unlocked = true;
+      else if (ctx) {
+        ctx.onstatechange = () => {
+          if (ctx.state === 'running') this.unlocked = true;
+        };
+      }
     }
     this.loaded = true;
   }
