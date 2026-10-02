@@ -6,6 +6,13 @@ import type { SoundManager } from './SoundManager';
  * mining. While a block is being damaged the original plays its step sound every fourth tick of
  * the hit counter, at a quarter of the place/break loudness and half the pitch; the counter
  * restarts on every new block and after a block breaks.
+ *
+ * Survival controller hook checklist (PlayerControllerMP.onPlayerDamageBlock order):
+ *  1. add the block's relative hardness to the damage;
+ *  2. `miningSounds.onDamageTick(mc.sndManager, block.stepSound, x, y, z)`;
+ *  3. if the damage reached 1: break the block, then `miningSounds.reset()`;
+ *  4. call `reset()` too when a new block is clicked (clickBlock) and in resetBlockRemoving.
+ * The hit particles (`effectRenderer.addBlockHitEffects`) come from Minecraft's click handling.
  */
 export class BlockMiningSounds {
   private stepSoundTickCounter = 0;

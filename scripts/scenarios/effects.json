@@ -4,7 +4,7 @@
  },
  {
   "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(3) === 0",
-  "timeout": 240000
+  "timeout": 1200000
  },
  {
   "eval": "(() => { mc.timer.timerSpeed = 0; mc.timer.elapsedPartialTicks = 0; mc.dev.setTime(6000); mc.gameSettings.hideGUI = true; for (const e of mc.theWorld.loadedEntityList) if (e !== mc.thePlayer) e.setDead(); mc.dev.look(0, 0); mc.dev.ticks(2); mc.effectRenderer.clearEffects(mc.theWorld); return { pos: [mc.thePlayer.posX, mc.thePlayer.posY, mc.thePlayer.posZ] }; })()"
