@@ -16,6 +16,10 @@ Branch `w1/effects`. Owner area: `src/audio/**`, `src/render/particle/**`.
 - [x] Packet62LevelSound quantisation for world sounds (RenderGlobal.playSound).
 - [x] scripts/scenarios/effects.json (gallery + assertions) passes.
 - [x] Docs: ARCHITECTURE §10 and §13 (Particles row), TESTING (effects scenario, audio).
+- [x] Survival-ready: `BlockMiningSounds` (src/audio/BlockSounds.ts) for PlayerControllerMP's
+      every-4th-tick mining step sound; hit/break particles, tool break (iconcrack), damage/eat/
+      burp/levelup/orb sound names all resolve through the pools.
+- [x] Scenario pins world time after load (slow loads used to drift into night).
 
 ## Notes
 - Vanilla references for the particle gallery are in scratchpad/ref/extra/effects/ (captured
