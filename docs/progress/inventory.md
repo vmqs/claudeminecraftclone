@@ -24,3 +24,8 @@ Branch w2/inventory from 96e8639. Commit after each step.
 10. [x] Run 3 showed the Survival Inventory tab without its background: the texture had not finished
    loading (asynchronous here, synchronous in 1.5.2). Container/creative textures are now warmed in the
    background at start-up (src/gui/inventory/ContainerTextures.ts, one line in Minecraft.startGame).
+11. [x] Final self-review (resumed session): furnace tick/burn times, RenderItem (GUI, glint, damage bar,
+   dropped fancy/fast copies), ItemRenderer (sprites, glint, eat/drink, bow, block, bare arm, overlays),
+   third-person held items, creative clicks/search/survival tab layout and pick block re-read against the
+   1.5.2 source: no differences found. tsc, vite build and the four Node suites pass. No browser run
+   left (3 of 3 used); the Survival Inventory tab background fix (texture warm-up) is unverified on screen.
