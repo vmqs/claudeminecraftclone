@@ -24,7 +24,7 @@ Progress log so an interrupted run can resume. Newest last.
 - [x] potion/boss hooks (SkyHooks) for night vision, blindness, water breathing, boss darkening
 - [x] quads split along v1-v3 like Mesa (found via the mirrored sunset fan fog)
 - [x] scenario scripts/scenarios/sky.json + docs (ARCHITECTURE §6.4, §13; TESTING)
-- [ ] final verification run of sky.json against ref/extra/sky (vanilla captures of the same scenes,
+- [x] verification of sky.json against ref/extra/sky (vanilla captures of the same scenes,
       scenarios in scratchpad vanilla/scenarios-sky/)
 
 ## Verification notes
@@ -32,3 +32,9 @@ Progress log so an interrupted run can resume. Newest last.
 - Masked AE diff (fuzz 3%, hand + hotbar masked): clear-sky noon/zenith/midnight/fast clouds/
   render distances within a few hundred pixels (terrain texture aliasing near the horizon only).
   Rain/thunder sky colours within one colour step; thunder renders exactly like rain in vanilla.
+- Underwater (noon, looking up, midnight) and the in-wall overlay match the vanilla captures to
+  within 0-77 pixels; lava fog and the creative fire overlay match apart from the lava animation
+  frame. Rain and snow mean colours match within 0.1 %; snow layers accumulate while it snows.
+- Sunset/sunrise fan: after the v1-v3 quad split the sky matches (remaining diffs: cloud edges).
+- Terrain near the horizon differs by texture sampling (not sky code): a few rows of block-edge
+  texels at fixed distances sample the neighbouring texel (mesher UV precision?).
