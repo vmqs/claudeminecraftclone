@@ -16,8 +16,8 @@ Progress log so an interrupted run can resume. Newest last.
   at 1 when it turns false (event 2), then ramps 0.01 per tick.
 
 ## Steps
-- [ ] radial fog + client skylight quirk
-- [ ] WeatherCycle (client weather view, /weather and /toggledownfall helpers, dev hooks)
+- [x] radial fog + client skylight quirk
+- [x] WeatherCycle (client weather view, /weather and /toggledownfall helpers, dev hooks)
 - [ ] rain/snow rendering, rain particles and sounds
 - [ ] lightning bolt entity, renderer, sky flash
 - [ ] overlays: fire, pumpkin blur, portal; vignette/water brightness quirk

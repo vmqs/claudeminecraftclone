@@ -546,7 +546,7 @@ export class EntityRenderer {
     this.fogColorRed = f(this.fogColorRed + f(f(sr - this.fogColorRed) * distFactor));
     this.fogColorGreen = f(this.fogColorGreen + f(f(sg - this.fogColorGreen) * distFactor));
     this.fogColorBlue = f(this.fogColorBlue + f(f(sb - this.fogColorBlue) * distFactor));
-    const rain = w.getRainStrength(pt);
+    const rain = w.clientWeather.getRainStrength(pt);
     if (rain > 0) {
       const a = f(1 - f(rain * f(0.5)));
       const b = f(1 - f(rain * f(0.4)));
@@ -554,7 +554,7 @@ export class EntityRenderer {
       this.fogColorGreen = f(this.fogColorGreen * a);
       this.fogColorBlue = f(this.fogColorBlue * b);
     }
-    const thunder = w.getWeightedThunderStrength(pt);
+    const thunder = w.clientWeather.getWeightedThunderStrength(pt);
     if (thunder > 0) {
       const a = f(1 - f(thunder * f(0.5)));
       this.fogColorRed = f(this.fogColorRed * a);

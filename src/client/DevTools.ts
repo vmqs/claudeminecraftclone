@@ -2,6 +2,7 @@ import { Block } from '../block/Block';
 import { GuiCreateWorld } from '../gui/GuiCreateWorld';
 import { Item } from '../item/Item';
 import { ItemStack } from '../item/ItemStack';
+import { type WeatherKind, WeatherCycle } from '../world/WeatherCycle';
 import { Keyboard, Mouse } from './Keyboard';
 import type { Minecraft } from './Minecraft';
 
@@ -44,6 +45,14 @@ export class DevTools {
   setTime(t: number): void {
     const w = this.mc.theWorld;
     if (w) w.worldInfo.worldTime = t;
+  }
+
+  /** Sets the weather like /weather; unless `ramp`, the 100-tick fades are skipped. */
+  weather(kind: WeatherKind, ramp = false): void {
+    const w = this.mc.theWorld;
+    if (!w) return;
+    WeatherCycle.setWeather(w, kind, 1000000);
+    if (!ramp) w.clientWeather.skipTransition();
   }
 
   select(slot: number): void {

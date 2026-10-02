@@ -21,11 +21,23 @@ import type { IWorld } from './IWorld';
 import type { IWorldAccess } from './IWorldAccess';
 import { Explosion } from './Explosion';
 import { SpawnerAnimals } from './SpawnerAnimals';
+import { WeatherCycle } from './WeatherCycle';
 import { NextTickListEntry, TickScheduler } from './NextTickListEntry';
 import type { TileEntity } from './tileentity/TileEntity';
 import { WorldProvider } from './WorldProvider';
 
 const f = Math.fround;
+const PI_F = f(Math.PI);
+
+/** r*0.3 + g*0.59 + b*0.11 in float, the grey the sky and clouds fade to in rain. */
+function luminance(r: number, g: number, b: number): number {
+  return f(f(f(r * f(0.3)) + f(g * f(0.59))) + f(b * f(0.11)));
+}
+
+/** v * k + grey * (1 - k) in float. */
+function mixToward(v: number, grey: number, k: number): number {
+  return f(f(v * k) + f(grey * f(1 - k)));
+}
 
 /** WorldInfo: the saved state of a world (here kept only for the session). */
 export class WorldInfo {
@@ -93,6 +105,8 @@ export class World implements IWorld, IBlockAccess {
   protected prevThunderingStrength = 0;
   protected thunderingStrength = 0;
   lastLightningBolt = 0;
+  /** The weather the client renders (WorldClient's strengths); see WeatherCycle. */
+  readonly clientWeather: WeatherCycle = new WeatherCycle(this);
   difficultySetting = 2;
   /** Pending scheduled block updates. */
   private readonly pendingTicks = new TickScheduler();
@@ -1346,82 +1360,88 @@ export class World implements IWorld, IBlockAccess {
     return (v * 11) | 0;
   }
 
+  /** Sun brightness for the lightmap: daylight dimmed by the client's rain and thunder. */
   getSunBrightness(pt: number): number {
     const a = this.getCelestialAngle(pt);
-    let v = f(1 - f(MathHelper.cos(f(a * f(Math.PI) * 2)) * 2 + 0.2));
+    let v = f(1 - f(f(MathHelper.cos(f(f(a * PI_F) * 2)) * 2) + f(0.2)));
     if (v < 0) v = 0;
     if (v > 1) v = 1;
-    v = 1 - v;
-    v = f(v * (1 - (this.getRainStrength(pt) * 5) / 16));
-    v = f(v * (1 - (this.getWeightedThunderStrength(pt) * 5) / 16));
-    return f(v * 0.8 + 0.2);
+    v = f(1 - v);
+    v = f(v * (1 - f(this.clientWeather.getRainStrength(pt) * 5) / 16));
+    v = f(v * (1 - f(this.clientWeather.getWeightedThunderStrength(pt) * 5) / 16));
+    return f(f(v * f(0.8)) + f(0.2));
   }
 
+  /**
+   * Sky colour at the entity's column: BiomeGenBase.getSkyColorByTemp of its biome, dimmed by
+   * the time of day, greyed by the client's rain and thunder, flashed by a lightning bolt.
+   */
   getSkyColor(e: Entity, pt: number): Vec3 {
     const a = this.getCelestialAngle(pt);
-    let b = f(MathHelper.cos(f(a * f(Math.PI) * 2)) * 2 + 0.5);
+    let b = f(f(MathHelper.cos(f(f(a * PI_F) * 2)) * 2) + f(0.5));
     if (b < 0) b = 0;
     if (b > 1) b = 1;
     const biome = this.getBiomeGenForCoords(MathHelper.floor_double(e.posX), MathHelper.floor_double(e.posZ));
     const c = biome.getSkyColorByTemp(biome.getFloatTemperature());
-    let r = f(((c >> 16) & 255) / 255) * b;
-    let g = f(((c >> 8) & 255) / 255) * b;
-    let bl = f((c & 255) / 255) * b;
-    const rain = this.getRainStrength(pt);
+    let r = f(f(((c >> 16) & 255) / 255) * b);
+    let g = f(f(((c >> 8) & 255) / 255) * b);
+    let bl = f(f((c & 255) / 255) * b);
+    const rain = this.clientWeather.getRainStrength(pt);
     if (rain > 0) {
-      const grey = (r * 0.3 + g * 0.59 + bl * 0.11) * 0.6;
-      const k = 1 - rain * 0.75;
-      r = r * k + grey * (1 - k);
-      g = g * k + grey * (1 - k);
-      bl = bl * k + grey * (1 - k);
+      const grey = f(luminance(r, g, bl) * f(0.6));
+      const k = f(1 - f(rain * f(0.75)));
+      r = mixToward(r, grey, k);
+      g = mixToward(g, grey, k);
+      bl = mixToward(bl, grey, k);
     }
-    const thunder = this.getWeightedThunderStrength(pt);
+    const thunder = this.clientWeather.getWeightedThunderStrength(pt);
     if (thunder > 0) {
-      const grey = (r * 0.3 + g * 0.59 + bl * 0.11) * 0.2;
-      const k = 1 - thunder * 0.75;
-      r = r * k + grey * (1 - k);
-      g = g * k + grey * (1 - k);
-      bl = bl * k + grey * (1 - k);
+      const grey = f(luminance(r, g, bl) * f(0.2));
+      const k = f(1 - f(thunder * f(0.75)));
+      r = mixToward(r, grey, k);
+      g = mixToward(g, grey, k);
+      bl = mixToward(bl, grey, k);
     }
     if (this.lastLightningBolt > 0) {
-      let l = this.lastLightningBolt - pt;
+      let l = f(this.lastLightningBolt - pt);
       if (l > 1) l = 1;
-      l *= 0.45;
-      r = r * (1 - l) + 0.8 * l;
-      g = g * (1 - l) + 0.8 * l;
-      bl = bl * (1 - l) + 1 * l;
+      l = f(l * f(0.45));
+      r = f(f(r * f(1 - l)) + f(f(0.8) * l));
+      g = f(f(g * f(1 - l)) + f(f(0.8) * l));
+      bl = f(f(bl * f(1 - l)) + l);
     }
-    return new Vec3(f(r), f(g), f(bl));
+    return new Vec3(r, g, bl);
   }
 
+  /** Cloud colour (World.cloudColour is white): dimmed by night, greyed by the client's rain and thunder. */
   getCloudColour(pt: number): Vec3 {
     const a = this.getCelestialAngle(pt);
-    let b = f(MathHelper.cos(f(a * f(Math.PI) * 2)) * 2 + 0.5);
+    let b = f(f(MathHelper.cos(f(f(a * PI_F) * 2)) * 2) + f(0.5));
     if (b < 0) b = 0;
     if (b > 1) b = 1;
     let r = 1;
     let g = 1;
     let bl = 1;
-    const rain = this.getRainStrength(pt);
+    const rain = this.clientWeather.getRainStrength(pt);
     if (rain > 0) {
-      const grey = (r * 0.3 + g * 0.59 + bl * 0.11) * 0.6;
-      const k = 1 - rain * 0.95;
-      r = r * k + grey * (1 - k);
-      g = g * k + grey * (1 - k);
-      bl = bl * k + grey * (1 - k);
+      const grey = f(luminance(r, g, bl) * f(0.6));
+      const k = f(1 - f(rain * f(0.95)));
+      r = mixToward(r, grey, k);
+      g = mixToward(g, grey, k);
+      bl = mixToward(bl, grey, k);
     }
-    r *= b * 0.9 + 0.1;
-    g *= b * 0.9 + 0.1;
-    bl *= b * 0.85 + 0.15;
-    const thunder = this.getWeightedThunderStrength(pt);
+    r = f(r * f(f(b * f(0.9)) + f(0.1)));
+    g = f(g * f(f(b * f(0.9)) + f(0.1)));
+    bl = f(bl * f(f(b * f(0.85)) + f(0.15)));
+    const thunder = this.clientWeather.getWeightedThunderStrength(pt);
     if (thunder > 0) {
-      const grey = (r * 0.3 + g * 0.59 + bl * 0.11) * 0.2;
-      const k = 1 - thunder * 0.95;
-      r = r * k + grey * (1 - k);
-      g = g * k + grey * (1 - k);
-      bl = bl * k + grey * (1 - k);
+      const grey = f(luminance(r, g, bl) * f(0.2));
+      const k = f(1 - f(thunder * f(0.95)));
+      r = mixToward(r, grey, k);
+      g = mixToward(g, grey, k);
+      bl = mixToward(bl, grey, k);
     }
-    return new Vec3(f(r), f(g), f(bl));
+    return new Vec3(r, g, bl);
   }
 
   getFogColor(pt: number): Vec3 {
@@ -1443,6 +1463,11 @@ export class World implements IWorld, IBlockAccess {
   setRainStrength(v: number): void {
     this.prevRainingStrength = v;
     this.rainingStrength = v;
+  }
+
+  setThunderStrength(v: number): void {
+    this.prevThunderingStrength = v;
+    this.thunderingStrength = v;
   }
 
   getWeightedThunderStrength(pt: number): number {
@@ -1472,7 +1497,8 @@ export class World implements IWorld, IBlockAccess {
     }
   }
 
-  protected updateWeather(): void {
+  /** The integrated server's weather cycle (World.updateWeather); called by clientWeather.tick. */
+  updateWeather(): void {
     if (this.provider.hasNoSky) return;
     const info = this.worldInfo;
     let thunder = info.thunderTime;
@@ -1695,7 +1721,7 @@ export class World implements IWorld, IBlockAccess {
   tick(): void {
     this.naturalDepth++;
     try {
-      this.updateWeather();
+      this.clientWeather.tick();
       if (this.worldInfo.gameRules.doMobSpawning) this.mobSpawner?.(this);
     } finally {
       this.naturalDepth--;
