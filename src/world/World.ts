@@ -23,6 +23,7 @@ import { BlockEventData } from './BlockEventData';
 import { Explosion } from './Explosion';
 import { SpawnerAnimals } from './SpawnerAnimals';
 import { WeatherCycle } from './WeatherCycle';
+import { VillageCollection } from './village/VillageCollection';
 import { NextTickListEntry, TickScheduler } from './NextTickListEntry';
 import type { TileEntity } from './tileentity/TileEntity';
 import { WorldProvider } from './WorldProvider';
@@ -139,6 +140,8 @@ export class World implements IWorld, IBlockAccess {
    * Natural mob spawning each tick (doMobSpawning): SpawnerAnimals by default, hostile mobs
    * only above Peaceful, animals every 400 ticks. Replaceable for tests.
    */
+  /** The villages of this world (VillageCollection), ticked after the block ticks. */
+  readonly villageCollectionObj: VillageCollection = new VillageCollection(this);
   mobSpawner: ((w: World) => void) | null = (w) => {
     SpawnerAnimals.findChunksForSpawning(w, w.difficultySetting > 0, true, w.worldInfo.totalTime % 400 === 0);
   };
@@ -1764,6 +1767,7 @@ export class World implements IWorld, IBlockAccess {
     this.worldInfo.worldTime++;
     this.tickUpdates(false);
     this.runNaturally(() => this.tickBlocksAndAmbiance());
+    this.villageCollectionObj.tick();
     this.sendAndApplyBlockEvents();
   }
 
