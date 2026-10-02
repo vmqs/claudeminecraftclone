@@ -27,7 +27,16 @@ interface Voice {
   readonly name: string;
   readonly priority: boolean;
   readonly gain: GainNode;
-  readonly panner: PannerNode | null;
+  /** Position (null for GUI sounds) and the distance at which it falls silent. */
+  pos: [number, number, number] | null;
+  readonly range: number;
+  /** Mono sources: spatialised with the linear distance model. */
+  panner: PannerNode | null;
+  /**
+   * Stereo sources: OpenAL does not pan them, but paulscode still applies its distance gain,
+   * which setListener recomputes every frame.
+   */
+  distanceGain: GainNode | null;
   src: AudioBufferSourceNode | null;
   /** Gain without the pause (entity sounds are paused by muting). */
   volume: number;
@@ -112,6 +121,9 @@ export class SoundManager {
   private readonly cache = new Map<string, CacheEntry>();
   private cacheBytes = 0;
   private preloaded = false;
+  private listenerX = 0;
+  private listenerY = 0;
+  private listenerZ = 0;
   loaded = false;
   /** Recent sound events, newest last (at most 256), for tests and debugging. */
   readonly debugLog: SoundDebugEvent[] = [];
@@ -285,7 +297,7 @@ export class SoundManager {
     } catch {
       // never started
     }
-    v.gain.disconnect();
+    this.disconnectVoice(v);
     if (v.name.startsWith('entity_') && this.entitySounds.get(v.name) === v) this.entitySounds.delete(v.name);
   }
 
@@ -301,6 +313,38 @@ export class SoundManager {
     p.coneOuterAngle = 360;
     setPannerPosition(p, x, y, z);
     return p;
+  }
+
+  /** Routes a voice once its channel count is known (see Voice.distanceGain). */
+  private connectVoice(ctx: AudioContext, master: GainNode, v: Voice, stereo: boolean): void {
+    const pos = v.pos;
+    if (!pos) {
+      v.gain.connect(master);
+    } else if (stereo) {
+      v.distanceGain = ctx.createGain();
+      v.distanceGain.gain.value = this.linearGain(pos, v.range);
+      v.gain.connect(v.distanceGain);
+      v.distanceGain.connect(master);
+    } else {
+      v.panner = this.makePanner(ctx, pos[0], pos[1], pos[2], v.range);
+      v.gain.connect(v.panner);
+      v.panner.connect(master);
+    }
+  }
+
+  private disconnectVoice(v: Voice): void {
+    v.gain.disconnect();
+    v.panner?.disconnect();
+    v.distanceGain?.disconnect();
+  }
+
+  /** paulscode's ATTENUATION_LINEAR gain at the current listener position. */
+  private linearGain(pos: readonly [number, number, number], range: number): number {
+    const dx = pos[0] - this.listenerX;
+    const dy = pos[1] - this.listenerY;
+    const dz = pos[2] - this.listenerZ;
+    const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    return d <= 0 ? 1 : d >= range ? 0 : 1 - d / range;
   }
 
   /**
@@ -326,14 +370,7 @@ export class SoundManager {
     }
     const gain = ctx.createGain();
     gain.gain.value = clamp01(volume);
-    const panner = pos ? this.makePanner(ctx, pos[0], pos[1], pos[2], range) : null;
-    if (panner) {
-      gain.connect(panner);
-      panner.connect(master);
-    } else {
-      gain.connect(master);
-    }
-    const voice: Voice = { name, priority, gain, panner, src: null, volume: clamp01(volume), paused: false, done: false };
+    const voice: Voice = { name, priority, gain, pos, range, panner: null, distanceGain: null, src: null, volume: clamp01(volume), paused: false, done: false };
     this.voices.push(voice);
     const requested = performance.now();
     void this.load(entry.path).then((buf) => {
@@ -348,6 +385,7 @@ export class SoundManager {
         this.stopVoice(voice);
         return;
       }
+      this.connectVoice(ctx, master, voice, buf.numberOfChannels > 1);
       const src = ctx.createBufferSource();
       src.buffer = buf;
       src.loop = loop;
@@ -355,7 +393,7 @@ export class SoundManager {
       src.connect(gain);
       src.onended = () => {
         if (voice.src === src) voice.done = true;
-        gain.disconnect();
+        this.disconnectVoice(voice);
       };
       voice.src = src;
       if (voice.paused) gain.gain.value = 0;
@@ -437,6 +475,10 @@ export class SoundManager {
     const fx = -s;
     const fy = -MathHelper.sin(f(f(-pitch * d) - f(Math.PI)));
     const fz = -c;
+    this.listenerX = f(x);
+    this.listenerY = f(y);
+    this.listenerZ = f(z);
+    for (const v of this.voices) if (v.distanceGain && v.pos && !v.done) v.distanceGain.gain.value = this.linearGain(v.pos, v.range);
     const l = ctx.listener;
     if (l.positionX) {
       l.positionX.value = f(x);
@@ -614,8 +656,13 @@ export class SoundManager {
   updateSoundLocation(e: Entity, at: Entity = e): void {
     const v = this.entitySounds.get('entity_' + e.entityId);
     if (!v) return;
-    if (v.done) this.entitySounds.delete('entity_' + e.entityId);
-    else if (v.panner) setPannerPosition(v.panner, f(at.posX), f(at.posY), f(at.posZ));
+    if (v.done) {
+      this.entitySounds.delete('entity_' + e.entityId);
+      return;
+    }
+    v.pos = [f(at.posX), f(at.posY), f(at.posZ)];
+    if (v.panner) setPannerPosition(v.panner, v.pos[0], v.pos[1], v.pos[2]);
+    if (v.distanceGain) v.distanceGain.gain.value = this.linearGain(v.pos, v.range);
   }
 
   isEntitySoundPlaying(e: Entity | null): boolean {
