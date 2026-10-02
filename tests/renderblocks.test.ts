@@ -129,6 +129,23 @@ check('fire beside planks 8', count([[X, Y - 1, Z, 0], [X - 1, Y, Z, BlockIds.pl
 check('chest draws nothing', count([[X, Y, Z, BlockIds.chest, 2]]) === 0);
 check('door missing its top half draws nothing', count([[X, Y, Z, BlockIds.doorWood, 0]]) === 0);
 
+// Fluids: corner heights follow getFluidHeight's weighting (sources count ten times, open
+// non-solid neighbours count as empty), less the 0.001 gap.
+{
+  const fr = Math.fround;
+  const lone = render(world([...floor, [X, Y, Z, BlockIds.waterStill, 0]]), X, Y, Z);
+  const loneTop = fr(1 - fr(fr(fr(fr(fr(1 / 9) * 10) + fr(1 / 9)) + 3) / 14)) - fr(0.001);
+  const tops = lone.slice(0, 4).map((v) => v[1] - Y);
+  check('lone water source: top corners', tops.every((h) => Math.abs(h - loneTop) < 1e-5), JSON.stringify(tops) + ' vs ' + loneTop);
+  check('lone water source: top, four sides (bottom on stone culled)', lone.length === 20, String(lone.length));
+  const covered = render(world([...floor, [X, Y, Z, BlockIds.waterStill, 0], [X, Y + 1, Z, BlockIds.waterStill, 0]]), X, Y, Z);
+  check('water under water: no top, sides full height (the gap only lowers a drawn top)', covered.length === 16 && covered.some((v) => v[1] === Y + 1), JSON.stringify(covered.map((v) => v[1] - Y)));
+  // A flowing block (level 3) beside its source: the corners toward the source are higher.
+  const flow = render(world([...floor, [X - 1, Y, Z, BlockIds.waterStill, 0], [X, Y, Z, BlockIds.waterStill, 3]]), X, Y, Z);
+  const fy = flow.slice(0, 4).map((v) => v[1] - Y);
+  check('flowing water slopes away from its source', fy[0] > fy[3] && fy[1] > fy[2], JSON.stringify(fy));
+}
+
 // renderBlockAsItem against a recording GL: every block renders without throwing.
 const calls: string[] = [];
 const gl: ItemRenderGL = {

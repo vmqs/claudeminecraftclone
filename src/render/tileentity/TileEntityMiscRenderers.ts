@@ -276,10 +276,11 @@ export class TileEntityBeaconRenderer extends TileEntitySpecialRenderer {
 
 /**
  * RenderEndPortal: sixteen layers on the portal's surface, the first the dark tunnel and the
- * rest additive star fields, each mapped by the original's eye-linear texture generation so
- * that the layers seem to lie at different depths below the surface as the camera moves.
- * WebGL has no glTexGen, so the generated coordinates are computed here per vertex (the
- * surface is flat, so they stay affine across it).
+ * rest additive star fields that seem to lie at different depths below the surface. The
+ * original generates texture coordinates with glTexGen: s, t and r object-linear from the
+ * vertex x, z and w, q eye-linear from the vertex height above a plane set per layer, all
+ * through a texture matrix. WebGL has no glTexGen, so the same coordinates are computed per
+ * vertex here; q is constant across the flat surface, so the projected coordinates stay affine.
  */
 export class RenderEndPortal extends TileEntitySpecialRenderer {
   private readonly texMatrix = new MatrixStack(2);
@@ -292,6 +293,7 @@ export class RenderEndPortal extends TileEntitySpecialRenderer {
     GL.disable(GL.LIGHTING);
     const rand = new JavaRandom(31100);
     const surface = f(0.75);
+    const surfaceY = y + surface;
     const t = Tessellator.instance;
     const m = this.texMatrix;
     const corners: readonly (readonly [number, number])[] = [
@@ -318,9 +320,12 @@ export class RenderEndPortal extends TileEntitySpecialRenderer {
         GL.blendFunc(GL.ONE, GL.ONE);
         scale = 0.5;
       }
-      // The generated s, t (and r) only depend on the translation's x and z, the camera
-      // position, so its y (the layer depth) drops out; the depth acts through the matrix below.
-      const near = f(f(-(y + surface)) + ActiveRenderInfo.objectY);
+      // The eye's height above the surface and above this layer's depth; their ratio places
+      // the plane q is measured from, just above the surface.
+      const below = f(-surfaceY);
+      const eyeAbove = f(below + ActiveRenderInfo.objectY);
+      const eyeAboveLayer = f(f(below + depth) + ActiveRenderInfo.objectY);
+      const planeY = f(f(surfaceY) + f(eyeAbove / eyeAboveLayer));
       // The texture matrix of this layer.
       m.loadIdentity();
       m.translate(0, f((Date.now() % 700000) / 700000), 0);
@@ -329,7 +334,7 @@ export class RenderEndPortal extends TileEntitySpecialRenderer {
       m.rotate(f((layer * layer * 4321 + layer * 9) * 2), 0, 0, 1);
       m.translate(-0.5, -0.5, 0);
       m.translate(-camX, -camZ, -camY);
-      m.translate(f(f(ActiveRenderInfo.objectX * depth) / near), f(f(ActiveRenderInfo.objectZ * depth) / near), -camY);
+      m.translate(f(f(ActiveRenderInfo.objectX * depth) / eyeAbove), f(f(ActiveRenderInfo.objectZ * depth) / eyeAbove), -camY);
       const tm = m.top;
       let red = f(f(rand.nextFloat() * f(0.5)) + f(0.1));
       let green = f(f(rand.nextFloat() * f(0.5)) + f(0.4));
@@ -337,19 +342,15 @@ export class RenderEndPortal extends TileEntitySpecialRenderer {
       if (layer === 0) red = green = blue = 1;
       t.startDrawingQuads();
       t.setColorRGBA_F(f(red * fade), f(green * fade), f(blue * fade), 1);
-      const vy = y + surface;
+      const q = f(surfaceY - planeY);
       for (const [cx, cz] of corners) {
         const vx = x + cx;
         const vz = z + cz;
-        // Eye-linear generation relative to the translation (camX, genY, camZ) applied when it was set up.
-        const s = vx - camX;
-        const tt = vz - camZ;
-        const r = 1;
-        const q = vy;
-        const ss = tm[0] * s + tm[4] * tt + tm[8] * r + tm[12] * q;
-        const st = tm[1] * s + tm[5] * tt + tm[9] * r + tm[13] * q;
-        const sq = tm[3] * s + tm[7] * tt + tm[11] * r + tm[15] * q;
-        t.addVertexWithUV(vx, vy, vz, ss / sq, st / sq);
+        // Generated (s, t, r, q) = (x, z, 1, height above the plane), then the texture matrix.
+        const ss = tm[0] * vx + tm[4] * vz + tm[8] + tm[12] * q;
+        const st = tm[1] * vx + tm[5] * vz + tm[9] + tm[13] * q;
+        const sq = tm[3] * vx + tm[7] * vz + tm[11] + tm[15] * q;
+        t.addVertexWithUV(vx, surfaceY, vz, ss / sq, st / sq);
       }
       t.draw();
     }

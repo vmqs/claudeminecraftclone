@@ -991,10 +991,11 @@ export class RenderBlocks {
       this.getFluidHeight(x + 1, y, z + 1, material),
       this.getFluidHeight(x + 1, y, z, material),
     ];
-    const gap = 0.001;
+    // 0.001F widened to double, as in the original.
+    const gap = Math.fround(0.001);
     if (this.renderAllFaces || renderTop) {
       rendered = true;
-      const flow = BlockFluid.getFlowDirection(access, x, y, z, material);
+      const flow = Math.fround(BlockFluid.getFlowDirection(access, x, y, z, material));
       const icon = this.getBlockIconFromSideAndMetadata(block, flow > -999.0 ? 2 : 1, meta);
       for (let i = 0; i < 4; i++) h[i] -= gap;
       const us: number[] = [];
@@ -1007,12 +1008,13 @@ export class RenderBlocks {
         }
       } else {
         // The texture turns so that it scrolls with the flow: corner i samples 8 + 16 * w[i].
-        const s = MathHelper.sin(flow) * 0.25;
-        const c = MathHelper.cos(flow) * 0.25;
-        const w = [-c - s, -c + s, c + s, c - s];
+        const fr = Math.fround;
+        const s = fr(MathHelper.sin(flow) * 0.25);
+        const c = fr(MathHelper.cos(flow) * 0.25);
+        const w = [fr(-c - s), fr(-c + s), fr(c + s), fr(c - s)].map((v) => fr(8.0 + fr(v * 16.0)));
         for (let i = 0; i < 4; i++) {
-          us.push(icon.getInterpolatedU(8.0 + w[i] * 16.0));
-          vs.push(icon.getInterpolatedV(8.0 + w[(i + 1) & 3] * 16.0));
+          us.push(icon.getInterpolatedU(w[i]));
+          vs.push(icon.getInterpolatedV(w[(i + 1) & 3]));
         }
       }
       t.setBrightness(block.getMixedBrightnessForBlock(access, x, y, z));
@@ -1074,16 +1076,16 @@ export class RenderBlocks {
       if (m === material) {
         const level = this.blockAccess!.getBlockMetadata(cx, y, cz);
         if (level >= 8 || level === 0) {
-          total += BlockFluid.getFluidHeightPercent(level) * 10.0;
+          total = Math.fround(total + Math.fround(BlockFluid.getFluidHeightPercent(level) * 10.0));
           weight += 10;
         }
-        total += BlockFluid.getFluidHeightPercent(level);
+        total = Math.fround(total + BlockFluid.getFluidHeightPercent(level));
         weight++;
       } else if (!m.isSolid()) {
-        total++;
+        total = Math.fround(total + 1);
         weight++;
       }
     }
-    return 1.0 - total / weight;
+    return Math.fround(1.0 - Math.fround(total / weight));
   }
 }
