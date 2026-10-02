@@ -1,6 +1,8 @@
 import type { JavaRandom } from '../core/JavaRandom';
 import type { IconRegister } from '../render/texture/Icon';
+import type { WorldGenerator } from '../world/gen/WorldGenerator';
 import type { IWorld } from '../world/IWorld';
+import { WorldGenRegistry } from '../world/WorldGenRegistry';
 import { Block } from './Block';
 import { BlockIds } from './BlockIds';
 import { BlockFlower } from './BlockFlower';
@@ -55,6 +57,21 @@ export class BlockMushroom extends BlockFlower {
     if (y < 0 || y >= 256) return false;
     const below = w.getBlockId(x, y - 1, z);
     return below === BlockIds.mycelium || (w.getFullBlockLightValue(x, y, z) < 13 && this.canThisPlantGrowOnThisBlockID(below));
+  }
+
+  /**
+   * Bone meal: replaces the mushroom with a huge one (WorldGenBigMushroom, brown 0 / red 1);
+   * when it does not fit, the mushroom is put back.
+   */
+  fertilizeMushroom(w: IWorld, x: number, y: number, z: number, rand: JavaRandom): boolean {
+    const meta = w.getBlockMetadata(x, y, z);
+    w.setBlockToAir(x, y, z);
+    let gen: WorldGenerator | null = null;
+    if (this.blockID === BlockIds.mushroomBrown) gen = WorldGenRegistry.create('WorldGenBigMushroom', 0);
+    else if (this.blockID === BlockIds.mushroomRed) gen = WorldGenRegistry.create('WorldGenBigMushroom', 1);
+    if (gen && gen.generate(w, rand, x, y, z)) return true;
+    w.setBlock(x, y, z, this.blockID, meta, 3);
+    return false;
   }
 
   override registerIcons(reg: IconRegister): void {

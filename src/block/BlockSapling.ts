@@ -5,24 +5,20 @@ import type { Icon, IconRegister } from '../render/texture/Icon';
 import { WorldGenTrees } from '../world/gen/WorldGenTrees';
 import type { WorldGenerator } from '../world/gen/WorldGenerator';
 import type { IWorld } from '../world/IWorld';
+import { WorldGenRegistry } from '../world/WorldGenRegistry';
 import { BlockFlower } from './BlockFlower';
 
 /**
- * Saplings (meta & 3 = type, bit 8 = growth stage). Spruce, birch and the 2x2 jungle
- * tree use their own generators in 1.5.2; until the world-gen code provides them,
- * `BlockSapling.treeGenerators` can be extended.
+ * Saplings (meta & 3 = type, bit 8 = growth stage). With light 9 or more above, 1 in 7 random
+ * ticks advances them: the first marks the stage bit, the next grows the tree with the 1.5.2
+ * generator for the type (oak: WorldGenTrees, 1 in 10 WorldGenBigTree; spruce: WorldGenTaiga2;
+ * birch: WorldGenForest; jungle: WorldGenHugeTrees from a 2x2 of saplings, else a tall
+ * WorldGenTrees). Generators come from WorldGenRegistry; a missing one falls back to a small
+ * tree of the right wood.
  */
 export class BlockSapling extends BlockFlower {
   static readonly WOOD_TYPES = ['oak', 'spruce', 'birch', 'jungle'];
   private static readonly textures = ['sapling', 'sapling_spruce', 'sapling_birch', 'sapling_jungle'];
-  /** type -> generator factory; world/gen can replace entries (WorldGenTaiga2, WorldGenForest, ...). */
-  static treeGenerators: ((rand: JavaRandom) => WorldGenerator)[] = [
-    // Oak: 1 in 10 is a WorldGenBigTree in 1.5.2 (the roll is kept so the RNG stays in step).
-    (rand) => (rand.nextInt(10) === 0, new WorldGenTrees(true)),
-    () => new WorldGenTrees(true, 5, 1, 1, false),
-    () => new WorldGenTrees(true, 5, 2, 2, false),
-    (rand) => new WorldGenTrees(true, 4 + rand.nextInt(7), 3, 3, false),
-  ];
   private saplingIcon: (Icon | null)[] = [];
 
   constructor(id: number) {
@@ -50,9 +46,57 @@ export class BlockSapling extends BlockFlower {
 
   growTree(w: IWorld, x: number, y: number, z: number, rand: JavaRandom): void {
     const type = w.getBlockMetadata(x, y, z) & 3;
-    const gen = BlockSapling.treeGenerators[type](rand);
-    w.setBlock(x, y, z, 0, 0, 4);
-    if (!gen.generate(w, rand, x, y, z)) w.setBlock(x, y, z, this.blockID, type, 4);
+    let gen: WorldGenerator | null = null;
+    let ox = 0;
+    let oz = 0;
+    let huge = false;
+    if (type === 1) {
+      gen = WorldGenRegistry.create('WorldGenTaiga2', true) ?? new WorldGenTrees(true, 5, 1, 1, false);
+    } else if (type === 2) {
+      gen = WorldGenRegistry.create('WorldGenForest', true) ?? new WorldGenTrees(true, 5, 2, 2, false);
+    } else if (type === 3) {
+      // A 2x2 of jungle saplings with this one in any corner grows a huge jungle tree.
+      search: for (ox = 0; ox >= -1; ox--) {
+        for (oz = 0; oz >= -1; oz--) {
+          if (
+            this.isSameSapling(w, x + ox, y, z + oz, 3) &&
+            this.isSameSapling(w, x + ox + 1, y, z + oz, 3) &&
+            this.isSameSapling(w, x + ox, y, z + oz + 1, 3) &&
+            this.isSameSapling(w, x + ox + 1, y, z + oz + 1, 3)
+          ) {
+            const height = 10 + rand.nextInt(20);
+            gen = WorldGenRegistry.create('WorldGenHugeTrees', true, height, 3, 3) ?? new WorldGenTrees(true, 4 + (height % 7), 3, 3, false);
+            huge = true;
+            break search;
+          }
+        }
+      }
+      if (!gen) {
+        ox = 0;
+        oz = 0;
+        gen = new WorldGenTrees(true, 4 + rand.nextInt(7), 3, 3, false);
+      }
+    } else {
+      gen = new WorldGenTrees(true);
+      if (rand.nextInt(10) === 0) gen = WorldGenRegistry.create('WorldGenBigTree', true) ?? gen;
+    }
+    if (huge) {
+      w.setBlock(x + ox, y, z + oz, 0, 0, 4);
+      w.setBlock(x + ox + 1, y, z + oz, 0, 0, 4);
+      w.setBlock(x + ox, y, z + oz + 1, 0, 0, 4);
+      w.setBlock(x + ox + 1, y, z + oz + 1, 0, 0, 4);
+    } else {
+      w.setBlock(x, y, z, 0, 0, 4);
+    }
+    if (gen.generate(w, rand, x + ox, y, z + oz)) return;
+    if (huge) {
+      w.setBlock(x + ox, y, z + oz, this.blockID, type, 4);
+      w.setBlock(x + ox + 1, y, z + oz, this.blockID, type, 4);
+      w.setBlock(x + ox, y, z + oz + 1, this.blockID, type, 4);
+      w.setBlock(x + ox + 1, y, z + oz + 1, this.blockID, type, 4);
+    } else {
+      w.setBlock(x, y, z, this.blockID, type, 4);
+    }
   }
 
   isSameSapling(w: IWorld, x: number, y: number, z: number, type: number): boolean {
