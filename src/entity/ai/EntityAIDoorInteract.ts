@@ -8,9 +8,9 @@ import { EntityAIBase } from './EntityAIBase';
 const f = Math.fround;
 
 /**
- * Base of the door tasks (EntityAIDoorInteract): when the mob bumps into something while
- * following a path through doors, finds a wooden door on the next two path points (within 1.5
- * blocks) or at its own position, and runs until the mob has walked past it.
+ * Base of door tasks (EntityAIDoorInteract): starts when the mob bumps into something while its
+ * path (with door breaking/entering allowed) leads through a wooden door within 1.5 blocks, and
+ * ends once the mob has passed the door's centre.
  */
 export abstract class EntityAIDoorInteract extends EntityAIBase {
   protected entityPosX = 0;
@@ -26,8 +26,9 @@ export abstract class EntityAIDoorInteract extends EntityAIBase {
   }
 
   shouldExecute(): boolean {
-    if (!this.theEntity.isCollidedHorizontally) return false;
-    const nav = this.theEntity.getNavigator();
+    const e = this.theEntity;
+    if (!e.isCollidedHorizontally) return false;
+    const nav = e.getNavigator();
     const path = nav.getPath();
     if (!path || path.isFinished() || !nav.getCanBreakDoors()) return false;
     for (let i = 0; i < Math.min(path.getCurrentPathIndex() + 2, path.getCurrentPathLength()); i++) {
@@ -35,14 +36,14 @@ export abstract class EntityAIDoorInteract extends EntityAIBase {
       this.entityPosX = p.xCoord;
       this.entityPosY = p.yCoord + 1;
       this.entityPosZ = p.zCoord;
-      if (this.theEntity.getDistanceSq(this.entityPosX, this.theEntity.posY, this.entityPosZ) <= 2.25) {
+      if (!(e.getDistanceSq(this.entityPosX, e.posY, this.entityPosZ) > 2.25)) {
         this.targetDoor = this.findUsableDoor(this.entityPosX, this.entityPosY, this.entityPosZ);
         if (this.targetDoor) return true;
       }
     }
-    this.entityPosX = MathHelper.floor_double(this.theEntity.posX);
-    this.entityPosY = MathHelper.floor_double(this.theEntity.posY + 1);
-    this.entityPosZ = MathHelper.floor_double(this.theEntity.posZ);
+    this.entityPosX = MathHelper.floor_double(e.posX);
+    this.entityPosY = MathHelper.floor_double(e.posY + 1);
+    this.entityPosZ = MathHelper.floor_double(e.posZ);
     this.targetDoor = this.findUsableDoor(this.entityPosX, this.entityPosY, this.entityPosZ);
     return this.targetDoor !== null;
   }
@@ -65,6 +66,6 @@ export abstract class EntityAIDoorInteract extends EntityAIBase {
 
   private findUsableDoor(x: number, y: number, z: number): BlockDoor | null {
     const id = this.theEntity.worldObj.getBlockId(x, y, z);
-    return id !== BlockIds.doorWood ? null : (Block.blocksList[id] as unknown as BlockDoor);
+    return id !== BlockIds.doorWood ? null : (Block.blocksList[id] as BlockDoor);
   }
 }

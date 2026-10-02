@@ -3,7 +3,7 @@ import type { EntityCreature } from '../EntityCreature';
 import { EntityAIBase } from './EntityAIBase';
 import { RandomPositionGenerator } from './RandomPositionGenerator';
 
-/** Walks back towards the home area when outside it (EntityAIMoveTwardsRestriction, sic). */
+/** Walks back towards the home area (villages for villagers and golems) when outside it. */
 export class EntityAIMoveTwardsRestriction extends EntityAIBase {
   private movePosX = 0;
   private movePosY = 0;
@@ -18,9 +18,10 @@ export class EntityAIMoveTwardsRestriction extends EntityAIBase {
   }
 
   shouldExecute(): boolean {
-    if (this.theEntity.isWithinHomeDistanceCurrentPosition()) return false;
-    const home = this.theEntity.getHomePosition();
-    const v = RandomPositionGenerator.findRandomTargetBlockTowards(this.theEntity, 16, 7, new Vec3(home.posX, home.posY, home.posZ));
+    const e = this.theEntity;
+    if (e.isWithinHomeDistanceCurrentPosition()) return false;
+    const home = e.getHomePosition();
+    const v = RandomPositionGenerator.findRandomTargetBlockTowards(e, 16, 7, new Vec3(home.posX, home.posY, home.posZ));
     if (!v) return false;
     this.movePosX = v.xCoord;
     this.movePosY = v.yCoord;

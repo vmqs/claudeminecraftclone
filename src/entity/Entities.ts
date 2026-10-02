@@ -25,6 +25,7 @@ import { EntitySnowball } from './EntitySnowball';
 import { EntityTNTPrimed } from './EntityTNTPrimed';
 import { EntityWitherSkull } from './EntityWitherSkull';
 import { EntityXPOrb } from './EntityXPOrb';
+import './PassiveMobs';
 
 /**
  * Binds the entity classes to their 1.5.2 names (EntityList's static block). Add one line per

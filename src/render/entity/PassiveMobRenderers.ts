@@ -1,0 +1,40 @@
+import { EntityBat } from '../../entity/EntityBat';
+import { EntityChicken } from '../../entity/EntityChicken';
+import { EntityCow } from '../../entity/EntityCow';
+import { EntityIronGolem } from '../../entity/EntityIronGolem';
+import { EntityMooshroom } from '../../entity/EntityMooshroom';
+import { EntityOcelot } from '../../entity/EntityOcelot';
+import { EntityPig } from '../../entity/EntityPig';
+import { EntitySheep } from '../../entity/EntitySheep';
+import { EntitySnowman } from '../../entity/EntitySnowman';
+import { EntitySquid } from '../../entity/EntitySquid';
+import { EntityVillager } from '../../entity/EntityVillager';
+import { EntityWolf } from '../../entity/EntityWolf';
+import { ModelChicken } from './ModelChicken';
+import { ModelCow } from './ModelCow';
+import { ModelOcelot } from './ModelOcelot';
+import { ModelPig } from './ModelPig';
+import { ModelSheep1, ModelSheep2 } from './ModelSheep';
+import { ModelSquid } from './ModelSquid';
+import { ModelWolf } from './ModelWolf';
+import { RenderLiving } from './RenderLiving';
+import { RenderManager } from './RenderManager';
+import '../../gui/merchant/MerchantGui';
+import { RenderBat, RenderChicken, RenderIronGolem, RenderMooshroom, RenderOcelot, RenderPig, RenderSheep, RenderSnowMan, RenderSquid, RenderVillager, RenderWolf } from './RenderPassiveMobs';
+
+const f = Math.fround;
+
+/** The passive and neutral mobs' renderers, as RenderManager's table binds them in 1.5.2. */
+const rm = RenderManager.instance;
+rm.register(EntityPig, new RenderPig(new ModelPig(), new ModelPig(f(0.5)), f(0.7)));
+rm.register(EntitySheep, new RenderSheep(new ModelSheep2(), new ModelSheep1(), f(0.7)));
+rm.register(EntityCow, new RenderLiving(new ModelCow(), f(0.7)));
+rm.register(EntityMooshroom, new RenderMooshroom(new ModelCow(), f(0.7)));
+rm.register(EntityWolf, new RenderWolf(new ModelWolf(), new ModelWolf(), f(0.5)));
+rm.register(EntityChicken, new RenderChicken(new ModelChicken(), f(0.3)));
+rm.register(EntityOcelot, new RenderOcelot(new ModelOcelot(), f(0.4)));
+rm.register(EntitySnowman, new RenderSnowMan());
+rm.register(EntitySquid, new RenderSquid(new ModelSquid(), f(0.7)));
+rm.register(EntityVillager, new RenderVillager());
+rm.register(EntityIronGolem, new RenderIronGolem());
+rm.register(EntityBat, new RenderBat());

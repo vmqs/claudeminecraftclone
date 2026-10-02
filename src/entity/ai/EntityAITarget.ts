@@ -1,44 +1,36 @@
 import { MathHelper } from '../../core/MathHelper';
 import type { EntityLiving } from '../EntityLiving';
 import { EntityList } from '../EntityList';
+import { EntityTameable } from '../EntityTameable';
 import { EntityAIBase } from './EntityAIBase';
 
-/** What target selection needs of a tameable mob (EntityTameable), checked by duck typing. */
-interface TameableLike {
-  isTamed(): boolean;
-  getOwner(): EntityLiving | null;
-}
-
-function asTameable(e: EntityLiving): TameableLike | null {
-  const t = e as EntityLiving & Partial<TameableLike>;
-  return typeof t.isTamed === 'function' && typeof t.getOwner === 'function' ? (t as TameableLike) : null;
+/** The name EntityLiving.canAttackClass is asked about: players are 'Player', mobs their EntityList name. */
+export function targetClassName(e: EntityLiving): string | null {
+  return e.isPlayerEntity ? 'Player' : EntityList.getEntityString(e);
 }
 
 /**
- * Base of the target-selecting tasks (EntityAITarget): keeps the attack target while it lives,
- * stays in range and (with sight checks) was seen in the last 60 ticks. isSuitableTarget()
- * applies the 1.5.2 rules: no self, no dead targets, canAttackClass, tamed mobs spare their
- * owner and other tamed mobs, players whose capabilities disable damage (Creative) are skipped
- * unless `allowInvulnerable` (revenge), the home area, line of sight and the optional
- * reachability check (a path ending within 1.5 blocks of the target).
+ * Base of the target-selection tasks (EntityAITarget): keeps the attack target while it is alive,
+ * in range and (optionally) seen within the last 60 ticks, and decides whether an entity is a
+ * suitable target. Untamed mobs never pick a player whose capabilities disable damage (Creative)
+ * unless `ignoreCreative` (revenge) is set, as in 1.5.2.
  */
 export abstract class EntityAITarget extends EntityAIBase {
-  protected targetDistance: number;
-  /** Re-check reachability: 0 = unknown, 1 = reachable, 2 = not (field_75301_b). */
-  private reachCache = 0;
-  /** Ticks until the reachability check is repeated (field_75302_c). */
-  private reachDelay = 0;
-  /** Ticks the target has been out of sight (field_75298_g). */
-  private unseenTicks = 0;
+  /** Whether the target must be reachable by a path ending within 1.5 blocks (checked every 10-14 ticks). */
+  private readonly nearbyOnly: boolean;
+  /** 0 = not checked, 1 = reachable, 2 = unreachable. */
+  private targetSearchStatus = 0;
+  private targetSearchDelay = 0;
+  private targetUnseenTicks = 0;
 
   constructor(
     protected readonly taskOwner: EntityLiving,
-    targetDistance: number,
+    protected targetDistance: number,
     protected readonly shouldCheckSight: boolean,
-    private readonly nearbyOnly = false,
+    nearbyOnly = false,
   ) {
     super();
-    this.targetDistance = targetDistance;
+    this.nearbyOnly = nearbyOnly;
   }
 
   override continueExecuting(): boolean {
@@ -46,51 +38,51 @@ export abstract class EntityAITarget extends EntityAIBase {
     if (!t || !t.isEntityAlive()) return false;
     if (this.taskOwner.getDistanceSqToEntity(t) > this.targetDistance * this.targetDistance) return false;
     if (this.shouldCheckSight) {
-      if (this.taskOwner.getEntitySenses().canSee(t)) this.unseenTicks = 0;
-      else if (++this.unseenTicks > 60) return false;
+      if (this.taskOwner.getEntitySenses().canSee(t)) this.targetUnseenTicks = 0;
+      else if (++this.targetUnseenTicks > 60) return false;
     }
     return true;
   }
 
   override startExecuting(): void {
-    this.reachCache = 0;
-    this.reachDelay = 0;
-    this.unseenTicks = 0;
+    this.targetSearchStatus = 0;
+    this.targetSearchDelay = 0;
+    this.targetUnseenTicks = 0;
   }
 
   override resetTask(): void {
     this.taskOwner.setAttackTarget(null);
   }
 
-  protected isSuitableTarget(target: EntityLiving | null, allowInvulnerable: boolean): boolean {
-    if (!target || target === this.taskOwner || !target.isEntityAlive()) return false;
-    if (!this.taskOwner.canAttackClass(EntityList.getEntityString(target))) return false;
-    const tame = asTameable(this.taskOwner);
-    if (tame && tame.isTamed()) {
-      const other = asTameable(target);
-      if (other && other.isTamed()) return false;
-      if (target === tame.getOwner()) return false;
-    } else if (target.isPlayerEntity && !allowInvulnerable && target.isCreativeInvulnerable()) {
+  protected isSuitableTarget(t: EntityLiving | null, ignoreCreative: boolean): boolean {
+    const owner = this.taskOwner;
+    if (!t || t === owner || !t.isEntityAlive()) return false;
+    if (!owner.canAttackClass(targetClassName(t))) return false;
+    if (owner instanceof EntityTameable && owner.isTamed()) {
+      if (t instanceof EntityTameable && t.isTamed()) return false;
+      if (t === owner.getOwner()) return false;
+    } else if (t.isPlayerEntity && !ignoreCreative && t.isCreativeInvulnerable()) {
       return false;
     }
-    if (!this.taskOwner.isWithinHomeDistance(MathHelper.floor_double(target.posX), MathHelper.floor_double(target.posY), MathHelper.floor_double(target.posZ))) return false;
-    if (this.shouldCheckSight && !this.taskOwner.getEntitySenses().canSee(target)) return false;
+    if (!owner.isWithinHomeDistance(MathHelper.floor_double(t.posX), MathHelper.floor_double(t.posY), MathHelper.floor_double(t.posZ))) return false;
+    if (this.shouldCheckSight && !owner.getEntitySenses().canSee(t)) return false;
     if (this.nearbyOnly) {
-      if (--this.reachDelay <= 0) this.reachCache = 0;
-      if (this.reachCache === 0) this.reachCache = this.canReach(target) ? 1 : 2;
-      if (this.reachCache === 2) return false;
+      if (--this.targetSearchDelay <= 0) this.targetSearchStatus = 0;
+      if (this.targetSearchStatus === 0) this.targetSearchStatus = this.canEasilyReach(t) ? 1 : 2;
+      if (this.targetSearchStatus === 2) return false;
     }
     return true;
   }
 
-  /** func_75295_a: a path to the target whose end lies within 1.5 blocks of it (horizontally). */
-  private canReach(target: EntityLiving): boolean {
-    this.reachDelay = 10 + this.taskOwner.getRNG().nextInt(5);
-    const path = this.taskOwner.getNavigator().getPathToEntityLiving(target);
-    const end = path?.getFinalPathPoint();
+  /** func_75295_a: a path to the target ends within 1.5 blocks of it. */
+  private canEasilyReach(t: EntityLiving): boolean {
+    this.targetSearchDelay = 10 + this.taskOwner.getRNG().nextInt(5);
+    const path = this.taskOwner.getNavigator().getPathToEntityLiving(t);
+    if (!path) return false;
+    const end = path.getFinalPathPoint();
     if (!end) return false;
-    const dx = end.xCoord - MathHelper.floor_double(target.posX);
-    const dz = end.zCoord - MathHelper.floor_double(target.posZ);
+    const dx = end.xCoord - MathHelper.floor_double(t.posX);
+    const dz = end.zCoord - MathHelper.floor_double(t.posZ);
     return dx * dx + dz * dz <= 2.25;
   }
 }

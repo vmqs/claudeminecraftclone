@@ -3,16 +3,19 @@ import type { EntityLiving } from '../EntityLiving';
 import { EntityAITarget } from './EntityAITarget';
 
 /**
- * The class a targeting task looks for: 'player' (EntityPlayer.class, found with
- * World.getClosestVulnerablePlayerToEntity) or a predicate standing in for the class test.
+ * The kind of entity a targeting task looks for, standing in for the Java class argument:
+ * 'player' uses the closest vulnerable player (World.getClosestVulnerablePlayerToEntity, so Creative
+ * players are never picked), otherwise a predicate over living entities (non-living ones are
+ * skipped before it runs).
  */
 export type TargetClass = 'player' | ((e: Entity) => boolean);
 
+/** Any living entity (EntityLiving.class). */
+export const anyLiving = (e: Entity): e is EntityLiving => e.isLivingEntity;
+
 /**
- * Targets the nearest entity of a class (EntityAINearestAttackableTarget): one try in
- * `targetChance` ticks (0 = every tick); players come from the closest vulnerable player
- * lookup (so Creative players are never picked), other classes from the box around the owner
- * (range x 4 x range) sorted by distance, filtered by the optional entity selector.
+ * Targets the nearest suitable entity of a class within `distance` (4 blocks up/down), with a
+ * 1-in-`chance` roll per check (0 = always) and an optional extra selector (IEntitySelector).
  */
 export class EntityAINearestAttackableTarget extends EntityAITarget {
   private targetEntity: EntityLiving | null = null;
@@ -44,13 +47,14 @@ export class EntityAINearestAttackableTarget extends EntityAITarget {
     const cls = this.targetClass;
     const sel = this.selector;
     const box = owner.boundingBox.expand(this.targetDistance, 4, this.targetDistance);
-    const list = owner.worldObj.getEntitiesWithinAABBExcludingEntity(null, box, (e) => e.isLivingEntity && cls(e) && (!sel || sel(e)));
-    const d = new Map<Entity, number>();
-    for (const e of list) d.set(e, owner.getDistanceSqToEntity(e));
-    list.sort((a, b) => d.get(a)! - d.get(b)!);
-    for (const e of list) {
-      if (this.isSuitableTarget(e as EntityLiving, false)) {
-        this.targetEntity = e as EntityLiving;
+    const found = owner.worldObj.getEntitiesWithinAABBExcludingEntity(null, box, (e) => e.isLivingEntity && cls(e) && (!sel || sel(e))) as EntityLiving[];
+    // EntityAINearestAttackableTargetSorter: nearest first (stable, like Collections.sort).
+    const dist = new Map<EntityLiving, number>();
+    for (const e of found) dist.set(e, owner.getDistanceSqToEntity(e));
+    found.sort((a, b) => dist.get(a)! - dist.get(b)!);
+    for (const e of found) {
+      if (this.isSuitableTarget(e, false)) {
+        this.targetEntity = e;
         return true;
       }
     }

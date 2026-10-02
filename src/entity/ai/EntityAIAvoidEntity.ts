@@ -1,67 +1,61 @@
 import { Vec3 } from '../../core/Vec3';
 import type { Entity } from '../Entity';
 import type { EntityCreature } from '../EntityCreature';
+import { EntityTameable } from '../EntityTameable';
 import { EntityAIBase } from './EntityAIBase';
-import type { TargetClass } from './EntityAINearestAttackableTarget';
 import type { PathEntity } from './PathEntity';
-import type { PathNavigate } from './PathNavigate';
 import { RandomPositionGenerator } from './RandomPositionGenerator';
 
-/** What avoidance needs of a tameable mob (EntityTameable). */
-interface TameableLike {
-  isTamed(): boolean;
-}
+/** The entities to run from: 'player' (closest player; tamed pets ignore players) or a filter. */
+export type AvoidClass = 'player' | ((e: Entity) => boolean);
 
 /**
- * Runs from the nearest visible entity of a class within `distance` (EntityAIAvoidEntity):
- * picks a spot up to 16 blocks away that is further from it, walking at `farSpeed` and at
- * `nearSpeed` while it is within 7 blocks. Tamed mobs do not flee from players.
+ * Runs from the nearest visible entity of a class within `distance` (3 up/down) to a random
+ * spot 16 blocks away from it, at `farSpeed`, or `nearSpeed` while it is within 7 blocks.
  */
 export class EntityAIAvoidEntity extends EntityAIBase {
   private closestLivingEntity: Entity | null = null;
   private entityPathEntity: PathEntity | null = null;
-  private readonly entityPathNavigate: PathNavigate;
 
   constructor(
     private readonly theEntity: EntityCreature,
-    private readonly targetEntityClass: TargetClass,
+    private readonly targetEntityClass: AvoidClass,
     private readonly distanceFromEntity: number,
     private readonly farSpeed: number,
     private readonly nearSpeed: number,
   ) {
     super();
-    this.entityPathNavigate = theEntity.getNavigator();
     this.setMutexBits(1);
   }
 
   shouldExecute(): boolean {
-    const me = this.theEntity;
+    const e = this.theEntity;
     if (this.targetEntityClass === 'player') {
-      const t = me as EntityCreature & Partial<TameableLike>;
-      if (typeof t.isTamed === 'function' && t.isTamed()) return false;
-      this.closestLivingEntity = me.worldObj.getClosestPlayerToEntity(me, this.distanceFromEntity);
+      if (e instanceof EntityTameable && e.isTamed()) return false;
+      this.closestLivingEntity = e.worldObj.getClosestPlayerToEntity(e, this.distanceFromEntity);
       if (!this.closestLivingEntity) return false;
     } else {
       const cls = this.targetEntityClass;
-      const box = me.boundingBox.expand(this.distanceFromEntity, 3, this.distanceFromEntity);
-      const list = me.worldObj.getEntitiesWithinAABBExcludingEntity(null, box, (e) => cls(e) && e.isEntityAlive() && me.getEntitySenses().canSee(e));
+      const box = e.boundingBox.expand(this.distanceFromEntity, 3, this.distanceFromEntity);
+      // EntityAIAvoidEntitySelector: alive and visible.
+      const list = e.worldObj.getEntitiesWithinAABBExcludingEntity(null, box, (o) => cls(o) && o.isEntityAlive() && e.getEntitySenses().canSee(o));
       if (list.length === 0) return false;
       this.closestLivingEntity = list[0];
     }
     const from = this.closestLivingEntity;
-    const v = RandomPositionGenerator.findRandomTargetBlockAwayFrom(me, 16, 7, new Vec3(from.posX, from.posY, from.posZ));
+    const v = RandomPositionGenerator.findRandomTargetBlockAwayFrom(e, 16, 7, new Vec3(from.posX, from.posY, from.posZ));
     if (!v) return false;
-    if (from.getDistanceSq(v.xCoord, v.yCoord, v.zCoord) < from.getDistanceSqToEntity(me)) return false;
-    this.entityPathEntity = this.entityPathNavigate.getPathToXYZ(v.xCoord, v.yCoord, v.zCoord);
-    return this.entityPathEntity !== null && this.entityPathEntity.isDestinationSame(v);
+    if (from.getDistanceSq(v.xCoord, v.yCoord, v.zCoord) < from.getDistanceSqToEntity(e)) return false;
+    this.entityPathEntity = e.getNavigator().getPathToXYZ(v.xCoord, v.yCoord, v.zCoord);
+    return this.entityPathEntity === null ? false : this.entityPathEntity.isDestinationSame(v);
   }
 
   override continueExecuting(): boolean {
-    return !this.entityPathNavigate.noPath();
+    return !this.theEntity.getNavigator().noPath();
   }
 
   override startExecuting(): void {
-    this.entityPathNavigate.setPath(this.entityPathEntity, this.farSpeed);
+    this.theEntity.getNavigator().setPath(this.entityPathEntity, this.farSpeed);
   }
 
   override resetTask(): void {
@@ -69,7 +63,7 @@ export class EntityAIAvoidEntity extends EntityAIBase {
   }
 
   override updateTask(): void {
-    const near = this.theEntity.getDistanceSqToEntity(this.closestLivingEntity!) < 49;
+    const near = this.closestLivingEntity !== null && this.theEntity.getDistanceSqToEntity(this.closestLivingEntity) < 49;
     this.theEntity.getNavigator().setSpeed(near ? this.nearSpeed : this.farSpeed);
   }
 }

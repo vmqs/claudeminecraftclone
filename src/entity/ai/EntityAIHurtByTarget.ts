@@ -1,15 +1,15 @@
 import { AxisAlignedBB } from '../../core/AxisAlignedBB';
+import type { Entity } from '../Entity';
 import type { EntityLiving } from '../EntityLiving';
 import { EntityAITarget } from './EntityAITarget';
 
 /**
- * Targets whoever hurt the owner (EntityAIHurtByTarget), Creative players included (revenge
- * skips the invulnerability test, as in 1.5.2); with `callForHelp` every idle mob of the same
- * class within 16 blocks (10 up and down) joins in. The target is only dropped on reset when it
- * is a player that cannot be damaged.
+ * Targets whoever last hurt this mob (getAITarget). With `callForHelp` every mob of the same
+ * class within 16 blocks (10 up/down) without a target joins in. A Creative player stays a
+ * revenge target only until the task resets.
  */
 export class EntityAIHurtByTarget extends EntityAITarget {
-  private lastAttacker: EntityLiving | null = null;
+  private lastRevengeTarget: EntityLiving | null = null;
 
   constructor(
     owner: EntityLiving,
@@ -25,18 +25,17 @@ export class EntityAIHurtByTarget extends EntityAITarget {
 
   override continueExecuting(): boolean {
     const t = this.taskOwner.getAITarget();
-    return t !== null && t !== this.lastAttacker;
+    return t !== null && t !== this.lastRevengeTarget;
   }
 
   override startExecuting(): void {
     const owner = this.taskOwner;
     owner.setAttackTarget(owner.getAITarget());
-    this.lastAttacker = owner.getAITarget();
+    this.lastRevengeTarget = owner.getAITarget();
     if (this.callForHelp) {
-      const cls = owner.constructor;
+      const cls = owner.constructor as abstract new (...args: never[]) => EntityLiving;
       const box = AxisAlignedBB.getBoundingBox(owner.posX, owner.posY, owner.posZ, owner.posX + 1, owner.posY + 1, owner.posZ + 1).expand(this.targetDistance, 10, this.targetDistance);
-      for (const e of owner.worldObj.getEntitiesWithinAABBExcludingEntity(null, box, (o) => o instanceof cls)) {
-        const other = e as EntityLiving;
+      for (const other of owner.worldObj.getEntitiesWithinAABB((e: Entity): e is EntityLiving => e instanceof cls, box)) {
         if (other !== owner && other.getAttackTarget() === null) other.setAttackTarget(owner.getAITarget());
       }
     }

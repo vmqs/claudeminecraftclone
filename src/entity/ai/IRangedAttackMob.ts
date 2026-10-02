@@ -1,7 +1,7 @@
 import type { EntityLiving } from '../EntityLiving';
 
-/** A mob with a ranged attack (IRangedAttackMob): skeletons, witches, snow golems. */
+/** Mobs that shoot (IRangedAttackMob): skeletons, snow golems, witches, the wither. */
 export interface IRangedAttackMob {
-  /** Fires at the target; `strength` is the distance factor (0.1-1) of EntityAIArrowAttack. */
-  attackEntityWithRangedAttack(target: EntityLiving, strength: number): void;
+  /** `power` is 0.1-1 by distance (bow draw strength for skeletons). */
+  attackEntityWithRangedAttack(target: EntityLiving, power: number): void;
 }

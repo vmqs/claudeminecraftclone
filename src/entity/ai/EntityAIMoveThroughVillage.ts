@@ -1,36 +1,20 @@
 import { MathHelper } from '../../core/MathHelper';
 import { Vec3 } from '../../core/Vec3';
+import type { Village } from '../../world/village/Village';
+import type { VillageDoorInfo } from '../../world/village/VillageDoorInfo';
 import type { EntityCreature } from '../EntityCreature';
 import { EntityAIBase } from './EntityAIBase';
 import type { PathEntity } from './PathEntity';
 import { RandomPositionGenerator } from './RandomPositionGenerator';
 
-/** A door of a village (VillageDoorInfo), as far as this task needs it. */
-export interface VillageDoorLike {
-  readonly posX: number;
-  readonly posY: number;
-  readonly posZ: number;
-  getDistanceSquared(x: number, y: number, z: number): number;
-}
-
-/** A village (Village) and the world's village collection (VillageCollection). */
-export interface VillageLike {
-  getVillageDoorInfoList(): readonly VillageDoorLike[];
-}
-export interface VillageCollectionLike {
-  findNearestVillage(x: number, y: number, z: number, radius: number): VillageLike | null;
-}
-
 /**
- * Walks from door to door through the nearest village (EntityAIMoveThroughVillage): the
- * closest door not visited recently (the last 15 are remembered), pathing without breaking
- * doors; nocturnal walkers only go at night. Villages come from `World.villageCollectionObj`
- * when the village code provides one; without it there is never a village to walk through.
+ * Walks from door to door of the nearest village, only at night when `isNocturnal` (iron
+ * golems; zombies walk at any time), remembering the last 15 doors it reached.
  */
 export class EntityAIMoveThroughVillage extends EntityAIBase {
   private entityPathNavigate: PathEntity | null = null;
-  private doorInfo: VillageDoorLike | null = null;
-  private readonly doorList: VillageDoorLike[] = [];
+  private doorInfo: VillageDoorInfo | null = null;
+  private readonly doorList: VillageDoorInfo[] = [];
 
   constructor(
     private readonly theEntity: EntityCreature,
@@ -42,13 +26,12 @@ export class EntityAIMoveThroughVillage extends EntityAIBase {
   }
 
   shouldExecute(): boolean {
-    if (this.doorList.length > 15) this.doorList.shift();
     const e = this.theEntity;
+    if (this.doorList.length > 15) this.doorList.shift();
     if (this.isNocturnal && e.worldObj.isDaytime()) return false;
-    const villages = (e.worldObj as { villageCollectionObj?: VillageCollectionLike | null }).villageCollectionObj;
-    const village = villages?.findNearestVillage(MathHelper.floor_double(e.posX), MathHelper.floor_double(e.posY), MathHelper.floor_double(e.posZ), 0) ?? null;
+    const village = e.worldObj.villageCollectionObj.findNearestVillage(MathHelper.floor_double(e.posX), MathHelper.floor_double(e.posY), MathHelper.floor_double(e.posZ), 0);
     if (!village) return false;
-    this.doorInfo = this.findNearestDoor(village);
+    this.doorInfo = this.findNearestUnvisitedDoor(village);
     if (!this.doorInfo) return false;
     const nav = e.getNavigator();
     const breakDoors = nav.getCanBreakDoors();
@@ -65,10 +48,11 @@ export class EntityAIMoveThroughVillage extends EntityAIBase {
   }
 
   override continueExecuting(): boolean {
-    if (this.theEntity.getNavigator().noPath()) return false;
-    const r = Math.fround(this.theEntity.width + 4);
+    const e = this.theEntity;
+    if (e.getNavigator().noPath()) return false;
+    const r = Math.fround(e.width + 4);
     const d = this.doorInfo!;
-    return this.theEntity.getDistanceSq(d.posX, d.posY, d.posZ) > r * r;
+    return e.getDistanceSq(d.posX, d.posY, d.posZ) > r * r;
   }
 
   override startExecuting(): void {
@@ -80,15 +64,15 @@ export class EntityAIMoveThroughVillage extends EntityAIBase {
     if (this.theEntity.getNavigator().noPath() || this.theEntity.getDistanceSq(d.posX, d.posY, d.posZ) < 16) this.doorList.push(d);
   }
 
-  private findNearestDoor(village: VillageLike): VillageDoorLike | null {
+  private findNearestUnvisitedDoor(village: Village): VillageDoorInfo | null {
     const e = this.theEntity;
-    let best: VillageDoorLike | null = null;
+    let best: VillageDoorInfo | null = null;
     let bestD = 2147483647;
-    for (const door of village.getVillageDoorInfoList()) {
-      const d = door.getDistanceSquared(MathHelper.floor_double(e.posX), MathHelper.floor_double(e.posY), MathHelper.floor_double(e.posZ));
-      if (d < bestD && !this.doorList.some((o) => o.posX === door.posX && o.posY === door.posY && o.posZ === door.posZ)) {
-        best = door;
-        bestD = d;
+    for (const d of village.getVillageDoorInfoList()) {
+      const dist = d.getDistanceSquared(MathHelper.floor_double(e.posX), MathHelper.floor_double(e.posY), MathHelper.floor_double(e.posZ));
+      if (dist < bestD && !this.doorList.some((o) => o.posX === d.posX && o.posY === d.posY && o.posZ === d.posZ)) {
+        best = d;
+        bestD = dist;
       }
     }
     return best;

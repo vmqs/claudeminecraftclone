@@ -1,37 +1,50 @@
 import { MathHelper } from '../../core/MathHelper';
 import type { Entity } from '../Entity';
 import type { EntityLiving } from '../EntityLiving';
-import type { World } from '../../world/World';
-import { EntityAIBase } from './EntityAIBase';
 import type { PathEntity } from './PathEntity';
+import { EntityAIBase } from './EntityAIBase';
+
+const f = Math.fround;
 
 /**
- * Melee chase (EntityAIAttackOnCollide): paths to the attack target (optionally only targets of
- * one class), re-paths every 4-10 ticks while it can see it (or always when
- * `longMemory`), and hits it once per 20 ticks when within (2 x width)^2 of its feet, swinging
- * a held item.
+ * Melee (EntityAIAttackOnCollide): paths to the attack target (re-pathing every 4-10 ticks) and
+ * hits it every 20 ticks once within (2 x width)^2. With `longMemory` it keeps chasing a target
+ * it cannot see as long as the target stays inside the home area.
  */
 export class EntityAIAttackOnCollide extends EntityAIBase {
-  private readonly worldObj: World;
   private entityTarget: EntityLiving | null = null;
   private attackTick = 0;
   private entityPathEntity: PathEntity | null = null;
   private repathDelay = 0;
+  private readonly classTarget: ((e: Entity) => boolean) | null;
 
+  constructor(attacker: EntityLiving, speed: number, longMemory: boolean);
+  constructor(attacker: EntityLiving, classTarget: (e: Entity) => boolean, speed: number, longMemory: boolean);
   constructor(
     private readonly attacker: EntityLiving,
-    private readonly speed: number,
-    private readonly longMemory: boolean,
-    private readonly classTarget: ((e: Entity) => boolean) | null = null,
+    a: number | ((e: Entity) => boolean),
+    b: number | boolean,
+    c?: boolean,
   ) {
     super();
-    this.worldObj = attacker.worldObj;
+    if (typeof a === 'function') {
+      this.classTarget = a;
+      this.speed = b as number;
+      this.longMemory = c!;
+    } else {
+      this.classTarget = null;
+      this.speed = a;
+      this.longMemory = b as boolean;
+    }
     this.setMutexBits(3);
   }
 
-  /** The 1.5.2 constructor order (attacker, Class, speed, longMemory). */
+  private readonly speed: number;
+  private readonly longMemory: boolean;
+
+  /** The 1.5.2 (attacker, Class, speed, longMemory) constructor, named for readability. */
   static forClass(attacker: EntityLiving, cls: (e: Entity) => boolean, speed: number, longMemory: boolean): EntityAIAttackOnCollide {
-    return new EntityAIAttackOnCollide(attacker, speed, longMemory, cls);
+    return new EntityAIAttackOnCollide(attacker, cls, speed, longMemory);
   }
 
   shouldExecute(): boolean {
@@ -46,10 +59,9 @@ export class EntityAIAttackOnCollide extends EntityAIBase {
   override continueExecuting(): boolean {
     const t = this.attacker.getAttackTarget();
     if (!t || !this.entityTarget!.isEntityAlive()) return false;
+    if (!this.longMemory) return !this.attacker.getNavigator().noPath();
     const e = this.entityTarget!;
-    return !this.longMemory
-      ? !this.attacker.getNavigator().noPath()
-      : this.attacker.isWithinHomeDistance(MathHelper.floor_double(e.posX), MathHelper.floor_double(e.posY), MathHelper.floor_double(e.posZ));
+    return this.attacker.isWithinHomeDistance(MathHelper.floor_double(e.posX), MathHelper.floor_double(e.posY), MathHelper.floor_double(e.posZ));
   }
 
   override startExecuting(): void {
@@ -71,8 +83,8 @@ export class EntityAIAttackOnCollide extends EntityAIBase {
       a.getNavigator().tryMoveToEntityLiving(t, this.speed);
     }
     this.attackTick = Math.max(this.attackTick - 1, 0);
-    const w2 = Math.fround(Math.fround(a.width * 2) * Math.fround(a.width * 2));
-    if (a.getDistanceSq(t.posX, t.boundingBox.minY, t.posZ) <= w2 && this.attackTick <= 0) {
+    const reach = f(f(f(a.width * 2) * a.width) * 2);
+    if (!(a.getDistanceSq(t.posX, t.boundingBox.minY, t.posZ) > reach) && this.attackTick <= 0) {
       this.attackTick = 20;
       if (a.getHeldItem()) a.swingItem();
       a.attackEntityAsMob(t);
