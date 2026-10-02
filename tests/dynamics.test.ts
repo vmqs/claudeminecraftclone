@@ -6,6 +6,7 @@ import { BlockIds as B } from '../src/block/BlockIds';
 import { Block } from '../src/block/Block';
 import { BlockSapling } from '../src/block/BlockSapling';
 import '../src/entity/EntityFallingSand';
+import '../src/entity/Entities';
 import { WorldGenRegistry } from '../src/world/WorldGenRegistry';
 import { WorldGenTrees } from '../src/world/gen/WorldGenTrees';
 import { addFakePlayer } from './dynamicsWorld';
@@ -151,6 +152,23 @@ import { makeWorld, slice, tick } from './dynamicsWorld';
   w3.setBlock(0, 4, 0, B.fire, 0, 3);
   for (let i = 0; i < 400; i++) w3.tick();
   check('fire on netherrack burns forever', w3.getBlockId(0, 4, 0) === B.fire);
+}
+
+// --- doFireTick off freezes fire; burning TNT is primed ------------------------------------
+{
+  const w = makeWorld(1);
+  w.worldInfo.gameRules.doFireTick = false;
+  w.setBlock(0, 4, 0, B.planks, 0, 3);
+  w.setBlock(0, 5, 0, B.fire, 0, 3);
+  for (let i = 0; i < 1000; i++) w.tick();
+  check('doFireTick false: fire stays, planks stay', w.getBlockId(0, 5, 0) === B.fire && w.getBlockId(0, 4, 0) === B.planks);
+  const t = makeWorld(1);
+  t.rand.setSeed(7n);
+  t.setBlock(0, 4, 0, B.tnt, 0, 3);
+  t.setBlock(0, 5, 0, B.fire, 0, 3);
+  for (let i = 0; i < 3000 && t.getBlockId(0, 4, 0) === B.tnt; i++) t.tick();
+  const primed = t.loadedEntityList.filter((e) => e.constructor.name.includes('TNT')).length;
+  check('fire primes TNT', t.getBlockId(0, 4, 0) !== B.tnt && primed === 1, `${t.getBlockId(0, 4, 0)} primed=${primed}`);
 }
 
 // --- crops and farmland -----------------------------------------------------------------

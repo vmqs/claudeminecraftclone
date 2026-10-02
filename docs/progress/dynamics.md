@@ -21,4 +21,12 @@ falling blocks, growth, spreading, decay, fire, melting, farmland, golems, sapli
 - [x] Node tests extended (weather, melting, cactus/reed/vines, portal, golem patterns, cocoa, wart).
 - [x] Vanilla reference: ref/extra/dynamics/dyn_fluids_t{12,50,700}.png (scenario + block list in
       scratchpad/dyn/, run with vanilla-rb/run-scenario.sh which has `setblocks`).
-- [ ] scripts/scenarios/dynamics.json browser run + compare (run 1 in progress).
+- [x] scripts/scenarios/dynamics.json browser run: fluid shots t12/t50/t700 line up with the vanilla
+      captures (outlines identical at t700 with `compare -fuzz 6%`; the only t50 difference is the
+      waterfall pool's last ring, which appears at tick 55, i.e. the vanilla harness's tick offset).
+      Fire burns the house down (141 -> 9 planks), portal lights, saplings grow (fallback generators
+      until world/gen/feature merges), leaves decay after cutting trunks (214 -> 135), bone meal on
+      grass gives tall grass + flowers, snow accumulates in a cold biome during rain.
+- [x] Trial merge with the dev branch (worldgen merged): typecheck and build pass, the glob picks up
+      WorldGenBigTree/Forest/Taiga2/HugeTrees/BigMushroom, and every sapling type (incl. the 2x2
+      huge jungle) and both huge mushrooms grow with the real generators.
