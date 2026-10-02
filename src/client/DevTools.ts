@@ -115,6 +115,11 @@ export class DevTools {
     return e;
   }
 
+  /** Registries for scenario scripts (Block, Item, ItemStack, EntityList). */
+  get lib(): { Block: typeof Block; Item: typeof Item; ItemStack: typeof ItemStack; EntityList: typeof EntityList } {
+    return { Block, Item, ItemStack, EntityList };
+  }
+
   /** Loaded entities, optionally only those with an EntityList name. */
   entities(name?: string): Entity[] {
     const list = this.mc.theWorld?.loadedEntityList ?? [];
