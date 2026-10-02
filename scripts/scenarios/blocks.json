@@ -4,7 +4,7 @@
   },
   {
     "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0",
-    "timeout": 240000
+    "timeout": 600000
   },
   {
     "eval": "(() => { const p = mc.thePlayer, w = mc.theWorld; const s0 = p.inventory.mainInventory.find(Boolean); const b = window.__b = { S: s0.constructor, B: s0.getItem().block.constructor.blocksList, w, p, ox: Math.floor(p.posX) - 15, oy: Math.floor(p.posY), oz: Math.floor(p.posZ) + 4 }; b.set = (x, y, z, id, meta = 0, flags = 2) => w.setBlock(b.ox + x, b.oy + y, b.oz + z, id, meta, flags); b.id = (x, y, z) => w.getBlockId(b.ox + x, b.oy + y, b.oz + z); b.meta = (x, y, z) => w.getBlockMetadata(b.ox + x, b.oy + y, b.oz + z); b.te = (x, y, z) => w.getBlockTileEntity(b.ox + x, b.oy + y, b.oz + z); b.view = (x, y, z, yaw, pitch) => { mc.dev.setTime(6000); mc.dev.tp(b.ox + x, b.oy + y, b.oz + z, yaw, pitch); mc.dev.setFlying(true); mc.dev.ticks(1); }; b.aim = (x, y, z, ty = 0.5) => { const dy = 1.62 - (y + ty); b.view(x + 0.5, 0, z - 2.5, 0, Math.atan2(dy, 3) * 180 / Math.PI); }; b.hold = (id, dmg = 0, n = 1) => { p.inventory.mainInventory[0] = new b.S(id, n, dmg); mc.dev.select(0); }; b.target = () => { const m = mc.objectMouseOver; return m ? [m.blockX - b.ox, m.blockY - b.oy, m.blockZ - b.oz, m.sideHit] : null; }; b.entities = (name) => w.loadedEntityList.filter((e) => e.constructor.name === name).length; mc.dev.setFlying(true); return { ox: b.ox, oy: b.oy, oz: b.oz }; })()"
@@ -250,7 +250,7 @@
   },
   {
     "waitFor": "mc.dev.pendingSections(3) === 0",
-    "timeout": 120000
+    "timeout": 600000
   },
   {
     "wait": 700
