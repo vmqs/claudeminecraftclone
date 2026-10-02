@@ -9,7 +9,7 @@ A restarted agent resumes from the first item not marked done. Status: todo, wip
 | G3 | GuiTexturePacks (Default + bundled packs, pack.png icons, reload) | done |
 | G4 | Main menu: language/multiplayer buttons, GuiMultiplayer (empty list, add/direct connect graceful), Minceraft | done (Minceraft already ported) |
 | G5 | In-memory world list: GuiSelectWorld, GuiWorldSlot, GuiRenameWorld, GuiYesNo, Re-Create | done (src/world/storage/SaveFormatMemory.ts; ChunkProviderClient.suspend/adoptStore) |
-| G6 | GuiCreateWorld complete (game mode locked creative, cheats, bonus chest, Customize -> GuiCreateFlatWorld + GuiFlatPresets) | wip (bonus chest generation pending) |
+| G6 | GuiCreateWorld complete (Survival/Hardcore/Creative cycle per user request, cheats, bonus chest flag, Customize) | done (bonus chest generation is the server/worldgen side: WorldSettings.bonusChest) |
 | G7 | Loading/transition screens (quit: shutting down / saving), GuiIngameMenu, GuiShareToLan | todo |
 | G8 | HUD / F3 vs references (all lines, profiler chart, record message, GUI scales) | todo |
 | G9 | Chat: links + GuiConfirmOpenLink, options, history | todo |

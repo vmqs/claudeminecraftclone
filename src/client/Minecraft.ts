@@ -60,6 +60,9 @@ export interface WorldSettings {
   /** "Allow Cheats" (default on: worlds are creative). */
   allowCommands?: boolean;
   bonusChest?: boolean;
+  /** EnumGameType id (0 survival, 1 creative, 2 adventure); creative when absent. */
+  gameType?: number;
+  hardcore?: boolean;
 }
 
 interface PendingWorld {
@@ -666,6 +669,8 @@ export class Minecraft implements SettingsListener {
     info.mapFeaturesEnabled = ws.mapFeatures;
     info.generatorOptions = ws.generatorOptions ?? '';
     info.allowCommands = ws.allowCommands ?? true;
+    info.gameType = ws.gameType ?? 1;
+    info.hardcore = ws.hardcore ?? false;
     SaveFormatMemory.instance.create(folder, info);
     const world = new World(info);
     const provider = new ChunkProviderClient(world, info.seed, ws.terrainType, ws.mapFeatures, info.generatorOptions);

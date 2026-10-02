@@ -18,18 +18,20 @@ const ILLEGAL_WORLD_NAMES = ['CON', 'COM', 'PRN', 'AUX', 'CLOCK$', 'NUL', 'COM1'
 
 /**
  * "Create New World" (GuiCreateWorld) with "More World Options..." (seed, structures, world
- * type and its Customize screen, cheats, bonus chest). Only Creative is playable here: the
- * Game Mode button keeps its place and look but stays on Creative.
+ * type and its Customize screen, cheats, bonus chest). The Game Mode button cycles Survival,
+ * Hardcore and Creative; the mode reaches the world as WorldSettings.gameType / hardcore.
  */
 export class GuiCreateWorld extends GuiScreen {
   private textboxWorldName!: GuiTextField;
   private textboxSeed!: GuiTextField;
   private folderName = 'World';
-  private readonly gameMode = 'creative';
+  private gameMode = 'survival';
   private generateStructures = true;
-  private commandsAllowed = true;
+  private commandsAllowed = false;
+  /** Allow Cheats was clicked: the game mode no longer picks its default. */
+  private commandsToggled = false;
   private bonusItems = false;
-  private readonly isHardcore = false;
+  private isHardcore = false;
   private createClicked = false;
   private moreOptions = false;
   private worldTypeId = 0;
@@ -82,6 +84,8 @@ export class GuiCreateWorld extends GuiScreen {
     this.textboxSeed = new GuiTextField(this.fontRenderer, cx - 100, 60, 200, 20);
     this.textboxSeed.setText(this.seed);
     this.showMoreOptions(this.moreOptions);
+    this.buttonAllowCommands.enabled = !this.isHardcore;
+    this.buttonBonusItems.enabled = !this.isHardcore;
     this.makeUseableName();
     this.updateButtonText();
   }
@@ -141,12 +145,28 @@ export class GuiCreateWorld extends GuiScreen {
         mapFeatures: this.generateStructures,
         generatorOptions: this.generatorOptionsToUse,
         bonusChest: this.bonusItems && !this.isHardcore,
+        gameType: this.gameMode === 'creative' ? 1 : 0,
+        hardcore: this.isHardcore,
         allowCommands: this.commandsAllowed && !this.isHardcore,
       });
     } else if (b.id === 3) {
       this.showMoreOptions(!this.moreOptions);
     } else if (b.id === 2) {
-      // Survival and Hardcore are not part of this game: the mode stays Creative.
+      if (this.gameMode === 'survival') {
+        if (!this.commandsToggled) this.commandsAllowed = false;
+        this.gameMode = 'hardcore';
+        this.isHardcore = true;
+      } else if (this.gameMode === 'hardcore') {
+        if (!this.commandsToggled) this.commandsAllowed = true;
+        this.gameMode = 'creative';
+        this.isHardcore = false;
+      } else {
+        if (!this.commandsToggled) this.commandsAllowed = false;
+        this.gameMode = 'survival';
+        this.isHardcore = false;
+      }
+      this.buttonAllowCommands.enabled = !this.isHardcore;
+      this.buttonBonusItems.enabled = !this.isHardcore;
       this.updateButtonText();
     } else if (b.id === 4) {
       this.generateStructures = !this.generateStructures;
@@ -160,6 +180,7 @@ export class GuiCreateWorld extends GuiScreen {
       this.updateButtonText();
       this.showMoreOptions(this.moreOptions);
     } else if (b.id === 6) {
+      this.commandsToggled = true;
       this.commandsAllowed = !this.commandsAllowed;
       this.updateButtonText();
     } else if (b.id === 8) {
@@ -226,5 +247,9 @@ export class GuiCreateWorld extends GuiScreen {
     this.generatorOptionsToUse = info.generatorOptions;
     this.generateStructures = info.mapFeaturesEnabled;
     this.commandsAllowed = info.allowCommands;
+    if (info.hardcore) this.gameMode = 'hardcore';
+    else if (info.gameType !== 1) this.gameMode = 'survival';
+    else this.gameMode = 'creative';
+    this.isHardcore = info.hardcore;
   }
 }

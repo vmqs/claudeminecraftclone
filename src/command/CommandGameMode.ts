@@ -8,11 +8,6 @@ import type { ICommandSender } from './ICommandSender';
 /** EnumGameType by id: 0 survival, 1 creative, 2 adventure. */
 export const GAME_TYPE_NAMES = ['survival', 'creative', 'adventure'];
 
-/** Creative is the only game mode of this game; the others are refused like a bad argument. */
-function requireCreative(mode: number, usage: string): void {
-  if (mode !== 1) throw new WrongUsageException(usage);
-}
-
 /** /gamemode <mode> [player] */
 export class CommandGameMode extends CommandBase {
   getCommandName(): string {
@@ -31,7 +26,6 @@ export class CommandGameMode extends CommandBase {
     if (args.length === 0) throw new WrongUsageException('commands.gamemode.usage');
     const mode = this.getGameModeFromCommand(sender, args[0]);
     const player = args.length >= 2 ? CommandBase.getPlayer(sender, args[1]) : CommandBase.getCommandSenderAsPlayer(sender);
-    requireCreative(mode, 'commands.gamemode.usage');
     CommandGameMode.setGameType(player, mode);
     player.fallDistance = 0;
     const name = I18n.translateToLocal('gameMode.' + GAME_TYPE_NAMES[mode]);
@@ -79,7 +73,6 @@ export class CommandDefaultGameMode extends CommandGameMode {
   override processCommand(sender: ICommandSender, args: string[]): void {
     if (args.length === 0) throw new WrongUsageException('commands.defaultgamemode.usage');
     const mode = this.getGameModeFromCommand(sender, args[0]);
-    requireCreative(mode, 'commands.defaultgamemode.usage');
     for (const w of getServer()?.getWorlds() ?? []) w.worldInfo.gameType = mode;
     CommandBase.notifyAdmins(sender, 'commands.defaultgamemode.success', I18n.translateToLocal('gameMode.' + GAME_TYPE_NAMES[mode]));
   }
