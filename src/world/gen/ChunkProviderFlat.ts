@@ -25,9 +25,13 @@ export class SingleBiomeSource implements BiomeSource {
   }
 
   /** Any spot in range when the biome is allowed. */
-  findBiomePosition(x: number, z: number, range: number, allowed: BiomeGenBase[], rand: JavaRandom): [number, number] | null {
+  findBiomePosition(x: number, z: number, range: number, allowed: readonly BiomeGenBase[], rand: JavaRandom): [number, number] | null {
     if (!allowed.includes(this.biome)) return null;
     return [x - range + rand.nextInt(range * 2 + 1), z - range + rand.nextInt(range * 2 + 1)];
+  }
+
+  areBiomesViable(_x: number, _z: number, _radius: number, allowed: readonly BiomeGenBase[]): boolean {
+    return allowed.includes(this.biome);
   }
 }
 

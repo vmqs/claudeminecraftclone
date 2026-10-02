@@ -111,22 +111,7 @@ function finalizeChunk(cx: number, cz: number): ChunkPayload {
 
 /** WorldChunkManager.findBiomePosition over the 1:4 biome grid (reservoir pick). */
 function findBiomePosition(x: number, z: number, range: number, allowed: BiomeGenBase[], rand: JavaRandom): [number, number] | null {
-  const direct = provider!.biomeSource.findBiomePosition;
-  if (direct) return direct.call(provider!.biomeSource, x, z, range, allowed, rand);
-  const x0 = (x - range) >> 2;
-  const z0 = (z - range) >> 2;
-  const w = ((x + range) >> 2) - x0 + 1;
-  const h = ((z + range) >> 2) - z0 + 1;
-  const biomes = provider!.biomeSource.getBiomesForGeneration(x0, z0, w, h);
-  let pos: [number, number] | null = null;
-  let n = 0;
-  for (let i = 0; i < w * h; i++) {
-    if (allowed.includes(biomes[i]) && (pos === null || rand.nextInt(n + 1) === 0)) {
-      pos = [(x0 + (i % w)) << 2, (z0 + Math.trunc(i / w)) << 2];
-      n++;
-    }
-  }
-  return pos;
+  return provider!.biomeSource.findBiomePosition(x, z, range, allowed, rand);
 }
 
 /** World.getFirstUncoveredBlock on generated (unpopulated) terrain. */
@@ -223,7 +208,7 @@ self.onmessage = (e: MessageEvent<WorldGenRequest>) => {
     case 'init': {
       const seed = BigInt(m.seed);
       worldSeed = seed;
-      provider = m.worldType === 'flat' ? new ChunkProviderFlat(seed, null) : new ChunkProviderGenerate(seed, m.mapFeatures);
+      provider = m.worldType === 'flat' ? new ChunkProviderFlat(seed, null) : new ChunkProviderGenerate(seed, m.mapFeatures, m.worldType);
       world = new GenWorld(provider.biomeSource);
       populated.clear();
       requested.clear();

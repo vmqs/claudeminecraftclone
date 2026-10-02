@@ -6,6 +6,7 @@ import { Biomes, type BiomeGenBase } from '../biome/BiomeGenBase';
 import type { IWorld } from '../IWorld';
 import { BiomeDecorator } from './BiomeDecorator';
 import { NoiseGeneratorOctaves } from './NoiseGeneratorOctaves';
+import { WorldChunkManager } from './WorldChunkManager';
 import { WorldGenLakes } from './WorldGenLakes';
 import { performWorldGenSpawning, type SpawnRecorder } from './WorldGenSpawning';
 
@@ -20,36 +21,10 @@ export interface BiomeSource {
   /** loadBlockGeneratorData: per-column biomes for a 16x16 area. */
   loadBlockGeneratorData(x: number, z: number, w: number, h: number): BiomeGenBase[];
   getBiomeGenAt(x: number, z: number): BiomeGenBase;
-  /** findBiomePosition when the source answers it directly (single-biome worlds). */
-  findBiomePosition?(x: number, z: number, range: number, allowed: BiomeGenBase[], rand: JavaRandom): [number, number] | null;
-}
-
-/**
- * Stand-in until the GenLayer stack is ported: 64x64 cells of Plains or Forest (same terrain
- * heights) chosen by a seeded hash, so terrain is plains-like and has oak trees.
- */
-export class PlaceholderBiomeSource implements BiomeSource {
-  private readonly salt: number;
-
-  constructor(seed: bigint) {
-    this.salt = Number(BigInt.asIntN(32, seed ^ (seed >> 32n)));
-  }
-
-  getBiomeGenAt(x: number, z: number): BiomeGenBase {
-    let h = Math.imul((x >> 6) ^ this.salt, 0x27d4eb2d) ^ Math.imul(z >> 6, 0x165667b1);
-    h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
-    return ((h ^ (h >>> 13)) & 3) === 0 ? Biomes.plains : Biomes.forest;
-  }
-  getBiomesForGeneration(x: number, z: number, w: number, h: number): BiomeGenBase[] {
-    const out: BiomeGenBase[] = new Array(w * h);
-    for (let k = 0; k < h; k++) for (let i = 0; i < w; i++) out[i + k * w] = this.getBiomeGenAt((x + i) * 4, (z + k) * 4);
-    return out;
-  }
-  loadBlockGeneratorData(x: number, z: number, w: number, h: number): BiomeGenBase[] {
-    const out: BiomeGenBase[] = new Array(w * h);
-    for (let k = 0; k < h; k++) for (let i = 0; i < w; i++) out[i + k * w] = this.getBiomeGenAt(x + i, z + k);
-    return out;
-  }
+  /** findBiomePosition: a random allowed 1:4 cell within range of (x, z), or null. */
+  findBiomePosition(x: number, z: number, range: number, allowed: readonly BiomeGenBase[], rand: JavaRandom): [number, number] | null;
+  /** areBiomesViable: every 1:4 cell within radius of (x, z) is allowed. */
+  areBiomesViable(x: number, z: number, radius: number, allowed: readonly BiomeGenBase[]): boolean;
 }
 
 /** Raw generated chunk: block ids in the original's x<<11 | z<<7 | y layout (0..127) and biomes. */
@@ -92,11 +67,14 @@ export class ChunkProviderGenerate implements ChunkGenerator {
   private parabolicField: Float32Array | null = null;
   private biomesForGeneration: BiomeGenBase[] = [];
 
+  readonly biomeSource: WorldChunkManager;
+
   constructor(
     readonly seed: bigint,
     readonly mapFeaturesEnabled: boolean,
-    readonly biomeSource: BiomeSource = new PlaceholderBiomeSource(seed),
+    worldType = 'default',
   ) {
+    this.biomeSource = new WorldChunkManager(seed, worldType);
     this.rand = new JavaRandom(seed);
     this.noiseGen1 = new NoiseGeneratorOctaves(this.rand, 16);
     this.noiseGen2 = new NoiseGeneratorOctaves(this.rand, 16);
