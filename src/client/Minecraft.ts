@@ -49,6 +49,9 @@ import { MouseHelper } from './MouseHelper';
 import { MovementInputFromOptions } from './MovementInput';
 import { PlayerControllerCreative } from './PlayerControllerCreative';
 import { Timer } from './Timer';
+import { Profiler } from './Profiler';
+import { DebugHooks } from '../command/CommandDebug';
+import { GuiProfilerChart } from '../gui/GuiProfilerChart';
 
 /** World creation options (WorldSettings). */
 export interface WorldSettings {
@@ -120,6 +123,9 @@ export class Minecraft implements SettingsListener {
   username = 'Player';
   /** Called once per frame after rendering (dev hooks, screenshot harness). */
   readonly frameListeners: (() => void)[] = [];
+  /** Frame profiler: sections for the Shift+F3 pie chart. */
+  readonly mcProfiler = new Profiler();
+  private readonly profilerChart = new GuiProfilerChart(this.mcProfiler);
   private pendingWorld: PendingWorld | null = null;
   private leftClickCounter = 0;
   private rightClickDelayTimer = 0;
@@ -302,6 +308,8 @@ export class Minecraft implements SettingsListener {
 
   private runGameLoop(): void {
     if (!this.started) return;
+    const prof = this.mcProfiler;
+    prof.startSection('root');
     if (this.isGamePaused && this.theWorld) {
       const pt = this.timer.renderPartialTicks;
       this.timer.updateTimer();
@@ -309,17 +317,37 @@ export class Minecraft implements SettingsListener {
     } else {
       this.timer.updateTimer();
     }
+    prof.startSection('tick');
     for (let i = 0; i < this.timer.elapsedTicks; i++) this.runTick();
     this.tickLoading();
     this.chunkProvider?.processIncoming(4);
+    prof.endStartSection('preRenderErrors');
     RenderBlocks.fancyGrass = this.gameSettings.fancyGraphics;
+    prof.endStartSection('sound');
     this.sndManager.setListener(this.thePlayer, this.timer.renderPartialTicks);
     if (!this.isGamePaused) this.sndManager.updateScheduledSounds();
+    prof.endSection();
+    prof.startSection('render');
+    prof.startSection('display');
     GL.enable(GL.TEXTURE_2D);
     if (this.thePlayer && this.thePlayer.isEntityInsideOpaqueBlock()) this.gameSettings.thirdPersonView = 0;
     GL.beginFrame();
+    prof.endSection();
     if (this.loadingScreen.active) this.loadingScreen.draw();
-    else if (!this.skipRenderWorld) this.entityRenderer.updateCameraAndRender(this.timer.renderPartialTicks);
+    else if (!this.skipRenderWorld) {
+      prof.endStartSection('gameRenderer');
+      this.entityRenderer.updateCameraAndRender(this.timer.renderPartialTicks);
+      prof.endSection();
+    }
+    prof.endSection();
+    if (this.gameSettings.showDebugInfo && this.gameSettings.showDebugProfilerChart && !this.loadingScreen.active) {
+      if (!prof.profilingEnabled) prof.clearProfiling();
+      prof.profilingEnabled = true;
+      this.profilerChart.draw(this);
+    } else {
+      prof.profilingEnabled = false;
+    }
+    prof.startSection('root');
     this.screenshotListener();
     for (const l of this.frameListeners) l();
     this.updateDisplaySize();
@@ -333,6 +361,7 @@ export class Minecraft implements SettingsListener {
       this.debugUpdateTime += 1000;
       this.fpsCounter = 0;
     }
+    prof.endSection();
   }
 
   /** Follows the canvas' CSS size at device-pixel resolution (the resize check of the loop). */
@@ -363,10 +392,16 @@ export class Minecraft implements SettingsListener {
   // ------------------------------------------------------------------ tick
 
   runTick(): void {
+    const prof = this.mcProfiler;
     if (this.rightClickDelayTimer > 0) this.rightClickDelayTimer--;
+    prof.startSection('stats');
+    prof.endStartSection('gui');
     if (!this.isGamePaused && this.theWorld) this.ingameGUI.updateTick();
+    prof.endStartSection('pick');
     this.entityRenderer.getMouseOver(1);
+    prof.endStartSection('gameMode');
     if (!this.isGamePaused && this.theWorld) this.playerController.updateController();
+    prof.endStartSection('textures');
     if (!this.isGamePaused) this.renderEngine.updateDynamicTextures();
     if (this.currentScreen === null && this.thePlayer && this.thePlayer.getHealth() <= 0) this.displayGuiScreen(null);
     if (this.currentScreen) this.leftClickCounter = 10000;
@@ -379,8 +414,10 @@ export class Minecraft implements SettingsListener {
       while (Mouse.next());
       while (Keyboard.next());
     } else if (this.currentScreen === null || this.currentScreen.allowUserInput) {
+      prof.endStartSection('mouse');
       this.handleMouseEvents();
       if (this.leftClickCounter > 0) this.leftClickCounter--;
+      prof.endStartSection('keyboard');
       this.handleKeyboardEvents();
       if (this.thePlayer) this.handleKeyBindings();
     }
@@ -392,15 +429,29 @@ export class Minecraft implements SettingsListener {
       }
       if (++this.joinPlayerCounter === 30) this.joinPlayerCounter = 0;
       if (!this.isGamePaused) {
+        prof.endStartSection('gameRenderer');
         this.entityRenderer.updateRenderer();
+        prof.endStartSection('levelRenderer');
         this.renderGlobal.updateClouds();
+        prof.endStartSection('level');
         if (w.lastLightningBolt > 0) w.lastLightningBolt--;
+        const serverProf = DebugHooks.profiler;
+        serverProf.startSection('root');
+        serverProf.startSection('levels');
+        serverProf.startSection('entities');
         w.updateEntities();
+        serverProf.endStartSection('tick');
         w.tick();
+        serverProf.endSection();
+        serverProf.endSection();
+        serverProf.endSection();
+        prof.endStartSection('animateTick');
         w.doVoidFogParticles(MathHelper.floor_double(this.thePlayer.posX), MathHelper.floor_double(this.thePlayer.posY), MathHelper.floor_double(this.thePlayer.posZ));
+        prof.endStartSection('particles');
         this.effectRenderer.updateEffects();
       }
     }
+    prof.endSection();
   }
 
   private handleMouseEvents(): void {
@@ -463,6 +514,10 @@ export class Minecraft implements SettingsListener {
       }
       if (key === Keys.F8) gs.smoothCamera = !gs.smoothCamera;
       if (this.thePlayer) for (let i = 0; i < 9; i++) if (key === Keys['1'] + i) this.thePlayer.inventory.currentItem = i;
+      if (gs.showDebugInfo && gs.showDebugProfilerChart) {
+        if (key === Keys['0']) this.profilerChart.select(0);
+        for (let i = 0; i < 9; i++) if (key === Keys['1'] + i) this.profilerChart.select(i + 1);
+      }
     }
   }
 
