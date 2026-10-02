@@ -58,6 +58,19 @@ export class DevTools {
     });
   }
 
+  /** Puts `count` of item `id` with damage `damage` in inventory slot `slot` (0-8 hotbar, 9-35 main). */
+  setStack(slot: number, id: number, count = 1, damage = 0): void {
+    const p = this.mc.thePlayer;
+    if (p && (Item.itemsList[id] || id === 0)) p.inventory.mainInventory[slot] = id === 0 ? null : new ItemStack(id, count, damage);
+  }
+
+  /** Fills the hotbar from [id, damage?] pairs (fillHotbar with damage values). */
+  hotbar(stacks: (number | [number, number])[]): void {
+    stacks.forEach((s, i) => {
+      if (i < 9) this.setStack(i, typeof s === 'number' ? s : s[0], 1, typeof s === 'number' ? 0 : s[1]);
+    });
+  }
+
   setFlying(on: boolean): void {
     const p = this.mc.thePlayer;
     if (p) p.capabilities.isFlying = on;

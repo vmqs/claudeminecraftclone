@@ -4,6 +4,7 @@ import type { Minecraft } from '../client/Minecraft';
 import { MathHelper } from '../core/MathHelper';
 import type { EntityLiving } from '../entity/EntityLiving';
 import { EnumAction, Item } from '../item/Item';
+import { getItemIconForEntity } from '../item/ItemIcons';
 import type { ItemStack } from '../item/ItemStack';
 import { ModelBiped } from './entity/ModelBiped';
 import { GL } from './gl/GL';
@@ -35,8 +36,7 @@ export class ItemRenderer {
       this.mc.renderEngine.bindTexture('/terrain.png');
       this.renderBlocksInstance.renderBlockAsItem(block, stack.getItemDamage(), 1);
     } else {
-      const icon = stack.getIconIndex() ?? null;
-      void pass;
+      const icon = getItemIconForEntity(e, stack, pass);
       if (!icon) {
         GL.popMatrix();
         void e;
@@ -175,6 +175,11 @@ export class ItemRenderer {
       GL.scale(f(0.4), f(0.4), f(0.4));
       if (stack.getItem().shouldRotateAroundWhenRendering()) GL.rotate(180, 0, 1, 0);
       this.renderItem(p, stack, 0);
+      if (stack.getItem().requiresMultipleRenderPasses()) {
+        const c2 = stack.getItem().getColorFromItemStack(stack, 1);
+        GL.color(((c2 >> 16) & 255) / 255, ((c2 >> 8) & 255) / 255, (c2 & 255) / 255, 1);
+        this.renderItem(p, stack, 1);
+      }
       GL.popMatrix();
     } else if (!p.isInvisible()) {
       GL.pushMatrix();
