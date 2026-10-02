@@ -382,7 +382,8 @@ export class ItemSkull extends Item {
     return damage;
   }
   override getUnlocalizedName(stack?: ItemStack): string {
-    let d = stack ? stack.getItemDamage() : 0;
+    if (!stack) return super.getUnlocalizedName();
+    let d = stack.getItemDamage();
     if (d < 0 || d >= ItemSkull.skullTypes.length) d = 0;
     return super.getUnlocalizedName() + '.' + ItemSkull.skullTypes[d];
   }

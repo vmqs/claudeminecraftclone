@@ -39,5 +39,27 @@
   },
   {
     "shot": "items_placed.png"
+  },
+  {
+    "eval": "(() => { mc.dev.press(18, 1); return String(mc.currentScreen && mc.currentScreen.constructor.name); })()"
+  },
+  {
+    "waitFor": "mc.currentScreen !== null",
+    "timeout": 20000
+  },
+  {
+    "eval": "(() => { const c = mc.thePlayer.inventoryContainer, inv = mc.thePlayer.inventory, r = {}; const put = (slot, id, dmg) => { mc.dev.setStack(9, id, 1, dmg); c.craftMatrix.setInventorySlotContents(slot, inv.mainInventory[9]); inv.mainInventory[9] = null; }; const res = () => String(c.craftResult.getStackInSlot(0)); put(0, 263, 1); put(2, 280, 0); r.torchFromCharcoal = res(); put(0, 0, 0); c.craftMatrix.setInventorySlotContents(0, null); c.craftMatrix.setInventorySlotContents(2, null); put(0, 351, 4); put(1, 351, 2); r.cyanDye = res(); c.craftMatrix.setInventorySlotContents(0, null); c.craftMatrix.setInventorySlotContents(1, null); put(3, 17, 2); r.birchPlanks = res(); return r; })()"
+  },
+  {
+    "move": [
+      400,
+      160
+    ]
+  },
+  {
+    "wait": 800
+  },
+  {
+    "shot": "items_crafting.png"
   }
 ]

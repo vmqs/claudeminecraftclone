@@ -11,5 +11,5 @@ the first unchecked step.
 - [x] Items registry with every 1.5.2 item (256-408 + records)
 - [x] crafting recipes (all Recipes*), special recipes, FurnaceRecipes
 - [x] node test for recipes/smelting (scripts/tests/crafting.test.ts)
-- [ ] GUI multi-pass/glint hooks, dev helper, scenario scripts/scenarios/items.json
-- [ ] screenshots compared with reference creative tab shots
+- [x] GUI multi-pass/glint hooks, dev helper, scenario scripts/scenarios/items.json (+ item-icons.json)
+- [x] screenshots compared with reference creative tab shots and new vanilla captures (scratchpad ref/extra/items: hotbar matches)

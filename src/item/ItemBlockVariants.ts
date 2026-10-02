@@ -186,8 +186,9 @@ export class ItemSlab extends ItemBlock {
     return damage;
   }
   override getUnlocalizedName(stack?: ItemStack): string {
+    if (!stack) return super.getUnlocalizedName();
     const half = Block.blocksList[this.halfSlabID] as (Block & HalfSlab) | null;
-    const meta = stack ? stack.getItemDamage() : 0;
+    const meta = stack.getItemDamage();
     if (half?.getFullSlabName) return half.getFullSlabName(meta);
     const [base, names] = SLAB_TYPE_NAMES[this.halfSlabID] ?? [super.getUnlocalizedName(), ['']];
     return base + '.' + names[meta >= 0 && meta < names.length ? meta : 0];

@@ -59,8 +59,8 @@ export class ItemDye extends Item {
     return this.icons[MathHelper.clamp_int(damage, 0, 15)] ?? null;
   }
   override getUnlocalizedName(stack?: ItemStack): string {
-    const d = MathHelper.clamp_int(stack ? stack.getItemDamage() : 0, 0, 15);
-    return super.getUnlocalizedName() + '.' + dyeColorNames[d];
+    if (!stack) return super.getUnlocalizedName();
+    return super.getUnlocalizedName() + '.' + dyeColorNames[MathHelper.clamp_int(stack.getItemDamage(), 0, 15)];
   }
 
   override onItemUse(stack: ItemStack, player: EntityPlayer, w: IWorld, x: number, y: number, z: number, side: number, hx: number, hy: number, hz: number): boolean {
