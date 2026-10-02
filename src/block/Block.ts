@@ -64,7 +64,8 @@ export class Block {
     Block.blocksList[id] = this;
     this.setBlockBounds(0, 0, 0, 1, 1, 1);
     // Note: subclass overrides of isOpaqueCube() are already active here (as in Java).
-    Block.opaqueCubeLookup[id] = this.isOpaqueCube();
+    // Subclass fields are not initialised yet (as in Java), so overrides that read them see undefined.
+    Block.opaqueCubeLookup[id] = !!this.isOpaqueCube();
     Block.lightOpacity[id] = this.isOpaqueCube() ? 255 : 0;
     Block.canBlockGrass[id] = !material.getCanBlockGrass();
   }
@@ -132,6 +133,41 @@ export class Block {
     return b !== null && b.blockMaterial.isOpaque() && b.renderAsNormalBlock() && !b.canProvidePower();
   }
 
+  /**
+   * World.isBlockIndirectlyGettingPowered. Redstone logic is out of scope, so this is false
+   * unless a world provides it; blocks only react to power when {@link hasRedstone} is true.
+   */
+  static isPowered(w: IWorld, x: number, y: number, z: number): boolean {
+    return w.isBlockIndirectlyGettingPowered?.(x, y, z) ?? false;
+  }
+
+  /** Whether the world simulates redstone power at all (see {@link isPowered}). */
+  static hasRedstone(w: IWorld): boolean {
+    return typeof w.isBlockIndirectlyGettingPowered === 'function';
+  }
+
+  /** The 4-way direction an entity faces: floor(yaw * 4 / 360 + offset) & 3 (0 south, 1 west, 2 north, 3 east). */
+  static yawToDirection(e: { rotationYaw: number }, offset = 0.5): number {
+    return Math.floor(Math.fround(Math.fround(e.rotationYaw * 4) / 360) + offset) & 3;
+  }
+
+  /**
+   * Spawns an item entity with a given motion (the scatter of container contents when a chest,
+   * furnace or dispenser breaks); falls back to the plain drop when the world cannot create one.
+   */
+  static spawnItemWithMotion(w: IWorld, x: number, y: number, z: number, stack: ItemStack, mx: number, my: number, mz: number): void {
+    if (w.isRemote) return;
+    const e = w.createItemEntity?.(x, y, z, stack) ?? null;
+    if (!e) {
+      w.dropItemStack(x, y, z, stack);
+      return;
+    }
+    e.motionX = mx;
+    e.motionY = my;
+    e.motionZ = mz;
+    w.spawnEntityInWorld(e);
+  }
+
   static isAssociatedBlockID(a: number, b: number): boolean {
     if (a === b) return true;
     const ba = Block.blocksList[a];
@@ -139,6 +175,15 @@ export class Block {
   }
 
   // ------------------------------------------------------------------ properties
+
+  /** The blockHardness field (stairs and walls copy their model block's values). */
+  getRawHardness(): number {
+    return this.blockHardness;
+  }
+  /** The blockResistance field (3x the value given to setResistance). */
+  getRawResistance(): number {
+    return this.blockResistance;
+  }
 
   renderAsNormalBlock(): boolean {
     return true;
