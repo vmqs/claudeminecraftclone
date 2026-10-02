@@ -45,6 +45,10 @@ self.onmessage = (e: MessageEvent<MesherRequest>) => {
     case 'icons':
       applyIcons(m.icons);
       break;
+    case 'colormaps':
+      ColorizerGrass.setGrassBiomeColorizer(m.grass);
+      ColorizerFoliage.setFoliageBiomeColorizer(m.foliage);
+      break;
     case 'settings':
       applySettings(m.settings);
       break;

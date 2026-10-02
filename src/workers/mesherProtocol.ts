@@ -9,6 +9,7 @@ export interface MesherSettings {
 export type MesherRequest =
   | { type: 'init'; icons: IconTable; grass: Int32Array; foliage: Int32Array; settings: MesherSettings }
   | { type: 'icons'; icons: IconTable }
+  | { type: 'colormaps'; grass: Int32Array; foliage: Int32Array }
   | { type: 'settings'; settings: MesherSettings }
   | { type: 'mesh'; id: number; snap: SectionSnapshot };
 

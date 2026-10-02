@@ -137,10 +137,13 @@ export class RenderGlobal implements IWorldAccess {
     this.mesherReady = true;
   }
 
-  /** New atlas layout after a texture pack switch. */
+  /** New atlas layout and colormaps after a texture pack switch. */
   onTexturesReloaded(): void {
     const icons = this.mc.renderEngine.textureMapBlocks.getIconTable();
-    for (const w of this.workers) w.worker.postMessage({ type: 'icons', icons } satisfies MesherRequest);
+    for (const w of this.workers) {
+      w.worker.postMessage({ type: 'icons', icons } satisfies MesherRequest);
+      w.worker.postMessage({ type: 'colormaps', grass: ColorizerGrass.buffer.slice(), foliage: ColorizerFoliage.buffer.slice() } satisfies MesherRequest);
+    }
     this.markAllDirty();
   }
 

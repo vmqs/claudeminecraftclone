@@ -1,6 +1,7 @@
 import { Block } from '../block/Block';
 import { Material } from '../block/Material';
 import type { Minecraft } from '../client/Minecraft';
+import { MouseFilter } from '../client/MouseFilter';
 import { MathHelper } from '../core/MathHelper';
 import { MovingObjectPosition } from '../core/MovingObjectPosition';
 import { Vec3 } from '../core/Vec3';
@@ -35,6 +36,13 @@ export class EntityRenderer {
   private thirdPersonDistanceTemp = 4;
   private camRoll = 0;
   private prevCamRoll = 0;
+  private readonly mouseFilterXAxis = new MouseFilter();
+  private readonly mouseFilterYAxis = new MouseFilter();
+  private smoothCamYaw = 0;
+  private smoothCamPitch = 0;
+  private smoothCamFilterX = 0;
+  private smoothCamFilterY = 0;
+  private smoothCamPartialTicks = 0;
   lightmapTexture: WebGLTexture;
   private readonly lightmapColors = new Uint8Array(256 * 4);
   private fovModifierHand = 0;
@@ -66,6 +74,15 @@ export class EntityRenderer {
     this.fogColor2 = this.fogColor1;
     this.thirdPersonDistanceTemp = this.thirdPersonDistance;
     this.prevCamRoll = this.camRoll;
+    if (this.mc.gameSettings.smoothCamera) {
+      const s = f(f(this.mc.gameSettings.mouseSensitivity * f(0.6)) + f(0.2));
+      const k = f(f(f(s * s) * s) * 8);
+      this.smoothCamFilterX = this.mouseFilterXAxis.smooth(this.smoothCamYaw, f(f(0.05) * k));
+      this.smoothCamFilterY = this.mouseFilterYAxis.smooth(this.smoothCamPitch, f(f(0.05) * k));
+      this.smoothCamPartialTicks = 0;
+      this.smoothCamYaw = 0;
+      this.smoothCamPitch = 0;
+    }
     const view = this.mc.renderViewEntity!;
     const w = this.mc.theWorld!;
     const light = w.getLightBrightness(MathHelper.floor_double(view.posX), MathHelper.floor_double(view.posY), MathHelper.floor_double(view.posZ));
@@ -344,13 +361,22 @@ export class EntityRenderer {
     } else {
       this.prevFrameTime = performance.now();
     }
-    if (this.mc.inGameHasFocus) {
+    if (this.mc.inGameHasFocus && active) {
       this.mc.mouseHelper.mouseXYChange();
       const s = f(f(this.mc.gameSettings.mouseSensitivity * f(0.6)) + f(0.2));
       const k = f(f(f(s * s) * s) * 8);
-      const dx = f(this.mc.mouseHelper.deltaX * k);
-      const dy = f(this.mc.mouseHelper.deltaY * k);
+      let dx = f(this.mc.mouseHelper.deltaX * k);
+      let dy = f(this.mc.mouseHelper.deltaY * k);
       const invert = this.mc.gameSettings.invertMouse ? -1 : 1;
+      if (this.mc.gameSettings.smoothCamera) {
+        // The movement is collected here and released by the per-tick filter in updateRenderer.
+        this.smoothCamYaw = f(this.smoothCamYaw + dx);
+        this.smoothCamPitch = f(this.smoothCamPitch + dy);
+        const step = f(pt - this.smoothCamPartialTicks);
+        this.smoothCamPartialTicks = pt;
+        dx = f(this.smoothCamFilterX * step);
+        dy = f(this.smoothCamFilterY * step);
+      }
       this.mc.thePlayer!.setAngles(dx, dy * invert);
     }
     if (this.mc.skipRenderWorld) return;

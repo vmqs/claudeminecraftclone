@@ -19,8 +19,12 @@ function shouldSuppress(e: KeyboardEvent): boolean {
   return true;
 }
 
-/** Character for Keyboard.getEventCharacter (LWJGL style: '\0' for keys without one). */
+/**
+ * Character for Keyboard.getEventCharacter (LWJGL style: '\0' for keys without one). Ctrl
+ * (or Cmd) with a letter gives the control character LWJGL reports (Ctrl+A = 0x01, ...).
+ */
 function eventChar(e: KeyboardEvent): string {
+  if ((e.ctrlKey || e.metaKey) && /^[a-z]$/i.test(e.key)) return String.fromCharCode(e.key.toUpperCase().charCodeAt(0) & 0x1f);
   if (e.key.length === 1) return e.key;
   switch (e.key) {
     case 'Enter':
@@ -53,7 +57,10 @@ export function installInput(host: InputHost): void {
   window.addEventListener('keydown', (e) => {
     const key = keyCodeFromEvent(e);
     if (shouldSuppress(e)) e.preventDefault();
-    Keyboard.push({ key, state: true, char: eventChar(e), repeat: e.repeat });
+    let char = eventChar(e);
+    // The clipboard text only arrives with the paste event that follows: Ctrl+V is typed then.
+    if (char === '\x16') char = '\0';
+    Keyboard.push({ key, state: true, char, repeat: e.repeat });
   });
   window.addEventListener('keyup', (e) => {
     const key = keyCodeFromEvent(e);
@@ -62,6 +69,8 @@ export function installInput(host: InputHost): void {
   });
   window.addEventListener('paste', (e) => {
     GuiScreen.clipboard = e.clipboardData?.getData('text/plain') ?? '';
+    Keyboard.push({ key: 0, state: true, char: '\x16', repeat: false });
+    Keyboard.push({ key: 0, state: false, char: '\0', repeat: false });
   });
 
   canvas.addEventListener('mousedown', (e) => {

@@ -34,7 +34,7 @@ agent resumes from the first item that is not marked done or skipped. Status val
 | m2 | shot.mjs preview port from --url; interact.json sideHit offset | done |
 | m3 | Main menu: Multiplayer/Language disabled, Quit Game must not kill the page | done |
 | m4 | Fog distance uses abs(eye.z) like fixed-function GL | done |
-| m5 | Texture pack switch reloads grass/foliage colormaps and sends them to meshers | todo |
+| m5 | Texture pack switch reloads grass/foliage colormaps and sends them to meshers | done (GuiTexturePacks itself left to the GUI agent, see m13) |
 | m6 | Chunk streaming hotspots (dirty set, per-frame scans, allocations) | done (dirty/geometry sets, partial selection instead of per-frame sort; no real-GPU profile possible here) |
 | m7 | F3 "C:" counts like 1.5.2 | done |
 | m8 | Extension points documented in ARCHITECTURE.md | todo |
@@ -48,8 +48,8 @@ agent resumes from the first item that is not marked done or skipped. Status val
 | m16 | Render distance change applies without crossing a chunk border | done |
 | m17 | Video Settings title at y=20 | done |
 | m18 | "Building terrain" screen has no progress bar | done |
-| m19 | Ctrl+A/C/X/V in text fields | todo |
-| m20 | Smooth camera (F8) MouseFilter, mouse look gated on focus | todo |
+| m19 | Ctrl+A/C/X/V in text fields | done (GuiTextField selection port) |
+| m20 | Smooth camera (F8) MouseFilter, mouse look gated on focus | done |
 | m21 | Pause menu Achievements/Statistics/LAN enabled (no-op) | done |
 | m22 | TextureMap doc vs code (tile size) | todo |
 | m23 | Final docs: ARCHITECTURE.md / TESTING.md reflect reality | todo |

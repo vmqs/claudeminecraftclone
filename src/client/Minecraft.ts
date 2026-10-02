@@ -150,10 +150,7 @@ export class Minecraft implements SettingsListener {
     const splashes = await rm.getText('title/splashes.txt');
     if (splashes) GuiMainMenu.splashes = splashes.split(/\r?\n/).map((s) => s.trim()).filter((s) => s.length > 0);
     await this.fontRenderer.readFontData(rm);
-    const grass = await this.renderEngine.getTextureContents('/misc/grasscolor.png');
-    if (grass) ColorizerGrass.setGrassBiomeColorizer(rgbaToIntBuffer(grass.data));
-    const foliage = await this.renderEngine.getTextureContents('/misc/foliagecolor.png');
-    if (foliage) ColorizerFoliage.setFoliageBiomeColorizer(rgbaToIntBuffer(foliage.data));
+    await this.loadColormaps();
     this.sndManager.init();
 
     this.renderEngine.textureMapBlocks.registrars.push((reg) => {
@@ -184,13 +181,21 @@ export class Minecraft implements SettingsListener {
     this.renderGlobal.initMeshers();
     this.renderEngine.reloadListeners.push(() => {
       RenderBlocks.missingIcon = this.renderEngine.textureMapBlocks.getMissingIcon();
-      this.renderGlobal.onTexturesReloaded();
+      void this.loadColormaps().then(() => this.renderGlobal.onTexturesReloaded());
     });
     this.entityRenderer = new EntityRenderer(this);
     this.effectRenderer = new EffectRenderer(null, this.renderEngine);
     this.ingameGUI = new GuiIngame(this);
     this.started = true;
     this.displayGuiScreen(new GuiMainMenu());
+  }
+
+  /** Grass and foliage colormaps (ColorizerGrass/Foliage), which a texture pack may replace. */
+  private async loadColormaps(): Promise<void> {
+    const grass = await this.renderEngine.getTextureContents('/misc/grasscolor.png');
+    if (grass) ColorizerGrass.setGrassBiomeColorizer(rgbaToIntBuffer(grass.data));
+    const foliage = await this.renderEngine.getTextureContents('/misc/foliagecolor.png');
+    if (foliage) ColorizerFoliage.setFoliageBiomeColorizer(rgbaToIntBuffer(foliage.data));
   }
 
   private setupGLState(): void {
