@@ -21,4 +21,4 @@ A restarted agent continues from the first item not marked done. Status: todo / 
 | 15 | Player interaction: interactWith, riding/dismount, creative rules | done |
 | 16 | EntityItem / RenderItem review vs 1.5.2 | done (matched vanilla capture) |
 | 17 | Dev hooks + scripts/scenarios/entities.json + screenshots vs reference | done (TNT crater 55-65 air vs vanilla 67, same single-layer shape) |
-| 18 | Final report | wip |
+| 18 | Final report | done |
