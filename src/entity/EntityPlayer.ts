@@ -31,6 +31,8 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
   experienceTotal = 0;
   /** Progress towards the next level, 0..1. */
   experience = 0;
+  /** The bobber of this player's cast fishing rod (EntityFishHook), if any. */
+  fishEntity: Entity | null = null;
   /** Ticks until the next experience orb can be collected. */
   xpCooldown = 0;
   /** ticksExisted of the last level-up sound (field_82249_h). */

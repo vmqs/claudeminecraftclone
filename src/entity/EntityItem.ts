@@ -21,7 +21,7 @@ export class EntityItem extends Entity {
   delayBeforeCanPickup = 0;
   private health = 5;
   /** Bobbing phase of the renderer. */
-  readonly hoverStart = f(Math.random() * Math.PI * 2);
+  hoverStart = f(Math.random() * Math.PI * 2);
   private stack: ItemStack | null = null;
 
   constructor(world: World, x?: number, y?: number, z?: number, stack?: ItemStack) {
