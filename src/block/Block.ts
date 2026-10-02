@@ -5,6 +5,7 @@ import { MovingObjectPosition } from '../core/MovingObjectPosition';
 import type { Vec3 } from '../core/Vec3';
 import type { Entity } from '../entity/Entity';
 import type { EntityLiving } from '../entity/EntityLiving';
+import { EntityList } from '../entity/EntityList';
 import type { EntityPlayer } from '../entity/EntityPlayer';
 import type { CreativeTabs } from '../item/CreativeTabs';
 import { Item } from '../item/Item';
@@ -13,8 +14,10 @@ import type { Icon, IconRegister } from '../render/texture/Icon';
 import type { IBlockAccess } from '../world/IBlockAccess';
 import type { IWorld } from '../world/IWorld';
 import type { Explosion } from '../world/Explosion';
+import type { World } from '../world/World';
 import { Material } from './Material';
 import { StepSounds, type StepSound } from './StepSound';
+import { HarvestModifiers, noteHarvest } from './HarvestModifiers';
 
 /**
  * Block base class with the 1.5.2 (MCP) API. Instances are created once in
@@ -51,7 +54,8 @@ export class Block {
   stepSound: StepSound = StepSounds.soundPowderFootstep;
   blockParticleGravity = 1;
   slipperiness = 0.6;
-  private unlocalizedName = '';
+  /** null until setUnlocalizedName, like the original ("tile.null"). */
+  private unlocalizedName: string | null = null;
   protected blockIcon: Icon | null = null;
   private displayOnCreativeTab: CreativeTabs | null = null;
 
@@ -64,7 +68,8 @@ export class Block {
     Block.blocksList[id] = this;
     this.setBlockBounds(0, 0, 0, 1, 1, 1);
     // Note: subclass overrides of isOpaqueCube() are already active here (as in Java).
-    Block.opaqueCubeLookup[id] = this.isOpaqueCube();
+    // Subclass fields are not initialised yet (as in Java), so overrides that read them see undefined.
+    Block.opaqueCubeLookup[id] = !!this.isOpaqueCube();
     Block.lightOpacity[id] = this.isOpaqueCube() ? 255 : 0;
     Block.canBlockGrass[id] = !material.getCanBlockGrass();
   }
@@ -110,7 +115,7 @@ export class Block {
     this.enableStats = false;
     return this;
   }
-  setCreativeTab(tab: CreativeTabs): this {
+  setCreativeTab(tab: CreativeTabs | null): this {
     this.displayOnCreativeTab = tab;
     return this;
   }
@@ -132,6 +137,47 @@ export class Block {
     return b !== null && b.blockMaterial.isOpaque() && b.renderAsNormalBlock() && !b.canProvidePower();
   }
 
+  /**
+   * World.isBlockIndirectlyGettingPowered. Redstone logic is out of scope, so this is false
+   * unless a world provides it; blocks only react to power when {@link hasRedstone} is true.
+   */
+  static isPowered(w: IWorld, x: number, y: number, z: number): boolean {
+    return w.isBlockIndirectlyGettingPowered?.(x, y, z) ?? false;
+  }
+
+  /** Whether the world simulates redstone power at all (see {@link isPowered}). */
+  static hasRedstone(w: IWorld): boolean {
+    return typeof w.isBlockIndirectlyGettingPowered === 'function';
+  }
+
+  /** A game rule of the world (doTileDrops, mobGriefing, ...); `def` when the world has none. */
+  static getGameRule(w: IWorld, name: string, def = true): boolean {
+    const rules = (w as unknown as { worldInfo?: { gameRules?: Record<string, boolean> } }).worldInfo?.gameRules;
+    return rules && name in rules ? rules[name] : def;
+  }
+
+  /** The 4-way direction an entity faces: floor(yaw * 4 / 360 + offset) & 3 (0 south, 1 west, 2 north, 3 east). */
+  static yawToDirection(e: { rotationYaw: number }, offset = 0.5): number {
+    return Math.floor(Math.fround(Math.fround(e.rotationYaw * 4) / 360) + offset) & 3;
+  }
+
+  /**
+   * Spawns an item entity with a given motion (the scatter of container contents when a chest,
+   * furnace or dispenser breaks); falls back to the plain drop when the world cannot create one.
+   */
+  static spawnItemWithMotion(w: IWorld, x: number, y: number, z: number, stack: ItemStack, mx: number, my: number, mz: number): void {
+    if (w.isRemote) return;
+    const e = w.createItemEntity?.(x, y, z, stack) ?? null;
+    if (!e) {
+      w.dropItemStack(x, y, z, stack);
+      return;
+    }
+    e.motionX = mx;
+    e.motionY = my;
+    e.motionZ = mz;
+    w.spawnEntityInWorld(e);
+  }
+
   static isAssociatedBlockID(a: number, b: number): boolean {
     if (a === b) return true;
     const ba = Block.blocksList[a];
@@ -139,6 +185,15 @@ export class Block {
   }
 
   // ------------------------------------------------------------------ properties
+
+  /** The blockHardness field (stairs and walls copy their model block's values). */
+  getRawHardness(): number {
+    return this.blockHardness;
+  }
+  /** The blockResistance field (3x the value given to setResistance). */
+  getRawResistance(): number {
+    return this.blockResistance;
+  }
 
   renderAsNormalBlock(): boolean {
     return true;
@@ -224,10 +279,10 @@ export class Block {
     return this.blockResistance / 5;
   }
   getUnlocalizedName(): string {
-    return 'tile.' + this.unlocalizedName;
+    return 'tile.' + (this.unlocalizedName ?? 'null');
   }
   getUnlocalizedName2(): string {
-    return this.unlocalizedName;
+    return this.unlocalizedName ?? 'null';
   }
   getLocalizedName(): string {
     return I18n.translateToLocal(this.getUnlocalizedName() + '.name');
@@ -317,7 +372,7 @@ export class Block {
   }
 
   registerIcons(reg: IconRegister): void {
-    this.blockIcon = reg.registerIcon(this.unlocalizedName);
+    this.blockIcon = reg.registerIcon(this.getUnlocalizedName2());
   }
 
   getBlockColor(): number {
@@ -469,20 +524,59 @@ export class Block {
 
   /** Spawns an item entity at a random point inside the block. */
   protected dropBlockAsItem_do(w: IWorld, x: number, y: number, z: number, stack: ItemStack): void {
-    if (w.isRemote) return;
-    const f = 0.7;
-    const dx = w.rand.nextFloat() * f + (1 - f) * 0.5;
-    const dy = w.rand.nextFloat() * f + (1 - f) * 0.5;
-    const dz = w.rand.nextFloat() * f + (1 - f) * 0.5;
+    if (w.isRemote || !Block.getGameRule(w, 'doTileDrops')) return;
+    const fr = Math.fround;
+    const f = fr(0.7);
+    const edge = fr(1 - f) * 0.5;
+    const dx = fr(w.rand.nextFloat() * f) + edge;
+    const dy = fr(w.rand.nextFloat() * f) + edge;
+    const dz = fr(w.rand.nextFloat() * f) + edge;
     w.dropItemStack(x + dx, y + dy, z + dz, stack);
   }
 
-  protected dropXpOnBlockBreak(_w: IWorld, _x: number, _y: number, _z: number, _xp: number): void {
-    // XP orbs are survival-only; nothing to do in Creative.
+  /**
+   * Experience orbs (ores, spawners, furnaces), split like EntityXPOrb.getXPSplit. In Creative
+   * this happens when an explosion breaks the block. Uses EntityList 'XPOrb' when registered.
+   */
+  protected dropXpOnBlockBreak(w: IWorld, x: number, y: number, z: number, xp: number): void {
+    if (w.isRemote) return;
+    while (xp > 0) {
+      const split = Block.getXPSplit(xp);
+      xp -= split;
+      const e = EntityList.createEntityByName('XPOrb', w as unknown as World);
+      if (!e) return;
+      const orb = e as unknown as { setSize?(w: number, h: number): void; xpValue?: number };
+      orb.setSize?.(0.5, 0.5);
+      e.yOffset = e.height / 2;
+      e.setPosition(x + 0.5, y + 0.5, z + 0.5);
+      const fr = Math.fround;
+      e.rotationYaw = fr(Math.random() * 360);
+      e.motionX = fr(fr(Math.random() * 0.20000000298023224 - 0.10000000149011612) * 2);
+      e.motionY = fr(fr(Math.random() * 0.2) * 2);
+      e.motionZ = fr(fr(Math.random() * 0.20000000298023224 - 0.10000000149011612) * 2);
+      orb.xpValue = split;
+      w.spawnEntityInWorld(e);
+    }
   }
 
-  harvestBlock(w: IWorld, _p: EntityPlayer, x: number, y: number, z: number, meta: number): void {
-    this.dropBlockAsItem(w, x, y, z, meta, 0);
+  /** EntityXPOrb.getXPSplit: the largest orb size not above `xp`. */
+  static getXPSplit(xp: number): number {
+    for (const v of [2477, 1237, 617, 307, 149, 73, 37, 17, 7, 3]) if (xp >= v) return v;
+    return 1;
+  }
+
+  /**
+   * A player broke the block outside Creative: statistics, food exhaustion, then the drops
+   * (the block itself with Silk Touch where allowed, otherwise the normal drops with Fortune).
+   */
+  harvestBlock(w: IWorld, p: EntityPlayer, x: number, y: number, z: number, meta: number): void {
+    noteHarvest(p, this.blockID, true);
+    if (this.canSilkHarvest() && HarvestModifiers.silkTouch(p)) {
+      const stack = this.createStackedBlock(meta);
+      if (stack) this.dropBlockAsItem_do(w, x, y, z, stack);
+    } else {
+      this.dropBlockAsItem(w, x, y, z, meta, HarvestModifiers.fortune(p));
+    }
   }
 
   protected canSilkHarvest(): boolean {

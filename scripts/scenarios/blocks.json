@@ -1,0 +1,264 @@
+[
+  {
+    "goto": "?dev=1&autostart=1&seed=1&type=flat&time=6000&hotbar=1"
+  },
+  {
+    "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0",
+    "timeout": 600000
+  },
+  {
+    "eval": "(() => { const p = mc.thePlayer, w = mc.theWorld; const s0 = p.inventory.mainInventory.find(Boolean); const b = window.__b = { S: s0.constructor, B: s0.getItem().block.constructor.blocksList, w, p, ox: Math.floor(p.posX) - 15, oy: Math.floor(p.posY), oz: Math.floor(p.posZ) + 4 }; b.set = (x, y, z, id, meta = 0, flags = 2) => w.setBlock(b.ox + x, b.oy + y, b.oz + z, id, meta, flags); b.id = (x, y, z) => w.getBlockId(b.ox + x, b.oy + y, b.oz + z); b.meta = (x, y, z) => w.getBlockMetadata(b.ox + x, b.oy + y, b.oz + z); b.te = (x, y, z) => w.getBlockTileEntity(b.ox + x, b.oy + y, b.oz + z); b.view = (x, y, z, yaw, pitch) => { mc.dev.setTime(6000); mc.dev.tp(b.ox + x, b.oy + y, b.oz + z, yaw, pitch); mc.dev.setFlying(true); mc.dev.ticks(1); }; b.aim = (x, y, z, ty = 0.5) => { const dy = 1.62 - (y + ty); b.view(x + 0.5, 0, z - 2.5, 0, Math.atan2(dy, 3) * 180 / Math.PI); }; b.hold = (id, dmg = 0, n = 1) => { p.inventory.mainInventory[0] = new b.S(id, n, dmg); mc.dev.select(0); }; b.target = () => { const m = mc.objectMouseOver; return m ? [m.blockX - b.ox, m.blockY - b.oy, m.blockZ - b.oz, m.sideHit] : null; }; b.entities = (name) => w.loadedEntityList.filter((e) => e.constructor.name === name).length; mc.dev.setFlying(true); return { ox: b.ox, oy: b.oy, oz: b.oz }; })()"
+  },
+  {
+    "eval": "(() => { const b = window.__b, B = b.B; for (let x = -2; x < 38; x++) for (let z = -2; z < 22; z++) { b.set(x, -2, z, 1); b.set(x, -1, z, 1); for (let y = 0; y < 5; y++) b.set(x, y, z, 0); } const floor = { 6: 2, 31: 2, 32: 12, 37: 2, 38: 2, 39: 110, 40: 110, 59: 60, 81: 12, 83: 12, 104: 60, 105: 60, 111: 9, 115: 88, 141: 60, 142: 60 }; const meta = { 31: 1, 35: 14, 44: 0, 50: 5, 59: 7, 75: 5, 76: 5, 78: 3, 104: 7, 105: 7, 115: 3, 140: 1, 141: 7, 142: 7, 144: 1, 17: 0, 18: 0, 63: 4, 92: 2, 125: 1, 126: 1 }; const wall = new Set([65, 68, 69, 77, 96, 106, 127, 131, 143]); const skip = new Set([34, 36, 90]); const out = []; for (let id = 1; id <= 158; id++) { const i = id - 1, x = (i % 16) * 2, z = ((i / 16) | 0) * 2; if (skip.has(id) || !B[id]) continue; if (id >= 8 && id <= 11) { b.set(x, -2, z, 1); b.set(x, -1, z, id); out.push(id); continue; } if (floor[id] !== undefined) b.set(x, -1, z, floor[id]); if (id === 83) b.set(x + 1, -1, z, 9); let m = meta[id] ?? 0; if (wall.has(id)) { b.set(x, 0, z + 1, id === 127 ? 17 : 1, id === 127 ? 3 : 0); m = B[id].onBlockPlaced(b.w, b.ox + x, b.oy, b.oz + z, 2, 0.5, 0.5, 1, 0); if (id === 68) m = 2; } if (id === 64 || id === 71) { b.set(x, 0, z, id, 1); b.set(x, 1, z, id, 8); continue; } if (id === 26) { b.set(x, 0, z, id, 0); b.set(x, 0, z + 1, id, 8); continue; } if (id === 29 || id === 33) { b.set(x, 0, z, id, 1 | 8); b.set(x, 1, z, 34, 1 | (id === 29 ? 8 : 0)); continue; } if (id === 54) { b.set(x, 0, z, id, 2); b.set(x + 1, 0, z, id, 2); continue; } b.set(x, 0, z, id, m); if (id === 63) { const t = b.te(x, 0, z); if (t) t.signText = ['Minecraft', '1.5.2', 'block', 'gallery']; } if (id === 144) { const t = b.te(x, 0, z); if (t && t.setSkullType) t.setSkullType(3, ''); } out.push(id); } const px = 34, pz = 8; for (let i = -1; i <= 2; i++) { b.set(px, -1, pz + i, 49); b.set(px, 3, pz + i, 49); } for (let j = 0; j < 3; j++) { b.set(px, j, pz - 1, 49); b.set(px, j, pz + 2, 49); b.set(px, j, pz, 0); b.set(px, j, pz + 1, 0); } b.set(px, 0, pz, 51, 0, 3); const portal = [b.id(px, 0, pz), b.id(px, 2, pz + 1)]; return { placed: out.length, portal, expectPortal: [90, 90] }; })()"
+  },
+  {
+    "ticks": 2
+  },
+  {
+    "eval": "window.__b.view(15.5, 9, -7, 0, 42)"
+  },
+  {
+    "waitFor": "mc.dev.pendingSections(3) === 0",
+    "timeout": 120000
+  },
+  {
+    "wait": 700
+  },
+  {
+    "shot": "blocks_gallery_overview.png"
+  },
+  {
+    "eval": "window.__b.view(15.5, 3, -2.5, 0, 28)"
+  },
+  {
+    "waitFor": "mc.dev.pendingSections(3) === 0",
+    "timeout": 120000
+  },
+  {
+    "wait": 700
+  },
+  {
+    "shot": "blocks_gallery_rows_0_4.png"
+  },
+  {
+    "eval": "window.__b.view(15.5, 3, 7.5, 0, 28)"
+  },
+  {
+    "waitFor": "mc.dev.pendingSections(3) === 0",
+    "timeout": 120000
+  },
+  {
+    "wait": 700
+  },
+  {
+    "shot": "blocks_gallery_rows_5_9.png"
+  },
+  {
+    "eval": "window.__b.view(7.5, 2.2, -3.5, 0, 30)"
+  },
+  {
+    "waitFor": "mc.dev.pendingSections(3) === 0",
+    "timeout": 120000
+  },
+  {
+    "wait": 700
+  },
+  {
+    "shot": "blocks_ids_1_32_a.png"
+  },
+  {
+    "eval": "window.__b.view(23.5, 2.2, -3.5, 0, 30)"
+  },
+  {
+    "waitFor": "mc.dev.pendingSections(3) === 0",
+    "timeout": 120000
+  },
+  {
+    "wait": 700
+  },
+  {
+    "shot": "blocks_ids_1_32_b.png"
+  },
+  {
+    "eval": "window.__b.view(7.5, 2.2, 0.5, 0, 30)"
+  },
+  {
+    "waitFor": "mc.dev.pendingSections(3) === 0",
+    "timeout": 120000
+  },
+  {
+    "wait": 700
+  },
+  {
+    "shot": "blocks_ids_33_64_a.png"
+  },
+  {
+    "eval": "window.__b.view(23.5, 2.2, 0.5, 0, 30)"
+  },
+  {
+    "waitFor": "mc.dev.pendingSections(3) === 0",
+    "timeout": 120000
+  },
+  {
+    "wait": 700
+  },
+  {
+    "shot": "blocks_ids_33_64_b.png"
+  },
+  {
+    "eval": "window.__b.view(7.5, 2.2, 4.5, 0, 30)"
+  },
+  {
+    "waitFor": "mc.dev.pendingSections(3) === 0",
+    "timeout": 120000
+  },
+  {
+    "wait": 700
+  },
+  {
+    "shot": "blocks_ids_65_96_a.png"
+  },
+  {
+    "eval": "window.__b.view(23.5, 2.2, 4.5, 0, 30)"
+  },
+  {
+    "waitFor": "mc.dev.pendingSections(3) === 0",
+    "timeout": 120000
+  },
+  {
+    "wait": 700
+  },
+  {
+    "shot": "blocks_ids_65_96_b.png"
+  },
+  {
+    "eval": "window.__b.view(7.5, 2.2, 8.5, 0, 30)"
+  },
+  {
+    "waitFor": "mc.dev.pendingSections(3) === 0",
+    "timeout": 120000
+  },
+  {
+    "wait": 700
+  },
+  {
+    "shot": "blocks_ids_97_128_a.png"
+  },
+  {
+    "eval": "window.__b.view(23.5, 2.2, 8.5, 0, 30)"
+  },
+  {
+    "waitFor": "mc.dev.pendingSections(3) === 0",
+    "timeout": 120000
+  },
+  {
+    "wait": 700
+  },
+  {
+    "shot": "blocks_ids_97_128_b.png"
+  },
+  {
+    "eval": "window.__b.view(7.5, 2.2, 12.5, 0, 30)"
+  },
+  {
+    "waitFor": "mc.dev.pendingSections(3) === 0",
+    "timeout": 120000
+  },
+  {
+    "wait": 700
+  },
+  {
+    "shot": "blocks_ids_129_160_a.png"
+  },
+  {
+    "eval": "window.__b.view(23.5, 2.2, 12.5, 0, 30)"
+  },
+  {
+    "waitFor": "mc.dev.pendingSections(3) === 0",
+    "timeout": 120000
+  },
+  {
+    "wait": 700
+  },
+  {
+    "shot": "blocks_ids_129_160_b.png"
+  },
+  {
+    "eval": "window.__b.view(30.5, 1, 9, -90, 5)"
+  },
+  {
+    "waitFor": "mc.dev.pendingSections(3) === 0",
+    "timeout": 120000
+  },
+  {
+    "wait": 700
+  },
+  {
+    "shot": "blocks_portal.png"
+  },
+  {
+    "eval": "(() => { const b = window.__b, r = {}; const row = 24; for (let x = -2; x < 34; x++) for (let z = row - 3; z < row + 3; z++) { b.set(x, -1, z, 1); for (let y = 0; y < 3; y++) b.set(x, y, z, 0); } b.set(0, 0, row, 64, 1); b.set(0, 1, row, 64, 8); b.aim(0, 0, row); mc.dev.click(1); r.door = { target: b.target(), meta: b.meta(0, 0, row), expect: 5 }; b.set(3, 0, row + 1, 1); b.set(3, 0, row, 96, 0); b.aim(3, 0, row, 0.1); mc.dev.click(1); r.trapdoor = { meta: b.meta(3, 0, row), expect: 4 }; b.set(6, 0, row, 107, 0); b.aim(6, 0, row); mc.dev.click(1); r.gate = { meta: b.meta(6, 0, row), expectOpenBit: 4 }; b.set(9, 0, row, 69, 5); b.aim(9, 0, row, 0.2); mc.dev.click(1); r.lever = { meta: b.meta(9, 0, row), expect: 13 }; b.set(12, 0, row + 1, 1); b.set(12, 0, row, 77, 4); b.aim(12, 0, row, 0.62); mc.dev.click(1); const pressed = b.meta(12, 0, row); mc.dev.ticks(21); r.button = { pressed, released: b.meta(12, 0, row), expect: [12, 4] }; b.set(15, 0, row, 25); b.aim(15, 0, row); mc.dev.click(1); mc.dev.click(1); r.note = { note: b.te(15, 0, row)?.note, expect: 2 }; b.set(18, 0, row, 92); b.aim(18, 0, row, 0.25); mc.dev.click(1); r.cake = { meta: b.meta(18, 0, row), expect: 0 }; b.set(21, 0, row, 54, 2); b.set(22, 0, row, 54, 2); b.aim(21, 0, row, 0.4); mc.dev.click(1); const scr = mc.currentScreen; r.chest = { screen: scr && scr.constructor.name, size: scr && scr.lowerChestInventory ? scr.lowerChestInventory.getSizeInventory() : null }; if (mc.currentScreen) mc.displayGuiScreen(null); b.set(25, 0, row, 73); b.aim(25, 0, row); mc.dev.click(1); r.redstoneOre = { id: b.id(25, 0, row), expect: 74 }; b.set(28, 0, row, 122); b.aim(28, 0, row); mc.dev.click(1); r.dragonEgg = { stillThere: b.id(28, 0, row) === 122, expect: false }; return r; })()"
+  },
+  {
+    "eval": "window.__b.view(15.5, 2.5, 19, 0, 25)"
+  },
+  {
+    "waitFor": "mc.dev.pendingSections(3) === 0",
+    "timeout": 120000
+  },
+  {
+    "wait": 700
+  },
+  {
+    "shot": "blocks_interactions.png"
+  },
+  {
+    "eval": "(() => { const b = window.__b, r = {}; const row = 28; for (let x = -2; x < 34; x++) for (let z = row - 3; z < row + 3; z++) { b.set(x, -1, z, 1); for (let y = 0; y < 3; y++) b.set(x, y, z, 0); } const place = (x, id, dmg = 0) => { b.hold(id, dmg, 64); b.aim(x, -1, row, 1); mc.dev.click(1); return [b.id(x, 0, row), b.meta(x, 0, row)]; }; r.stairs = { got: place(0, 53), expect: [53, 2] }; r.slab = { got: place(3, 44, 3), expect: [44, 3] }; b.aim(3, 0, row, 0.5); mc.dev.click(1); r.doubleSlab = { got: [b.id(3, 0, row), b.meta(3, 0, row)], expect: [43, 3] }; r.furnace = { got: place(6, 61), expect: [61, 2] }; r.piston = { got: place(9, 33), expect: [33, 2] }; r.log = { got: place(12, 17, 2), expect: [17, 2] }; r.wool = { got: place(15, 35, 11), expect: [35, 11] }; r.pumpkin = { got: place(18, 86), expect: [86, 2] }; r.chest = { got: place(21, 54), expect: [54, 2] }; r.anvil = { got: place(24, 145, 1), expect: [145, 7] }; r.torch = { got: place(27, 50), expect: [50, 5] }; const pick = (x, y, z, ty) => { b.aim(x, y, z, ty); mc.dev.click(2); const s = b.p.inventory.getCurrentItem(); return s ? [s.itemID, s.getItemDamage()] : null; }; r.pickWool = { got: pick(15, 0, row), expect: [35, 11] }; r.pickSlab = { got: pick(3, 0, row), expect: [44, 3] }; r.pickLog = { got: pick(12, 0, row), expect: [17, 2] }; return r; })()"
+  },
+  {
+    "eval": "window.__b.view(15.5, 2.5, 23, 0, 25)"
+  },
+  {
+    "waitFor": "mc.dev.pendingSections(3) === 0",
+    "timeout": 120000
+  },
+  {
+    "wait": 700
+  },
+  {
+    "shot": "blocks_placement.png"
+  },
+  {
+    "eval": "window.__b.view(5.5, 1, -1.5, 0, 15)"
+  },
+  {
+    "waitFor": "mc.dev.pendingSections(3) === 0",
+    "timeout": 120000
+  },
+  {
+    "wait": 700
+  },
+  {
+    "shot": "blocks_leaves_fancy.png"
+  },
+  {
+    "eval": "(() => { const g = mc.gameSettings; g.fancyGraphics = !g.fancyGraphics; mc.renderGlobal.loadRenderers(); return { fancy: g.fancyGraphics }; })()"
+  },
+  {
+    "eval": "window.__b.view(5.5, 1, -1.5, 0, 15)"
+  },
+  {
+    "waitFor": "mc.dev.pendingSections(3) === 0",
+    "timeout": 600000
+  },
+  {
+    "wait": 700
+  },
+  {
+    "shot": "blocks_leaves_fast.png"
+  },
+  {
+    "eval": "(() => { const g = mc.gameSettings; g.fancyGraphics = !g.fancyGraphics; mc.renderGlobal.loadRenderers(); return { fancy: g.fancyGraphics }; })()"
+  }
+]

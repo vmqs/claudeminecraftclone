@@ -61,6 +61,42 @@ export class TileEntity {
   /** Ticked every game tick while loaded. */
   updateEntity(): void {}
 
+  /** The class registered for a 1.5.2 savegame id (TileEntity.nameToClassMap), or undefined. */
+  static getClassForId(id: string): TileEntityConstructor | undefined {
+    return TileEntity.nameToClassMap.get(id);
+  }
+
+  /** The savegame id of a tile entity class (classToNameMap), or undefined. */
+  static getIdForClass(cls: TileEntityConstructor): string | undefined {
+    return TileEntity.classToNameMap.get(cls);
+  }
+
+  /** Every registered savegame id, in registration order. */
+  static getRegisteredIds(): string[] {
+    return [...TileEntity.nameToClassMap.keys()];
+  }
+
+  /** A new, empty tile entity for a savegame id ('Chest', 'Furnace', ...), or null for unknown ids. */
+  static createTileEntity(id: string): TileEntity | null {
+    const cls = TileEntity.nameToClassMap.get(id);
+    return cls ? new cls() : null;
+  }
+
+  /**
+   * A tile entity from a world-generation descriptor (the NBT-like object writeToNBT produces:
+   * `{id: 'Chest', x, y, z, Items: [{Slot, id, Count, Damage}]}`, `{id: 'MobSpawner', EntityId, ...}`).
+   */
+  static fromDescriptor(desc: TagCompound): TileEntity | null {
+    return TileEntity.createAndLoadEntity(desc);
+  }
+
+  /** The descriptor of this tile entity (writeToNBT into a fresh object). */
+  toDescriptor(): TagCompound {
+    const tag: TagCompound = {};
+    this.writeToNBT(tag);
+    return tag;
+  }
+
   /** createAndLoadEntity: a new tile entity from a descriptor, or null for unknown ids. */
   static createAndLoadEntity(tag: TagCompound): TileEntity | null {
     const cls = TileEntity.nameToClassMap.get(String(tag.id));

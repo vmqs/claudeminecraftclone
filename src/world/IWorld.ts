@@ -1,6 +1,7 @@
 import type { JavaRandom } from '../core/JavaRandom';
 import type { AxisAlignedBB } from '../core/AxisAlignedBB';
 import type { Entity } from '../entity/Entity';
+import type { EntityPlayer } from '../entity/EntityPlayer';
 import type { ItemStack } from '../item/ItemStack';
 import type { EnumSkyBlock, IBlockAccess } from './IBlockAccess';
 import type { TileEntity } from './tileentity/TileEntity';
@@ -30,11 +31,13 @@ export interface IWorld extends IBlockAccess {
   checkChunksExist(minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number): boolean;
   doChunksNearChunkExist(x: number, y: number, z: number, radius: number): boolean;
 
-  notifyBlocksOfNeighborChange(x: number, y: number, z: number, blockId: number): void;
+  /** `exceptSide` skips the neighbour on that side (World.notifyBlocksOfNeighborChange with a side). */
+  notifyBlocksOfNeighborChange(x: number, y: number, z: number, blockId: number, exceptSide?: number): void;
   notifyBlockOfNeighborChange(x: number, y: number, z: number, blockId: number): void;
   markBlockForUpdate(x: number, y: number, z: number): void;
   markBlockRangeForRenderUpdate(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): void;
-  scheduleBlockUpdate(x: number, y: number, z: number, blockId: number, delay: number): void;
+  /** `priority` orders updates due in the same tick (func_82740_a); lower runs first. */
+  scheduleBlockUpdate(x: number, y: number, z: number, blockId: number, delay: number, priority?: number): void;
   isBlockTickScheduled(x: number, y: number, z: number, blockId: number): boolean;
 
   getBlockLightValue(x: number, y: number, z: number): number;
@@ -73,4 +76,23 @@ export interface IWorld extends IBlockAccess {
   checkNoEntityCollision(box: AxisAlignedBB, except?: Entity | null): boolean;
   /** World.canPlaceEntityOnSide: can block `blockId` be placed at (x, y, z) against `side`. */
   canPlaceEntityOnSide(blockId: number, x: number, y: number, z: number, ignoreEntities: boolean, side: number, entity: Entity | null, stack: ItemStack | null): boolean;
+
+  // Optional: what only the client World provides (block behaviour calls these with ?.).
+  /** WorldServer.addBlockEvent: queued and delivered to Block.onBlockEventReceived at the end of the tick. */
+  addBlockEvent?(x: number, y: number, z: number, blockId: number, eventId: number, param: number): void;
+  /** Level event caused by a player (doors: 1003 open, 1006 close). */
+  playAuxSFXAtEntity?(player: EntityPlayer | null, type: number, x: number, y: number, z: number, data: number): void;
+  /** A jukebox starts (or, with null, stops) a record. */
+  playRecord?(name: string | null, x: number, y: number, z: number): void;
+  isDaytime?(): boolean;
+  /** Redstone power reaching (x, y, z); absent while redstone logic is out of scope. */
+  isBlockIndirectlyGettingPowered?(x: number, y: number, z: number): boolean;
+  readonly playerEntities?: readonly EntityPlayer[];
+  getClosestPlayer?(x: number, y: number, z: number, maxDist: number): EntityPlayer | null;
+  /** Redstone: the strongest power reaching (x, y, z) through `side` (getIndirectPowerLevelTo). */
+  getIndirectPowerLevelTo?(x: number, y: number, z: number, side: number): number;
+  /** Redstone: whether (x, y, z) gives power through `side` (getIndirectPowerOutput). */
+  getIndirectPowerOutput?(x: number, y: number, z: number, side: number): boolean;
+  /** A new, not yet spawned item entity (EntityItem constructor); null when items are not installed. */
+  createItemEntity?(x: number, y: number, z: number, stack: ItemStack): Entity | null;
 }

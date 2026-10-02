@@ -123,7 +123,7 @@ export class BlockTorch extends Block {
   override randomDisplayTick(w: IWorld, x: number, y: number, z: number, _rand: JavaRandom): void {
     const m = w.getBlockMetadata(x, y, z);
     const px = x + 0.5;
-    const py = y + 0.7;
+    const py = Math.fround(y + Math.fround(0.7));
     const pz = z + 0.5;
     const up = Math.fround(0.22);
     const off = Math.fround(0.27);

@@ -4,6 +4,7 @@ import { CreativeTabs } from '../item/CreativeTabs';
 import { EnumSkyBlock, type IBlockAccess } from '../world/IBlockAccess';
 import type { IWorld } from '../world/IWorld';
 import { Block } from './Block';
+import { HarvestModifiers, noteHarvest } from './HarvestModifiers';
 import { BlockIds } from './BlockIds';
 import { BlockBreakable } from './BlockBreakable';
 import { Material } from './Material';
@@ -25,15 +26,21 @@ export class BlockIce extends BlockBreakable {
     return super.shouldSideBeRendered(w, x, y, z, 1 - side);
   }
 
+  /** Silk Touch keeps the ice; otherwise it drops nothing and leaves water over a solid or liquid block. */
   override harvestBlock(w: IWorld, p: EntityPlayer, x: number, y: number, z: number, meta: number): void {
+    noteHarvest(p, this.blockID, true);
+    if (this.canSilkHarvest() && HarvestModifiers.silkTouch(p)) {
+      const stack = this.createStackedBlock(meta);
+      if (stack) this.dropBlockAsItem_do(w, x, y, z, stack);
+      return;
+    }
     if (w.provider.isHellWorld) {
       w.setBlockToAir(x, y, z);
       return;
     }
-    this.dropBlockAsItem(w, x, y, z, meta, 0);
+    this.dropBlockAsItem(w, x, y, z, meta, HarvestModifiers.fortune(p));
     const below = w.getBlockMaterial(x, y - 1, z);
     if (below.blocksMovement() || below.isLiquid()) w.setBlock(x, y, z, BlockIds.waterMoving);
-    void p;
   }
 
   override quantityDropped(_rand: JavaRandom): number {
