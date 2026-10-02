@@ -18,8 +18,17 @@ Progress log so an interrupted run can resume. Newest last.
 ## Steps
 - [x] radial fog + client skylight quirk
 - [x] WeatherCycle (client weather view, /weather and /toggledownfall helpers, dev hooks)
-- [ ] rain/snow rendering, rain particles and sounds
-- [ ] lightning bolt entity, renderer, sky flash
-- [ ] overlays: fire, pumpkin blur, portal; vignette/water brightness quirk
-- [ ] sky/clouds/fog verification against references; fixes
-- [ ] scenario scripts/scenarios/sky.json + docs
+- [x] rain/snow rendering, rain particles and sounds
+- [x] lightning bolt entity, renderer, sky flash
+- [x] overlays: fire, pumpkin blur, portal; vignette/water brightness quirk
+- [x] potion/boss hooks (SkyHooks) for night vision, blindness, water breathing, boss darkening
+- [x] quads split along v1-v3 like Mesa (found via the mirrored sunset fan fog)
+- [x] scenario scripts/scenarios/sky.json + docs (ARCHITECTURE §6.4, §13; TESTING)
+- [ ] final verification run of sky.json against ref/extra/sky (vanilla captures of the same scenes,
+      scenarios in scratchpad vanilla/scenarios-sky/)
+
+## Verification notes
+- Vanilla captures: scratchpad `ref/extra/sky/` (sky_flat, sky_snow, sky_fluids scenarios).
+- Masked AE diff (fuzz 3%, hand + hotbar masked): clear-sky noon/zenith/midnight/fast clouds/
+  render distances within a few hundred pixels (terrain texture aliasing near the horizon only).
+  Rain/thunder sky colours within one colour step; thunder renders exactly like rain in vanilla.
