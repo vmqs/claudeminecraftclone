@@ -315,24 +315,24 @@ export class ComponentStrongholdCorridor extends ComponentStronghold {
     if (this.isLiquidInStructureBoundingBox(w, box)) {
       return false;
     } else {
-      for (let var4 = 0; var4 < this.field_74993_a; var4++) {
-        this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 0, 0, var4, box);
-        this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 1, 0, var4, box);
-        this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 2, 0, var4, box);
-        this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 3, 0, var4, box);
-        this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 4, 0, var4, box);
-        for (let var5 = 1; var5 <= 3; var5++) {
-          this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 0, var5, var4, box);
-          this.placeBlockAtCurrentPosition(w, 0, 0, 1, var5, var4, box);
-          this.placeBlockAtCurrentPosition(w, 0, 0, 2, var5, var4, box);
-          this.placeBlockAtCurrentPosition(w, 0, 0, 3, var5, var4, box);
-          this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 4, var5, var4, box);
+      for (let z = 0; z < this.field_74993_a; z++) {
+        this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 0, 0, z, box);
+        this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 1, 0, z, box);
+        this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 2, 0, z, box);
+        this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 3, 0, z, box);
+        this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 4, 0, z, box);
+        for (let y = 1; y <= 3; y++) {
+          this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 0, y, z, box);
+          this.placeBlockAtCurrentPosition(w, 0, 0, 1, y, z, box);
+          this.placeBlockAtCurrentPosition(w, 0, 0, 2, y, z, box);
+          this.placeBlockAtCurrentPosition(w, 0, 0, 3, y, z, box);
+          this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 4, y, z, box);
         }
-        this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 0, 4, var4, box);
-        this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 1, 4, var4, box);
-        this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 2, 4, var4, box);
-        this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 3, 4, var4, box);
-        this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 4, 4, var4, box);
+        this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 0, 4, z, box);
+        this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 1, 4, z, box);
+        this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 2, 4, z, box);
+        this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 3, 4, z, box);
+        this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 4, 4, z, box);
       }
       return true;
     }
@@ -377,14 +377,14 @@ export class ComponentStrongholdChestCorridor extends ComponentStronghold {
       this.placeBlockAtCurrentPosition(w, B.stoneSingleSlab, 5, 3, 1, 5, box);
       this.placeBlockAtCurrentPosition(w, B.stoneSingleSlab, 5, 3, 2, 2, box);
       this.placeBlockAtCurrentPosition(w, B.stoneSingleSlab, 5, 3, 2, 4, box);
-      for (let var4 = 2; var4 <= 4; var4++) {
-        this.placeBlockAtCurrentPosition(w, B.stoneSingleSlab, 5, 2, 1, var4, box);
+      for (let z = 2; z <= 4; z++) {
+        this.placeBlockAtCurrentPosition(w, B.stoneSingleSlab, 5, 2, 1, z, box);
       }
       if (!this.hasMadeChest) {
-        const var7 = this.getYWithOffset(2);
-        const var5 = this.getXWithOffset(3, 3);
-        const var6 = this.getZWithOffset(3, 3);
-        if (box.isVecInside(var5, var7, var6)) {
+        const i3 = this.getYWithOffset(2);
+        const i = this.getXWithOffset(3, 3);
+        const i2 = this.getZWithOffset(3, 3);
+        if (box.isVecInside(i, i3, i2)) {
           this.hasMadeChest = true;
           this.generateStructureChestContents(w, box, rand, 3, 2, 3, [...STRONGHOLD_CORRIDOR_LOOT, enchantedBookContent(rand, 1, 1, 1)], 2 + rand.nextInt(2));
         }
@@ -425,24 +425,24 @@ export class ComponentStrongholdCrossing extends ComponentStronghold {
       : null;
   }
   override buildComponent(start: StructureComponent, list: StructureComponent[], rand: JavaRandom): void {
-    let var4 = 3;
-    let var5 = 5;
+    let i = 3;
+    let i2 = 5;
     if (this.coordBaseMode === 1 || this.coordBaseMode === 2) {
-      var4 = 8 - var4;
-      var5 = 8 - var5;
+      i = 8 - i;
+      i2 = 8 - i2;
     }
     this.getNextComponentNormal(start as ComponentStrongholdStairs2, list, rand, 5, 1);
     if (this.field_74996_b) {
-      this.getNextComponentX(start as ComponentStrongholdStairs2, list, rand, var4, 1);
+      this.getNextComponentX(start as ComponentStrongholdStairs2, list, rand, i, 1);
     }
     if (this.field_74997_c) {
-      this.getNextComponentX(start as ComponentStrongholdStairs2, list, rand, var5, 7);
+      this.getNextComponentX(start as ComponentStrongholdStairs2, list, rand, i2, 7);
     }
     if (this.field_74995_d) {
-      this.getNextComponentZ(start as ComponentStrongholdStairs2, list, rand, var4, 1);
+      this.getNextComponentZ(start as ComponentStrongholdStairs2, list, rand, i, 1);
     }
     if (this.field_74999_h) {
-      this.getNextComponentZ(start as ComponentStrongholdStairs2, list, rand, var5, 7);
+      this.getNextComponentZ(start as ComponentStrongholdStairs2, list, rand, i2, 7);
     }
   }
   addComponentParts(w: IWorld, rand: JavaRandom, box: StructureBoundingBox): boolean {
@@ -560,36 +560,36 @@ export class ComponentStrongholdLibrary extends ComponentStronghold {
     if (this.isLiquidInStructureBoundingBox(w, box)) {
       return false;
     } else {
-      let var4 = 11;
+      let i = 11;
       if (!this.isLargeRoom) {
-        var4 = 6;
+        i = 6;
       }
-      this.fillWithRandomizedBlocks(w, box, 0, 0, 0, 13, var4 - 1, 14, true, rand, STRONGHOLD_STONES);
+      this.fillWithRandomizedBlocks(w, box, 0, 0, 0, 13, i - 1, 14, true, rand, STRONGHOLD_STONES);
       this.placeDoor(w, rand, box, this.doorType, 4, 1, 0);
       this.randomlyFillWithBlocks(w, box, rand, 0.07, 2, 1, 1, 11, 4, 13, B.web, B.web, false);
-      for (let var7 = 1; var7 <= 13; var7++) {
-        if ((var7 - 1) % 4 === 0) {
-          this.fillWithBlocks(w, box, 1, 1, var7, 1, 4, var7, B.planks, B.planks, false);
-          this.fillWithBlocks(w, box, 12, 1, var7, 12, 4, var7, B.planks, B.planks, false);
-          this.placeBlockAtCurrentPosition(w, B.torchWood, 0, 2, 3, var7, box);
-          this.placeBlockAtCurrentPosition(w, B.torchWood, 0, 11, 3, var7, box);
+      for (let z = 1; z <= 13; z++) {
+        if ((z - 1) % 4 === 0) {
+          this.fillWithBlocks(w, box, 1, 1, z, 1, 4, z, B.planks, B.planks, false);
+          this.fillWithBlocks(w, box, 12, 1, z, 12, 4, z, B.planks, B.planks, false);
+          this.placeBlockAtCurrentPosition(w, B.torchWood, 0, 2, 3, z, box);
+          this.placeBlockAtCurrentPosition(w, B.torchWood, 0, 11, 3, z, box);
           if (this.isLargeRoom) {
-            this.fillWithBlocks(w, box, 1, 6, var7, 1, 9, var7, B.planks, B.planks, false);
-            this.fillWithBlocks(w, box, 12, 6, var7, 12, 9, var7, B.planks, B.planks, false);
+            this.fillWithBlocks(w, box, 1, 6, z, 1, 9, z, B.planks, B.planks, false);
+            this.fillWithBlocks(w, box, 12, 6, z, 12, 9, z, B.planks, B.planks, false);
           }
         } else {
-          this.fillWithBlocks(w, box, 1, 1, var7, 1, 4, var7, B.bookShelf, B.bookShelf, false);
-          this.fillWithBlocks(w, box, 12, 1, var7, 12, 4, var7, B.bookShelf, B.bookShelf, false);
+          this.fillWithBlocks(w, box, 1, 1, z, 1, 4, z, B.bookShelf, B.bookShelf, false);
+          this.fillWithBlocks(w, box, 12, 1, z, 12, 4, z, B.bookShelf, B.bookShelf, false);
           if (this.isLargeRoom) {
-            this.fillWithBlocks(w, box, 1, 6, var7, 1, 9, var7, B.bookShelf, B.bookShelf, false);
-            this.fillWithBlocks(w, box, 12, 6, var7, 12, 9, var7, B.bookShelf, B.bookShelf, false);
+            this.fillWithBlocks(w, box, 1, 6, z, 1, 9, z, B.bookShelf, B.bookShelf, false);
+            this.fillWithBlocks(w, box, 12, 6, z, 12, 9, z, B.bookShelf, B.bookShelf, false);
           }
         }
       }
-      for (let var10 = 3; var10 < 12; var10 += 2) {
-        this.fillWithBlocks(w, box, 3, 1, var10, 4, 3, var10, B.bookShelf, B.bookShelf, false);
-        this.fillWithBlocks(w, box, 6, 1, var10, 7, 3, var10, B.bookShelf, B.bookShelf, false);
-        this.fillWithBlocks(w, box, 9, 1, var10, 10, 3, var10, B.bookShelf, B.bookShelf, false);
+      for (let z3 = 3; z3 < 12; z3 += 2) {
+        this.fillWithBlocks(w, box, 3, 1, z3, 4, 3, z3, B.bookShelf, B.bookShelf, false);
+        this.fillWithBlocks(w, box, 6, 1, z3, 7, 3, z3, B.bookShelf, B.bookShelf, false);
+        this.fillWithBlocks(w, box, 9, 1, z3, 10, 3, z3, B.bookShelf, B.bookShelf, false);
       }
       if (this.isLargeRoom) {
         this.fillWithBlocks(w, box, 1, 5, 1, 3, 5, 13, B.planks, B.planks, false);
@@ -606,34 +606,34 @@ export class ComponentStrongholdLibrary extends ComponentStronghold {
         this.placeBlockAtCurrentPosition(w, B.fence, 0, 9, 6, 11, box);
         this.placeBlockAtCurrentPosition(w, B.fence, 0, 8, 6, 11, box);
         this.placeBlockAtCurrentPosition(w, B.fence, 0, 9, 6, 10, box);
-        const var11 = this.getMetadataWithOffset(B.ladder, 3);
-        this.placeBlockAtCurrentPosition(w, B.ladder, var11, 10, 1, 13, box);
-        this.placeBlockAtCurrentPosition(w, B.ladder, var11, 10, 2, 13, box);
-        this.placeBlockAtCurrentPosition(w, B.ladder, var11, 10, 3, 13, box);
-        this.placeBlockAtCurrentPosition(w, B.ladder, var11, 10, 4, 13, box);
-        this.placeBlockAtCurrentPosition(w, B.ladder, var11, 10, 5, 13, box);
-        this.placeBlockAtCurrentPosition(w, B.ladder, var11, 10, 6, 13, box);
-        this.placeBlockAtCurrentPosition(w, B.ladder, var11, 10, 7, 13, box);
-        let var8 = 7;
-        let var9 = 7;
-        this.placeBlockAtCurrentPosition(w, B.fence, 0, var8 - 1, 9, var9, box);
-        this.placeBlockAtCurrentPosition(w, B.fence, 0, var8, 9, var9, box);
-        this.placeBlockAtCurrentPosition(w, B.fence, 0, var8 - 1, 8, var9, box);
-        this.placeBlockAtCurrentPosition(w, B.fence, 0, var8, 8, var9, box);
-        this.placeBlockAtCurrentPosition(w, B.fence, 0, var8 - 1, 7, var9, box);
-        this.placeBlockAtCurrentPosition(w, B.fence, 0, var8, 7, var9, box);
-        this.placeBlockAtCurrentPosition(w, B.fence, 0, var8 - 2, 7, var9, box);
-        this.placeBlockAtCurrentPosition(w, B.fence, 0, var8 + 1, 7, var9, box);
-        this.placeBlockAtCurrentPosition(w, B.fence, 0, var8 - 1, 7, var9 - 1, box);
-        this.placeBlockAtCurrentPosition(w, B.fence, 0, var8 - 1, 7, var9 + 1, box);
-        this.placeBlockAtCurrentPosition(w, B.fence, 0, var8, 7, var9 - 1, box);
-        this.placeBlockAtCurrentPosition(w, B.fence, 0, var8, 7, var9 + 1, box);
-        this.placeBlockAtCurrentPosition(w, B.torchWood, 0, var8 - 2, 8, var9, box);
-        this.placeBlockAtCurrentPosition(w, B.torchWood, 0, var8 + 1, 8, var9, box);
-        this.placeBlockAtCurrentPosition(w, B.torchWood, 0, var8 - 1, 8, var9 - 1, box);
-        this.placeBlockAtCurrentPosition(w, B.torchWood, 0, var8 - 1, 8, var9 + 1, box);
-        this.placeBlockAtCurrentPosition(w, B.torchWood, 0, var8, 8, var9 - 1, box);
-        this.placeBlockAtCurrentPosition(w, B.torchWood, 0, var8, 8, var9 + 1, box);
+        const ladderMeta3 = this.getMetadataWithOffset(B.ladder, 3);
+        this.placeBlockAtCurrentPosition(w, B.ladder, ladderMeta3, 10, 1, 13, box);
+        this.placeBlockAtCurrentPosition(w, B.ladder, ladderMeta3, 10, 2, 13, box);
+        this.placeBlockAtCurrentPosition(w, B.ladder, ladderMeta3, 10, 3, 13, box);
+        this.placeBlockAtCurrentPosition(w, B.ladder, ladderMeta3, 10, 4, 13, box);
+        this.placeBlockAtCurrentPosition(w, B.ladder, ladderMeta3, 10, 5, 13, box);
+        this.placeBlockAtCurrentPosition(w, B.ladder, ladderMeta3, 10, 6, 13, box);
+        this.placeBlockAtCurrentPosition(w, B.ladder, ladderMeta3, 10, 7, 13, box);
+        let x = 7;
+        let z2 = 7;
+        this.placeBlockAtCurrentPosition(w, B.fence, 0, x - 1, 9, z2, box);
+        this.placeBlockAtCurrentPosition(w, B.fence, 0, x, 9, z2, box);
+        this.placeBlockAtCurrentPosition(w, B.fence, 0, x - 1, 8, z2, box);
+        this.placeBlockAtCurrentPosition(w, B.fence, 0, x, 8, z2, box);
+        this.placeBlockAtCurrentPosition(w, B.fence, 0, x - 1, 7, z2, box);
+        this.placeBlockAtCurrentPosition(w, B.fence, 0, x, 7, z2, box);
+        this.placeBlockAtCurrentPosition(w, B.fence, 0, x - 2, 7, z2, box);
+        this.placeBlockAtCurrentPosition(w, B.fence, 0, x + 1, 7, z2, box);
+        this.placeBlockAtCurrentPosition(w, B.fence, 0, x - 1, 7, z2 - 1, box);
+        this.placeBlockAtCurrentPosition(w, B.fence, 0, x - 1, 7, z2 + 1, box);
+        this.placeBlockAtCurrentPosition(w, B.fence, 0, x, 7, z2 - 1, box);
+        this.placeBlockAtCurrentPosition(w, B.fence, 0, x, 7, z2 + 1, box);
+        this.placeBlockAtCurrentPosition(w, B.torchWood, 0, x - 2, 8, z2, box);
+        this.placeBlockAtCurrentPosition(w, B.torchWood, 0, x + 1, 8, z2, box);
+        this.placeBlockAtCurrentPosition(w, B.torchWood, 0, x - 1, 8, z2 - 1, box);
+        this.placeBlockAtCurrentPosition(w, B.torchWood, 0, x - 1, 8, z2 + 1, box);
+        this.placeBlockAtCurrentPosition(w, B.torchWood, 0, x, 8, z2 - 1, box);
+        this.placeBlockAtCurrentPosition(w, B.torchWood, 0, x, 8, z2 + 1, box);
       }
       this.generateStructureChestContents(w, box, rand, 3, 3, 5, [...STRONGHOLD_LIBRARY_LOOT, enchantedBookContent(rand, 1, 5, 2)], 1 + rand.nextInt(4));
       if (this.isLargeRoom) {
@@ -674,77 +674,77 @@ export class ComponentStrongholdPortalRoom extends ComponentStronghold {
   addComponentParts(w: IWorld, rand: JavaRandom, box: StructureBoundingBox): boolean {
     this.fillWithRandomizedBlocks(w, box, 0, 0, 0, 10, 7, 15, false, rand, STRONGHOLD_STONES);
     this.placeDoor(w, rand, box, EnumDoor.GRATES, 4, 1, 0);
-    let var4 = 6;
-    this.fillWithRandomizedBlocks(w, box, 1, var4, 1, 1, var4, 14, false, rand, STRONGHOLD_STONES);
-    this.fillWithRandomizedBlocks(w, box, 9, var4, 1, 9, var4, 14, false, rand, STRONGHOLD_STONES);
-    this.fillWithRandomizedBlocks(w, box, 2, var4, 1, 8, var4, 2, false, rand, STRONGHOLD_STONES);
-    this.fillWithRandomizedBlocks(w, box, 2, var4, 14, 8, var4, 14, false, rand, STRONGHOLD_STONES);
+    let y = 6;
+    this.fillWithRandomizedBlocks(w, box, 1, y, 1, 1, y, 14, false, rand, STRONGHOLD_STONES);
+    this.fillWithRandomizedBlocks(w, box, 9, y, 1, 9, y, 14, false, rand, STRONGHOLD_STONES);
+    this.fillWithRandomizedBlocks(w, box, 2, y, 1, 8, y, 2, false, rand, STRONGHOLD_STONES);
+    this.fillWithRandomizedBlocks(w, box, 2, y, 14, 8, y, 14, false, rand, STRONGHOLD_STONES);
     this.fillWithRandomizedBlocks(w, box, 1, 1, 1, 2, 1, 4, false, rand, STRONGHOLD_STONES);
     this.fillWithRandomizedBlocks(w, box, 8, 1, 1, 9, 1, 4, false, rand, STRONGHOLD_STONES);
     this.fillWithBlocks(w, box, 1, 1, 1, 1, 1, 3, B.lavaMoving, B.lavaMoving, false);
     this.fillWithBlocks(w, box, 9, 1, 1, 9, 1, 3, B.lavaMoving, B.lavaMoving, false);
     this.fillWithRandomizedBlocks(w, box, 3, 1, 8, 7, 1, 12, false, rand, STRONGHOLD_STONES);
     this.fillWithBlocks(w, box, 4, 1, 9, 6, 1, 11, B.lavaMoving, B.lavaMoving, false);
-    for (let var5 = 3; var5 < 14; var5 += 2) {
-      this.fillWithBlocks(w, box, 0, 3, var5, 0, 4, var5, B.fenceIron, B.fenceIron, false);
-      this.fillWithBlocks(w, box, 10, 3, var5, 10, 4, var5, B.fenceIron, B.fenceIron, false);
+    for (let z = 3; z < 14; z += 2) {
+      this.fillWithBlocks(w, box, 0, 3, z, 0, 4, z, B.fenceIron, B.fenceIron, false);
+      this.fillWithBlocks(w, box, 10, 3, z, 10, 4, z, B.fenceIron, B.fenceIron, false);
     }
-    for (let var14 = 2; var14 < 9; var14 += 2) {
-      this.fillWithBlocks(w, box, var14, 3, 15, var14, 4, 15, B.fenceIron, B.fenceIron, false);
+    for (let x2 = 2; x2 < 9; x2 += 2) {
+      this.fillWithBlocks(w, box, x2, 3, 15, x2, 4, 15, B.fenceIron, B.fenceIron, false);
     }
-    const var15 = this.getMetadataWithOffset(B.stairsStoneBrick, 3);
+    const stairsMeta3 = this.getMetadataWithOffset(B.stairsStoneBrick, 3);
     this.fillWithRandomizedBlocks(w, box, 4, 1, 5, 6, 1, 7, false, rand, STRONGHOLD_STONES);
     this.fillWithRandomizedBlocks(w, box, 4, 2, 6, 6, 2, 7, false, rand, STRONGHOLD_STONES);
     this.fillWithRandomizedBlocks(w, box, 4, 3, 7, 6, 3, 7, false, rand, STRONGHOLD_STONES);
-    for (let var6 = 4; var6 <= 6; var6++) {
-      this.placeBlockAtCurrentPosition(w, B.stairsStoneBrick, var15, var6, 1, 4, box);
-      this.placeBlockAtCurrentPosition(w, B.stairsStoneBrick, var15, var6, 2, 5, box);
-      this.placeBlockAtCurrentPosition(w, B.stairsStoneBrick, var15, var6, 3, 6, box);
+    for (let x = 4; x <= 6; x++) {
+      this.placeBlockAtCurrentPosition(w, B.stairsStoneBrick, stairsMeta3, x, 1, 4, box);
+      this.placeBlockAtCurrentPosition(w, B.stairsStoneBrick, stairsMeta3, x, 2, 5, box);
+      this.placeBlockAtCurrentPosition(w, B.stairsStoneBrick, stairsMeta3, x, 3, 6, box);
     }
-    let var16 = 2;
-    let var7 = 0;
-    let var8 = 3;
-    let var9 = 1;
+    let i6 = 2;
+    let i = 0;
+    let i2 = 3;
+    let i3 = 1;
     switch (this.coordBaseMode) {
       case 0:
-        var16 = 0;
-        var7 = 2;
+        i6 = 0;
+        i = 2;
         break;
       case 1:
-        var16 = 1;
-        var7 = 3;
-        var8 = 0;
-        var9 = 2;
+        i6 = 1;
+        i = 3;
+        i2 = 0;
+        i3 = 2;
         break;
       case 2:
       default:
         break;
       case 3:
-        var16 = 3;
-        var7 = 1;
-        var8 = 0;
-        var9 = 2;
+        i6 = 3;
+        i = 1;
+        i2 = 0;
+        i3 = 2;
     }
-    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, var16 + (rand.nextFloat() > 0.9 ? 4 : 0), 4, 3, 8, box);
-    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, var16 + (rand.nextFloat() > 0.9 ? 4 : 0), 5, 3, 8, box);
-    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, var16 + (rand.nextFloat() > 0.9 ? 4 : 0), 6, 3, 8, box);
-    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, var7 + (rand.nextFloat() > 0.9 ? 4 : 0), 4, 3, 12, box);
-    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, var7 + (rand.nextFloat() > 0.9 ? 4 : 0), 5, 3, 12, box);
-    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, var7 + (rand.nextFloat() > 0.9 ? 4 : 0), 6, 3, 12, box);
-    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, var8 + (rand.nextFloat() > 0.9 ? 4 : 0), 3, 3, 9, box);
-    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, var8 + (rand.nextFloat() > 0.9 ? 4 : 0), 3, 3, 10, box);
-    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, var8 + (rand.nextFloat() > 0.9 ? 4 : 0), 3, 3, 11, box);
-    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, var9 + (rand.nextFloat() > 0.9 ? 4 : 0), 7, 3, 9, box);
-    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, var9 + (rand.nextFloat() > 0.9 ? 4 : 0), 7, 3, 10, box);
-    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, var9 + (rand.nextFloat() > 0.9 ? 4 : 0), 7, 3, 11, box);
+    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, i6 + (rand.nextFloat() > 0.9 ? 4 : 0), 4, 3, 8, box);
+    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, i6 + (rand.nextFloat() > 0.9 ? 4 : 0), 5, 3, 8, box);
+    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, i6 + (rand.nextFloat() > 0.9 ? 4 : 0), 6, 3, 8, box);
+    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, i + (rand.nextFloat() > 0.9 ? 4 : 0), 4, 3, 12, box);
+    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, i + (rand.nextFloat() > 0.9 ? 4 : 0), 5, 3, 12, box);
+    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, i + (rand.nextFloat() > 0.9 ? 4 : 0), 6, 3, 12, box);
+    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, i2 + (rand.nextFloat() > 0.9 ? 4 : 0), 3, 3, 9, box);
+    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, i2 + (rand.nextFloat() > 0.9 ? 4 : 0), 3, 3, 10, box);
+    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, i2 + (rand.nextFloat() > 0.9 ? 4 : 0), 3, 3, 11, box);
+    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, i3 + (rand.nextFloat() > 0.9 ? 4 : 0), 7, 3, 9, box);
+    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, i3 + (rand.nextFloat() > 0.9 ? 4 : 0), 7, 3, 10, box);
+    this.placeBlockAtCurrentPosition(w, B.endPortalFrame, i3 + (rand.nextFloat() > 0.9 ? 4 : 0), 7, 3, 11, box);
     if (!this.hasSpawner) {
-      var4 = this.getYWithOffset(3);
-      const var10 = this.getXWithOffset(5, 6);
-      const var11 = this.getZWithOffset(5, 6);
-      if (box.isVecInside(var10, var4, var11)) {
+      y = this.getYWithOffset(3);
+      const i4 = this.getXWithOffset(5, 6);
+      const i5 = this.getZWithOffset(5, 6);
+      if (box.isVecInside(i4, y, i5)) {
         this.hasSpawner = true;
-        w.setBlock(var10, var4, var11, B.mobSpawner, 0, 2);
-        placeSpawner(w, var10, var4, var11, 'Silverfish');
+        w.setBlock(i4, y, i5, B.mobSpawner, 0, 2);
+        placeSpawner(w, i4, y, i5, 'Silverfish');
       }
     }
     return true;
@@ -857,11 +857,11 @@ export class ComponentStrongholdRoomCrossing extends ComponentStronghold {
           this.placeBlockAtCurrentPosition(w, B.stoneSingleSlab, 0, 5, 1, 6, box);
           break;
         case 1:
-          for (let var8 = 0; var8 < 5; var8++) {
-            this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 3, 1, 3 + var8, box);
-            this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 7, 1, 3 + var8, box);
-            this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 3 + var8, 1, 3, box);
-            this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 3 + var8, 1, 7, box);
+          for (let i = 0; i < 5; i++) {
+            this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 3, 1, 3 + i, box);
+            this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 7, 1, 3 + i, box);
+            this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 3 + i, 1, 3, box);
+            this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 3 + i, 1, 7, box);
           }
           this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 5, 1, 5, box);
           this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 5, 2, 5, box);
@@ -869,13 +869,13 @@ export class ComponentStrongholdRoomCrossing extends ComponentStronghold {
           this.placeBlockAtCurrentPosition(w, B.waterMoving, 0, 5, 4, 5, box);
           break;
         case 2:
-          for (let var4 = 1; var4 <= 9; var4++) {
-            this.placeBlockAtCurrentPosition(w, B.cobblestone, 0, 1, 3, var4, box);
-            this.placeBlockAtCurrentPosition(w, B.cobblestone, 0, 9, 3, var4, box);
+          for (let z = 1; z <= 9; z++) {
+            this.placeBlockAtCurrentPosition(w, B.cobblestone, 0, 1, 3, z, box);
+            this.placeBlockAtCurrentPosition(w, B.cobblestone, 0, 9, 3, z, box);
           }
-          for (let var5 = 1; var5 <= 9; var5++) {
-            this.placeBlockAtCurrentPosition(w, B.cobblestone, 0, var5, 3, 1, box);
-            this.placeBlockAtCurrentPosition(w, B.cobblestone, 0, var5, 3, 9, box);
+          for (let x = 1; x <= 9; x++) {
+            this.placeBlockAtCurrentPosition(w, B.cobblestone, 0, x, 3, 1, box);
+            this.placeBlockAtCurrentPosition(w, B.cobblestone, 0, x, 3, 9, box);
           }
           this.placeBlockAtCurrentPosition(w, B.cobblestone, 0, 5, 1, 4, box);
           this.placeBlockAtCurrentPosition(w, B.cobblestone, 0, 5, 1, 6, box);
@@ -885,23 +885,23 @@ export class ComponentStrongholdRoomCrossing extends ComponentStronghold {
           this.placeBlockAtCurrentPosition(w, B.cobblestone, 0, 6, 1, 5, box);
           this.placeBlockAtCurrentPosition(w, B.cobblestone, 0, 4, 3, 5, box);
           this.placeBlockAtCurrentPosition(w, B.cobblestone, 0, 6, 3, 5, box);
-          for (let var6 = 1; var6 <= 3; var6++) {
-            this.placeBlockAtCurrentPosition(w, B.cobblestone, 0, 4, var6, 4, box);
-            this.placeBlockAtCurrentPosition(w, B.cobblestone, 0, 6, var6, 4, box);
-            this.placeBlockAtCurrentPosition(w, B.cobblestone, 0, 4, var6, 6, box);
-            this.placeBlockAtCurrentPosition(w, B.cobblestone, 0, 6, var6, 6, box);
+          for (let y = 1; y <= 3; y++) {
+            this.placeBlockAtCurrentPosition(w, B.cobblestone, 0, 4, y, 4, box);
+            this.placeBlockAtCurrentPosition(w, B.cobblestone, 0, 6, y, 4, box);
+            this.placeBlockAtCurrentPosition(w, B.cobblestone, 0, 4, y, 6, box);
+            this.placeBlockAtCurrentPosition(w, B.cobblestone, 0, 6, y, 6, box);
           }
           this.placeBlockAtCurrentPosition(w, B.torchWood, 0, 5, 3, 5, box);
-          for (let var7 = 2; var7 <= 8; var7++) {
-            this.placeBlockAtCurrentPosition(w, B.planks, 0, 2, 3, var7, box);
-            this.placeBlockAtCurrentPosition(w, B.planks, 0, 3, 3, var7, box);
-            if (var7 <= 3 || var7 >= 7) {
-              this.placeBlockAtCurrentPosition(w, B.planks, 0, 4, 3, var7, box);
-              this.placeBlockAtCurrentPosition(w, B.planks, 0, 5, 3, var7, box);
-              this.placeBlockAtCurrentPosition(w, B.planks, 0, 6, 3, var7, box);
+          for (let z2 = 2; z2 <= 8; z2++) {
+            this.placeBlockAtCurrentPosition(w, B.planks, 0, 2, 3, z2, box);
+            this.placeBlockAtCurrentPosition(w, B.planks, 0, 3, 3, z2, box);
+            if (z2 <= 3 || z2 >= 7) {
+              this.placeBlockAtCurrentPosition(w, B.planks, 0, 4, 3, z2, box);
+              this.placeBlockAtCurrentPosition(w, B.planks, 0, 5, 3, z2, box);
+              this.placeBlockAtCurrentPosition(w, B.planks, 0, 6, 3, z2, box);
             }
-            this.placeBlockAtCurrentPosition(w, B.planks, 0, 7, 3, var7, box);
-            this.placeBlockAtCurrentPosition(w, B.planks, 0, 8, 3, var7, box);
+            this.placeBlockAtCurrentPosition(w, B.planks, 0, 7, 3, z2, box);
+            this.placeBlockAtCurrentPosition(w, B.planks, 0, 8, 3, z2, box);
           }
           this.placeBlockAtCurrentPosition(w, B.ladder, this.getMetadataWithOffset(B.ladder, 4), 9, 1, 3, box);
           this.placeBlockAtCurrentPosition(w, B.ladder, this.getMetadataWithOffset(B.ladder, 4), 9, 2, 3, box);
@@ -945,15 +945,15 @@ export class ComponentStrongholdStairsStraight extends ComponentStronghold {
       this.fillWithRandomizedBlocks(w, box, 0, 0, 0, 4, 10, 7, true, rand, STRONGHOLD_STONES);
       this.placeDoor(w, rand, box, this.doorType, 1, 7, 0);
       this.placeDoor(w, rand, box, EnumDoor.OPENING, 1, 1, 7);
-      const var4 = this.getMetadataWithOffset(B.stairsCobblestone, 2);
-      for (let var5 = 0; var5 < 6; var5++) {
-        this.placeBlockAtCurrentPosition(w, B.stairsCobblestone, var4, 1, 6 - var5, 1 + var5, box);
-        this.placeBlockAtCurrentPosition(w, B.stairsCobblestone, var4, 2, 6 - var5, 1 + var5, box);
-        this.placeBlockAtCurrentPosition(w, B.stairsCobblestone, var4, 3, 6 - var5, 1 + var5, box);
-        if (var5 < 5) {
-          this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 1, 5 - var5, 1 + var5, box);
-          this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 2, 5 - var5, 1 + var5, box);
-          this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 3, 5 - var5, 1 + var5, box);
+      const stairsMeta2 = this.getMetadataWithOffset(B.stairsCobblestone, 2);
+      for (let i = 0; i < 6; i++) {
+        this.placeBlockAtCurrentPosition(w, B.stairsCobblestone, stairsMeta2, 1, 6 - i, 1 + i, box);
+        this.placeBlockAtCurrentPosition(w, B.stairsCobblestone, stairsMeta2, 2, 6 - i, 1 + i, box);
+        this.placeBlockAtCurrentPosition(w, B.stairsCobblestone, stairsMeta2, 3, 6 - i, 1 + i, box);
+        if (i < 5) {
+          this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 1, 5 - i, 1 + i, box);
+          this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 2, 5 - i, 1 + i, box);
+          this.placeBlockAtCurrentPosition(w, B.stoneBrick, 0, 3, 5 - i, 1 + i, box);
         }
       }
       return true;

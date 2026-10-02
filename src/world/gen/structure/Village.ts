@@ -288,11 +288,11 @@ export class ComponentVillageWell extends ComponentVillage {
     this.placeBlockAtCurrentPosition(w, B.fence, 0, 4, 13, 4, box);
     this.placeBlockAtCurrentPosition(w, B.fence, 0, 4, 14, 4, box);
     this.fillWithBlocks(w, box, 1, 15, 1, 4, 15, 4, B.cobblestone, B.cobblestone, false);
-    for (let var4 = 0; var4 <= 5; var4++) {
-      for (let var5 = 0; var5 <= 5; var5++) {
-        if (var5 === 0 || var5 === 5 || var4 === 0 || var4 === 5) {
-          this.placeBlockAtCurrentPosition(w, B.gravel, 0, var5, 11, var4, box);
-          this.clearCurrentPositionBlocksUpwards(w, var5, 12, var4, box);
+    for (let z = 0; z <= 5; z++) {
+      for (let x = 0; x <= 5; x++) {
+        if (x === 0 || x === 5 || z === 0 || z === 5) {
+          this.placeBlockAtCurrentPosition(w, B.gravel, 0, x, 11, z, box);
+          this.clearCurrentPositionBlocksUpwards(w, x, 12, z, box);
         }
       }
     }
@@ -327,17 +327,17 @@ export class ComponentVillagePathGen extends ComponentVillageRoadPiece {
   }
   override buildComponent(start: StructureComponent, list: StructureComponent[], rand: JavaRandom): void {
     let built = false;
-    for (let var5 = rand.nextInt(5); var5 < this.length - 8; var5 += 2 + rand.nextInt(5)) {
-      const var6 = this.getNextComponentNN(start as ComponentVillageStartPiece, list, rand, 0, var5);
-      if (var6 !== null) {
-        var5 += Math.max(var6.boundingBox.getXSize(), var6.boundingBox.getZSize());
+    for (let i = rand.nextInt(5); i < this.length - 8; i += 2 + rand.nextInt(5)) {
+      const i2 = this.getNextComponentNN(start as ComponentVillageStartPiece, list, rand, 0, i);
+      if (i2 !== null) {
+        i += Math.max(i2.boundingBox.getXSize(), i2.boundingBox.getZSize());
         built = true;
       }
     }
-    for (let var7 = rand.nextInt(5); var7 < this.length - 8; var7 += 2 + rand.nextInt(5)) {
-      const var8 = this.getNextComponentPP(start as ComponentVillageStartPiece, list, rand, 0, var7);
-      if (var8 !== null) {
-        var7 += Math.max(var8.boundingBox.getXSize(), var8.boundingBox.getZSize());
+    for (let i3 = rand.nextInt(5); i3 < this.length - 8; i3 += 2 + rand.nextInt(5)) {
+      const i4 = this.getNextComponentPP(start as ComponentVillageStartPiece, list, rand, 0, i3);
+      if (i4 !== null) {
+        i3 += Math.max(i4.boundingBox.getXSize(), i4.boundingBox.getZSize());
         built = true;
       }
     }
@@ -445,12 +445,12 @@ export class ComponentVillagePathGen extends ComponentVillageRoadPiece {
     }
   }
   addComponentParts(w: IWorld, rand: JavaRandom, box: StructureBoundingBox): boolean {
-    const var4 = this.getBiomeSpecificBlock(B.gravel, 0);
-    for (let var5 = this.boundingBox.minX; var5 <= this.boundingBox.maxX; var5++) {
-      for (let var6 = this.boundingBox.minZ; var6 <= this.boundingBox.maxZ; var6++) {
-        if (box.isVecInside(var5, 64, var6)) {
-          let var7 = w.getTopSolidOrLiquidBlock(var5, var6) - 1;
-          w.setBlock(var5, var7, var6, var4, 0, 2);
+    const i = this.getBiomeSpecificBlock(B.gravel, 0);
+    for (let i2 = this.boundingBox.minX; i2 <= this.boundingBox.maxX; i2++) {
+      for (let i3 = this.boundingBox.minZ; i3 <= this.boundingBox.maxZ; i3++) {
+        if (box.isVecInside(i2, 64, i3)) {
+          let i4 = w.getTopSolidOrLiquidBlock(i2, i3) - 1;
+          w.setBlock(i2, i4, i3, i, 0, 2);
         }
       }
     }
@@ -579,17 +579,17 @@ export class ComponentVillageHouse4_Garden extends ComponentVillage {
       this.placeBlockAtCurrentPosition(w, B.fence, 0, 0, 5, 3, box);
     }
     if (this.isRoofAccessible) {
-      const var4 = this.getMetadataWithOffset(B.ladder, 3);
-      this.placeBlockAtCurrentPosition(w, B.ladder, var4, 3, 1, 3, box);
-      this.placeBlockAtCurrentPosition(w, B.ladder, var4, 3, 2, 3, box);
-      this.placeBlockAtCurrentPosition(w, B.ladder, var4, 3, 3, 3, box);
-      this.placeBlockAtCurrentPosition(w, B.ladder, var4, 3, 4, 3, box);
+      const ladderMeta3 = this.getMetadataWithOffset(B.ladder, 3);
+      this.placeBlockAtCurrentPosition(w, B.ladder, ladderMeta3, 3, 1, 3, box);
+      this.placeBlockAtCurrentPosition(w, B.ladder, ladderMeta3, 3, 2, 3, box);
+      this.placeBlockAtCurrentPosition(w, B.ladder, ladderMeta3, 3, 3, 3, box);
+      this.placeBlockAtCurrentPosition(w, B.ladder, ladderMeta3, 3, 4, 3, box);
     }
     this.placeBlockAtCurrentPosition(w, B.torchWood, 0, 2, 3, 1, box);
-    for (let var6 = 0; var6 < 5; var6++) {
-      for (let var5 = 0; var5 < 5; var5++) {
-        this.clearCurrentPositionBlocksUpwards(w, var5, 6, var6, box);
-        this.fillCurrentPositionBlocksDownwards(w, B.cobblestone, 0, var5, -1, var6, box);
+    for (let z = 0; z < 5; z++) {
+      for (let x = 0; x < 5; x++) {
+        this.clearCurrentPositionBlocksUpwards(w, x, 6, z, box);
+        this.fillCurrentPositionBlocksDownwards(w, B.cobblestone, 0, x, -1, z, box);
       }
     }
     this.spawnVillagers(w, box, 1, 1, 2, 1);
@@ -673,9 +673,9 @@ export class ComponentVillageChurch extends ComponentVillage {
     this.placeBlockAtCurrentPosition(w, B.torchWood, 0, 1, 4, 6, box);
     this.placeBlockAtCurrentPosition(w, B.torchWood, 0, 3, 4, 6, box);
     this.placeBlockAtCurrentPosition(w, B.torchWood, 0, 2, 4, 5, box);
-    const var4 = this.getMetadataWithOffset(B.ladder, 4);
-    for (let var5 = 1; var5 <= 9; var5++) {
-      this.placeBlockAtCurrentPosition(w, B.ladder, var4, 3, var5, 3, box);
+    const ladderMeta4 = this.getMetadataWithOffset(B.ladder, 4);
+    for (let y = 1; y <= 9; y++) {
+      this.placeBlockAtCurrentPosition(w, B.ladder, ladderMeta4, 3, y, 3, box);
     }
     this.placeBlockAtCurrentPosition(w, 0, 0, 2, 1, 0, box);
     this.placeBlockAtCurrentPosition(w, 0, 0, 2, 2, 0, box);
@@ -683,10 +683,10 @@ export class ComponentVillageChurch extends ComponentVillage {
     if (this.getBlockIdAtCurrentPosition(w, 2, 0, -1, box) === 0 && this.getBlockIdAtCurrentPosition(w, 2, -1, -1, box) !== 0) {
       this.placeBlockAtCurrentPosition(w, B.stairsCobblestone, this.getMetadataWithOffset(B.stairsCobblestone, 3), 2, 0, -1, box);
     }
-    for (let var7 = 0; var7 < 9; var7++) {
-      for (let var6 = 0; var6 < 5; var6++) {
-        this.clearCurrentPositionBlocksUpwards(w, var6, 12, var7, box);
-        this.fillCurrentPositionBlocksDownwards(w, B.cobblestone, 0, var6, -1, var7, box);
+    for (let z = 0; z < 9; z++) {
+      for (let x = 0; x < 5; x++) {
+        this.clearCurrentPositionBlocksUpwards(w, x, 12, z, box);
+        this.fillCurrentPositionBlocksDownwards(w, B.cobblestone, 0, x, -1, z, box);
       }
     }
     this.spawnVillagers(w, box, 2, 1, 2, 1);
@@ -732,12 +732,12 @@ export class ComponentVillageHouse1 extends ComponentVillage {
     this.fillWithBlocks(w, box, 0, 5, 0, 8, 5, 5, B.cobblestone, B.cobblestone, false);
     this.fillWithBlocks(w, box, 0, 6, 1, 8, 6, 4, B.cobblestone, B.cobblestone, false);
     this.fillWithBlocks(w, box, 0, 7, 2, 8, 7, 3, B.cobblestone, B.cobblestone, false);
-    const var4 = this.getMetadataWithOffset(B.stairsWoodOak, 3);
-    const var5 = this.getMetadataWithOffset(B.stairsWoodOak, 2);
-    for (let var6 = -1; var6 <= 2; var6++) {
-      for (let var7 = 0; var7 <= 8; var7++) {
-        this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, var4, var7, 6 + var6, var6, box);
-        this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, var5, var7, 6 + var6, 5 - var6, box);
+    const stairsMeta3 = this.getMetadataWithOffset(B.stairsWoodOak, 3);
+    const stairsMeta2 = this.getMetadataWithOffset(B.stairsWoodOak, 2);
+    for (let z = -1; z <= 2; z++) {
+      for (let x = 0; x <= 8; x++) {
+        this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, stairsMeta3, x, 6 + z, z, box);
+        this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, stairsMeta2, x, 6 + z, 5 - z, box);
       }
     }
     this.fillWithBlocks(w, box, 0, 1, 0, 0, 1, 5, B.cobblestone, B.cobblestone, false);
@@ -775,11 +775,11 @@ export class ComponentVillageHouse1 extends ComponentVillage {
     this.fillWithBlocks(w, box, 1, 3, 4, 7, 3, 4, B.bookShelf, B.bookShelf, false);
     this.placeBlockAtCurrentPosition(w, B.planks, 0, 7, 1, 4, box);
     this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, this.getMetadataWithOffset(B.stairsWoodOak, 0), 7, 1, 3, box);
-    const var9 = this.getMetadataWithOffset(B.stairsWoodOak, 3);
-    this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, var9, 6, 1, 4, box);
-    this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, var9, 5, 1, 4, box);
-    this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, var9, 4, 1, 4, box);
-    this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, var9, 3, 1, 4, box);
+    const stairsMeta32 = this.getMetadataWithOffset(B.stairsWoodOak, 3);
+    this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, stairsMeta32, 6, 1, 4, box);
+    this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, stairsMeta32, 5, 1, 4, box);
+    this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, stairsMeta32, 4, 1, 4, box);
+    this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, stairsMeta32, 3, 1, 4, box);
     this.placeBlockAtCurrentPosition(w, B.fence, 0, 6, 1, 3, box);
     this.placeBlockAtCurrentPosition(w, B.pressurePlatePlanks, 0, 6, 2, 3, box);
     this.placeBlockAtCurrentPosition(w, B.fence, 0, 4, 1, 3, box);
@@ -791,10 +791,10 @@ export class ComponentVillageHouse1 extends ComponentVillage {
     if (this.getBlockIdAtCurrentPosition(w, 1, 0, -1, box) === 0 && this.getBlockIdAtCurrentPosition(w, 1, -1, -1, box) !== 0) {
       this.placeBlockAtCurrentPosition(w, B.stairsCobblestone, this.getMetadataWithOffset(B.stairsCobblestone, 3), 1, 0, -1, box);
     }
-    for (let var10 = 0; var10 < 6; var10++) {
-      for (let var8 = 0; var8 < 9; var8++) {
-        this.clearCurrentPositionBlocksUpwards(w, var8, 9, var10, box);
-        this.fillCurrentPositionBlocksDownwards(w, B.cobblestone, 0, var8, -1, var10, box);
+    for (let z2 = 0; z2 < 6; z2++) {
+      for (let x2 = 0; x2 < 9; x2++) {
+        this.clearCurrentPositionBlocksUpwards(w, x2, 9, z2, box);
+        this.fillCurrentPositionBlocksDownwards(w, B.cobblestone, 0, x2, -1, z2, box);
       }
     }
     this.spawnVillagers(w, box, 2, 1, 2, 1);
@@ -877,10 +877,10 @@ export class ComponentVillageWoodHut extends ComponentVillage {
     if (this.getBlockIdAtCurrentPosition(w, 1, 0, -1, box) === 0 && this.getBlockIdAtCurrentPosition(w, 1, -1, -1, box) !== 0) {
       this.placeBlockAtCurrentPosition(w, B.stairsCobblestone, this.getMetadataWithOffset(B.stairsCobblestone, 3), 1, 0, -1, box);
     }
-    for (let var4 = 0; var4 < 5; var4++) {
-      for (let var5 = 0; var5 < 4; var5++) {
-        this.clearCurrentPositionBlocksUpwards(w, var5, 6, var4, box);
-        this.fillCurrentPositionBlocksDownwards(w, B.cobblestone, 0, var5, -1, var4, box);
+    for (let z = 0; z < 5; z++) {
+      for (let x = 0; x < 4; x++) {
+        this.clearCurrentPositionBlocksUpwards(w, x, 6, z, box);
+        this.fillCurrentPositionBlocksDownwards(w, B.cobblestone, 0, x, -1, z, box);
       }
     }
     this.spawnVillagers(w, box, 1, 1, 2, 1);
@@ -939,12 +939,12 @@ export class ComponentVillageHall extends ComponentVillage {
     this.placeBlockAtCurrentPosition(w, B.planks, 0, 0, 4, 3, box);
     this.placeBlockAtCurrentPosition(w, B.planks, 0, 8, 4, 2, box);
     this.placeBlockAtCurrentPosition(w, B.planks, 0, 8, 4, 3, box);
-    const var4 = this.getMetadataWithOffset(B.stairsWoodOak, 3);
-    const var5 = this.getMetadataWithOffset(B.stairsWoodOak, 2);
-    for (let var6 = -1; var6 <= 2; var6++) {
-      for (let var7 = 0; var7 <= 8; var7++) {
-        this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, var4, var7, 4 + var6, var6, box);
-        this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, var5, var7, 4 + var6, 5 - var6, box);
+    const stairsMeta3 = this.getMetadataWithOffset(B.stairsWoodOak, 3);
+    const stairsMeta2 = this.getMetadataWithOffset(B.stairsWoodOak, 2);
+    for (let z = -1; z <= 2; z++) {
+      for (let x = 0; x <= 8; x++) {
+        this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, stairsMeta3, x, 4 + z, z, box);
+        this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, stairsMeta2, x, 4 + z, 5 - z, box);
       }
     }
     this.placeBlockAtCurrentPosition(w, B.wood, 0, 0, 2, 1, box);
@@ -978,10 +978,10 @@ export class ComponentVillageHall extends ComponentVillage {
     this.placeBlockAtCurrentPosition(w, 0, 0, 6, 2, 5, box);
     this.placeBlockAtCurrentPosition(w, B.torchWood, 0, 6, 3, 4, box);
     this.placeDoorAtCurrentPosition(w, box, rand, 6, 1, 5, this.getMetadataWithOffset(B.doorWood, 1));
-    for (let var8 = 0; var8 < 5; var8++) {
-      for (let var9 = 0; var9 < 9; var9++) {
-        this.clearCurrentPositionBlocksUpwards(w, var9, 7, var8, box);
-        this.fillCurrentPositionBlocksDownwards(w, B.cobblestone, 0, var9, -1, var8, box);
+    for (let z2 = 0; z2 < 5; z2++) {
+      for (let x2 = 0; x2 < 9; x2++) {
+        this.clearCurrentPositionBlocksUpwards(w, x2, 7, z2, box);
+        this.fillCurrentPositionBlocksDownwards(w, B.cobblestone, 0, x2, -1, z2, box);
       }
     }
     this.spawnVillagers(w, box, 4, 1, 2, 2);
@@ -1052,20 +1052,20 @@ export class ComponentVillageField extends ComponentVillage {
     this.fillWithBlocks(w, box, 1, 0, 8, 11, 0, 8, B.wood, B.wood, false);
     this.fillWithBlocks(w, box, 3, 0, 1, 3, 0, 7, B.waterMoving, B.waterMoving, false);
     this.fillWithBlocks(w, box, 9, 0, 1, 9, 0, 7, B.waterMoving, B.waterMoving, false);
-    for (let var4 = 1; var4 <= 7; var4++) {
-      this.placeBlockAtCurrentPosition(w, this.cropTypeA, getRandomIntegerInRange(rand, 2, 7), 1, 1, var4, box);
-      this.placeBlockAtCurrentPosition(w, this.cropTypeA, getRandomIntegerInRange(rand, 2, 7), 2, 1, var4, box);
-      this.placeBlockAtCurrentPosition(w, this.cropTypeB, getRandomIntegerInRange(rand, 2, 7), 4, 1, var4, box);
-      this.placeBlockAtCurrentPosition(w, this.cropTypeB, getRandomIntegerInRange(rand, 2, 7), 5, 1, var4, box);
-      this.placeBlockAtCurrentPosition(w, this.cropTypeC, getRandomIntegerInRange(rand, 2, 7), 7, 1, var4, box);
-      this.placeBlockAtCurrentPosition(w, this.cropTypeC, getRandomIntegerInRange(rand, 2, 7), 8, 1, var4, box);
-      this.placeBlockAtCurrentPosition(w, this.cropTypeD, getRandomIntegerInRange(rand, 2, 7), 10, 1, var4, box);
-      this.placeBlockAtCurrentPosition(w, this.cropTypeD, getRandomIntegerInRange(rand, 2, 7), 11, 1, var4, box);
+    for (let z = 1; z <= 7; z++) {
+      this.placeBlockAtCurrentPosition(w, this.cropTypeA, getRandomIntegerInRange(rand, 2, 7), 1, 1, z, box);
+      this.placeBlockAtCurrentPosition(w, this.cropTypeA, getRandomIntegerInRange(rand, 2, 7), 2, 1, z, box);
+      this.placeBlockAtCurrentPosition(w, this.cropTypeB, getRandomIntegerInRange(rand, 2, 7), 4, 1, z, box);
+      this.placeBlockAtCurrentPosition(w, this.cropTypeB, getRandomIntegerInRange(rand, 2, 7), 5, 1, z, box);
+      this.placeBlockAtCurrentPosition(w, this.cropTypeC, getRandomIntegerInRange(rand, 2, 7), 7, 1, z, box);
+      this.placeBlockAtCurrentPosition(w, this.cropTypeC, getRandomIntegerInRange(rand, 2, 7), 8, 1, z, box);
+      this.placeBlockAtCurrentPosition(w, this.cropTypeD, getRandomIntegerInRange(rand, 2, 7), 10, 1, z, box);
+      this.placeBlockAtCurrentPosition(w, this.cropTypeD, getRandomIntegerInRange(rand, 2, 7), 11, 1, z, box);
     }
-    for (let var6 = 0; var6 < 9; var6++) {
-      for (let var5 = 0; var5 < 13; var5++) {
-        this.clearCurrentPositionBlocksUpwards(w, var5, 4, var6, box);
-        this.fillCurrentPositionBlocksDownwards(w, B.dirt, 0, var5, -1, var6, box);
+    for (let z2 = 0; z2 < 9; z2++) {
+      for (let x = 0; x < 13; x++) {
+        this.clearCurrentPositionBlocksUpwards(w, x, 4, z2, box);
+        this.fillCurrentPositionBlocksDownwards(w, B.dirt, 0, x, -1, z2, box);
       }
     }
     return true;
@@ -1124,16 +1124,16 @@ export class ComponentVillageField2 extends ComponentVillage {
     this.fillWithBlocks(w, box, 1, 0, 0, 5, 0, 0, B.wood, B.wood, false);
     this.fillWithBlocks(w, box, 1, 0, 8, 5, 0, 8, B.wood, B.wood, false);
     this.fillWithBlocks(w, box, 3, 0, 1, 3, 0, 7, B.waterMoving, B.waterMoving, false);
-    for (let var4 = 1; var4 <= 7; var4++) {
-      this.placeBlockAtCurrentPosition(w, this.cropTypeA, getRandomIntegerInRange(rand, 2, 7), 1, 1, var4, box);
-      this.placeBlockAtCurrentPosition(w, this.cropTypeA, getRandomIntegerInRange(rand, 2, 7), 2, 1, var4, box);
-      this.placeBlockAtCurrentPosition(w, this.cropTypeB, getRandomIntegerInRange(rand, 2, 7), 4, 1, var4, box);
-      this.placeBlockAtCurrentPosition(w, this.cropTypeB, getRandomIntegerInRange(rand, 2, 7), 5, 1, var4, box);
+    for (let z = 1; z <= 7; z++) {
+      this.placeBlockAtCurrentPosition(w, this.cropTypeA, getRandomIntegerInRange(rand, 2, 7), 1, 1, z, box);
+      this.placeBlockAtCurrentPosition(w, this.cropTypeA, getRandomIntegerInRange(rand, 2, 7), 2, 1, z, box);
+      this.placeBlockAtCurrentPosition(w, this.cropTypeB, getRandomIntegerInRange(rand, 2, 7), 4, 1, z, box);
+      this.placeBlockAtCurrentPosition(w, this.cropTypeB, getRandomIntegerInRange(rand, 2, 7), 5, 1, z, box);
     }
-    for (let var6 = 0; var6 < 9; var6++) {
-      for (let var5 = 0; var5 < 7; var5++) {
-        this.clearCurrentPositionBlocksUpwards(w, var5, 4, var6, box);
-        this.fillCurrentPositionBlocksDownwards(w, B.dirt, 0, var5, -1, var6, box);
+    for (let z2 = 0; z2 < 9; z2++) {
+      for (let x = 0; x < 7; x++) {
+        this.clearCurrentPositionBlocksUpwards(w, x, 4, z2, box);
+        this.fillCurrentPositionBlocksDownwards(w, B.dirt, 0, x, -1, z2, box);
       }
     }
     return true;
@@ -1207,23 +1207,23 @@ export class ComponentVillageHouse2 extends ComponentVillage {
     this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, this.getMetadataWithOffset(B.stairsWoodOak, 3), 2, 1, 5, box);
     this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, this.getMetadataWithOffset(B.stairsWoodOak, 1), 1, 1, 4, box);
     if (!this.hasMadeChest) {
-      const var4 = this.getYWithOffset(1);
-      const var5 = this.getXWithOffset(5, 5);
-      const var6 = this.getZWithOffset(5, 5);
-      if (box.isVecInside(var5, var4, var6)) {
+      const i = this.getYWithOffset(1);
+      const i2 = this.getXWithOffset(5, 5);
+      const i3 = this.getZWithOffset(5, 5);
+      if (box.isVecInside(i2, i, i3)) {
         this.hasMadeChest = true;
         this.generateStructureChestContents(w, box, rand, 5, 1, 5, VILLAGE_BLACKSMITH_LOOT, 3 + rand.nextInt(6));
       }
     }
-    for (let var7 = 6; var7 <= 8; var7++) {
-      if (this.getBlockIdAtCurrentPosition(w, var7, 0, -1, box) === 0 && this.getBlockIdAtCurrentPosition(w, var7, -1, -1, box) !== 0) {
-        this.placeBlockAtCurrentPosition(w, B.stairsCobblestone, this.getMetadataWithOffset(B.stairsCobblestone, 3), var7, 0, -1, box);
+    for (let x = 6; x <= 8; x++) {
+      if (this.getBlockIdAtCurrentPosition(w, x, 0, -1, box) === 0 && this.getBlockIdAtCurrentPosition(w, x, -1, -1, box) !== 0) {
+        this.placeBlockAtCurrentPosition(w, B.stairsCobblestone, this.getMetadataWithOffset(B.stairsCobblestone, 3), x, 0, -1, box);
       }
     }
-    for (let var8 = 0; var8 < 7; var8++) {
-      for (let var9 = 0; var9 < 10; var9++) {
-        this.clearCurrentPositionBlocksUpwards(w, var9, 6, var8, box);
-        this.fillCurrentPositionBlocksDownwards(w, B.cobblestone, 0, var9, -1, var8, box);
+    for (let z = 0; z < 7; z++) {
+      for (let x2 = 0; x2 < 10; x2++) {
+        this.clearCurrentPositionBlocksUpwards(w, x2, 6, z, box);
+        this.fillCurrentPositionBlocksDownwards(w, B.cobblestone, 0, x2, -1, z, box);
       }
     }
     this.spawnVillagers(w, box, 7, 1, 1, 1);
@@ -1284,13 +1284,13 @@ export class ComponentVillageHouse3 extends ComponentVillage {
     this.placeBlockAtCurrentPosition(w, B.planks, 0, 8, 4, 2, box);
     this.placeBlockAtCurrentPosition(w, B.planks, 0, 8, 4, 3, box);
     this.placeBlockAtCurrentPosition(w, B.planks, 0, 8, 4, 4, box);
-    const var4 = this.getMetadataWithOffset(B.stairsWoodOak, 3);
-    const var5 = this.getMetadataWithOffset(B.stairsWoodOak, 2);
-    for (let var6 = -1; var6 <= 2; var6++) {
-      for (let var7 = 0; var7 <= 8; var7++) {
-        this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, var4, var7, 4 + var6, var6, box);
-        if ((var6 > -1 || var7 <= 1) && (var6 > 0 || var7 <= 3) && (var6 > 1 || var7 <= 4 || var7 >= 6)) {
-          this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, var5, var7, 4 + var6, 5 - var6, box);
+    const stairsMeta3 = this.getMetadataWithOffset(B.stairsWoodOak, 3);
+    const stairsMeta2 = this.getMetadataWithOffset(B.stairsWoodOak, 2);
+    for (let z = -1; z <= 2; z++) {
+      for (let x = 0; x <= 8; x++) {
+        this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, stairsMeta3, x, 4 + z, z, box);
+        if ((z > -1 || x <= 1) && (z > 0 || x <= 3) && (z > 1 || x <= 4 || x >= 6)) {
+          this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, stairsMeta2, x, 4 + z, 5 - z, box);
         }
       }
     }
@@ -1299,20 +1299,20 @@ export class ComponentVillageHouse3 extends ComponentVillage {
     this.fillWithBlocks(w, box, 4, 5, 4, 4, 5, 10, B.planks, B.planks, false);
     this.fillWithBlocks(w, box, 6, 5, 4, 6, 5, 10, B.planks, B.planks, false);
     this.fillWithBlocks(w, box, 5, 6, 3, 5, 6, 10, B.planks, B.planks, false);
-    const var10 = this.getMetadataWithOffset(B.stairsWoodOak, 0);
-    for (let var11 = 4; var11 >= 1; var11--) {
-      this.placeBlockAtCurrentPosition(w, B.planks, 0, var11, 2 + var11, 7 - var11, box);
-      for (let var8 = 8 - var11; var8 <= 10; var8++) {
-        this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, var10, var11, 2 + var11, var8, box);
+    const stairsMeta0 = this.getMetadataWithOffset(B.stairsWoodOak, 0);
+    for (let x2 = 4; x2 >= 1; x2--) {
+      this.placeBlockAtCurrentPosition(w, B.planks, 0, x2, 2 + x2, 7 - x2, box);
+      for (let z2 = 8 - x2; z2 <= 10; z2++) {
+        this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, stairsMeta0, x2, 2 + x2, z2, box);
       }
     }
-    const var12 = this.getMetadataWithOffset(B.stairsWoodOak, 1);
+    const stairsMeta1 = this.getMetadataWithOffset(B.stairsWoodOak, 1);
     this.placeBlockAtCurrentPosition(w, B.planks, 0, 6, 6, 3, box);
     this.placeBlockAtCurrentPosition(w, B.planks, 0, 7, 5, 4, box);
-    this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, var12, 6, 6, 4, box);
-    for (let var13 = 6; var13 <= 8; var13++) {
-      for (let var9 = 5; var9 <= 10; var9++) {
-        this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, var12, var13, 12 - var13, var9, box);
+    this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, stairsMeta1, 6, 6, 4, box);
+    for (let x3 = 6; x3 <= 8; x3++) {
+      for (let z3 = 5; z3 <= 10; z3++) {
+        this.placeBlockAtCurrentPosition(w, B.stairsWoodOak, stairsMeta1, x3, 12 - x3, z3, box);
       }
     }
     this.placeBlockAtCurrentPosition(w, B.wood, 0, 0, 2, 1, box);
@@ -1347,16 +1347,16 @@ export class ComponentVillageHouse3 extends ComponentVillage {
     if (this.getBlockIdAtCurrentPosition(w, 2, 0, -1, box) === 0 && this.getBlockIdAtCurrentPosition(w, 2, -1, -1, box) !== 0) {
       this.placeBlockAtCurrentPosition(w, B.stairsCobblestone, this.getMetadataWithOffset(B.stairsCobblestone, 3), 2, 0, -1, box);
     }
-    for (let var14 = 0; var14 < 5; var14++) {
-      for (let var16 = 0; var16 < 9; var16++) {
-        this.clearCurrentPositionBlocksUpwards(w, var16, 7, var14, box);
-        this.fillCurrentPositionBlocksDownwards(w, B.cobblestone, 0, var16, -1, var14, box);
+    for (let z4 = 0; z4 < 5; z4++) {
+      for (let x4 = 0; x4 < 9; x4++) {
+        this.clearCurrentPositionBlocksUpwards(w, x4, 7, z4, box);
+        this.fillCurrentPositionBlocksDownwards(w, B.cobblestone, 0, x4, -1, z4, box);
       }
     }
-    for (let var15 = 5; var15 < 11; var15++) {
-      for (let var17 = 2; var17 < 9; var17++) {
-        this.clearCurrentPositionBlocksUpwards(w, var17, 7, var15, box);
-        this.fillCurrentPositionBlocksDownwards(w, B.cobblestone, 0, var17, -1, var15, box);
+    for (let z5 = 5; z5 < 11; z5++) {
+      for (let x5 = 2; x5 < 9; x5++) {
+        this.clearCurrentPositionBlocksUpwards(w, x5, 7, z5, box);
+        this.fillCurrentPositionBlocksDownwards(w, B.cobblestone, 0, x5, -1, z5, box);
       }
     }
     this.spawnVillagers(w, box, 4, 1, 2, 2);
