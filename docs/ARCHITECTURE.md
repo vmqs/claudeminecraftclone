@@ -471,3 +471,19 @@ registries are imported once by `src/client/Minecraft.ts`.
 | Chat | `EntityPlayer.addChatMessage(langKey)`, `sendChatToPlayer(text)`, `Minecraft.ingameGUI.getChatGUI().printChatMessage(text)`. |
 | World generation | `ChunkGenerator` implementations in `src/world/gen/` (selected in `worldgen.worker.ts` on `init`), `BiomeSource` (`PlaceholderBiomeSource` is the stand-in for the GenLayer stack), `WorldGenerator` features run from `ChunkProviderGenerate.populate` / `BiomeDecorator`, superflat presets in `FlatGeneratorInfo`. Code here must stay worker-safe (`IWorld`, no DOM or GL). |
 | Dev hooks | `src/client/DevTools.ts` (`?dev=1` → `window.mc.dev`), scenarios in `scripts/scenarios/`. |
+| Block interaction hooks | `BlockGuiHooks.register(kind, handler)` (`src/block/BlockGuiHooks.ts`; chest, enderChest, workbench, furnace, dispenser, dropper, hopper, brewingStand, enchantment, anvil, beacon, sign, commandBlock; without a handler the player's `displayGUI*` runs). Survival breaking calls `Block.harvestBlock` (drops, stats, exhaustion) after removing the block; `HarvestModifiers.silkTouch` / `fortune` are wired to `EnchantmentHelper`. Block events: `World.addBlockEvent` → `Block.onBlockEventReceived`. Mob spawners: `MobSpawnerBaseLogic.spawnHook`. |
+| HUD and GUI hooks | `GuiIngame` draws the survival bars whenever the player is not in creative (food, air, XP, armour read by duck typing), `GuiIngame.playerListProvider` (TAB list), `GuiIngame.scoreboardOverlay`, `GuiIngame.setRecordPlayingMessage`, `BossStatus.setBossStatus(boss, colorModifier)` for boss renderers (with `SkyHooks.hasColorModifier`), `CommandGameMode.gameTypeListener` for the survival controller, `Minecraft.mcProfiler` sections (Shift+F3 chart), `getScoreboard(world)` (deaths and kills are counted by `EntityPlayer.onDeath` / `addToPlayerScore`). Overlays outside the HUD (pumpkin blur, portal swirl, first-person fire) live in `src/render/sky/ScreenOverlays.ts`. |
+
+**Cross-slice wiring (wave-1 merge).** Links that need every slice present are made in one of two
+places: `src/item/ItemBindings.ts` (imported by `main.ts`; harvest enchantments, `SkyHooks.potionDuration`
+from `EntityLiving.getActivePotionEffect`, `TileEntityFurnace.smeltingResult` from `FurnaceRecipes`)
+and `src/entity/ItemHooksInstall.ts` (called by `installEntityClientHooks`; fills `ItemEntityFactories`
+with the real entity constructors, `EnchantmentHooks` from `EnchantmentHelper`, and `PotionHooks` from
+`Potion` / `PotionEffect` / `ItemPotion`). Still open after the merge: no `TileEntitySpecialRenderer`
+is registered yet (chests, signs, skulls, spawner cages and enchanting books are invisible in the
+world and `GuiEditSign` draws no sign); no `BlockGuiHooks` handler for furnace, dispenser, brewing
+stand, enchanting, anvil, beacon or hopper windows (only the core chest and workbench GUIs exist);
+no creative inventory GUI using `CreativeTabs.displayAllReleventItems`; mobs (`Pig`, `Sheep`,
+`Chicken`, ...) that the items and entities slices call by duck typing; dynamic block ticks
+(`TODO(block-dynamics)`); bed sleeping (`sleepInBedAt`); `BlockMiningSounds` and `Block.harvestBlock`
+wait for the survival controller.
