@@ -217,6 +217,30 @@ export class Item {
   getPotionEffect(): string | null {
     return this.potionEffect;
   }
+  /** Whether a brewing stand accepts this item as an ingredient. */
+  isPotionIngredient(): boolean {
+    return this.potionEffect !== null;
+  }
+  /** Whether the stack's NBT is synchronised (getShareTag; true for every item in 1.5.2). */
+  getShareTag(): boolean {
+    return true;
+  }
+  /** Anvil: whether `material` repairs `stack` (tools and armour accept their crafting material). */
+  getIsRepairable(_stack: ItemStack, _material: ItemStack): boolean {
+    return false;
+  }
+  /**
+   * What EnumEnchantmentType sees in place of the original's instanceof tests: 'weapon' for
+   * swords, 'digger' for tools, 'axe' for axes (a digger that also takes sharpness), 'bow'.
+   * Armour is recognised through getArmorInfo().
+   */
+  getEnchantKind(): 'weapon' | 'digger' | 'axe' | 'bow' | null {
+    return null;
+  }
+  /** func_82788_x: whether an item frame / anvil may rename it (true in 1.5.2). */
+  isRenamable(): boolean {
+    return true;
+  }
   addInformation(_stack: ItemStack, _player: EntityPlayer | null, _lines: string[], _advanced: boolean): void {}
   /** translateNamedKey(getLocalizedName(stack)).trim(), i.e. "<key>.name" from the lang file. */
   getItemDisplayName(stack: ItemStack): string {

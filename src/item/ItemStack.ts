@@ -1,10 +1,14 @@
 import { Item } from './Item';
 import type { Block } from '../block/Block';
+import { I18n } from '../core/I18n';
+import { Enchantment, type EnchantmentTag } from '../enchantment/Enchantment';
 import type { Entity } from '../entity/Entity';
 import type { EntityLiving } from '../entity/EntityLiving';
 import type { EntityPlayer } from '../entity/EntityPlayer';
 import type { IWorld } from '../world/IWorld';
 import { EnumAction, EnumRarity } from './Item';
+
+const MAP_ID = 358;
 
 /** NBT-like tag data (plain JSON-able objects stand in for NBTTagCompound). */
 export type TagCompound = { [key: string]: unknown };
@@ -230,11 +234,54 @@ export class ItemStack {
       }
       const id = String(this.itemID).padStart(4, '0');
       name += this.getHasSubtypes() ? `#${id}/${this.itemDamage}${close}` : `#${id}${close}`;
+    } else if (!this.hasDisplayName() && this.itemID === MAP_ID) {
+      name += ' #' + this.itemDamage;
     }
     lines.push(name);
     this.getItem().addInformation(this, player, lines, advanced);
+    if (this.stackTagCompound) {
+      for (const t of this.getEnchantmentTagList() ?? []) {
+        const e = Enchantment.enchantmentsList[t.id];
+        if (e) lines.push(e.getTranslatedName(t.lvl));
+      }
+      const display = this.stackTagCompound.display as TagCompound | undefined;
+      if (display && typeof display === 'object') {
+        if ('color' in display) {
+          if (advanced) lines.push('Color: #' + (Number(display.color) >>> 0).toString(16).toUpperCase());
+          else lines.push('§o' + I18n.translateToLocal('item.dyed'));
+        }
+        if (Array.isArray(display.Lore)) for (const l of display.Lore) lines.push('§5§o' + String(l));
+      }
+    }
     if (advanced && this.isItemDamaged()) lines.push(`Durability: ${this.getMaxDamage() - this.getItemDamageForDisplay()} / ${this.getMaxDamage()}`);
     return lines;
+  }
+
+  /** The "ench" list ({id, lvl} entries), or null. */
+  getEnchantmentTagList(): EnchantmentTag[] | null {
+    const l = this.stackTagCompound?.ench;
+    return Array.isArray(l) ? (l as EnchantmentTag[]) : null;
+  }
+
+  addEnchantment(e: Enchantment, level: number): void {
+    this.stackTagCompound ??= {};
+    const list = (this.stackTagCompound.ench ??= []) as EnchantmentTag[];
+    list.push({ id: e.effectId, lvl: level });
+  }
+
+  setTagInfo(key: string, value: unknown): void {
+    this.stackTagCompound ??= {};
+    this.stackTagCompound[key] = value;
+  }
+
+  /** Anvil repair cost ("RepairCost"). */
+  getRepairCost(): number {
+    return this.stackTagCompound && 'RepairCost' in this.stackTagCompound ? Number(this.stackTagCompound.RepairCost) : 0;
+  }
+
+  setRepairCost(cost: number): void {
+    this.stackTagCompound ??= {};
+    this.stackTagCompound.RepairCost = cost;
   }
 
   hasEffect(): boolean {
