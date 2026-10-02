@@ -110,8 +110,9 @@ export class PlayerControllerCreative {
   }
 
   /**
-   * Right click with an item in the air (onItemRightClick). As ItemInWorldManager.tryUseItem does
-   * for a Creative player, the stack keeps its size (and a damageable item its damage).
+   * Right click with an item in the air (onItemRightClick), as ItemInWorldManager.tryUseItem: a
+   * Creative player's stack keeps its size (and a damageable item its damage); otherwise the
+   * item's own use (thrown snowballs, emptied buckets) stands.
    */
   sendUseItem(p: EntityPlayer, w: World, stack: ItemStack): boolean {
     const size = stack.stackSize;
@@ -119,8 +120,10 @@ export class PlayerControllerCreative {
     const result = stack.useItemRightClick(w, p);
     if (result === stack && result.stackSize === size && result.getMaxItemUseDuration() <= 0 && result.getItemDamage() === damage) return false;
     p.inventory.mainInventory[p.inventory.currentItem] = result;
-    result.stackSize = size;
-    if (result.isItemStackDamageable()) result.setItemDamage(damage);
+    if (p.capabilities.isCreativeMode) {
+      result.stackSize = size;
+      if (result.isItemStackDamageable()) result.setItemDamage(damage);
+    }
     if (result.stackSize === 0) p.inventory.mainInventory[p.inventory.currentItem] = null;
     return true;
   }

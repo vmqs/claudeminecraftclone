@@ -10,6 +10,13 @@ import { CreativeTabs } from './CreativeTabs';
 import { Item } from './Item';
 import { ItemStack } from './ItemStack';
 
+/** The EntityHanging fields an item frame marker uses (block position and facing 0-3). */
+interface HangingLike {
+  xPosition?: number;
+  zPosition?: number;
+  hangingDirection?: number;
+}
+
 const f = Math.fround;
 
 /** A marker on a map (MapCoord): icon 0 player, 1 item frame, 6 off-map player; position in half pixels. */
@@ -57,6 +64,8 @@ export class MapData {
         this.playerUpdateCounters.delete(p);
       }
     }
+    const frame = stack.getItemFrame() as (Entity & HangingLike) | null;
+    if (frame) this.updateMarker(1, player.worldObj, `frame-${frame.entityId}`, frame.xPosition ?? 0, frame.zPosition ?? 0, (frame.hangingDirection ?? 0) * 90);
   }
 
   /** func_82567_a: a marker inside the map (rotated in 16ths), or clamped to the edge as icon 6. */
@@ -73,7 +82,7 @@ export class MapData {
       rot = (Math.trunc((rotation * 16) / 360) << 24) >> 24;
       if (this.dimension < 0) {
         const t = Math.trunc(w.getWorldTime() / 10);
-        rot = (((t * t * 34187121 + t * 121) | 0) >> 15) & 15;
+        rot = ((Math.imul(Math.imul(t, t), 34187121) + Math.imul(t, 121)) >> 15) & 15;
       }
     } else {
       if (!(Math.abs(mx) < 320) || !(Math.abs(mz) < 320)) {
@@ -82,8 +91,9 @@ export class MapData {
       }
       icon = 6;
       rot = 0;
-      if (mx <= -edge) cx = Math.trunc(edge * 2 + 2.5);
-      if (mz <= -edge) cz = Math.trunc(edge * 2 + 2.5);
+      // (byte)128: a marker past the left / top edge wraps to -128, the far side of the byte.
+      if (mx <= -edge) cx = (Math.trunc(edge * 2 + 2.5) << 24) >> 24;
+      if (mz <= -edge) cz = (Math.trunc(edge * 2 + 2.5) << 24) >> 24;
       if (mx >= edge) cx = edge * 2 + 1;
       if (mz >= edge) cz = edge * 2 + 1;
     }

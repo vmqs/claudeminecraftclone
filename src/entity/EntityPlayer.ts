@@ -1,11 +1,11 @@
 import type { Block } from '../block/Block';
 import { Material } from '../block/Material';
+import { Vec3 } from '../core/Vec3';
+import { EnumAction } from '../item/Item';
 import { getServer } from '../command/CommandServer';
 import type { ICommandSender } from '../command/ICommandSender';
 import { I18n } from '../core/I18n';
 import { MathHelper } from '../core/MathHelper';
-import { Vec3 } from '../core/Vec3';
-import { EnumAction } from '../item/Item';
 import type { Container } from '../gui/inventory/Container';
 import { ContainerPlayer } from '../gui/inventory/ContainerPlayer';
 import type { IInventory } from '../gui/inventory/IInventory';
@@ -91,37 +91,6 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     this.itemInUse = null;
     this.itemInUseCount = 0;
   }
-  /** Drinking sounds, or eating crumbs (iconcrack particles) and munching, while an item is used. */
-  protected updateItemUse(stack: ItemStack, crumbs: number): void {
-    const action = stack.getItemUseAction();
-    if (action === EnumAction.drink) this.playSound('random.drink', 0.5, f(f(this.worldObj.rand.nextFloat() * f(0.1)) + f(0.9)));
-    if (action === EnumAction.eat) {
-      for (let i = 0; i < crumbs; i++) {
-        const v = new Vec3((this.rand.nextFloat() - 0.5) * 0.1, Math.random() * 0.1 + 0.1, 0);
-        v.rotateAroundX(f(f(-this.rotationPitch * PI_F) / 180));
-        v.rotateAroundY(f(f(-this.rotationYaw * PI_F) / 180));
-        let p = new Vec3((this.rand.nextFloat() - 0.5) * 0.3, -this.rand.nextFloat() * 0.6 - 0.3, 0.6);
-        p.rotateAroundX(f(f(-this.rotationPitch * PI_F) / 180));
-        p.rotateAroundY(f(f(-this.rotationYaw * PI_F) / 180));
-        p = p.addVector(this.posX, this.posY + this.getEyeHeight(), this.posZ);
-        this.worldObj.spawnParticle('iconcrack_' + stack.getItem().itemID, p.xCoord, p.yCoord, p.zCoord, v.xCoord, v.yCoord + 0.05, v.zCoord);
-      }
-      this.playSound('random.eat', f(0.5 + f(0.5 * this.rand.nextInt(2))), f(f(f(this.rand.nextFloat() - this.rand.nextFloat()) * f(0.2)) + 1));
-    }
-  }
-
-  /** The use finished (eaten / drunk): the item's onEaten result replaces the held stack. */
-  protected onItemUseFinish(): void {
-    if (!this.itemInUse) return;
-    this.updateItemUse(this.itemInUse, 16);
-    const size = this.itemInUse.stackSize;
-    const result = this.itemInUse.getItem().onEaten(this.itemInUse, this.worldObj, this);
-    if (result !== this.itemInUse || (result !== null && result.stackSize !== size)) {
-      this.inventory.mainInventory[this.inventory.currentItem] = result.stackSize === 0 ? null : result;
-    }
-    this.clearItemInUse();
-  }
-
   stopUsingItem(): void {
     if (this.itemInUse) this.itemInUse.onPlayerStoppedUsing(this.worldObj, this, this.itemInUseCount);
     this.clearItemInUse();
@@ -129,11 +98,11 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
 
   override onUpdate(): void {
     if (this.itemInUse) {
-      const cur = this.inventory.getCurrentItem();
-      if (cur !== this.itemInUse) {
+      const held = this.inventory.getCurrentItem();
+      if (held !== this.itemInUse) {
         this.clearItemInUse();
       } else {
-        if (this.itemInUseCount <= 25 && this.itemInUseCount % 4 === 0) this.updateItemUse(cur, 5);
+        if (this.itemInUseCount <= 25 && this.itemInUseCount % 4 === 0) this.updateItemUse(held, 5);
         if (--this.itemInUseCount === 0 && !this.worldObj.isRemote) this.onItemUseFinish();
       }
     }
@@ -157,6 +126,38 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     this.chasingPosX += dx * 0.25;
     this.chasingPosZ += dz * 0.25;
     this.chasingPosY += dy * 0.25;
+  }
+
+  /** Drinking sounds, or eating sounds and crumbs of the food's icon in front of the face. */
+  protected updateItemUse(stack: ItemStack, crumbs: number): void {
+    const action = stack.getItemUseAction();
+    if (action === EnumAction.drink) this.playSound('random.drink', f(0.5), f(f(this.worldObj.rand.nextFloat() * f(0.1)) + f(0.9)));
+    if (action !== EnumAction.eat) return;
+    for (let i = 0; i < crumbs; i++) {
+      const v = new Vec3((this.rand.nextFloat() - 0.5) * 0.1, Math.random() * 0.1 + 0.1, 0);
+      v.rotateAroundX(f(f(-this.rotationPitch * PI_F) / 180));
+      v.rotateAroundY(f(f(-this.rotationYaw * PI_F) / 180));
+      let p = new Vec3((this.rand.nextFloat() - 0.5) * 0.3, -this.rand.nextFloat() * 0.6 - 0.3, 0.6);
+      p.rotateAroundX(f(f(-this.rotationPitch * PI_F) / 180));
+      p.rotateAroundY(f(f(-this.rotationYaw * PI_F) / 180));
+      p = p.addVector(this.posX, this.posY + this.getEyeHeight(), this.posZ);
+      this.worldObj.spawnParticle(`iconcrack_${stack.getItem().itemID}`, p.xCoord, p.yCoord, p.zCoord, v.xCoord, v.yCoord + 0.05, v.zCoord);
+    }
+    this.playSound('random.eat', f(f(0.5) + f(f(0.5) * this.rand.nextInt(2))), f(f(f(this.rand.nextFloat() - this.rand.nextFloat()) * f(0.2)) + 1));
+  }
+
+  /** Finished eating or drinking: the item's onEaten result replaces the held stack. */
+  protected onItemUseFinish(): void {
+    const using = this.itemInUse;
+    if (!using) return;
+    this.updateItemUse(using, 16);
+    const size = using.stackSize;
+    const result = using.getItem().onEaten(using, this.worldObj, this);
+    if (result !== using || (result !== null && result.stackSize !== size)) {
+      this.inventory.mainInventory[this.inventory.currentItem] = result;
+      if (result && result.stackSize === 0) this.inventory.mainInventory[this.inventory.currentItem] = null;
+    }
+    this.clearItemInUse();
   }
 
   protected override isDamageDisabled(): boolean {
@@ -497,12 +498,10 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
   /** Entities this player collided with (Entity.onCollideWithPlayer) are handled by them. */
   interactWith(e: Entity): boolean {
     if (e.interact(this)) return true;
-    // Then the held item acts on a living entity (dye on a sheep, saddle on a pig); Creative
-    // uses a copy so the stack is never used up.
     let held = this.getCurrentEquippedItem();
     if (held && e.isLivingEntity) {
       if (this.capabilities.isCreativeMode) held = held.copy();
-      if (held.interactWith(e as EntityLiving)) {
+      if (held.getItem().itemInteractionForEntity(held, e as EntityLiving)) {
         if (held.stackSize <= 0 && !this.capabilities.isCreativeMode) this.destroyCurrentEquippedItem();
         return true;
       }

@@ -1,7 +1,8 @@
 import { Item } from './Item';
 import type { Block } from '../block/Block';
 import { I18n } from '../core/I18n';
-import { Enchantment, type EnchantmentTag } from '../enchantment/Enchantment';
+import { Enchantment, EnchantmentDurability, type EnchantmentTag } from '../enchantment/Enchantment';
+import { EnchantmentHelper } from '../enchantment/EnchantmentHelper';
 import type { Entity } from '../entity/Entity';
 import type { EntityLiving } from '../entity/EntityLiving';
 import type { EntityPlayer } from '../entity/EntityPlayer';
@@ -19,6 +20,8 @@ export class ItemStack {
   itemID: number;
   stackTagCompound: TagCompound | null = null;
   private itemDamage: number;
+  /** The item frame showing this stack (set by EntityItemFrame.setDisplayedItem), if any. */
+  private itemFrame: Entity | null = null;
 
   constructor(item: number | Item | Block | { blockID: number }, stackSize = 1, damage = 0) {
     this.itemID = typeof item === 'number' ? item : 'itemID' in item ? item.itemID : item.blockID;
@@ -93,13 +96,29 @@ export class ItemStack {
     return this.getItem().getMaxDamage();
   }
 
-  /** Creative players never damage items. */
+  /**
+   * Adds `amount` wear, each point first having an Unbreaking roll to cancel it; true when the
+   * item is worn out.
+   */
+  attemptDamageItem(amount: number, rand: { nextFloat(): number; nextInt(n: number): number }): boolean {
+    if (!this.isItemStackDamageable()) return false;
+    if (amount > 0) {
+      const level = EnchantmentHelper.getEnchantmentLevel(Enchantment.unbreaking.effectId, this);
+      let negated = 0;
+      for (let i = 0; level > 0 && i < amount; i++) if (EnchantmentDurability.negateDamage(this, level, rand)) negated++;
+      amount -= negated;
+      if (amount <= 0) return false;
+    }
+    this.itemDamage += amount;
+    return this.itemDamage > this.getMaxDamage();
+  }
+
+  /** Wears the item out by `amount` (never for Creative players); a worn-out item breaks. */
   damageItem(amount: number, entity: EntityLiving): void {
     const player = entity as unknown as EntityPlayer;
     if ('capabilities' in player && player.capabilities.isCreativeMode) return;
     if (!this.isItemStackDamageable()) return;
-    this.itemDamage += amount;
-    if (this.itemDamage > this.getMaxDamage()) {
+    if (this.attemptDamageItem(amount, entity.getRNG())) {
       entity.renderBrokenItemStack(this);
       this.stackSize--;
       if (this.stackSize < 0) this.stackSize = 0;
@@ -136,6 +155,18 @@ export class ItemStack {
 
   onCrafting(world: IWorld, player: EntityPlayer, _amount: number): void {
     this.getItem().onCreated(this, world, player);
+  }
+
+  isOnItemFrame(): boolean {
+    return this.itemFrame !== null;
+  }
+
+  setItemFrame(frame: Entity | null): void {
+    this.itemFrame = frame;
+  }
+
+  getItemFrame(): Entity | null {
+    return this.itemFrame;
   }
 
   copy(): ItemStack {

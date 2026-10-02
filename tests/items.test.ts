@@ -16,6 +16,8 @@ import { getAllCreativeItems, Items } from '../src/item/Items';
 import { ItemStack } from '../src/item/ItemStack';
 import { PotionHelper } from '../src/potion/PotionHelper';
 import { check, report } from './harness';
+import { JavaRandom } from '../src/core/JavaRandom';
+import type { EntityLiving } from '../src/entity/EntityLiving';
 
 const lang = 'public/assets/vanilla/lang/en_US.lang';
 const haveLang = existsSync(lang);
@@ -115,6 +117,23 @@ if (haveLang) {
   check('firework star tooltip', star.getTooltip(null, false).join('|') === 'Firework Star|Large Ball|Red, Custom|Fade to Blue|Trail', star.getTooltip(null, false).join('|'));
 } else {
   console.log('(lang file missing: name checks skipped)');
+}
+
+// Unbreaking: each point of wear has a level/(level+1) chance to be cancelled (armour 40% of that).
+{
+  const rand = new JavaRandom(42n);
+  const holder = { getRNG: () => rand, renderBrokenItemStack() {} } as unknown as EntityLiving;
+  const wear = (id: number, level: number) => {
+    const s = new ItemStack(id);
+    if (level > 0) s.addEnchantment(Enchantment.unbreaking, level);
+    for (let i = 0; i < 400; i++) s.damageItem(1, holder);
+    return s.getItemDamage();
+  };
+  check('no unbreaking: full wear', wear(I.pickaxeDiamond, 0) === 400);
+  const pick = wear(I.pickaxeDiamond, 3);
+  check('unbreaking III pickaxe ~1/4 wear', pick > 70 && pick < 130, `${pick}`);
+  const chest = wear(I.plateDiamond, 3);
+  check('unbreaking III chestplate ~70% wear', chest > 240 && chest < 320, `${chest}`);
 }
 
 report();
