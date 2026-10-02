@@ -107,6 +107,11 @@ export class GuiTextField extends Gui {
     return this.findWordBoundary(n, this.cursorPosition, true);
   }
 
+  /** func_73798_a: position `n` words from `pos`; `skipSpaces` also skips the spaces after a word. */
+  getNthWordFromPosWS(n: number, pos: number, skipSpaces: boolean): number {
+    return this.findWordBoundary(n, pos, skipSpaces);
+  }
+
   private findWordBoundary(n: number, from: number, skipSpaces: boolean): number {
     let p = from;
     for (let i = 0; i < Math.abs(n); i++) {

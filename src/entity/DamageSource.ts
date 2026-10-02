@@ -1,4 +1,6 @@
+import { I18n } from '../core/I18n';
 import type { Entity } from './Entity';
+import type { EntityLiving } from './EntityLiving';
 
 /** DamageSource with the static sources of 1.5.2 used by blocks and the world. */
 export class DamageSource {
@@ -91,6 +93,13 @@ export class DamageSource {
   getDamageType(): string {
     return this.damageType;
   }
+  /** "death.attack.<type>", or "<type>.player" naming the last attacker when that key exists. */
+  getDeathMessage(victim: EntityLiving): string {
+    const attacker = victim.getLastAttacker();
+    const key = 'death.attack.' + this.damageType;
+    if (attacker && I18n.canTranslate(key + '.player')) return I18n.translateToLocalFormatted(key + '.player', victim.getEntityName(), attacker.getEntityName());
+    return I18n.translateToLocalFormatted(key, victim.getEntityName());
+  }
 }
 
 /** Damage caused directly by an entity (mob / player attacks). */
@@ -103,6 +112,12 @@ export class EntityDamageSource extends DamageSource {
   }
   override getEntity(): Entity | null {
     return this.source;
+  }
+  override getDeathMessage(victim: EntityLiving): string {
+    const held = this.source.isLivingEntity ? (this.source as EntityLiving).getHeldItem() : null;
+    const key = 'death.attack.' + this.damageType;
+    if (held?.hasDisplayName() && I18n.canTranslate(key + '.item')) return I18n.translateToLocalFormatted(key + '.item', victim.getEntityName(), this.source.getEntityName(), held.getDisplayName());
+    return I18n.translateToLocalFormatted(key, victim.getEntityName(), this.source.getEntityName());
   }
   static causeMobDamage(e: Entity): DamageSource {
     return new EntityDamageSource('mob', e);

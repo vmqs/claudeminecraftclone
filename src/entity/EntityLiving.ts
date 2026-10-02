@@ -202,6 +202,11 @@ export abstract class EntityLiving extends Entity {
     this.revengeTimer = e ? 100 : 0;
   }
 
+  /** func_94060_bK: who gets the blame in death messages (the attacking player, else the revenge target). */
+  getLastAttacker(): EntityLiving | null {
+    return this.attackingPlayer ?? this.entityLivingToAttack ?? null;
+  }
+
   getLastAttackingEntity(): EntityLiving | null {
     return this.lastAttackingEntity;
   }

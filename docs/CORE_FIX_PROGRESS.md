@@ -23,7 +23,7 @@ agent resumes from the first item that is not marked done or skipped. Status val
 | M4 | RenderLiving, RenderBiped, RenderPlayer (F5 player model), shadows and fire overlay | done (Render shadow/fire, RenderLiving, RenderBiped, RenderPlayer, RenderItem entities; src/render/entity/EntityRenderers.ts) |
 | M5 | Biome spawn lists, SpawnListEntry, EnumCreatureType, SpawnerAnimals as World.mobSpawner | done (biome spawn lists by EntityList name, SpawnerAnimals default World.mobSpawner, worker performWorldGenSpawning descriptors) |
 | M6 | Explosion + World.createExplosion/newExplosion | done (src/world/Explosion.ts, World.newExplosion/createExplosion/getBlockDensity) |
-| M7 | Chat and commands: GuiChat, GuiNewChat, CommandHandler, addChatMessage | todo |
+| M7 | Chat and commands: GuiChat, GuiNewChat, CommandHandler, addChatMessage | done (GuiChat with history and tab completion, GuiNewChat HUD lines; src/command/ CommandHandler, CommandBase, PlayerSelector, ServerCommandManager with help, time, tp, give, kill, seed, say, me, tell; also GuiGameOver and respawn for /kill and void deaths) |
 | M8 | Unloaded-chunk store keeps every ticked chunk (playerEdited flag) | done (World.runNaturally context, Chunk.playerModified) |
 
 ## Minors

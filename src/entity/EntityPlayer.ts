@@ -1,5 +1,8 @@
 import type { Block } from '../block/Block';
 import { Material } from '../block/Material';
+import { getServer } from '../command/CommandServer';
+import type { ICommandSender } from '../command/ICommandSender';
+import { I18n } from '../core/I18n';
 import { MathHelper } from '../core/MathHelper';
 import type { Container } from '../gui/inventory/Container';
 import { ContainerPlayer } from '../gui/inventory/ContainerPlayer';
@@ -9,15 +12,21 @@ import type { TileEntity } from '../world/tileentity/TileEntity';
 import type { World } from '../world/World';
 import { type DamageSource, EntityDamageSource } from './DamageSource';
 import type { Entity } from './Entity';
-import { EntityLiving } from './EntityLiving';
+import { ChunkCoordinates, EntityLiving } from './EntityLiving';
 import { InventoryPlayer } from './InventoryPlayer';
 import { PlayerCapabilities } from './PlayerCapabilities';
 
 const f = Math.fround;
+const PI_F = f(Math.PI);
 
 /** A player: inventory, capabilities (creative flying), camera bob and eye height. */
-export abstract class EntityPlayer extends EntityLiving {
+export abstract class EntityPlayer extends EntityLiving implements ICommandSender {
   inventory: InventoryPlayer;
+  private score = 0;
+  experienceLevel = 0;
+  experienceTotal = 0;
+  /** Progress towards the next level, 0..1. */
+  experience = 0;
   /** The player's own inventory window; openContainer is it whenever no other window is open. */
   inventoryContainer: Container;
   openContainer: Container;
@@ -360,6 +369,31 @@ export abstract class EntityPlayer extends EntityLiving {
     this.openContainer = this.inventoryContainer;
   }
 
+  /** The death message goes to chat; the inventory drops unless keepInventory; the body falls over. */
+  override onDeath(src: DamageSource): void {
+    getServer()?.sendChatMsg(src.getDeathMessage(this));
+    super.onDeath(src);
+    this.setSize(f(0.2), f(0.2));
+    this.setPosition(this.posX, this.posY, this.posZ);
+    this.motionY = f(0.1);
+    if (!this.worldObj.worldInfo.gameRules.keepInventory) this.inventory.dropAllItems();
+    const a = f((f(this.attackedAtYaw + this.rotationYaw) * PI_F) / 180);
+    this.motionX = f(-MathHelper.cos(a) * f(0.1));
+    this.motionZ = f(-MathHelper.sin(a) * f(0.1));
+    this.yOffset = f(0.1);
+  }
+
+  override addToPlayerScore(_e: Entity, n: number): void {
+    this.score += n;
+  }
+
+  getScore(): number {
+    return this.score;
+  }
+
+  /** The Respawn button (EntityClientPlayerMP sent Packet205ClientCommand). */
+  respawnPlayer(): void {}
+
   override setDead(): void {
     super.setDead();
     this.inventoryContainer.onCraftGuiClosed(this);
@@ -381,7 +415,46 @@ export abstract class EntityPlayer extends EntityLiving {
   displayGUIMerchant(_merchant: object, _customName: string | null): void {}
   displayGUIBook(_stack: ItemStack): void {}
 
-  addChatMessage(_msg: string): void {}
+  /** Shows a translated message (a lang key) in this player's chat. */
+  addChatMessage(_key: string): void {}
+
+  getCommandSenderName(): string {
+    return this.username;
+  }
+
+  sendChatToPlayer(_msg: string): void {}
+
+  /** Worlds are always created with "Allow Cheats" on, so every command is allowed. */
+  canCommandSenderUseCommand(_level: number, _command: string): boolean {
+    return true;
+  }
+
+  translateString(key: string, ...args: unknown[]): string {
+    return I18n.translateToLocalFormatted(key, ...args);
+  }
+
+  /** EntityPlayerMP.getPlayerCoordinates: the block at the feet, rounded up from half a block. */
+  getPlayerCoordinates(): ChunkCoordinates {
+    return new ChunkCoordinates(MathHelper.floor_double(this.posX), MathHelper.floor_double(this.boundingBox.minY + 0.5), MathHelper.floor_double(this.posZ));
+  }
+
+  /** 0 full chat, 1 commands only, 2 hidden (the client's chat setting). */
+  getChatVisibility(): number {
+    return 0;
+  }
+
+  /** NetServerHandler.setPlayerLocation: moves the feet to (x, y, z) and stops the player. */
+  setPlayerLocation(x: number, y: number, z: number, yaw: number, pitch: number): void {
+    this.motionX = this.motionY = this.motionZ = 0;
+    this.ySize = 0;
+    this.setLocationAndAngles(x, y, z, yaw, pitch);
+    this.prevRotationYaw = this.rotationYaw;
+    this.prevRotationPitch = this.rotationPitch;
+  }
+
+  override setPositionAndUpdate(x: number, y: number, z: number): void {
+    this.setPlayerLocation(x, y, z, this.rotationYaw, this.rotationPitch);
+  }
 
   /** Entities this player collided with (Entity.onCollideWithPlayer) are handled by them. */
   interactWith(e: Entity): boolean {

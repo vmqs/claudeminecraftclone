@@ -9,6 +9,7 @@ import { Tessellator } from '../render/gl/Tessellator';
 import { RenderHelper } from '../render/RenderHelper';
 import { EnumSkyBlock } from '../world/IBlockAccess';
 import { Gui } from './Gui';
+import { GuiNewChat } from './GuiNewChat';
 
 const f = Math.fround;
 
@@ -25,8 +26,15 @@ export class GuiIngame extends Gui {
   private remainingHighlightTicks = 0;
   private highlightingItemStack: ItemStack | null = null;
 
+  private readonly persistantChatGUI: GuiNewChat;
+
   constructor(private readonly mc: Minecraft) {
     super();
+    this.persistantChatGUI = new GuiNewChat(mc);
+  }
+
+  getChatGUI(): GuiNewChat {
+    return this.persistantChatGUI;
   }
 
   renderGameOverlay(pt: number, _hasScreen: boolean, _mx: number, _my: number): void {
@@ -71,6 +79,13 @@ export class GuiIngame extends Gui {
       }
     }
     if (this.mc.gameSettings.showDebugInfo) this.renderDebugInfo(w);
+    GL.enable(GL.BLEND);
+    GL.blendFunc(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA);
+    GL.disable(GL.ALPHA_TEST);
+    GL.pushMatrix();
+    GL.translate(0, h - 48, 0);
+    this.persistantChatGUI.drawChat(this.updateCounter);
+    GL.popMatrix();
     GL.color(1, 1, 1, 1);
     GL.disable(GL.LIGHTING);
     GL.enable(GL.ALPHA_TEST);

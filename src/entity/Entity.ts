@@ -10,7 +10,9 @@ import { ItemStack } from '../item/ItemStack';
 import type { EnumCreatureType } from '../world/biome/SpawnListEntry';
 import type { Explosion } from '../world/Explosion';
 import type { World } from '../world/World';
+import { I18n } from '../core/I18n';
 import { DamageSource } from './DamageSource';
+import { EntityList } from './EntityList';
 import type { EntityPlayer } from './EntityPlayer';
 
 const f = Math.fround;
@@ -953,8 +955,9 @@ export abstract class Entity {
     this.fallDistance = 0;
   }
 
+  /** The translated "entity.<EntityList name>.name". */
   getEntityName(): string {
-    return 'generic';
+    return I18n.translateToLocal('entity.' + (EntityList.getEntityString(this) ?? 'generic') + '.name');
   }
 
   /** Sub-parts for multi-part entities (the dragon); null otherwise. */

@@ -277,6 +277,18 @@ export class InventoryPlayer implements IInventory {
     return !this.player.isDead && p.getDistanceSqToEntity(this.player) <= 64;
   }
 
+  /** Drops everything, scattered (on death). */
+  dropAllItems(): void {
+    for (const arr of [this.mainInventory, this.armorInventory]) {
+      for (let i = 0; i < arr.length; i++) {
+        const s = arr[i];
+        if (!s) continue;
+        this.player.dropPlayerItemWithRandomChoice(s, true);
+        arr[i] = null;
+      }
+    }
+  }
+
   hasItemStack(stack: ItemStack): boolean {
     return [...this.mainInventory, ...this.armorInventory].some((s) => s !== null && s.isItemEqual(stack));
   }

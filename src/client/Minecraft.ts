@@ -9,13 +9,18 @@ import { I18n } from '../core/I18n';
 import { JavaRandom } from '../core/JavaRandom';
 import { MathHelper } from '../core/MathHelper';
 import { EnumMovingObjectType, type MovingObjectPosition } from '../core/MovingObjectPosition';
+import { type CommandServer, getPossibleCompletions, setServer } from '../command/CommandServer';
+import { ServerCommandManager } from '../command/ServerCommandManager';
 import type { EntityLiving } from '../entity/EntityLiving';
+import type { EntityPlayer } from '../entity/EntityPlayer';
 import { FontRenderer } from '../gui/FontRenderer';
 import { GuiDownloadTerrain } from '../gui/GuiDownloadTerrain';
+import { GuiGameOver } from '../gui/GuiGameOver';
 import { GuiGameStopped } from '../gui/GuiGameStopped';
 import { GuiIngame } from '../gui/GuiIngame';
 import { GuiIngameMenu } from '../gui/GuiIngameMenu';
 import { GuiMainMenu } from '../gui/GuiMainMenu';
+import { GuiChat } from '../gui/GuiChat';
 import { GuiScreen } from '../gui/GuiScreen';
 import { GuiInventory } from '../gui/inventory/GuiInventory';
 import { SlotArmor } from '../gui/inventory/SlotArmor';
@@ -81,6 +86,16 @@ export class Minecraft implements SettingsListener {
   objectMouseOver: MovingObjectPosition | null = null;
   currentScreen: GuiScreen | null = null;
   chunkProvider: ChunkProviderClient | null = null;
+  /** The integrated server's commands; recreated for every world. */
+  commandManager: ServerCommandManager | null = null;
+  /** What commands see as MinecraftServer: this client's world and player. */
+  private readonly commandServer: CommandServer = {
+    getWorlds: () => (this.theWorld ? [this.theWorld] : []),
+    getPlayers: () => (this.thePlayer ? [this.thePlayer] : []),
+    sendChatMsg: (msg) => this.ingameGUI.getChatGUI().printChatMessage(msg),
+    isSinglePlayer: () => true,
+    getCommandManager: () => this.commandManager!,
+  };
   displayWidth = 854;
   displayHeight = 480;
   inGameHasFocus = false;
@@ -340,6 +355,7 @@ export class Minecraft implements SettingsListener {
     this.entityRenderer.getMouseOver(1);
     if (!this.isGamePaused && this.theWorld) this.playerController.updateController();
     if (!this.isGamePaused) this.renderEngine.updateDynamicTextures();
+    if (this.currentScreen === null && this.thePlayer && this.thePlayer.getHealth() <= 0) this.displayGuiScreen(null);
     if (this.currentScreen) this.leftClickCounter = 10000;
     if (this.currentScreen) {
       this.currentScreen.handleInput();
@@ -442,8 +458,9 @@ export class Minecraft implements SettingsListener {
     const p = this.thePlayer!;
     while (gs.keyBindInventory.isPressed()) this.displayGuiScreen(new GuiInventory(p));
     while (gs.keyBindDrop.isPressed()) p.dropOneItem(GuiScreen.isCtrlKeyDown());
-    while (gs.keyBindChat.isPressed());
-    if (this.currentScreen === null) gs.keyBindCommand.isPressed();
+    const chatAllowed = gs.chatVisibility !== 2;
+    while (gs.keyBindChat.isPressed() && chatAllowed) this.displayGuiScreen(new GuiChat());
+    if (this.currentScreen === null && gs.keyBindCommand.isPressed() && chatAllowed) this.displayGuiScreen(new GuiChat('/'));
     if (p.isUsingItem()) {
       if (!gs.keyBindUseItem.pressed) this.playerController.onStoppedUsingItem(p);
       while (gs.keyBindAttack.isPressed());
@@ -528,7 +545,11 @@ export class Minecraft implements SettingsListener {
   displayGuiScreen(screen: GuiScreen | null): void {
     if (this.currentScreen) this.currentScreen.onGuiClosed();
     if (screen === null && this.theWorld === null) screen = new GuiMainMenu();
-    if (screen instanceof GuiMainMenu) this.gameSettings.showDebugInfo = false;
+    else if (screen === null && this.thePlayer && this.thePlayer.getHealth() <= 0) screen = new GuiGameOver();
+    if (screen instanceof GuiMainMenu) {
+      this.gameSettings.showDebugInfo = false;
+      this.ingameGUI?.getChatGUI().clearChatMessages();
+    }
     this.currentScreen = screen;
     if (screen) {
       this.setIngameNotInFocus();
@@ -600,6 +621,10 @@ export class Minecraft implements SettingsListener {
 
   loadRenderers(): void {
     this.renderGlobal?.loadRenderers();
+  }
+
+  onChatOptionsChanged(): void {
+    this.ingameGUI?.getChatGUI().refreshChat();
   }
 
   onSoundOptionsChanged(): void {
@@ -695,6 +720,8 @@ export class Minecraft implements SettingsListener {
       this.effectRenderer?.clearEffects(null);
       this.theWorld = null;
       this.thePlayer = null;
+      this.commandManager = null;
+      setServer(null);
       return;
     }
     this.theWorld = world;
@@ -709,6 +736,41 @@ export class Minecraft implements SettingsListener {
     this.thePlayer.movementInput = new MovementInputFromOptions(this.gameSettings);
     this.playerController.setPlayerCapabilities(this.thePlayer);
     this.renderViewEntity = this.thePlayer;
+    this.commandManager = new ServerCommandManager();
+    setServer(this.commandServer);
+  }
+
+  /**
+   * The Respawn button: the server's respawnPlayer plus setDimensionAndSpawnPlayer. A fresh
+   * player (empty inventory) appears near the world spawn.
+   */
+  respawnPlayer(): void {
+    const w = this.theWorld;
+    const old = this.thePlayer;
+    if (!w || !old) return;
+    w.removeEntity(old);
+    this.renderViewEntity = null;
+    const p = new EntityPlayerSP(this, w, this.username);
+    p.entityId = old.entityId;
+    this.thePlayer = p;
+    this.renderViewEntity = p;
+    p.preparePlayerToSpawn();
+    this.spawnPlayerAtWorldSpawn();
+    w.spawnEntityInWorld(p);
+    this.playerController.flipPlayer(p);
+    p.movementInput = new MovementInputFromOptions(this.gameSettings);
+    this.playerController.setPlayerCapabilities(p);
+    if (this.currentScreen instanceof GuiGameOver) this.displayGuiScreen(null);
+  }
+
+  /** Always false, as in 1.5.2: every command goes to the (integrated) server. */
+  handleClientCommand(_msg: string): boolean {
+    return false;
+  }
+
+  /** Packet203AutoComplete's answer. */
+  getPossibleCompletions(player: EntityPlayer, text: string): string[] {
+    return getPossibleCompletions(player, text);
   }
 
   isSingleplayer(): boolean {

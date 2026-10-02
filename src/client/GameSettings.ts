@@ -78,6 +78,8 @@ export interface SettingsListener {
   onSoundOptionsChanged?(): void;
   loadRenderers?(): void;
   onFullscreenToggled?(): void;
+  /** A chat size or opacity option changed (GuiNewChat re-wraps its lines). */
+  onChatOptionsChanged?(): void;
 }
 
 /** All 1.5.2 options with their defaults, persisted to localStorage in options.txt form. */
@@ -207,6 +209,8 @@ export class GameSettings {
     if (o === EnumOptions.CHAT_HEIGHT_UNFOCUSED) this.chatHeightUnfocused = v;
     if (o === EnumOptions.CHAT_WIDTH) this.chatWidth = v;
     if (o === EnumOptions.CHAT_SCALE) this.chatScale = v;
+    const chat = [EnumOptions.CHAT_OPACITY, EnumOptions.CHAT_HEIGHT_FOCUSED, EnumOptions.CHAT_HEIGHT_UNFOCUSED, EnumOptions.CHAT_WIDTH, EnumOptions.CHAT_SCALE];
+    if (chat.includes(o)) this.listener?.onChatOptionsChanged?.();
   }
 
   setOptionValue(o: EnumOptions, step: number): void {

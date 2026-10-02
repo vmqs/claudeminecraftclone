@@ -1,6 +1,8 @@
 import { MathHelper } from '../core/MathHelper';
 import type { Entity } from '../entity/Entity';
 import { EntityPlayer } from '../entity/EntityPlayer';
+import { handleChat } from '../command/CommandServer';
+import type { GuiNewChat } from '../gui/GuiNewChat';
 import type { GuiScreen } from '../gui/GuiScreen';
 import { GuiChest } from '../gui/inventory/GuiChest';
 import { GuiCrafting } from '../gui/inventory/GuiCrafting';
@@ -18,6 +20,9 @@ export interface PlayerClient {
   displayGuiScreen(screen: GuiScreen | null): void;
   playSoundFX(name: string, volume: number, pitch: number): void;
   readonly effectRenderer: { addEffect(fx: EntityFX): void };
+  readonly ingameGUI: { getChatGUI(): GuiNewChat };
+  readonly gameSettings: { chatVisibility: number };
+  respawnPlayer(): void;
 }
 
 /** The local player: input-driven movement, sprint/fly double-taps, FOV modifier. */
@@ -62,6 +67,27 @@ export class EntityPlayerSP extends EntityPlayer {
 
   override onEnchantmentCritical(target: Entity): void {
     this.mc.effectRenderer.addEffect(new EntityCrit2FX(this.worldObj, target, 'magicCrit'));
+  }
+
+  /** EntityClientPlayerMP.sendChatMessage: goes to the integrated server's chat handler. */
+  sendChatMessage(msg: string): void {
+    handleChat(this, msg);
+  }
+
+  override addChatMessage(key: string): void {
+    this.mc.ingameGUI.getChatGUI().addTranslatedMessage(key);
+  }
+
+  override sendChatToPlayer(msg: string): void {
+    this.mc.ingameGUI.getChatGUI().printChatMessage(msg);
+  }
+
+  override getChatVisibility(): number {
+    return this.mc.gameSettings.chatVisibility;
+  }
+
+  override respawnPlayer(): void {
+    this.mc.respawnPlayer();
   }
 
   override closeScreen(): void {
