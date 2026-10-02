@@ -127,9 +127,9 @@ export class EntitySheep extends EntityAnimal {
     const t = this.sheepTimer;
     if (t > 4 && t <= 36) {
       const k = f(f(f(t - 4) - pt) / 32);
-      return f(f(PI_F / 5) + f(f(0.21991149) * MathHelper.sin(f(k * f(28.7)))));
+      return f(f(Math.PI / 5) + f(f(0.21991149) * MathHelper.sin(f(k * f(28.7)))));
     }
-    return t > 0 ? f(PI_F / 5) : f(this.rotationPitch / f(180 / PI_F));
+    return t > 0 ? f(Math.PI / 5) : f(this.rotationPitch / f(180 / PI_F));
   }
 
   /** Shears: 1-3 wool of its colour (the shears wear in survival). */

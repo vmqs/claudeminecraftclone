@@ -113,7 +113,7 @@ export class EntitySquid extends EntityWaterMob {
       this.motionY -= 0.08;
       this.motionY *= f(0.98);
       this.motionZ = 0;
-      this.squidPitch = f(this.squidPitch + (-90 - this.squidPitch) * 0.02);
+      this.squidPitch = f(this.squidPitch + f(-90 - this.squidPitch) * 0.02);
     }
   }
 

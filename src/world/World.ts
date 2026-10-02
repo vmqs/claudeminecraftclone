@@ -136,12 +136,12 @@ export class World implements IWorld, IBlockAccess {
   /** Block events of this tick and the next (WorldServer.blockEventCache). */
   private readonly blockEventCache: BlockEventData[][] = [[], []];
   private blockEventCacheIndex = 0;
+  /** The villages of this world (VillageCollection), ticked after the block ticks. */
+  readonly villageCollectionObj: VillageCollection = new VillageCollection(this);
   /**
    * Natural mob spawning each tick (doMobSpawning): SpawnerAnimals by default, hostile mobs
    * only above Peaceful, animals every 400 ticks. Replaceable for tests.
    */
-  /** The villages of this world (VillageCollection), ticked after the block ticks. */
-  readonly villageCollectionObj: VillageCollection = new VillageCollection(this);
   mobSpawner: ((w: World) => void) | null = (w) => {
     SpawnerAnimals.findChunksForSpawning(w, w.difficultySetting > 0, true, w.worldInfo.totalTime % 400 === 0);
   };

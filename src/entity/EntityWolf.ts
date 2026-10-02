@@ -88,7 +88,6 @@ export class EntityWolf extends EntityTameable {
 
   protected override updateAITick(): void {
     this.dataHealth = this.getHealth();
-    super.updateAITick();
   }
 
   getMaxHealth(): number {
