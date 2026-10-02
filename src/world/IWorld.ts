@@ -31,11 +31,13 @@ export interface IWorld extends IBlockAccess {
   checkChunksExist(minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number): boolean;
   doChunksNearChunkExist(x: number, y: number, z: number, radius: number): boolean;
 
-  notifyBlocksOfNeighborChange(x: number, y: number, z: number, blockId: number): void;
+  /** `exceptSide` skips the neighbour on that side (World.notifyBlocksOfNeighborChange with a side). */
+  notifyBlocksOfNeighborChange(x: number, y: number, z: number, blockId: number, exceptSide?: number): void;
   notifyBlockOfNeighborChange(x: number, y: number, z: number, blockId: number): void;
   markBlockForUpdate(x: number, y: number, z: number): void;
   markBlockRangeForRenderUpdate(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): void;
-  scheduleBlockUpdate(x: number, y: number, z: number, blockId: number, delay: number): void;
+  /** `priority` orders updates due in the same tick (func_82740_a); lower runs first. */
+  scheduleBlockUpdate(x: number, y: number, z: number, blockId: number, delay: number, priority?: number): void;
   isBlockTickScheduled(x: number, y: number, z: number, blockId: number): boolean;
 
   getBlockLightValue(x: number, y: number, z: number): number;
@@ -87,6 +89,10 @@ export interface IWorld extends IBlockAccess {
   isBlockIndirectlyGettingPowered?(x: number, y: number, z: number): boolean;
   readonly playerEntities?: readonly EntityPlayer[];
   getClosestPlayer?(x: number, y: number, z: number, maxDist: number): EntityPlayer | null;
+  /** Redstone: the strongest power reaching (x, y, z) through `side` (getIndirectPowerLevelTo). */
+  getIndirectPowerLevelTo?(x: number, y: number, z: number, side: number): number;
+  /** Redstone: whether (x, y, z) gives power through `side` (getIndirectPowerOutput). */
+  getIndirectPowerOutput?(x: number, y: number, z: number, side: number): boolean;
   /** A new, not yet spawned item entity (EntityItem constructor); null when items are not installed. */
   createItemEntity?(x: number, y: number, z: number, stack: ItemStack): Entity | null;
 }

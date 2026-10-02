@@ -1,7 +1,9 @@
 import { CreativeTabs } from '../item/CreativeTabs';
 import '../world/tileentity/TileEntities';
 import { Block } from './Block';
+import { BlockPressurePlate, BlockPressurePlateWeighted } from './BlockBasePressurePlate';
 import { BlockBookshelf } from './BlockBookshelf';
+import { BlockButtonStone, BlockButtonWood } from './BlockButton';
 import { BlockCactus } from './BlockCactus';
 import { BlockCarrot } from './BlockCarrot';
 import { BlockClay } from './BlockClay';
@@ -9,8 +11,10 @@ import { BlockCloth } from './BlockCloth';
 import { BlockCocoa } from './BlockCocoa';
 import { BlockCommandBlock } from './BlockCommandBlock';
 import { BlockCrops } from './BlockCrops';
+import { BlockDaylightDetector } from './BlockDaylightDetector';
 import { BlockDeadBush } from './BlockDeadBush';
 import { BlockDirt } from './BlockDirt';
+import { BlockDoor } from './BlockDoor';
 import { BlockFarmland } from './BlockFarmland';
 import { BlockFence } from './BlockFence';
 import { BlockFenceGate } from './BlockFenceGate';
@@ -21,7 +25,9 @@ import { BlockGlowStone } from './BlockGlowStone';
 import { BlockGrass } from './BlockGrass';
 import { BlockGravel } from './BlockGravel';
 import { BlockIce } from './BlockIce';
+import { BlockLadder } from './BlockLadder';
 import { BlockLeaves } from './BlockLeaves';
+import { BlockLever } from './BlockLever';
 import { BlockLilyPad } from './BlockLilyPad';
 import { BlockLog } from './BlockLog';
 import { BlockMelon } from './BlockMelon';
@@ -38,12 +44,17 @@ import { BlockPotato } from './BlockPotato';
 import { BlockPoweredOre } from './BlockPoweredOre';
 import { BlockPumpkin } from './BlockPumpkin';
 import { BlockQuartz } from './BlockQuartz';
+import { BlockRail, BlockRailPowered, BlockDetectorRail } from './BlockRailBase';
 import { BlockRedstoneLight } from './BlockRedstoneLight';
+import { BlockRedstoneRepeater, BlockComparator } from './BlockRedstoneLogic';
 import { BlockRedstoneOre } from './BlockRedstoneOre';
+import { BlockRedstoneTorch } from './BlockRedstoneTorch';
+import { BlockRedstoneWire } from './BlockRedstoneWire';
 import { BlockReed } from './BlockReed';
 import { BlockSand } from './BlockSand';
 import { BlockSandStone } from './BlockSandStone';
 import { BlockSapling } from './BlockSapling';
+import { BlockSign } from './BlockSign';
 import { BlockSilverfish } from './BlockSilverfish';
 import { BlockSnow } from './BlockSnow';
 import { BlockSnowBlock } from './BlockSnowBlock';
@@ -57,6 +68,9 @@ import { BlockStone } from './BlockStone';
 import { BlockStoneBrick } from './BlockStoneBrick';
 import { BlockTallGrass } from './BlockTallGrass';
 import { BlockTorch } from './BlockTorch';
+import { BlockTrapDoor } from './BlockTrapDoor';
+import { BlockTripWire } from './BlockTripWire';
+import { BlockTripWireSource } from './BlockTripWireSource';
 import { BlockVine } from './BlockVine';
 import { BlockWall } from './BlockWall';
 import { BlockWeb } from './BlockWeb';
@@ -103,6 +117,8 @@ export const Blocks = {
   oreLapis: new BlockOre(21).setHardness(3).setResistance(5).setStepSound(S.soundStoneFootstep).setUnlocalizedName('oreLapis'),
   blockLapis: new Block(22, Material.rock).setHardness(3).setResistance(5).setStepSound(S.soundStoneFootstep).setUnlocalizedName('blockLapis').setCreativeTab(CreativeTabs.tabBlock),
   sandStone: new BlockSandStone(24).setStepSound(S.soundStoneFootstep).setHardness(0.8).setUnlocalizedName('sandStone'),
+  railPowered: new BlockRailPowered(27).setHardness(0.7).setStepSound(S.soundMetalFootstep).setUnlocalizedName('goldenRail'),
+  railDetector: new BlockDetectorRail(28).setHardness(0.7).setStepSound(S.soundMetalFootstep).setUnlocalizedName('detectorRail'),
   web: new BlockWeb(30).setLightOpacity(1).setHardness(4).setUnlocalizedName('web'),
   tallGrass: new BlockTallGrass(31).setHardness(0).setStepSound(S.soundGrassFootstep).setUnlocalizedName('tallgrass'),
   deadBush: new BlockDeadBush(32).setHardness(0).setStepSound(S.soundGrassFootstep).setUnlocalizedName('deadbush'),
@@ -126,12 +142,22 @@ export const Blocks = {
   obsidian: new BlockObsidian(49).setHardness(50).setResistance(2000).setStepSound(S.soundStoneFootstep).setUnlocalizedName('obsidian'),
   torchWood: new BlockTorch(50).setHardness(0).setLightValue(0.9375).setStepSound(S.soundWoodFootstep).setUnlocalizedName('torch'),
   stairsWoodOak: new BlockStairs(53, Block.blocksList[5]!, 0).setUnlocalizedName('stairsWood'),
+  redstoneWire: new BlockRedstoneWire(55).setHardness(0).setStepSound(S.soundPowderFootstep).setUnlocalizedName('redstoneDust').disableStats(),
   oreDiamond: new BlockOre(56).setHardness(3).setResistance(5).setStepSound(S.soundStoneFootstep).setUnlocalizedName('oreDiamond'),
   blockDiamond: new BlockOreStorage(57).setHardness(5).setResistance(10).setStepSound(S.soundMetalFootstep).setUnlocalizedName('blockDiamond'),
   workbench: new BlockWorkbench(58).setHardness(2.5).setStepSound(S.soundWoodFootstep).setUnlocalizedName('workbench'),
   crops: new BlockCrops(59).setUnlocalizedName('crops'),
   tilledField: new BlockFarmland(60).setHardness(0.6).setStepSound(S.soundGravelFootstep).setUnlocalizedName('farmland'),
+  signPost: new BlockSign(63, true).setHardness(1).setStepSound(S.soundWoodFootstep).setUnlocalizedName('sign').disableStats(),
+  doorWood: new BlockDoor(64, Material.wood).setHardness(3).setStepSound(S.soundWoodFootstep).setUnlocalizedName('doorWood').disableStats(),
+  ladder: new BlockLadder(65).setHardness(0.4).setStepSound(S.soundLadderFootstep).setUnlocalizedName('ladder'),
+  rail: new BlockRail(66).setHardness(0.7).setStepSound(S.soundMetalFootstep).setUnlocalizedName('rail'),
   stairsCobblestone: new BlockStairs(67, Block.blocksList[4]!, 0).setUnlocalizedName('stairsStone'),
+  signWall: new BlockSign(68, false).setHardness(1).setStepSound(S.soundWoodFootstep).setUnlocalizedName('sign').disableStats(),
+  lever: new BlockLever(69).setHardness(0.5).setStepSound(S.soundWoodFootstep).setUnlocalizedName('lever'),
+  pressurePlateStone: new BlockPressurePlate(70, 'stone', Material.rock, 'mobs').setHardness(0.5).setStepSound(S.soundStoneFootstep).setUnlocalizedName('pressurePlate'),
+  doorIron: new BlockDoor(71, Material.iron).setHardness(5).setStepSound(S.soundMetalFootstep).setUnlocalizedName('doorIron').disableStats(),
+  pressurePlatePlanks: new BlockPressurePlate(72, 'wood', Material.wood, 'everything').setHardness(0.5).setStepSound(S.soundWoodFootstep).setUnlocalizedName('pressurePlate'),
   oreRedstone: new BlockRedstoneOre(73, false)
     .setHardness(3)
     .setResistance(5)
@@ -139,6 +165,9 @@ export const Blocks = {
     .setUnlocalizedName('oreRedstone')
     .setCreativeTab(CreativeTabs.tabBlock),
   oreRedstoneGlowing: new BlockRedstoneOre(74, true).setLightValue(0.625).setHardness(3).setResistance(5).setStepSound(S.soundStoneFootstep).setUnlocalizedName('oreRedstone'),
+  torchRedstoneIdle: new BlockRedstoneTorch(75, false).setHardness(0).setStepSound(S.soundWoodFootstep).setUnlocalizedName('notGate'),
+  torchRedstoneActive: new BlockRedstoneTorch(76, true).setHardness(0).setLightValue(0.5).setStepSound(S.soundWoodFootstep).setUnlocalizedName('notGate').setCreativeTab(CreativeTabs.tabRedstone),
+  stoneButton: new BlockButtonStone(77).setHardness(0.5).setStepSound(S.soundStoneFootstep).setUnlocalizedName('button'),
   snow: new BlockSnow(78).setHardness(0.1).setStepSound(S.soundSnowFootstep).setUnlocalizedName('snow').setLightOpacity(0),
   ice: new BlockIce(79).setHardness(0.5).setLightOpacity(3).setStepSound(S.soundGlassFootstep).setUnlocalizedName('ice'),
   blockSnow: new BlockSnowBlock(80).setHardness(0.2).setStepSound(S.soundSnowFootstep).setUnlocalizedName('snow'),
@@ -151,6 +180,9 @@ export const Blocks = {
   slowSand: new BlockSoulSand(88).setHardness(0.5).setStepSound(S.soundSandFootstep).setUnlocalizedName('hellsand'),
   glowStone: new BlockGlowStone(89, Material.glass).setHardness(0.3).setStepSound(S.soundGlassFootstep).setLightValue(1).setUnlocalizedName('lightgem'),
   pumpkinLantern: new BlockPumpkin(91, true).setHardness(1).setStepSound(S.soundWoodFootstep).setLightValue(1).setUnlocalizedName('litpumpkin'),
+  redstoneRepeaterIdle: new BlockRedstoneRepeater(93, false).setHardness(0).setStepSound(S.soundWoodFootstep).setUnlocalizedName('diode').disableStats(),
+  redstoneRepeaterActive: new BlockRedstoneRepeater(94, true).setHardness(0).setLightValue(0.625).setStepSound(S.soundWoodFootstep).setUnlocalizedName('diode').disableStats(),
+  trapdoor: new BlockTrapDoor(96, Material.wood).setHardness(3).setStepSound(S.soundWoodFootstep).setUnlocalizedName('trapdoor').disableStats(),
   silverfish: new BlockSilverfish(97).setHardness(0.75).setUnlocalizedName('monsterStoneEgg'),
   stoneBrick: new BlockStoneBrick(98).setHardness(1.5).setResistance(10).setStepSound(S.soundStoneFootstep).setUnlocalizedName('stonebricksmooth'),
   mushroomCapBrown: new BlockMushroomCap(99, Material.wood, 0).setHardness(0.2).setStepSound(S.soundWoodFootstep).setUnlocalizedName('mushroom'),
@@ -178,6 +210,8 @@ export const Blocks = {
   cocoaPlant: new BlockCocoa(127).setHardness(0.2).setResistance(5).setStepSound(S.soundWoodFootstep).setUnlocalizedName('cocoa'),
   stairsSandStone: new BlockStairs(128, Block.blocksList[24]!, 0).setUnlocalizedName('stairsSandStone'),
   oreEmerald: new BlockOre(129).setHardness(3).setResistance(5).setStepSound(S.soundStoneFootstep).setUnlocalizedName('oreEmerald'),
+  tripWireSource: new BlockTripWireSource(131).setUnlocalizedName('tripWireSource'),
+  tripWire: new BlockTripWire(132).setUnlocalizedName('tripWire'),
   blockEmerald: new BlockOreStorage(133).setHardness(5).setResistance(10).setStepSound(S.soundMetalFootstep).setUnlocalizedName('blockEmerald'),
   stairsWoodSpruce: new BlockStairs(134, Block.blocksList[5]!, 1).setUnlocalizedName('stairsWoodSpruce'),
   stairsWoodBirch: new BlockStairs(135, Block.blocksList[5]!, 2).setUnlocalizedName('stairsWoodBirch'),
@@ -186,10 +220,17 @@ export const Blocks = {
   cobblestoneWall: new BlockWall(139, Block.blocksList[4]!).setUnlocalizedName('cobbleWall'),
   carrot: new BlockCarrot(141).setUnlocalizedName('carrots'),
   potato: new BlockPotato(142).setUnlocalizedName('potatoes'),
+  woodenButton: new BlockButtonWood(143).setHardness(0.5).setStepSound(S.soundWoodFootstep).setUnlocalizedName('button'),
+  pressurePlateGold: new BlockPressurePlateWeighted(147, 'blockGold', Material.iron, 64).setHardness(0.5).setStepSound(S.soundWoodFootstep).setUnlocalizedName('weightedPlate_light'),
+  pressurePlateIron: new BlockPressurePlateWeighted(148, 'blockIron', Material.iron, 640).setHardness(0.5).setStepSound(S.soundWoodFootstep).setUnlocalizedName('weightedPlate_heavy'),
+  redstoneComparatorIdle: new BlockComparator(149, false).setHardness(0).setStepSound(S.soundWoodFootstep).setUnlocalizedName('comparator').disableStats(),
+  redstoneComparatorActive: new BlockComparator(150, true).setHardness(0).setLightValue(0.625).setStepSound(S.soundWoodFootstep).setUnlocalizedName('comparator').disableStats(),
+  daylightSensor: new BlockDaylightDetector(151).setHardness(0.2).setStepSound(S.soundWoodFootstep).setUnlocalizedName('daylightDetector'),
   blockRedstone: new BlockPoweredOre(152).setHardness(5).setResistance(10).setStepSound(S.soundMetalFootstep).setUnlocalizedName('blockRedstone'),
   oreNetherQuartz: new BlockOre(153).setHardness(3).setResistance(5).setStepSound(S.soundStoneFootstep).setUnlocalizedName('netherquartz'),
   blockNetherQuartz: new BlockQuartz(155).setStepSound(S.soundStoneFootstep).setHardness(0.8).setUnlocalizedName('quartzBlock'),
   stairsNetherQuartz: new BlockStairs(156, Block.blocksList[155]!, 0).setUnlocalizedName('stairsQuartz'),
+  railActivator: new BlockRailPowered(157).setHardness(0.7).setStepSound(S.soundMetalFootstep).setUnlocalizedName('activatorRail'),
 };
 
 /**
