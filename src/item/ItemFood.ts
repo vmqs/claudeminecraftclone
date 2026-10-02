@@ -1,3 +1,4 @@
+import { Block } from '../block/Block';
 import { ItemIds } from '../block/BlockIds';
 import type { EntityPlayer } from '../entity/EntityPlayer';
 import { Potion } from '../potion/Potion';
@@ -167,7 +168,7 @@ export class ItemSeeds extends Item {
 function plantSeed(stack: ItemStack, player: EntityPlayer, w: IWorld, x: number, y: number, z: number, side: number, crop: number, soil: number): boolean {
   if (side !== 1) return false;
   if (!player.canPlayerEdit(x, y, z, side, stack) || !player.canPlayerEdit(x, y + 1, z, side, stack)) return false;
-  if (w.getBlockId(x, y, z) === soil && w.isAirBlock(x, y + 1, z)) {
+  if (w.getBlockId(x, y, z) === soil && w.isAirBlock(x, y + 1, z) && Block.blocksList[crop]) {
     w.setBlock(x, y + 1, z, crop);
     stack.stackSize--;
     return true;

@@ -149,7 +149,7 @@ export class ItemEnderEye extends Item {
         }
       }
     }
-    if (!ok) return;
+    if (!ok || !Block.blocksList[BlockIds.endPortal]) return;
     for (let i = first; i <= last; i++) {
       for (let d = 1; d <= 3; d++) w.setBlock(x + sx * i + fx * d, y, z + sz * i + fz * d, BlockIds.endPortal, 0, 2);
     }

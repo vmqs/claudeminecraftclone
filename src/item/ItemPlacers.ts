@@ -203,7 +203,7 @@ export class ItemBed extends Item {
   }
   override onItemUse(stack: ItemStack, player: EntityPlayer, w: IWorld, x: number, y: number, z: number, side: number): boolean {
     if (w.isRemote) return true;
-    if (side !== 1) return false;
+    if (side !== 1 || !Block.blocksList[BlockIds.bed]) return false;
     y++;
     const dir = playerDirection(player);
     const dx = dir === 1 ? -1 : dir === 3 ? 1 : 0;
