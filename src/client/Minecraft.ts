@@ -2,6 +2,7 @@ import type { ResourceManager } from '../assets/ResourceManager';
 import { SoundManager } from '../audio/SoundManager';
 import { Block } from '../block/Block';
 import '../entity/Entities';
+import '../render/entity/EntityRenderers';
 import '../render/particle/ParticleRegistry';
 import { I18n } from '../core/I18n';
 import { JavaRandom } from '../core/JavaRandom';
@@ -22,6 +23,7 @@ import { EntityRenderer } from '../render/EntityRenderer';
 import { GL } from '../render/gl/GL';
 import { Tessellator } from '../render/gl/Tessellator';
 import { EffectRenderer } from '../render/particle/EffectRenderer';
+import { RenderManager } from '../render/entity/RenderManager';
 import { RenderBlocks } from '../render/RenderBlocks';
 import { RenderGlobal, WorldRenderer } from '../render/RenderGlobal';
 import { TextureManager } from '../render/texture/TextureManager';
@@ -157,6 +159,7 @@ export class Minecraft implements SettingsListener {
 
     this.renderEngine.textureMapBlocks.registrars.push((reg) => {
       for (const b of Block.blocksList) if (b) b.registerIcons(reg);
+      RenderManager.instance.updateIcons(reg);
     });
     this.renderEngine.textureMapItems.registrars.push((reg) => {
       for (const it of Item.itemsList) if (it && it.getSpriteNumber() === 1) it.registerIcons(reg);

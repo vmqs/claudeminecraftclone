@@ -11,6 +11,16 @@ import type { IWorld } from '../world/IWorld';
 import type { CreativeTabs } from './CreativeTabs';
 import { ItemStack } from './ItemStack';
 
+/**
+ * What ItemArmor exposes to renderers: slot type (0 helmet ... 3 boots), the texture set
+ * (renderIndex: cloth, chain, iron, diamond, gold) and whether it is dyeable leather.
+ */
+export interface ArmorInfo {
+  readonly armorType: number;
+  readonly renderIndex: number;
+  readonly isCloth: boolean;
+}
+
 export enum EnumAction {
   none,
   eat,
@@ -120,6 +130,14 @@ export class Item {
   /** Armour points when worn (ItemArmor.damageReduceAmount; 0 for everything else). */
   getArmorReduction(): number {
     return 0;
+  }
+  /** Worn-armour data of ItemArmor for the armour layers of RenderBiped/RenderPlayer. */
+  getArmorInfo(): ArmorInfo | null {
+    return null;
+  }
+  /** ItemArmor.getColor: dyed leather colour (0xRRGGBB). */
+  getArmorColor(_stack: ItemStack): number {
+    return 0xffffff;
   }
   canHarvestBlock(_b: Block): boolean {
     return false;

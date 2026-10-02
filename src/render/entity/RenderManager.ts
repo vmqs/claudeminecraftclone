@@ -5,8 +5,10 @@ import type { EntityLiving } from '../../entity/EntityLiving';
 import type { World } from '../../world/World';
 import { GL } from '../gl/GL';
 import { OpenGlHelper } from '../OpenGlHelper';
+import type { ItemRenderer } from '../ItemRenderer';
+import type { IconRegister } from '../texture/Icon';
 import type { TextureManager } from '../texture/TextureManager';
-import type { Render } from './Render';
+import { Render } from './Render';
 
 type EntityClass = abstract new (...args: never[]) => Entity;
 
@@ -30,10 +32,20 @@ export class RenderManager {
   viewerPosX = 0;
   viewerPosY = 0;
   viewerPosZ = 0;
+  /** The first-person item renderer, used by renderers to draw held items (set by EntityRenderer). */
+  itemRenderer: ItemRenderer | null = null;
+  /** The entity under the crosshair (custom name tags show when looked at). */
+  pointedEntity: Entity | null = null;
 
   register(cls: EntityClass, r: Render): void {
     r.setRenderManager(this);
     this.entityRenderMap.set(cls, r);
+  }
+
+  /** Registers the shared fire sprites and every renderer's icons (RenderManager.updateIcons). */
+  updateIcons(reg: IconRegister): void {
+    Render.fireIcons = [reg.registerIcon('fire_0'), reg.registerIcon('fire_1')];
+    for (const r of new Set(this.entityRenderMap.values())) r.updateIcons(reg);
   }
 
   /** Renderer for an entity, walking up its class chain. */

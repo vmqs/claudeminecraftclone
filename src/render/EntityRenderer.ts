@@ -9,6 +9,7 @@ import type { Entity } from '../entity/Entity';
 import type { EntityLiving } from '../entity/EntityLiving';
 import type { EntityPlayer } from '../entity/EntityPlayer';
 import { ActiveRenderInfo } from './ActiveRenderInfo';
+import { RenderManager } from './entity/RenderManager';
 import { Frustum } from './Frustum';
 import { GL } from './gl/GL';
 import { OpenGlHelper } from './OpenGlHelper';
@@ -65,6 +66,7 @@ export class EntityRenderer {
 
   constructor(private readonly mc: Minecraft) {
     this.itemRenderer = new ItemRenderer(mc);
+    RenderManager.instance.itemRenderer = this.itemRenderer;
     this.lightmapTexture = mc.renderEngine.allocateTexture(16, 16, true);
   }
 
@@ -135,6 +137,7 @@ export class EntityRenderer {
     }
     if (this.pointedEntity && (best < hitDist || !this.mc.objectMouseOver)) {
       this.mc.objectMouseOver = MovingObjectPosition.forEntity(this.pointedEntity);
+      if (this.pointedEntity.isLivingEntity) RenderManager.instance.pointedEntity = this.pointedEntity;
     }
   }
 

@@ -20,7 +20,7 @@ agent resumes from the first item that is not marked done or skipped. Status val
 | M1 | SoundManager pause semantics (sound muted forever after ESC from pause menu) | done |
 | M2 | Player attacks: attackTargetEntityWithCurrentItem via PlayerControllerCreative.attackEntity | done |
 | M3 | EntityLiving combat/death/sounds/AI branch + EntityCreature/Ageable/Animal/Mob + EntityAITasks/EntityAIBase | done (EntityLiving full port, Creature/Ageable/Animal/Mob/Tameable/Golem/WaterMob/Ambient/Flying, ai/ tasks + PathNavigate/PathFinder) |
-| M4 | RenderLiving, RenderBiped, RenderPlayer (F5 player model), shadows and fire overlay | todo |
+| M4 | RenderLiving, RenderBiped, RenderPlayer (F5 player model), shadows and fire overlay | done (Render shadow/fire, RenderLiving, RenderBiped, RenderPlayer, RenderItem entities; src/render/entity/EntityRenderers.ts) |
 | M5 | Biome spawn lists, SpawnListEntry, EnumCreatureType, SpawnerAnimals as World.mobSpawner | todo |
 | M6 | Explosion + World.createExplosion/newExplosion | todo |
 | M7 | Chat and commands: GuiChat, GuiNewChat, CommandHandler, addChatMessage | todo |
@@ -38,8 +38,8 @@ agent resumes from the first item that is not marked done or skipped. Status val
 | m6 | Chunk streaming hotspots (dirty set, per-frame scans, allocations) | done (dirty/geometry sets, partial selection instead of per-frame sort; no real-GPU profile possible here) |
 | m7 | F3 "C:" counts like 1.5.2 | done |
 | m8 | Extension points documented in ARCHITECTURE.md | todo |
-| m9 | EntityItem, World.itemDropFactory, drop key (Q) | done (EntityItem; RenderItem entity half pending in M4) |
-| m10 | ModelBase texture offset map, named addBox | todo |
+| m9 | EntityItem, World.itemDropFactory, drop key (Q) | done |
+| m10 | ModelBase texture offset map, named addBox | done |
 | m11 | playAuxSFX remaining cases | todo |
 | m12 | Weather: addWeatherEffect, lightning roll consuming RNG, hook | todo |
 | m13 | GuiSlot widget | todo |

@@ -128,16 +128,19 @@ export class ModelRenderer {
   offsetX = 0;
   offsetY = 0;
   offsetZ = 0;
+  /** Part name for named boxes (ModelRenderer(ModelBase, String)). */
+  readonly boxName: string | null;
 
+  /** `new ModelRenderer(model, u, v)` or `new ModelRenderer(model, 'name')` like the original. */
   constructor(
     private readonly baseModel: ModelBase,
-    texU = 0,
+    texUOrName: number | string = 0,
     texV = 0,
-    readonly boxName: string | null = null,
   ) {
     baseModel.boxList.push(this);
+    this.boxName = typeof texUOrName === 'string' ? texUOrName : null;
     this.setTextureSize(baseModel.textureWidth, baseModel.textureHeight);
-    this.setTextureOffset(texU, texV);
+    if (typeof texUOrName === 'number') this.setTextureOffset(texUOrName, texV);
   }
 
   addChild(r: ModelRenderer): void {
@@ -152,6 +155,21 @@ export class ModelRenderer {
 
   addBox(x: number, y: number, z: number, w: number, h: number, d: number, grow = 0): this {
     this.cubeList.push(new ModelBox(this, this.textureOffsetX, this.textureOffsetY, x, y, z, w, h, d, grow));
+    return this;
+  }
+
+  /**
+   * addBox(String, ...): a box whose texture offset comes from the model's map under
+   * "<this part's name>.<name>" (ModelBase.setTextureOffset), as ModelOcelot and the dragon use.
+   */
+  addBoxNamed(name: string, x: number, y: number, z: number, w: number, h: number, d: number): this {
+    const key = `${this.boxName}.${name}`;
+    const off = this.baseModel.getTextureOffset(key);
+    if (!off) throw new Error(`ModelRenderer: no texture offset for ${key}`);
+    this.setTextureOffset(off.textureOffsetX, off.textureOffsetY);
+    const box = new ModelBox(this, this.textureOffsetX, this.textureOffsetY, x, y, z, w, h, d, 0);
+    box.boxName = key;
+    this.cubeList.push(box);
     return this;
   }
 
