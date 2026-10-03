@@ -768,3 +768,16 @@ the scrolling Controls screen and imported texture packs share one tree. Player 
 active pack. The Default pack is now the first-launch pack: captures meant to match the Faithful
 reference shots add `&pack=faithful` to their `goto` URL. Scenarios that call `mc.dev.sky.pin`
 freeze the timer, so a real key press there is never ticked; use `mc.dev.press(code)` instead.
+
+**Wave-4b merge (persistence, perf, stats).** Saving, the performance work and statistics share
+one tree. One tick scheduler: perf's `TickScheduler` (numeric keys, flagged removals);
+`World.getPendingBlockUpdates(cx, cz)` reads it through `inChunk` for the chunk's TileTicks.
+`ChunkProviderClient.processIncoming` adds chunks read from the save (`savedIncoming`) before
+the worker's indexed queue; a chunk the worker sends again (`replace`) is marked `isModified` so a
+save that already holds the early copy is rewritten. Chunk compression and writes run as the
+`IdleTasks` job `save.chunks` within the frame budget (and in the hidden LAN ticker), not 4 ms per
+tick; autosave snapshots and Save and Quit (`SaveHandler.flush`) are unchanged.
+`noteWorldLaunch` (statistics) runs after `launchIntegratedServer` waits for a Save and Quit in
+progress, so a deferred launch counts once; loading a saved world counts as `loadWorld`, not
+`createWorld`. `node_modules` and `public/assets` may be symlinks in worktrees and are ignored
+as such (`/node_modules`, `/public/assets` in `.gitignore`): never commit them.
