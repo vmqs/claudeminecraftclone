@@ -27,13 +27,18 @@ browser hosts the world and the others join it with a room code. The browsers co
 to each other (WebRTC); there is no game server to run.
 
 - **Host:** in your world press Esc → **Open to LAN**, pick the game mode for other players,
-  Allow Cheats and your name, then **Start LAN World**. The chat shows a code such as
-  `Room code: K7XQ2M` (also copied to the clipboard, and shown on the pause menu). Keep the tab
-  open and visible while others play.
+  Allow Cheats and your name, then **Start LAN World** (or type `/publish`). The chat shows a
+  code such as `Room code: K7XQ-2MHB` (also copied to the clipboard, and shown on the pause
+  menu). Keep the tab open and visible while others play. `/kick`, `/ban`, `/pardon` and
+  `/whitelist on` keep order.
 - **Join:** title screen → **Multiplayer**, type your name in the **Name** box, then
   **Direct Connect**, enter the room code and **Join Server**. **Add Server** saves a code.
 - **Names** are 3–16 letters, digits or underscores, are remembered by the browser and must be
-  unique in a room. They show above players, in chat, in the TAB list and in commands.
+  unique in a room. They show above players, in chat, in the TAB list and in commands. Coming
+  back to a room from the same browser gives you your things back.
+- **Privacy:** the room code is the only key to a room, so share it only with your friends.
+  Players in a room connect directly, so **everyone in a room sees everyone else's IP
+  address**.
 
 Finding a room uses public signalling relays (Nostr and BitTorrent trackers). Most home
 networks connect fine; strict NATs and firewalls (some office, school and mobile networks)

@@ -107,3 +107,12 @@ each (with a netsession / netprotocol check where it can be tested in Node).
 - [x] Minor: version refusals name the host's build (vite define __BUILD_ID__, the git commit)
   and protocols; Handshake/KickDisconnect bytes are pinned in netprotocol. ?relay= needs ?dev=1.
   trystero's "User-Initiated Abort" on a closed link is logged at debug level (patch script).
+- [x] Docs: MULTIPLAYER.md (privacy and security section, room codes, rejoin tokens, moderation,
+  limits, trystero patch, known gaps), README, ARCHITECTURE §12/§13, TESTING.
+- Verification after the fixes: netprotocol 105, nettransport 8, netsession 124, regression
+  suites (survival 95, containers 42, placement 21, player 59, mobshostile 78, dynamics 55,
+  mobspassive 121, items 99, crafting 85) pass; `npm run build` and `scripts/mp-test.mjs`
+  14/14 (local relay, real WebRTC).
+
+Not done (documented as known gaps): signed host greeting (ECDSA key in the code), a TURN relay,
+join approval UI (the host has /whitelist on instead).

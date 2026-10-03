@@ -27,7 +27,7 @@ URL parameters (any combination):
 | `?mode=survival\|hardcore\|adventure\|creative` | the autostart world's game mode (Creative when absent; Hardcore without cheats) |
 | `?mobs=0` | natural mob spawning off (gamerule `doMobSpawning`) and the first ticks' mobs removed, so captures are not pushed or attacked while chunks load |
 | `?preserve=1` | creates the WebGL context with `preserveDrawingBuffer` |
-| `?relay=ws://host:port` | multiplayer signalling through a self-hosted trystero WebSocket relay instead of the public ones (repeatable or comma separated; host and guests need the same one) |
+| `?relay=ws://host:port` | with `?dev=1` only: multiplayer signalling through a self-hosted trystero WebSocket relay instead of the public ones (repeatable or comma separated; host and guests need the same one) |
 | `?signal=nostr,torrent` | which public signalling routes multiplayer uses (default both) |
 | `?net=memory` | multiplayer over an in-memory transport inside one page (development only) |
 
@@ -160,13 +160,15 @@ block's item render. Keep such scripts outside the repository unless they become
 ## Multiplayer
 
 ```sh
-node scripts/run-node-test.mjs tests/netprotocol.test.ts tests/netsession.test.ts
+node scripts/run-node-test.mjs tests/netprotocol.test.ts tests/nettransport.test.ts tests/netsession.test.ts
 npm run build && node scripts/mp-test.mjs --out shots/mp
 ```
 
 `tests/netprotocol.test.ts` round-trips every packet, frames and chunk data, and checks the
 limits (oversized frames, strings, lists and NBT, truncated and fuzzed input, packets from the
-wrong side), room codes and usernames. `tests/netsession.test.ts` builds a host `World` from flat
+wrong side), the item tag whitelist, the frozen Handshake and KickDisconnect bytes, room codes,
+room keys and usernames. `tests/nettransport.test.ts` feeds trystero's (patched) action wire
+layer: unknown action types, oversized and too many unfinished messages. `tests/netsession.test.ts` builds a host `World` from flat
 chunks with a `LanServer` and joins guests over `MemoryTransport` (each guest a real
 `NetClientHandler` + `WorldClient`): login and chunk streaming (blocks and light), movement
 both ways and the long-jump correction, sneaking, placing and breaking both ways (prediction,
@@ -175,7 +177,12 @@ a tracked mob (movement, metadata, attack, hurt and death), dropped items, a che
 (contents, clicks, closing), game mode changes, death and respawn, a second guest, name clashes,
 version mismatch, invalid names, malformed / unknown / oversized / server-only packets, NaN
 positions and packet floods, leaving, coming back with the same inventory and place, and the
-host closing the room.
+host closing the room; and what the multiplayer review found: closing the own inventory, mobs
+through whole-chunk resends, boat steering, light for late joiners, render distance, creative
+items with bad tags or technical ids, a throwing entity, speed hacks, a creative nuker, signs,
+the bed teleport, dead guests, rejoin tokens, a second login, Hardcore deaths and the host's
+/kick, /ban, /pardon and /whitelist. Guests walk (`walkTo`) rather than jump: the host corrects
+moves longer than a player can make in a tick.
 
 `scripts/mp-test.mjs` is the one browser test: `vite preview` on port 4400 and a trystero
 WebSocket relay on 4401 (`--port`, `--relay-port`), then two contexts of one headless Chromium.
