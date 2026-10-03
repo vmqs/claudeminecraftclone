@@ -445,6 +445,7 @@ export class Minecraft implements SettingsListener {
       this.fpsCounter = 0;
     }
     prof.endSection();
+    FrameBudget.endFrame(performance.now());
   }
 
   private backgroundTimer: ReturnType<typeof setInterval> | null = null;

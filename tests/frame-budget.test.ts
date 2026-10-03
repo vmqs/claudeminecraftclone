@@ -8,16 +8,27 @@ import { FrameBudget } from '../src/client/FrameBudget';
 import { IdleTasks } from '../src/client/IdleTasks';
 import { check, report } from './harness';
 
-// 60 fps: the base budget applies; 2 fps: a quarter of the frame, capped; covered world: half.
+// The budget grows with the time between frames the game loop does not use (a slow GPU), not
+// with a slow game loop; a covered world gets a share of the whole frame.
 let t = 0;
-for (let i = 0; i < 30; i++) FrameBudget.beginFrame((t += 1000 / 60), false);
-check('60 fps stays near the base budget', Math.abs(FrameBudget.ms(4) - 4.17) < 0.05 && FrameBudget.ms(8) === 8, String(FrameBudget.ms(4)));
-for (let i = 0; i < 30; i++) FrameBudget.beginFrame((t += 120), false);
-check('slow frames get a share of the interval', Math.abs(FrameBudget.ms(4) - 30) < 1, String(FrameBudget.ms(4)));
-for (let i = 0; i < 30; i++) FrameBudget.beginFrame((t += 2000), false);
+const frames = (n: number, interval: number, loop: number, hidden = false) => {
+  for (let i = 0; i < n; i++) {
+    FrameBudget.beginFrame((t += interval), hidden);
+    FrameBudget.endFrame(t + loop);
+  }
+};
+frames(40, 1000 / 60, 5);
+check('60 fps stays near the base budget', FrameBudget.ms(4) < 5 && FrameBudget.ms(8) === 8, String(FrameBudget.ms(4)));
+frames(40, 120, 10);
+check('a GPU-bound frame lends its idle time', Math.abs(FrameBudget.ms(4) - 40) < 1, String(FrameBudget.ms(4)));
+frames(40, 120, 118);
+check('a CPU-bound frame gets the base only', FrameBudget.ms(4) === 4, String(FrameBudget.ms(4)));
+frames(40, 2000, 10);
 check('the share is capped', FrameBudget.ms(4) === 40, String(FrameBudget.ms(4)));
-FrameBudget.beginFrame((t += 1000 / 60), true);
-check('a covered world allows more', FrameBudget.ms(4) > 40, String(FrameBudget.ms(4)));
+frames(40, 1000 / 60, 3, true);
+check('a covered world gets a share of the frame', Math.abs(FrameBudget.ms(4) - 5.83) < 0.1 && FrameBudget.ms(12) === 12, String(FrameBudget.ms(4)));
+frames(40, 400, 3, true);
+check('... capped too', FrameBudget.ms(4) === 50, String(FrameBudget.ms(4)));
 
 // IdleTasks: a long task is sliced, others still get turns, finished tasks drop out.
 let a = 0;
