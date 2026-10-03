@@ -15,10 +15,6 @@ import { Slot } from './Slot';
 import { SlotCreativeInventory } from './SlotCreativeInventory';
 
 /** Drops a stack from the creative window; the server gave such items the short creative lifetime. */
-function creativeDrop(player: EntityPlayer, stack: ItemStack | null): void {
-  const e = player.dropPlayerItem(stack) as { setAgeToCreativeDespawnTime?: () => void } | null;
-  e?.setAgeToCreativeDespawnTime?.();
-}
 
 /**
  * The creative inventory (GuiContainerCreative): twelve tabs around a 9x5 grid of every item
@@ -77,12 +73,12 @@ export class GuiContainerCreative extends InventoryEffectRenderer {
       const held = inv.getItemStack();
       if (held) {
         if (button === 0) {
-          creativeDrop(player, held);
+          this.mc.playerController.sendPacketDropItem(held);
           inv.setItemStack(null);
         }
         if (button === 1) {
           const one = held.splitStack(1);
-          creativeDrop(player, one);
+          this.mc.playerController.sendPacketDropItem(one);
           if (held.stackSize === 0) inv.setItemStack(null);
         }
       }
@@ -94,9 +90,9 @@ export class GuiContainerCreative extends InventoryEffectRenderer {
         inv.setItemStack(null);
       } else if (mode === ClickMode.THROW && slot && slot.getHasStack()) {
         const thrown = slot.decrStackSize(button === 0 ? 1 : slot.getStack()!.getMaxStackSize());
-        creativeDrop(player, thrown);
+        this.mc.playerController.sendPacketDropItem(thrown);
       } else if (mode === ClickMode.THROW && inv.getItemStack()) {
-        creativeDrop(player, inv.getItemStack());
+        this.mc.playerController.sendPacketDropItem(inv.getItemStack());
         inv.setItemStack(null);
       } else {
         const id = slot === null ? slotId : (slot as SlotCreativeInventory).theSlot.slotNumber;
@@ -128,7 +124,7 @@ export class GuiContainerCreative extends InventoryEffectRenderer {
         if (inSlot) {
           const copy = inSlot.copy();
           copy.stackSize = button === 0 ? 1 : copy.getMaxStackSize();
-          creativeDrop(player, copy);
+          this.mc.playerController.sendPacketDropItem(copy);
         }
         return;
       }
@@ -168,6 +164,9 @@ export class GuiContainerCreative extends InventoryEffectRenderer {
     super.initGui();
     this.buttonList = [];
     Keyboard.enableRepeatEvents(true);
+    // CreativeCrafting: a LAN guest reports every slot it changes to the host.
+    const crafter = this.mc.playerController.creativeCrafter();
+    if (crafter) this.mc.thePlayer!.inventoryContainer.addCraftingToCrafters(crafter);
     this.searchField = new GuiTextField(this.fontRenderer, this.guiLeft + 82, this.guiTop + 6, 89, this.fontRenderer.FONT_HEIGHT);
     this.searchField.setMaxStringLength(15);
     this.searchField.setEnableBackgroundDrawing(false);
@@ -181,6 +180,8 @@ export class GuiContainerCreative extends InventoryEffectRenderer {
   override onGuiClosed(): void {
     super.onGuiClosed();
     Keyboard.enableRepeatEvents(false);
+    const crafter = this.mc.playerController.creativeCrafter();
+    if (crafter) this.mc.thePlayer?.inventoryContainer.removeCraftingFromCrafters(crafter);
   }
 
   protected override keyTyped(ch: string, key: number): void {

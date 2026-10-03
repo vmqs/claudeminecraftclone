@@ -1270,7 +1270,7 @@ export class World implements IWorld, IBlockAccess {
   }
 
   /** Ticks tile entities, drops invalid ones, then applies the removals and additions queued meanwhile. */
-  private updateTileEntities(): void {
+  protected updateTileEntities(): void {
     this.scanningTileEntities = true;
     const list = this.loadedTileEntityList;
     let kept = 0;
@@ -1775,6 +1775,8 @@ export class World implements IWorld, IBlockAccess {
       const bz = chunk.zPosition * 16;
       this.moodSoundAndLightCheck(bx, bz, chunk);
       chunk.updateSkylight();
+      // WorldClient.tickBlocksAndAmbiance stops here: lightning, ice, snow and random ticks are the server's.
+      if (this.isRemote) continue;
       if (this.rand.nextInt(100000) === 0 && this.isRaining() && this.isThundering()) {
         this.updateLCG = (Math.imul(this.updateLCG, 3) + 1013904223) | 0;
         const r = this.updateLCG >> 2;
@@ -1869,7 +1871,7 @@ export class World implements IWorld, IBlockAccess {
   }
 
   /** Delivers queued block events; events added meanwhile run in the same tick. */
-  private sendAndApplyBlockEvents(): void {
+  protected sendAndApplyBlockEvents(): void {
     while (this.blockEventCache[this.blockEventCacheIndex].length > 0) {
       const i = this.blockEventCacheIndex;
       this.blockEventCacheIndex ^= 1;

@@ -9,6 +9,10 @@ import { GuiScreenAddServer } from './GuiScreenAddServer';
 import { GuiScreenServerList } from './GuiScreenServerList';
 import { GuiSlot } from './GuiSlot';
 import { GuiYesNo } from './GuiYesNo';
+import { GuiTextField } from './GuiTextField';
+import { filterUsername } from './GuiShareToLan';
+import { normalizeRoomCode } from '../net/RoomCode';
+import { isUsernameChar, isValidUsername, saveUsername } from '../net/Username';
 
 /** One saved server (ServerData). */
 export class ServerData {
@@ -20,6 +24,8 @@ export class ServerData {
   gameVersion = '1.5.2';
   /** The ping was started (field_78841_f). */
   polled = false;
+  /** The address is a room code: rooms are not pinged, so no signal icon is drawn. */
+  isRoom = false;
   private hideAddress = false;
 
   constructor(
@@ -92,16 +98,18 @@ export class ServerList {
 let threadsPending = 0;
 
 /**
- * ThreadPollServers. A browser cannot open the game's TCP connection, so every ping ends like
- * an unreachable server does in the original.
+ * ThreadPollServers. Servers here are LAN rooms, which cannot be pinged without joining them:
+ * a room code shows as such, anything else ends like an unreachable server in the original.
  */
 function pollServer(d: ServerData): void {
   d.serverMOTD = '§8Polling..';
   threadsPending++;
   setTimeout(
     () => {
+      const code = normalizeRoomCode(d.serverIP);
+      d.isRoom = code !== null;
       d.pingToServer = -1;
-      d.serverMOTD = "§4Can't reach server";
+      d.serverMOTD = code ? `§7Room code ${code}` : "§4Can't reach server";
       threadsPending--;
     },
     400 + Math.random() * 400,
@@ -124,6 +132,8 @@ export class GuiMultiplayer extends GuiScreen {
   private theServerData: ServerData | null = null;
   ticksOpened = 0;
   private initialized = false;
+  /** The player's name (the launcher's username in 1.5.2), kept with the options. */
+  private nameField!: GuiTextField;
 
   constructor(private readonly parentScreen: GuiScreen) {
     super();
@@ -144,7 +154,20 @@ export class GuiMultiplayer extends GuiScreen {
     } else {
       this.serverSlotContainer.setDimensions(this.width, this.height, 32, this.height - 64);
     }
+    const name = this.nameField?.getText() ?? this.mc.username;
+    this.nameField = new GuiTextField(this.fontRenderer, this.width - 108, 6, 100, 20);
+    this.nameField.setMaxStringLength(16);
+    this.nameField.setText(name);
     this.initGuiControls();
+  }
+
+  /** The name typed, saved when it is valid. */
+  private commitName(): boolean {
+    const name = this.nameField.getText();
+    if (!isValidUsername(name)) return false;
+    this.mc.username = name;
+    saveUsername(name);
+    return true;
   }
 
   initGuiControls(): void {
@@ -165,10 +188,12 @@ export class GuiMultiplayer extends GuiScreen {
 
   override updateScreen(): void {
     this.ticksOpened++;
+    this.nameField.updateCursorCounter();
   }
 
   override onGuiClosed(): void {
     Keyboard.enableRepeatEvents(false);
+    this.commitName();
   }
 
   protected override actionPerformed(b: GuiButton): void {
@@ -238,6 +263,15 @@ export class GuiMultiplayer extends GuiScreen {
   protected override keyTyped(ch: string, key: number): void {
     const sel = this.selectedServer;
     const list = this.internetServerList;
+    if (this.nameField.isFocused) {
+      if (ch.length === 1 && ch >= ' ' && !isUsernameChar(ch)) return;
+      if (this.nameField.textboxKeyTyped(ch, key)) {
+        const clean = filterUsername(this.nameField.getText());
+        if (clean !== this.nameField.getText()) this.nameField.setText(clean);
+        this.commitName();
+        return;
+      }
+    }
     if (key === Keys.F1) {
       this.mc.gameSettings.hideServerAddress = !this.mc.gameSettings.hideServerAddress;
       this.mc.gameSettings.saveOptions();
@@ -265,6 +299,9 @@ export class GuiMultiplayer extends GuiScreen {
     this.drawDefaultBackground();
     this.serverSlotContainer.drawScreen(mx, my, pt);
     this.drawCenteredString(this.fontRenderer, I18n.translateToLocal('multiplayer.title'), Math.trunc(this.width / 2), 20, 0xffffff);
+    const nameOk = isValidUsername(this.nameField.getText());
+    this.drawString(this.fontRenderer, 'Name', this.width - 108 - this.fontRenderer.getStringWidth('Name') - 4, 12, nameOk ? 0xa0a0a0 : 0xff5555);
+    this.nameField.drawTextBox();
     super.drawScreen(mx, my, pt);
     if (this.lagTooltip !== null) this.drawTooltip(this.lagTooltip, mx, my);
   }
@@ -274,8 +311,18 @@ export class GuiMultiplayer extends GuiScreen {
   }
 
   private connectToServer(d: ServerData): void {
+    if (!this.commitName()) {
+      this.nameField.setFocused(true);
+      this.mc.displayGuiScreen(this);
+      return;
+    }
     this.mc.gameSettings.lastServer = d.serverIP;
     this.mc.displayGuiScreen(new GuiConnecting(this, this.mc, d));
+  }
+
+  protected override mouseClicked(x: number, y: number, button: number): void {
+    super.mouseClicked(x, y, button);
+    this.nameField.mouseClicked(x, y, button);
   }
 
   /** func_74007_a: the ping tooltip. */
@@ -381,6 +428,7 @@ class GuiSlotServer extends GuiSlot {
     if (!this.gui.mc.gameSettings.hideServerAddress && !d.isHidingAddress()) this.gui.drawText(d.serverIP, x + 2, y + 12 + 11, 0x303030);
     else this.gui.drawText(I18n.translateToLocal('selectServer.hiddenAddress'), x + 2, y + 12 + 11, 0x303030);
     GL.color(1, 1, 1, 1);
+    if (d.isRoom) return;
     this.gui.mc.renderEngine.bindTexture('/gui/icons.png');
     let column = 0;
     let bars: number;

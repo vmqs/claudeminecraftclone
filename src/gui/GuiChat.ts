@@ -87,6 +87,16 @@ export class GuiChat extends GuiScreen {
   }
 
   protected override mouseClicked(x: number, y: number, button: number): void {
+    // Clicking the room code of the LAN game copies it again.
+    const code = this.mc.lanServer?.code;
+    if (button === 0 && code) {
+      const word = this.mc.ingameGUI.getChatGUI().getChatClickData(Mouse.getX(), Mouse.getY())?.getClickedUrl() ?? '';
+      if (word === code) {
+        GuiScreen.setClipboardString(code);
+        this.mc.ingameGUI.getChatGUI().printChatMessage(`§7Room code ${code} copied to the clipboard`);
+        return;
+      }
+    }
     if (button === 0 && this.mc.gameSettings.chatLinks) {
       const data = this.mc.ingameGUI.getChatGUI().getChatClickData(Mouse.getX(), Mouse.getY());
       const uri = data?.getURI() ?? null;
@@ -146,6 +156,11 @@ export class GuiChat extends GuiScreen {
     if (text.length < 1) return;
     this.pendingCompletions = this.mc.getPossibleCompletions(this.mc.thePlayer!, text);
     this.waitingOnAutocomplete = true;
+  }
+
+  /** The host's answer to a guest's completion request (Packet203). */
+  receiveCompletions(names: string[]): void {
+    this.pendingCompletions = names;
   }
 
   /** func_73894_a */

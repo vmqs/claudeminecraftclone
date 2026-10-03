@@ -41,6 +41,11 @@ export class PlayerControllerMP extends PlayerControllerCreative {
 
   constructor(private readonly client: MPControllerClient) {
     super(client);
+    this.activate();
+  }
+
+  /** Becomes the client's controller: game-mode changes of the local player reach it. */
+  activate(): void {
     // Packet70GameEvent 3: the server changed the local player's mode (/gamemode).
     EntityPlayer.gameTypeListener = (player, type) => {
       if (player === this.client.thePlayer) this.setGameType(type);

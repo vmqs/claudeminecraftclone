@@ -6,12 +6,13 @@ import type { ServerData } from './GuiMultiplayer';
 import { GuiScreen } from './GuiScreen';
 
 /**
- * "Connecting to the server..." (GuiConnecting). A web page cannot open the game's TCP
- * connection, so after a moment this ends the way a refused connection did in the original.
+ * "Connecting to the server..." (GuiConnecting): looks for the host of the room code, then shows
+ * "Logging in..." while the handshake runs. A failure ends on the disconnect screen with the
+ * reason; Cancel gives up and goes back.
  */
 export class GuiConnecting extends GuiScreen {
   private cancelled = false;
-  private ticks = 0;
+  private connected = false;
 
   constructor(
     private readonly previousScreen: GuiScreen,
@@ -20,14 +21,16 @@ export class GuiConnecting extends GuiScreen {
   ) {
     super();
     this.mc = mc;
-    mc.loadWorld(null);
-  }
-
-  override updateScreen(): void {
-    if (this.cancelled) return;
-    if (++this.ticks === 20) {
-      this.mc.displayGuiScreen(new GuiDisconnected(this.previousScreen, 'connect.failed', 'disconnect.genericReason', 'Connection refused: connect'));
-    }
+    mc.connectToRoom(
+      serverData.serverIP,
+      () => {
+        if (!this.cancelled) this.connected = true;
+      },
+      (reason) => {
+        if (this.cancelled) return;
+        this.mc.displayGuiScreen(new GuiDisconnected(this.previousScreen, 'connect.failed', 'disconnect.genericReason', reason));
+      },
+    );
   }
 
   protected override keyTyped(): void {}
@@ -40,6 +43,7 @@ export class GuiConnecting extends GuiScreen {
   protected override actionPerformed(b: GuiButton): void {
     if (b.id === 0) {
       this.cancelled = true;
+      this.mc.cancelConnect();
       this.mc.displayGuiScreen(this.previousScreen);
     }
   }
@@ -47,8 +51,13 @@ export class GuiConnecting extends GuiScreen {
   override drawScreen(mx: number, my: number, pt: number): void {
     this.drawDefaultBackground();
     const cx = Math.trunc(this.width / 2);
-    this.drawCenteredString(this.fontRenderer, I18n.translateToLocal('connect.connecting'), cx, Math.trunc(this.height / 2) - 50, 0xffffff);
-    this.drawCenteredString(this.fontRenderer, '', cx, Math.trunc(this.height / 2) - 10, 0xffffff);
+    if (!this.connected) {
+      this.drawCenteredString(this.fontRenderer, I18n.translateToLocal('connect.connecting'), cx, Math.trunc(this.height / 2) - 50, 0xffffff);
+      this.drawCenteredString(this.fontRenderer, '', cx, Math.trunc(this.height / 2) - 10, 0xffffff);
+    } else {
+      this.drawCenteredString(this.fontRenderer, I18n.translateToLocal('connect.authorizing'), cx, Math.trunc(this.height / 2) - 50, 0xffffff);
+      this.drawCenteredString(this.fontRenderer, '', cx, Math.trunc(this.height / 2) - 10, 0xffffff);
+    }
     super.drawScreen(mx, my, pt);
   }
 }

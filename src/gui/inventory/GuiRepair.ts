@@ -51,6 +51,12 @@ export class GuiRepair extends GuiContainer {
     Keyboard.enableRepeatEvents(false);
   }
 
+  /** The anvil's name field changed; a LAN guest tells the host (MC|ItemName). */
+  private updateItemName(name: string): void {
+    this.repairContainer.updateItemName(name);
+    this.mc.netHandler?.addToSendQueue({ type: 'CustomPayload', channel: 'MC|ItemName', data: new TextEncoder().encode(name) });
+  }
+
   override updateScreen(): void {
     super.updateScreen();
     this.syncInput();
@@ -64,7 +70,7 @@ export class GuiRepair extends GuiContainer {
     this.lastInput = s ? s.copy() : null;
     this.itemNameField.setText(s ? s.getDisplayName() : '');
     this.itemNameField.setEnabled(s !== null);
-    if (s) this.repairContainer.updateItemName(this.itemNameField.getText());
+    if (s) this.updateItemName(this.itemNameField.getText());
   }
 
   protected override drawGuiContainerForegroundLayer(): void {
@@ -102,7 +108,7 @@ export class GuiRepair extends GuiContainer {
   }
 
   protected override keyTyped(ch: string, key: number): void {
-    if (this.itemNameField.textboxKeyTyped(ch, key)) this.repairContainer.updateItemName(this.itemNameField.getText());
+    if (this.itemNameField.textboxKeyTyped(ch, key)) this.updateItemName(this.itemNameField.getText());
     else super.keyTyped(ch, key);
   }
 

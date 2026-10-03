@@ -49,6 +49,16 @@ export class GuiEditSign extends GuiScreen {
 
   override onGuiClosed(): void {
     Keyboard.enableRepeatEvents(false);
+    const te = this.entitySign;
+    const lines = this.sign.signText;
+    const net = this.mc.netHandler;
+    if (net) {
+      // A LAN guest's sign: the host checks the text and tells everyone (Packet130UpdateSign).
+      net.addToSendQueue({ type: 'UpdateSign', x: te.xCoord, y: te.yCoord, z: te.zCoord, line0: lines[0] ?? '', line1: lines[1] ?? '', line2: lines[2] ?? '', line3: lines[3] ?? '' });
+    } else {
+      // The integrated server's markBlockForUpdate: a LAN game sends the new text to its guests.
+      this.mc.theWorld?.markBlockForUpdate(te.xCoord, te.yCoord, te.zCoord);
+    }
     this.setEditable(true);
   }
 

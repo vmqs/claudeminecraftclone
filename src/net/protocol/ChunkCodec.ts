@@ -23,6 +23,12 @@ export interface ChunkData {
 }
 
 const SECTION_BYTES = 4096 + 2048 * 3;
+
+/** Limits a guest applies to a chunk packet. */
+export const ChunkCodecLimits = {
+  /** Tile entities taken from one chunk (16 x 16 x 256 blocks could hold more, no real chunk does). */
+  MAX_TILE_ENTITIES: 4096,
+} as const;
 /** The largest inflated chunk: every section present plus the mask and the biomes. */
 const MAX_RAW = 2 + 16 * SECTION_BYTES + 256;
 

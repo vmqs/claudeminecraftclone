@@ -149,6 +149,14 @@ export class GuiBeacon extends GuiContainer {
       this.mc.displayGuiScreen(null);
     } else if (b.id === -1) {
       this.beaconContainer.applyEffects(this.primary, this.secondary);
+      const net = this.mc.netHandler;
+      if (net) {
+        const data = new Uint8Array(8);
+        const view = new DataView(data.buffer);
+        view.setInt32(0, this.primary);
+        view.setInt32(4, this.secondary);
+        net.addToSendQueue({ type: 'CustomPayload', channel: 'MC|Beacon', data });
+      }
       this.mc.displayGuiScreen(null);
     } else if (b instanceof GuiBeaconButtonPower) {
       if (b.selected) return;

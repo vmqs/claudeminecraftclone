@@ -111,7 +111,8 @@ export abstract class MobSpawnerBaseLogic {
     if (this.clientDelay > 0) this.clientDelay--;
     this.prevSpin = this.spin;
     this.spin = (this.spin + Math.fround(1000 / Math.fround(this.clientDelay + 200))) % 360;
-    // Server half: count down, then spawn.
+    // Server half: count down, then spawn (a LAN guest's copy only spins).
+    if (w.isRemote) return;
     if (this.spawnDelay === -1) this.resetTimer();
     if (this.spawnDelay > 0) {
       this.spawnDelay--;

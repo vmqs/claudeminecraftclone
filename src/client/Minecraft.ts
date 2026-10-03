@@ -61,6 +61,20 @@ import { DebugHooks } from '../command/CommandDebug';
 import { GuiProfilerChart } from '../gui/GuiProfilerChart';
 import { GuiSleepMP } from '../gui/GuiSleepMP';
 import { loadChunksAroundBed } from './BedRespawn';
+import type { EnumGameType } from '../world/EnumGameType';
+import { GuiDisconnected } from '../gui/GuiDisconnected';
+import { GuiMultiplayer } from '../gui/GuiMultiplayer';
+import { LanServer, type LanHostClient } from '../net/server/LanServer';
+import { NetClientHandler, type GuestClient } from '../net/client/NetClientHandler';
+import { EntityClientPlayerMP } from '../net/client/EntityClientPlayerMP';
+import { PlayerControllerGuest } from '../net/client/PlayerControllerGuest';
+import type { WorldClient } from '../net/client/WorldClient';
+import { CONNECT_TIMEOUT_MS, makeGuestTransport, makeHostTransport } from '../net/NetSession';
+import { generateRoomCode, normalizeRoomCode } from '../net/RoomCode';
+import { ConnectError, type GuestTransport } from '../net/transport/Transport';
+import { loadUsername } from '../net/Username';
+import { EntityCrit2FX } from '../render/particle/EntityCrit2FX';
+import type { Entity } from '../entity/Entity';
 
 /** World creation options (WorldSettings). */
 export interface WorldSettings {
@@ -104,7 +118,9 @@ export class Minecraft implements SettingsListener {
   entityRenderer!: EntityRenderer;
   effectRenderer!: EffectRenderer;
   ingameGUI!: GuiIngame;
-  readonly playerController: PlayerControllerMP;
+  /** The controller for the current game: single player's, or a guest's networked one. */
+  playerController: PlayerControllerMP;
+  private readonly singlePlayerController: PlayerControllerMP;
   theWorld: World | null = null;
   thePlayer: EntityPlayerSP | null = null;
   renderViewEntity: EntityLiving | null = null;
@@ -116,11 +132,16 @@ export class Minecraft implements SettingsListener {
   /** What commands see as MinecraftServer: this client's world and player. */
   private readonly commandServer: CommandServer = {
     getWorlds: () => (this.theWorld ? [this.theWorld] : []),
-    getPlayers: () => (this.thePlayer ? [this.thePlayer] : []),
-    sendChatMsg: (msg) => this.ingameGUI.getChatGUI().printChatMessage(msg),
+    getPlayers: () => [...(this.thePlayer ? [this.thePlayer] : []), ...(this.lanServer?.guestPlayers() ?? [])],
+    sendChatMsg: (msg) => (this.lanServer ? this.lanServer.sendChatMsg(msg) : this.ingameGUI.getChatGUI().printChatMessage(msg)),
     isSinglePlayer: () => true,
     getCommandManager: () => this.commandManager!,
   };
+  /** The LAN game this client hosts (IntegratedServer.shareToLAN), if open. */
+  lanServer: LanServer | null = null;
+  /** The connection to a host while playing as a guest (NetClientHandler). */
+  netHandler: NetClientHandler | null = null;
+  private guestTransport: GuestTransport | null = null;
   displayWidth = 854;
   displayHeight = 480;
   inGameHasFocus = false;
@@ -130,7 +151,8 @@ export class Minecraft implements SettingsListener {
   /** "N fps, M chunk updates" for the F3 screen. */
   debug = '';
   static debugFPS = 0;
-  username = 'Player';
+  /** The player's name (launcher username): kept in localStorage, editable on the multiplayer screens. */
+  username = loadUsername();
   /** Called once per frame after rendering (dev hooks, screenshot harness). */
   readonly frameListeners: (() => void)[] = [];
   /** Frame profiler: sections for the Shift+F3 pie chart. */
@@ -159,7 +181,7 @@ export class Minecraft implements SettingsListener {
     this.sndManager = new SoundManager(this.gameSettings, resources);
     installEntityClientHooks(this);
     this.loadingScreen = new LoadingScreenRenderer(this);
-    this.playerController = new PlayerControllerMP(this);
+    this.playerController = this.singlePlayerController = new PlayerControllerMP(this);
     this.updateDisplaySize();
   }
 
@@ -368,7 +390,8 @@ export class Minecraft implements SettingsListener {
     for (const l of this.frameListeners) l();
     this.updateDisplaySize();
     this.fpsCounter++;
-    this.isGamePaused = this.currentScreen !== null && this.currentScreen.doesGuiPauseGame();
+    // A game open to LAN, or one joined over the network, never pauses (IntegratedServer.getPublic).
+    this.isGamePaused = this.currentScreen !== null && this.currentScreen.doesGuiPauseGame() && !this.lanServer && !this.netHandler;
     const now = performance.now();
     while (now >= this.debugUpdateTime + 1000) {
       Minecraft.debugFPS = this.fpsCounter;
@@ -410,6 +433,8 @@ export class Minecraft implements SettingsListener {
   runTick(): void {
     const prof = this.mcProfiler;
     if (this.rightClickDelayTimer > 0) this.rightClickDelayTimer--;
+    // NetClientHandler.processReadPackets (1.5.2 ran it from the controller and GuiConnecting).
+    this.netHandler?.processReadPackets();
     prof.startSection('stats');
     prof.endStartSection('gui');
     if (!this.isGamePaused && this.theWorld) this.ingameGUI.updateTick();
@@ -463,6 +488,8 @@ export class Minecraft implements SettingsListener {
         w.updateEntities();
         serverProf.endStartSection('tick');
         w.tick();
+        serverProf.endStartSection('connection');
+        this.lanServer?.tick();
         serverProf.endSection();
         serverProf.endSection();
         serverProf.endSection();
@@ -470,8 +497,12 @@ export class Minecraft implements SettingsListener {
         w.doVoidFogParticles(MathHelper.floor_double(this.thePlayer.posX), MathHelper.floor_double(this.thePlayer.posY), MathHelper.floor_double(this.thePlayer.posZ));
         prof.endStartSection('particles');
         this.effectRenderer.updateEffects();
+      } else {
+        // Paused with nobody else around never happens in a LAN game; keep the host serving anyway.
+        this.lanServer?.tick();
       }
     }
+    this.netHandler?.flush();
     prof.endSection();
   }
 
@@ -818,6 +849,7 @@ export class Minecraft implements SettingsListener {
     this.sndManager.playStreaming(null, 0, 0, 0);
     this.sndManager.stopAllSounds();
     if (world === null) {
+      this.stopMultiplayer();
       this.pendingWorld = null;
       this.loadingScreen.onNoMoreProgress();
       // The world stays in the session's world list (the integrated server's save on shutdown).
@@ -884,12 +916,202 @@ export class Minecraft implements SettingsListener {
   }
 
   /** Packet203AutoComplete's answer. */
-  getPossibleCompletions(player: EntityPlayer, text: string): string[] {
+  getPossibleCompletions(player: EntityPlayer, text: string): string[] | null {
+    if (this.netHandler) {
+      // Packet203: the host answers a tick or more later (GuiChat.receiveCompletions).
+      this.netHandler.addToSendQueue({ type: 'AutoComplete', text });
+      return null;
+    }
     return getPossibleCompletions(player, text);
   }
 
+  /** False while playing on someone else's LAN game. */
   isSingleplayer(): boolean {
-    return true;
+    return this.netHandler === null;
+  }
+
+  // ------------------------------------------------------------------ multiplayer
+
+  /** Swaps the player controller (a guest's networked one, or back to single player's). */
+  private setPlayerController(c: PlayerControllerMP): void {
+    this.playerController = c;
+    c.activate();
+  }
+
+  /** Ends any LAN game or guest connection (leaving a world). */
+  private stopMultiplayer(): void {
+    if (this.lanServer) {
+      this.lanServer.stop();
+      this.lanServer = null;
+    }
+    if (this.netHandler) {
+      this.netHandler.disconnect();
+      this.netHandler = null;
+    }
+    this.guestTransport?.cancel();
+    this.guestTransport = null;
+    if (this.playerController !== this.singlePlayerController) this.setPlayerController(this.singlePlayerController);
+    GuiIngame.playerListProvider = null;
+  }
+
+  /**
+   * Open to LAN (IntegratedServer.shareToLAN): the world becomes a room other players join with
+   * the returned code. Other players get `gameType`; `allowCommands` is their "Allow Cheats".
+   */
+  async shareToLan(gameType: EnumGameType, allowCommands: boolean): Promise<string> {
+    const w = this.theWorld;
+    if (!w || this.netHandler) throw new Error('Not in a single player world');
+    if (this.lanServer) return this.lanServer.code;
+    if (this.thePlayer) this.thePlayer.username = this.username;
+    const mc = this;
+    const host: LanHostClient = {
+      world: w,
+      hostPlayer: () => this.thePlayer,
+      get hostName() {
+        return mc.thePlayer?.username ?? mc.username;
+      },
+      printChat: (msg) => this.ingameGUI.getChatGUI().printChatMessage(msg),
+      commandManager: () => this.commandManager,
+      getPossibleCompletions: (p, text) => getPossibleCompletions(p, text),
+      setExtraLoadCenters: (centers) => {
+        if (this.chunkProvider) this.chunkProvider.extraCenters = centers;
+      },
+    };
+    const server = new LanServer(host, makeHostTransport(), { gameType, allowCommands, maxPlayers: 8, viewDistance: 8 });
+    await server.start(generateRoomCode());
+    if (this.theWorld !== w) {
+      server.stop();
+      throw new Error('The world was closed');
+    }
+    this.lanServer = server;
+    GuiIngame.playerListProvider = () => ({ entries: server.playerList(), maxPlayers: server.settings.maxPlayers });
+    return server.code;
+  }
+
+  /**
+   * Direct Connect with a room code (GuiConnecting's connection thread): finds the host, then
+   * logs in. `onConnected` runs when the peer link is up ("Logging in..."), `onFailed` with the
+   * reason when it could not be made.
+   */
+  connectToRoom(input: string, onConnected: () => void, onFailed: (reason: string) => void): void {
+    this.loadWorld(null);
+    const code = normalizeRoomCode(input);
+    if (!code) {
+      onFailed(`"${input}" is not a room code (6 letters and digits)`);
+      return;
+    }
+    const transport = makeGuestTransport();
+    this.guestTransport = transport;
+    transport.connect(code, CONNECT_TIMEOUT_MS).then(
+      (conn) => {
+        if (this.guestTransport !== transport) {
+          conn.close();
+          return;
+        }
+        const handler = new NetClientHandler(this.guestClient, conn);
+        this.netHandler = handler;
+        this.setPlayerController(new PlayerControllerGuest(this, handler));
+        handler.start();
+        onConnected();
+      },
+      (e: unknown) => {
+        if (this.guestTransport !== transport) return;
+        this.guestTransport = null;
+        onFailed(e instanceof ConnectError ? e.reason : String(e));
+      },
+    );
+  }
+
+  /** Cancel on the connecting screen. */
+  cancelConnect(): void {
+    this.stopMultiplayer();
+  }
+
+  /** The guest side of Minecraft for the network handler. */
+  private readonly guestClient: GuestClient = this.makeGuestClient();
+
+  private makeGuestClient(): GuestClient {
+    const mc = this;
+    return {
+      get username() {
+        return mc.username;
+      },
+      get playerClient() {
+        return mc;
+      },
+      get guestController() {
+        return mc.playerController instanceof PlayerControllerGuest ? mc.playerController : null;
+      },
+      startGuestWorld: (world, player, type) => this.startGuestWorld(world, player, type),
+      respawnGuestPlayer: (player, type) => this.respawnGuestPlayer(player, type),
+      guestDisconnected: (title, reason) => this.guestDisconnected(title, reason),
+      printChat: (msg) => this.ingameGUI.getChatGUI().printChatMessage(msg),
+      setGameType: (type) => this.playerController.setGameType(type),
+      autocompleteResponse: (names) => {
+        if (this.currentScreen instanceof GuiChat) this.currentScreen.receiveCompletions(names);
+      },
+      critParticles: (target: Entity, magic: boolean) => {
+        if (this.theWorld) this.effectRenderer.addEffect(new EntityCrit2FX(this.theWorld, target, magic ? 'magicCrit' : undefined));
+      },
+    };
+  }
+
+  /** NetClientHandler.handleLogin: the host's world (loadWorld with the network's player). */
+  private startGuestWorld(world: WorldClient, player: EntityClientPlayerMP, type: EnumGameType): void {
+    this.renderViewEntity = null;
+    this.objectMouseOver = null;
+    this.sndManager.playStreaming(null, 0, 0, 0);
+    this.sndManager.stopAllSounds();
+    this.pendingWorld = null;
+    this.chunkProvider = null;
+    this.theWorld = world;
+    this.renderGlobal.setWorldAndLoadRenderers(world);
+    this.effectRenderer.clearEffects(world);
+    this.thePlayer = player;
+    this.playerController.flipPlayer(player);
+    player.preparePlayerToSpawn();
+    world.spawnEntityInWorld(player);
+    player.movementInput = new MovementInputFromOptions(this.gameSettings);
+    this.playerController.setGameType(type);
+    this.renderViewEntity = player;
+    this.commandManager = null;
+    setServer(null);
+    GuiIngame.playerListProvider = () => this.netHandler?.playerList() ?? { entries: [], maxPlayers: 8 };
+    const handler = this.netHandler;
+    let waited = 0;
+    this.displayGuiScreen(
+      new GuiDownloadTerrain(() => {
+        const p = this.thePlayer;
+        if (!p || !handler || this.netHandler !== handler) return true;
+        if (++waited > 1200) return true;
+        if (!handler.positionReceived) return false;
+        const cx = MathHelper.floor_double(p.posX) >> 4;
+        const cz = MathHelper.floor_double(p.posZ) >> 4;
+        for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) if (!world.chunkExists(cx + dx, cz + dz)) return false;
+        return this.renderGlobal.pendingNear(p, 1) === 0;
+      }),
+    );
+  }
+
+  /** Packet9Respawn: the new player takes the old one's place. */
+  private respawnGuestPlayer(player: EntityClientPlayerMP, type: EnumGameType): void {
+    const w = this.theWorld;
+    if (!w) return;
+    this.thePlayer = player;
+    this.renderViewEntity = player;
+    player.preparePlayerToSpawn();
+    this.playerController.flipPlayer(player);
+    this.playerController.setGameType(type);
+    w.spawnEntityInWorld(player);
+    player.movementInput = new MovementInputFromOptions(this.gameSettings);
+    if (this.currentScreen instanceof GuiGameOver) this.displayGuiScreen(null);
+  }
+
+  /** The connection ended: back to the menus with the reason (GuiDisconnected). */
+  private guestDisconnected(title: string, reason: string): void {
+    this.netHandler = null;
+    this.loadWorld(null);
+    this.displayGuiScreen(new GuiDisconnected(new GuiMultiplayer(new GuiMainMenu()), title, 'disconnect.genericReason', I18n.translateToLocal(reason)));
   }
 
   // ------------------------------------------------------------------ misc

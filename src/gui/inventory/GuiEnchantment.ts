@@ -93,7 +93,7 @@ export class GuiEnchantment extends GuiContainer {
     for (let i = 0; i < 3; i++) {
       const dx = mx - (x + 60);
       const dy = my - (y + 14 + 19 * i);
-      if (dx >= 0 && dy >= 0 && dx < 108 && dy < 19) this.container.enchantItem(this.mc.thePlayer!, i);
+      if (dx >= 0 && dy >= 0 && dx < 108 && dy < 19 && this.container.enchantItem(this.mc.thePlayer!, i)) this.mc.playerController.sendEnchantPacket(this.container.windowId, i);
     }
   }
 

@@ -195,6 +195,12 @@ export class EntityPlayerMP extends EntityPlayer implements ICrafting {
     this.server.sendToTracking(this, { type: 'Animation', entityId: target.entityId, animate: 7 }, true);
   }
 
+  /** Finishing eating or drinking: the guest finishes too (Packet38 status 9 to itself). */
+  protected override onItemUseFinish(): void {
+    this.handler?.sendPacket({ type: 'EntityStatus', entityId: this.entityId, status: 9 });
+    super.onItemUseFinish();
+  }
+
   override onItemPickup(e: Entity, count: number): void {
     super.onItemPickup(e, count);
     this.openContainer.detectAndSendChanges();
@@ -342,6 +348,9 @@ export class EntityPlayerMP extends EntityPlayer implements ICrafting {
       bars.push(c.stand.getBrewTime());
     } else if (c instanceof ContainerEnchantment) {
       bars.push(...c.enchantLevels);
+    } else if (c instanceof ContainerBeacon) {
+      const b = c.getBeacon();
+      bars.push(b.getLevels(), b.getPrimaryEffect(), b.getSecondaryEffect());
     } else {
       return;
     }

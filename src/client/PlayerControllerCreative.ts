@@ -5,6 +5,7 @@ import type { EntityPlayer } from '../entity/EntityPlayer';
 import { ItemBlock } from '../item/ItemBlock';
 import type { ItemStack } from '../item/ItemStack';
 import type { World } from '../world/World';
+import type { ICrafting } from '../gui/inventory/Container';
 
 /** What the controller needs from the client. */
 export interface ControllerClient {
@@ -156,6 +157,25 @@ export class PlayerControllerCreative {
     if (slotId < 1 || slotId >= 45) return;
     if (stack && (stack.stackSize <= 0 || stack.stackSize > 64 || stack.getItemDamage() < 0)) return;
     p.inventoryContainer.putStackInSlot(slotId, stack);
+  }
+
+  /** sendEnchantPacket: a LAN guest tells the host which enchanting offer was clicked. */
+  sendEnchantPacket(_windowId: number, _button: number): void {}
+
+  /**
+   * func_78752_a: an item thrown out of the creative inventory. Single player drops it here
+   * (despawning sooner, as creative drops do); a LAN guest asks the host.
+   */
+  sendPacketDropItem(stack: ItemStack | null): void {
+    const p = this.mc.thePlayer;
+    if (!p || !stack) return;
+    const e = p.dropPlayerItem(stack) as { setAgeToCreativeDespawnTime?: () => void } | null;
+    e?.setAgeToCreativeDespawnTime?.();
+  }
+
+  /** CreativeCrafting: the listener the creative inventory adds to the player's window (none in single player). */
+  creativeCrafter(): ICrafting | null {
+    return null;
   }
 
   isNotCreative(): boolean {

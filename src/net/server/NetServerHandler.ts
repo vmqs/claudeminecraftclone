@@ -2,6 +2,7 @@ import { Block } from '../../block/Block';
 import { MathHelper } from '../../core/MathHelper';
 import type { Entity } from '../../entity/Entity';
 import { ClickMode, OUTSIDE_WINDOW } from '../../gui/inventory/Container';
+import { ContainerBeacon } from '../../gui/inventory/ContainerBeacon';
 import { Item } from '../../item/Item';
 import { ItemStack } from '../../item/ItemStack';
 import { decodeFrame, encodeFrame, GAME_VERSION, PROTOCOL_VERSION, type Packet, type PacketOf, allowedFrom } from '../protocol/Packets';
@@ -645,18 +646,9 @@ export class NetServerHandler {
     if (channel === 'MC|ItemName' && typeof c.updateItemName === 'function') {
       const name = new TextDecoder().decode(data).replace(/[§\u0000-\u001f\u007f]/g, '');
       if (name.length <= 30) (c.updateItemName as (n: string) => void).call(c, name);
-    } else if (channel === 'MC|Beacon' && typeof c.getBeacon === 'function' && data.length >= 8) {
+    } else if (channel === 'MC|Beacon' && player.openContainer instanceof ContainerBeacon && data.length >= 8) {
       const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
-      const primary = view.getInt32(0);
-      const secondary = view.getInt32(4);
-      const slot = (c.getSlot as (i: number) => { getHasStack(): boolean; decrStackSize(n: number): unknown }).call(c, 0);
-      if (slot.getHasStack()) {
-        slot.decrStackSize(1);
-        const beacon = (c.getBeacon as () => Record<string, (v: number) => void> & { onInventoryChanged(): void }).call(c);
-        beacon.setPrimaryEffect?.(primary);
-        beacon.setSecondaryEffect?.(secondary);
-        beacon.onInventoryChanged();
-      }
+      player.openContainer.applyEffects(view.getInt32(0), view.getInt32(4));
     } else if (channel === 'MC|BEdit' || channel === 'MC|BSign') {
       this.handleBook(channel === 'MC|BSign', data);
     }

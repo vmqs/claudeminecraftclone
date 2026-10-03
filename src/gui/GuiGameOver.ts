@@ -31,7 +31,7 @@ export class GuiGameOver extends GuiScreen {
   protected override keyTyped(): void {}
 
   protected override actionPerformed(b: GuiButton): void {
-    if (b.id === 1 && this.isHardcore()) {
+    if (b.id === 1 && this.isHardcore() && this.mc.isSingleplayer()) {
       // The respawn request makes the integrated server kick its owner ("Game over, man") and
       // delete the world (deleteWorldAndStopServer); the kick lands on GuiDisconnected, whose
       // button leads to the multiplayer screen, as in 1.5.2.

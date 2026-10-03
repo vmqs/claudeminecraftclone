@@ -51,8 +51,17 @@ export class WeatherCycle {
     this.updateClientWeather();
   }
 
+  /**
+   * A guest's tick (WorldClient): no server cycle here, the host's rain events arrive as
+   * Packet70GameEvent (onRainEvent).
+   */
+  remoteTick(): void {
+    this.joined = true;
+    this.updateClientWeather();
+  }
+
   /** NetClientHandler.handleGameEvent 1 (begin raining) / 2 (end raining). */
-  private onRainEvent(begin: boolean): void {
+  onRainEvent(begin: boolean): void {
     this.raining = begin;
     this.setRainStrength(begin ? 0 : 1);
   }

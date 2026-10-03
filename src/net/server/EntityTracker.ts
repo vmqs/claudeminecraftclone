@@ -255,7 +255,13 @@ export class EntityTracker {
   constructor(private readonly handlerOf: (e: Entity) => NetServerHandler | null) {}
 
   addEntity(e: Entity): void {
-    if (this.entries.has(e.entityId)) return;
+    const existing = this.entries.get(e.entityId);
+    if (existing) {
+      if (existing.entity === e) return;
+      // A respawned player keeps its id: the old body goes first.
+      existing.removeAll();
+      this.entries.delete(e.entityId);
+    }
     const params = trackingParams(e);
     if (!params) return;
     this.entries.set(e.entityId, new EntityTrackerEntry(e, params));

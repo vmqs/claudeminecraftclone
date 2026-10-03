@@ -70,7 +70,8 @@ export class GuiScreenServerList extends GuiScreen {
     const cx = Math.trunc(this.width / 2);
     this.drawDefaultBackground();
     this.drawCenteredString(this.fontRenderer, t('selectServer.direct'), cx, Math.trunc(this.height / 4) - 60 + 20, 0xffffff);
-    this.drawString(this.fontRenderer, t('addServer.enterIp'), cx - 100, 100, 0xa0a0a0);
+    // A LAN game is joined with its room code (shown in the host's chat).
+    this.drawString(this.fontRenderer, 'Room Code', cx - 100, 100, 0xa0a0a0);
     this.serverTextField.drawTextBox();
     super.drawScreen(mx, my, pt);
   }
