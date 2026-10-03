@@ -51,6 +51,14 @@ harness's `freeze` (partial tick 0, `mc.dev.ticks(n)` still steps) and pins clou
 flicker, fog brightness, vignette and arm sway; `unfreeze()`; `strike(x, z)` (lightning bolt);
 `setBiome(id)` for every loaded column (12 Ice Plains = snow, 2 Desert = no rain);
 `fill(id, y0, y1, radius?)`; `helmet(id | null)` (86 = pumpkin).
+`mc.dev.stats` (`src/stats/StatsDevTools.ts`): `value(id | key)`, `add(id | key, n)` (as the
+player, with the parent rule and the toast), `set(id | key, n)` (straight into the stat file, like
+the reference harness's `stat` command), `state()` (user, unlocked achievement keys, what the
+toast shows), `toasts(on)` (achievement toasts and the "Press 'E'" hint are off under automation,
+as in the reference captures), `pinClock(ms | null)` (the toast and blink clock; the reference
+captures use 1500000000000), `craft(grid9, count)` and `smelt(id, count)` (through real crafting
+table and furnace windows), `reset()`. The debug screens `achievements` and `stats` open with
+`mc.dev.screen(name)`.
 `mc.dev.player` (`src/client/PlayerDevTools.ts`): `armor(slot, id, color?)` (slot 0 boots ... 3
 helmet), `use(ticksLeft)` (a bow drawn n ticks: `72000 - n`), `effect(id, seconds, amplifier?)`,
 `bed(x, y, z, dir)` (foot block), `sleepIn(x, y, z)` (right-clicks the bed), `otherPlayer(name, x,
@@ -89,6 +97,11 @@ node scripts/shot.mjs worldgen               # seeds "claude"/123456789 vs the r
 node scripts/shot.mjs player                 # F5 back/front, bow and sword poses, a posed line-up of players,
                                              # the effect list, night vision, blindness, sleeping in a bed
                                              # (Leave Bed, skip to morning, bed spawn), nausea, a boat (checks)
+node scripts/shot.mjs stats                  # hint and achievement toasts, a gameplay chain to Monster Hunter
+                                             # (walk, jump, mine, pick up, craft, smelt, kill), the achievement map
+                                             # (tooltips, dragging), Statistics General / Blocks / Items, sorting,
+                                             # saving and loading the stat file (asserts; vanilla captures of the
+                                             # same values in ref/extra/stats)
 node scripts/shot.mjs path/to/scenario.json --url http://localhost:5173/ --server none
 ```
 
@@ -140,7 +153,10 @@ Checks that live in the repository are in `tests/` and run with
 `node scripts/run-node-test.mjs tests/crafting.test.ts tests/items.test.ts tests/placement.test.ts tests/survival.test.ts`
 (recipes and smelting, the item registry with names/potions/enchantments, item placement
 against an in-memory world, and the survival rules against a real `World`: game modes, mining
-times and drops, hunger, damage, eating, death and respawn). `tests/renderblocks.test.ts` renders every render type, metadata value and item;
+times and drops, hunger, damage, eating, death and respawn). `tests/stats.test.ts` checks the statistics registry, value formats, the stat file (per user,
+saved and loaded), the achievement parent rule and the gameplay hooks against a real `World`
+(movement, falls, mining, crafting and smelting achievements, drops, kills, deaths, the
+multiplayer split between host and guest). `tests/renderblocks.test.ts` renders every render type, metadata value and item;
 `tests/containers.test.ts` drives the creative grid and every container (furnace, workbench, chest,
 dispenser, hopper, brewing, enchanting, anvil); `tests/mobshostile.test.ts` and
 `tests/mobspassive.test.ts` run every mob in a real `World` (Creative targeting rules, spawners,

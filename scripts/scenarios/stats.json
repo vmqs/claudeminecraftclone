@@ -1,7 +1,7 @@
 [
   {"goto": "?dev=1&autostart=1&seed=claude&type=flat&structures=0&mode=survival&mobs=0&time=6000"},
   {"waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0", "timeout": 300000},
-  {"eval": "(() => { window.must = (ok, info) => { if (!ok) throw new Error('assert failed: ' + JSON.stringify(info)); return info; }; const st = mc.dev.stats; st.reset(); st.hint(true); st.pinClock(1500000000000); mc.dev.ticks(2); const s = st.state(); return must(s.toast && s.toast.key === 'openInventory' && s.toast.information && s.unlocked.length === 0, s); })()"},
+  {"eval": "(() => { window.must = (ok, info) => { if (!ok) throw new Error('assert failed: ' + JSON.stringify(info)); return info; }; const st = mc.dev.stats; st.reset(); st.toasts(true); st.pinClock(1500000000000); mc.dev.ticks(2); const s = st.state(); return must(s.toast && s.toast.key === 'openInventory' && s.toast.information && s.unlocked.length === 0, s); })()"},
   {"wait": 1500},
   {"shot": "01_inventory_hint.png"},
   {"key": "e"},
@@ -65,7 +65,7 @@
   {"up": [600, 90]},
   {"move": [2, 2]},
   {"wait": 1200},
-  {"eval": "(() => { const rows = mc.currentScreen.slotBlock.rows.map((r) => r.getItemID()); return must(rows.join() === '3,1,17,50,4,5', rows); })()"},
+  {"eval": "(() => { const rows = mc.currentScreen.slotBlock.rows.map((r) => r.getItemID()); return must(rows.join() === '3,1,17,50,4,5,58,61', rows); })()"},
   {"shot": "14_stats_blocks_sorted_by_mined.png"},
   {"click": [650, 396]},
   {"wait": 1200},

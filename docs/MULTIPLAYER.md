@@ -137,7 +137,7 @@ varint length and its bytes (a one-byte id and the fields of the schema in `Pack
 from a guest may hold 64 KiB and 256 packets; frames from the host 8 MiB and 8192 packets
 (a chunk goes in a frame of its own). Strings, lists, item NBT, metadata and JSON fields have
 their own caps; a packet that a side may not send (`allowedFrom`) or that breaks a limit closes
-the connection. `PROTOCOL_VERSION` is 1 and the handshake carries the game version `1.5.2`.
+the connection. `PROTOCOL_VERSION` is 2 (2 added Packet200Statistic) and the handshake carries the game version `1.5.2`.
 The layouts of Handshake and KickDisconnect never change (`tests/netprotocol.test.ts` pins their
 bytes), so builds of different protocols still read each other's refusal.
 
@@ -190,6 +190,7 @@ closed. `tests/nettransport.test.ts` checks the patched layer.
 | 70, 71 | GameEvent, Weather | host | rain, mode change; lightning |
 | 100–108 | OpenWindow, CloseWindow, WindowClick, SetSlot, WindowItems, UpdateProgressBar, Transaction, CreativeSetSlot, EnchantItem | mixed | 1.5.2's container sync (`ICrafting` crafters on `Container`) |
 | 130, 132 | UpdateSign, TileEntityData | both / host | |
+| 200 | Statistic | host | a statistic the host counted for the guest's player (amounts above 100 split); the guest counts the independent ones (movement, jumps, play time) itself and applies the achievement parent rule, as 1.5.2's client did |
 | 201–205 | PlayerInfo, PlayerAbilities, AutoComplete, ClientInfo, ClientCommand | mixed | TAB list, flying, Tab completion, render distance and chat visibility (sent when they change), respawn |
 | 250 | CustomPayload | both | `MC|ItemName` (anvil), `MC|Beacon`, `MC|BEdit` / `MC|BSign`, `MC|Rejoin` (the 16-byte rejoin token: host to guest after the login, guest to host right after the handshake) |
 | 255 | KickDisconnect | both | the reason on the disconnect screen |

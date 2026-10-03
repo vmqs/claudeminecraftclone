@@ -24,8 +24,8 @@ export function installStats(mc: Minecraft): void {
   const writer = new StatFileWriter(mc.username);
   ClientStats.writer = writer;
   ClientStats.toast = new GuiAchievement(mc);
-  // The reference captures suppress the hint; automated runs do too unless a scenario asks for it.
-  ClientStats.showInventoryHint = !(typeof navigator !== 'undefined' && navigator.webdriver);
+  // The reference captures have no toasts; automated runs neither, unless a scenario asks for them.
+  ClientStats.showToasts = !(typeof navigator !== 'undefined' && navigator.webdriver);
   AchievementList.openInventory.setStatStringFormatter((text) => javaFormat(text, [GameSettings.getKeyDisplayString(mc.gameSettings.keyBindInventory.keyCode)]));
   let lastSave = performance.now();
   mc.frameListeners.push(() => {

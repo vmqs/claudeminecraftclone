@@ -41,20 +41,20 @@ export class StatsDevTools {
   }
 
   /** Unlocked achievement keys, the user, and what the toast shows. */
-  state(): { user: string; unlocked: string[]; toast: { key: string; information: boolean } | null; hint: boolean } {
+  state(): { user: string; unlocked: string[]; toast: { key: string; information: boolean } | null; toasts: boolean } {
     const w = ClientStats.writer;
     const shown = ClientStats.toast?.getShown() ?? null;
     return {
       user: w?.getUser() ?? '',
       unlocked: AchievementList.achievementList.filter((a) => w?.hasAchievementUnlocked(a)).map((a) => a.key),
       toast: shown ? { key: shown.achievement.key, information: shown.information } : null,
-      hint: ClientStats.showInventoryHint,
+      toasts: ClientStats.showToasts,
     };
   }
 
-  /** Turns the "Press 'E' to open your inventory" hint on or off (off under automation). */
-  hint(on: boolean): void {
-    ClientStats.showInventoryHint = on;
+  /** Turns the achievement toasts and the "Press 'E' to open your inventory" hint on or off (off under automation). */
+  toasts(on: boolean): void {
+    ClientStats.showToasts = on;
   }
 
   /** Freezes the toast and blink clock at `ms` (null: real time again). */

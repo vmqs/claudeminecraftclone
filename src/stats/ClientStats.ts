@@ -13,10 +13,11 @@ export const ClientStats = {
   writer: null as StatFileWriter | null,
   toast: null as GuiAchievement | null,
   /**
-   * Whether a player without "Taking Inventory" is shown the open-the-inventory hint. The
-   * reference captures suppress it, and so do automated runs unless a scenario turns it on.
+   * Whether the toast shows ("Achievement get!" and the open-the-inventory hint for a player
+   * without "Taking Inventory"). The reference captures have no toasts, so automated runs turn
+   * them off unless a scenario turns them on (`mc.dev.stats.toasts(true)`).
    */
-  showInventoryHint: true,
+  showToasts: true,
 
   /**
    * EntityPlayerSP.addStat: an achievement counts only once its parent is unlocked, and its
@@ -36,7 +37,7 @@ export const ClientStats = {
     if (stat.isAchievement()) {
       const a = stat as Achievement;
       if (!w.canUnlockAchievement(a)) return;
-      if (!w.hasAchievementUnlocked(a)) ClientStats.toast?.queueTakenAchievement(a);
+      if (!w.hasAchievementUnlocked(a) && ClientStats.showToasts) ClientStats.toast?.queueTakenAchievement(a);
     }
     w.readStat(stat, amount);
   },
@@ -55,7 +56,7 @@ export const ClientStats = {
   /** EntityPlayerSP.onLivingUpdate: keeps the "Press 'E' to open your inventory" hint up. */
   onPlayerUpdate(): void {
     const w = ClientStats.writer;
-    if (!w || !ClientStats.showInventoryHint) return;
+    if (!w || !ClientStats.showToasts) return;
     if (!w.hasAchievementUnlocked(AchievementList.openInventory)) ClientStats.toast?.queueAchievementInformation(AchievementList.openInventory);
   },
 
