@@ -29,6 +29,8 @@ import { MemoryBackend } from '../src/world/storage/SaveBackend';
 import { SaveFormat } from '../src/world/storage/SaveFormat';
 import { levelDatRoot, worldInfoFromNBT, worldInfoToNBT } from '../src/world/storage/WorldInfoNBT';
 import { ImportError, exportWorld, importFolderName, importWorld } from '../src/world/storage/WorldTransfer';
+import { collectWorldData, installWorldData } from '../src/world/storage/WorldData';
+import { getUniqueDataId, loadMapData, MapData, setMapData } from '../src/item/ItemMap';
 import { InventoryEnderChest } from '../src/world/tileentity/TileEntityEnderChest';
 import { check, report } from './harness';
 
@@ -532,6 +534,29 @@ async function saves(): Promise<void> {
     check('import rejects: ' + label, ok);
   }
   check('folder names are cleaned', importFolderName('a/b.c', () => false) === 'a_b_c' && importFolderName('CON', () => false) === '_CON_' && importFolderName('X', (n) => n === 'X') === 'X-');
+  // Maps (data/map_<n>.dat) and the id counters (data/idcounts.dat) are saved with level.dat.
+  {
+    const mw = flatWorld(0);
+    const hm = format2.createWorld('Maps');
+    hm.worldData = () => collectWorldData(mw);
+    const id = getUniqueDataId(mw, 'map');
+    const id2 = getUniqueDataId(mw, 'map');
+    const md = new MapData('map_' + id2);
+    md.xCenter = 64;
+    md.zCenter = -128;
+    md.scale = 2;
+    md.colors[129] = 34;
+    setMapData(mw, md.mapName, md);
+    await hm.saveAll(mw, null, true);
+    const again = collectWorldData(mw);
+    const opened2 = await format2.openWorld('Maps');
+    const fresh = new World(opened2.info);
+    installWorldData(fresh, opened2.data);
+    const back = loadMapData(fresh, 'map_1');
+    check('maps saved and read back', id === 0 && id2 === 1 && back?.xCenter === 64 && back?.zCenter === -128 && back?.scale === 2 && back?.colors[129] === 34 && opened2.data.has('data/idcounts.dat'));
+    check('unchanged maps are not written again', again.size === 0);
+    check('map ids continue after loading', getUniqueDataId(fresh, 'map') === 2);
+  }
   // Deleting stops a world's saving and removes everything.
   await format2.deleteWorldDirectory('MyWorld');
   check('delete', !format2.canLoadWorld('MyWorld') && (await backend.chunkPositions('MyWorld')).length === 0 && (await backend.getFile('MyWorld', 'level.dat')) === null);

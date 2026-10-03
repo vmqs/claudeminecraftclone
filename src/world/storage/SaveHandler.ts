@@ -37,6 +37,8 @@ export class SaveHandler {
   error: string | null = null;
   /** Called when a write fails (the game shows the message). */
   onError: ((message: string) => void) | null = null;
+  /** The world's data/ files that changed (maps, idcounts), written with level.dat. */
+  worldData: (() => Map<string, Uint8Array>) | null = null;
   /** Total bytes written by the last full save (level.dat's SizeOnDisk). */
   private sizeOnDisk = 0;
   closed = false;
@@ -238,10 +240,12 @@ export class SaveHandler {
     }
     info.lastTimePlayed = Date.now();
     const bytes = writeCompressedNBT(levelDatRoot(worldInfoToNBT(info, tag, this.sizeOnDisk)));
+    const files = new Map<string, Uint8Array | null>(this.worldData?.() ?? []);
+    files.set('level.dat', bytes);
     const run = async (): Promise<void> => {
       if (this.closed) return;
       try {
-        await this.backend.putFiles(this.folder, new Map([['level.dat', bytes]]));
+        await this.backend.putFiles(this.folder, files);
         this.error = null;
       } catch (e) {
         this.reportError(e);

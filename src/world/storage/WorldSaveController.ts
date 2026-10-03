@@ -3,6 +3,7 @@ import type { TagCompound } from '../../item/ItemStack';
 import type { ChunkProviderClient } from '../ChunkProviderClient';
 import type { World } from '../World';
 import { SaveFormat } from './SaveFormat';
+import { collectWorldData } from './WorldData';
 import type { SaveHandler } from './SaveHandler';
 
 /** What the controller needs from the game (Minecraft). */
@@ -56,6 +57,8 @@ export class WorldSaveController {
   attach(handler: SaveHandler, provider: ChunkProviderClient): void {
     this.handler = handler;
     provider.saveHandler = handler;
+    const world = provider.world;
+    handler.worldData = () => collectWorldData(world);
     this.tickCounter = 0;
     this.wasPaused = false;
     handler.onError = (msg) => this.host.reportSaveError(msg);

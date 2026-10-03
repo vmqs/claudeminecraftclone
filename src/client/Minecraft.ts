@@ -46,6 +46,7 @@ import { ColorizerFoliage, ColorizerGrass, rgbaToIntBuffer } from '../world/biom
 import { World, WorldInfo } from '../world/World';
 import { SaveFormat } from '../world/storage/SaveFormat';
 import { WorldSaveController } from '../world/storage/WorldSaveController';
+import { installWorldData } from '../world/storage/WorldData';
 import type { TagCompound } from '../item/ItemStack';
 import { GuiErrorScreen } from '../gui/GuiErrorScreen';
 import { EntityPlayerSP } from './EntityPlayerSP';
@@ -881,13 +882,14 @@ export class Minecraft implements SettingsListener {
     const token = {};
     this.openingWorld = token;
     void SaveFormat.instance.openWorld(folder, this.username).then(
-      ({ handler, info, player }) => {
+      ({ handler, info, player, data }) => {
         if (this.openingWorld !== token) {
           handler.closed = true;
           return;
         }
         this.openingWorld = null;
         const world = new World(info);
+        installWorldData(world, data);
         const provider = new ChunkProviderClient(world, info.seed, info.terrainType, info.mapFeaturesEnabled, { generatorOptions: info.generatorOptions, bonusChest: info.bonusChest });
         this.saveController.attach(handler, provider);
         this.chunkProvider = provider;

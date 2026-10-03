@@ -194,7 +194,7 @@ export class SaveFormat {
    * The player comes from level.dat's "Player", else from players/<username>.dat (a world
    * from a server: ServerConfigurationManager.readPlayerDataFromFile).
    */
-  async openWorld(folder: string, username = ''): Promise<{ handler: SaveHandler; info: WorldInfo; player: TagCompound | null }> {
+  async openWorld(folder: string, username = ''): Promise<{ handler: SaveHandler; info: WorldInfo; player: TagCompound | null; data: Map<string, Uint8Array> }> {
     let data: TagCompound | null = null;
     for (const name of ['level.dat', 'level.dat_old']) {
       const bytes = await this.backend.getFile(folder, name);
@@ -217,9 +217,16 @@ export class SaveFormat {
         // An unreadable player file means a new player, as in the original.
       }
     }
+    // data/ (maps, idcounts): read now, map items look them up synchronously.
+    const dataFiles = new Map<string, Uint8Array>();
+    for (const path of await this.backend.listFiles(folder)) {
+      if (!path.startsWith('data/')) continue;
+      const bytes = await this.backend.getFile(folder, path);
+      if (bytes) dataFiles.set(path, bytes);
+    }
     const handler = new SaveHandler(this.backend, folder, await this.backend.chunkPositions(folder));
     this.currentFolder = folder;
-    return { handler: this.attach(handler), info, player };
+    return { handler: this.attach(handler), info, player, data: dataFiles };
   }
 
   private attach(h: SaveHandler): SaveHandler {
