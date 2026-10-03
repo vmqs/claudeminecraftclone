@@ -7,6 +7,8 @@ import type { Entity } from './Entity';
 import { EntityList } from './EntityList';
 import type { EntityLiving } from './EntityLiving';
 import { EntityMinecart } from './EntityMinecart';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -96,6 +98,41 @@ export class MinecartSpawnerLogic {
     const w = this.cart.worldObj;
     this.spawnDelay = this.maxSpawnDelay <= this.minSpawnDelay ? this.minSpawnDelay : this.minSpawnDelay + w.rand.nextInt(this.maxSpawnDelay - this.minSpawnDelay);
   }
+
+  /** Spawn data this simplified logic does not use, kept so saving does not lose it. */
+  private keptTags: TagCompound = {};
+
+  /** MobSpawnerBaseLogic.writeToNBT. */
+  writeToNBT(tag: TagCompound): void {
+    NBT.setString(tag, 'EntityId', this.mobID);
+    NBT.setShort(tag, 'Delay', this.spawnDelay);
+    NBT.setShort(tag, 'MinSpawnDelay', this.minSpawnDelay);
+    NBT.setShort(tag, 'MaxSpawnDelay', this.maxSpawnDelay);
+    NBT.setShort(tag, 'SpawnCount', this.spawnCount);
+    NBT.setShort(tag, 'MaxNearbyEntities', this.maxNearbyEntities);
+    NBT.setShort(tag, 'RequiredPlayerRange', this.activatingRangeFromPlayer);
+    NBT.setShort(tag, 'SpawnRange', this.spawnRange);
+    for (const k of ['SpawnData', 'SpawnPotentials']) if (this.keptTags[k] !== undefined) tag[k] = this.keptTags[k];
+  }
+
+  /** MobSpawnerBaseLogic.readFromNBT. */
+  readFromNBT(tag: TagCompound): void {
+    if (NBT.hasKey(tag, 'EntityId')) this.mobID = NBT.getString(tag, 'EntityId');
+    this.spawnDelay = NBT.getShort(tag, 'Delay');
+    if (NBT.hasKey(tag, 'MinSpawnDelay')) {
+      this.minSpawnDelay = NBT.getShort(tag, 'MinSpawnDelay');
+      this.maxSpawnDelay = NBT.getShort(tag, 'MaxSpawnDelay');
+      this.spawnCount = NBT.getShort(tag, 'SpawnCount');
+    }
+    if (NBT.hasKey(tag, 'MaxNearbyEntities')) {
+      this.maxNearbyEntities = NBT.getShort(tag, 'MaxNearbyEntities');
+      this.activatingRangeFromPlayer = NBT.getShort(tag, 'RequiredPlayerRange');
+    }
+    if (NBT.hasKey(tag, 'SpawnRange')) this.spawnRange = NBT.getShort(tag, 'SpawnRange');
+    this.keptTags = {};
+    for (const k of ['SpawnData', 'SpawnPotentials']) if (tag[k] !== undefined) this.keptTags[k] = tag[k];
+    this.displayEntity = null;
+  }
 }
 
 /** A minecart carrying a working mob spawner (EntityMinecartMobSpawner, "MinecartSpawner"). */
@@ -117,6 +154,16 @@ export class EntityMinecartMobSpawner extends EntityMinecart {
   override onUpdate(): void {
     super.onUpdate();
     this.mobSpawnerLogic.updateSpawner();
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    this.mobSpawnerLogic.writeToNBT(tag);
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    this.mobSpawnerLogic.readFromNBT(tag);
   }
 }
 

@@ -4,6 +4,7 @@ import type { TagCompound } from '../../item/ItemStack';
 import type { IWorld } from '../IWorld';
 import { nbt } from './InventoryNBT';
 import { TileEntity } from './TileEntity';
+import { NBT } from '../storage/NBT';
 
 /** A note block (TileEntityNote, savegame id "Music"): the pitch 0..24. */
 export class TileEntityNote extends TileEntity {
@@ -12,7 +13,7 @@ export class TileEntityNote extends TileEntity {
 
   override writeToNBT(tag: TagCompound): void {
     super.writeToNBT(tag);
-    tag.note = this.note;
+    NBT.setByte(tag, 'note', this.note);
   }
 
   override readFromNBT(tag: TagCompound): void {

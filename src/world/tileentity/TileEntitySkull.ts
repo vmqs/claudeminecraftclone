@@ -1,6 +1,7 @@
 import type { TagCompound } from '../../item/ItemStack';
 import { nbt } from './InventoryNBT';
 import { TileEntity } from './TileEntity';
+import { NBT } from '../storage/NBT';
 
 /** A mob head (TileEntitySkull): type 0 skeleton, 1 wither, 2 zombie, 3 player (ExtraType = name), 4 creeper. */
 export class TileEntitySkull extends TileEntity {
@@ -11,9 +12,9 @@ export class TileEntitySkull extends TileEntity {
 
   override writeToNBT(tag: TagCompound): void {
     super.writeToNBT(tag);
-    tag.SkullType = ((this.skullType & 255) << 24) >> 24;
-    tag.Rot = ((this.skullRotation & 255) << 24) >> 24;
-    tag.ExtraType = this.extraType;
+    NBT.setByte(tag, 'SkullType', this.skullType & 255);
+    NBT.setByte(tag, 'Rot', this.skullRotation & 255);
+    NBT.setString(tag, 'ExtraType', this.extraType);
   }
 
   override readFromNBT(tag: TagCompound): void {

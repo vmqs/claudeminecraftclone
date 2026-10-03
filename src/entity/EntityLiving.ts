@@ -21,6 +21,9 @@ import { Entity } from './Entity';
 import { EntityList } from './EntityList';
 import type { EntityPlayer } from './EntityPlayer';
 import { areAllPotionsAmbient, calcPotionLiquidColor, PotionId, type PotionEffectLike } from './PotionEffects';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT, NBTType } from '../world/storage/NBT';
+import { PotionEffect } from '../potion/PotionEffect';
 
 const f = Math.fround;
 const DEG = f(Math.PI / 180);
@@ -1543,6 +1546,63 @@ export abstract class EntityLiving extends Entity {
   /** func_94062_bN / func_94059_bO */
   getAlwaysRenderNameTag(): boolean {
     return this.alwaysRenderNameTag;
+  }
+
+  // ------------------------------------------------------------------ saving (NBT)
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    if (this.health < -32768) this.health = -32768;
+    NBT.setShort(tag, 'Health', this.health);
+    NBT.setShort(tag, 'HurtTime', this.hurtTime);
+    NBT.setShort(tag, 'DeathTime', this.deathTime);
+    NBT.setShort(tag, 'AttackTime', this.attackTime);
+    NBT.setBoolean(tag, 'CanPickUpLoot', this.canPickUpLoot());
+    NBT.setBoolean(tag, 'PersistenceRequired', this.persistenceRequired);
+    const equipment: TagCompound[] = [];
+    for (const s of this.equipment) equipment.push(s ? s.writeToNBT() : {});
+    NBT.setList(tag, 'Equipment', NBTType.Compound, equipment);
+    if (this.activePotionsMap.size > 0) {
+      const effects: TagCompound[] = [];
+      for (const e of this.activePotionsMap.values()) {
+        const t: TagCompound = {};
+        NBT.setByte(t, 'Id', e.getPotionID());
+        NBT.setByte(t, 'Amplifier', e.getAmplifier());
+        NBT.setInteger(t, 'Duration', e.getDuration());
+        NBT.setBoolean(t, 'Ambient', e.getIsAmbient());
+        effects.push(t);
+      }
+      NBT.setList(tag, 'ActiveEffects', NBTType.Compound, effects);
+    }
+    NBT.setList(tag, 'DropChances', NBTType.Float, NBT.floatList(...this.equipmentDropChances));
+    NBT.setString(tag, 'CustomName', this.customName);
+    NBT.setBoolean(tag, 'CustomNameVisible', this.alwaysRenderNameTag);
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    this.health = NBT.hasKey(tag, 'Health') ? NBT.getShort(tag, 'Health') : this.getMaxHealth();
+    this.hurtTime = NBT.getShort(tag, 'HurtTime');
+    this.deathTime = NBT.getShort(tag, 'DeathTime');
+    this.attackTime = NBT.getShort(tag, 'AttackTime');
+    this.setCanPickUpLoot(NBT.getBoolean(tag, 'CanPickUpLoot'));
+    this.persistenceRequired = NBT.getBoolean(tag, 'PersistenceRequired');
+    const name = NBT.getString(tag, 'CustomName');
+    if (name.length > 0) this.setCustomNameTag(name);
+    this.setAlwaysRenderNameTag(NBT.getBoolean(tag, 'CustomNameVisible'));
+    if (NBT.hasKey(tag, 'Equipment')) {
+      const list = NBT.getTagList<TagCompound>(tag, 'Equipment');
+      for (let i = 0; i < this.equipment.length; i++) {
+        const t = list[i];
+        this.equipment[i] = t && typeof t === 'object' && NBT.hasKey(t, 'id') ? ItemStack.loadItemStackFromNBT(t) : null;
+      }
+    }
+    for (const t of NBT.getCompoundList(tag, 'ActiveEffects')) {
+      const e = new PotionEffect(NBT.getByte(t, 'Id'), NBT.getInteger(t, 'Duration'), NBT.getByte(t, 'Amplifier'), NBT.getBoolean(t, 'Ambient'));
+      this.activePotionsMap.set(e.getPotionID(), e);
+    }
+    if (NBT.hasKey(tag, 'DropChances')) {
+      const list = NBT.getTagList<number>(tag, 'DropChances');
+      for (let i = 0; i < list.length && i < this.equipmentDropChances.length; i++) this.equipmentDropChances[i] = f(Number(list[i]) || 0);
+    }
   }
 
   /** Mobs path-find further when they want to attack (func_82143_as). */

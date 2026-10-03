@@ -3,6 +3,8 @@ import { ItemStack } from '../item/ItemStack';
 import type { World } from '../world/World';
 import { EntityHanging } from './EntityHanging';
 import type { EntityPlayer } from './EntityPlayer';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -95,5 +97,26 @@ export class EntityItemFrame extends EntityHanging {
       this.setItemRotation(this.getRotation() + 1);
     }
     return true;
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    const s = this.getDisplayedItem();
+    if (s) {
+      NBT.setCompoundTag(tag, 'Item', s.writeToNBT());
+      NBT.setByte(tag, 'ItemRotation', this.getRotation());
+      NBT.setFloat(tag, 'ItemDropChance', this.itemDropChance);
+    }
+    super.writeEntityToNBT(tag);
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    const item = NBT.getCompoundTag(tag, 'Item');
+    if (Object.keys(item).length > 0) {
+      const s = ItemStack.loadItemStackFromNBT(item);
+      if (s) this.setDisplayedItem(s);
+      this.setItemRotation(NBT.getByte(tag, 'ItemRotation'));
+      if (NBT.hasKey(tag, 'ItemDropChance')) this.itemDropChance = NBT.getFloat(tag, 'ItemDropChance');
+    }
+    super.readEntityFromNBT(tag);
   }
 }

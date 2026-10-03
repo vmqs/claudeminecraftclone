@@ -7,7 +7,9 @@ import type { EntityLiving } from '../../entity/EntityLiving';
 import { EntityList } from '../../entity/EntityList';
 import type { EntityPlayer } from '../../entity/EntityPlayer';
 import type { World } from '../World';
-import type { VillageDoorInfo } from './VillageDoorInfo';
+import { VillageDoorInfo } from './VillageDoorInfo';
+import type { TagCompound } from '../../item/ItemStack';
+import { NBT, NBTType } from '../storage/NBT';
 
 const f = Math.fround;
 
@@ -301,5 +303,61 @@ export class Village {
   /** func_82683_b: changes every known player's reputation (a cured zombie villager settling in). */
   addReputationForAllPlayers(delta: number): void {
     for (const name of [...this.playerReputation.keys()]) this.setReputationForPlayer(name, delta);
+  }
+
+  /** writeVillageDataToNBT (an entry of villages.dat's "Villages"). */
+  writeVillageDataToNBT(t: TagCompound): void {
+    NBT.setInteger(t, 'PopSize', this.numVillagers);
+    NBT.setInteger(t, 'Radius', this.villageRadius);
+    NBT.setInteger(t, 'Golems', this.numIronGolems);
+    NBT.setInteger(t, 'Stable', this.lastAddDoorTimestamp);
+    NBT.setInteger(t, 'Tick', this.tickCounter);
+    NBT.setInteger(t, 'MTick', this.noBreedTicks);
+    NBT.setInteger(t, 'CX', this.center.posX);
+    NBT.setInteger(t, 'CY', this.center.posY);
+    NBT.setInteger(t, 'CZ', this.center.posZ);
+    NBT.setInteger(t, 'ACX', this.centerHelper.posX);
+    NBT.setInteger(t, 'ACY', this.centerHelper.posY);
+    NBT.setInteger(t, 'ACZ', this.centerHelper.posZ);
+    const doors: TagCompound[] = [];
+    for (const d of this.villageDoorInfoList) {
+      const e: TagCompound = {};
+      NBT.setInteger(e, 'X', d.posX);
+      NBT.setInteger(e, 'Y', d.posY);
+      NBT.setInteger(e, 'Z', d.posZ);
+      NBT.setInteger(e, 'IDX', d.insideDirectionX);
+      NBT.setInteger(e, 'IDZ', d.insideDirectionZ);
+      NBT.setInteger(e, 'TS', d.lastActivityTimestamp);
+      doors.push(e);
+    }
+    NBT.setList(t, 'Doors', NBTType.Compound, doors);
+    const players: TagCompound[] = [];
+    for (const [name, s] of this.playerReputation) {
+      const e: TagCompound = {};
+      NBT.setString(e, 'Name', name);
+      NBT.setInteger(e, 'S', s);
+      players.push(e);
+    }
+    NBT.setList(t, 'Players', NBTType.Compound, players);
+  }
+
+  /** readVillageDataFromNBT. */
+  readVillageDataFromNBT(t: TagCompound): void {
+    this.numVillagers = NBT.getInteger(t, 'PopSize');
+    this.villageRadius = NBT.getInteger(t, 'Radius');
+    this.numIronGolems = NBT.getInteger(t, 'Golems');
+    this.lastAddDoorTimestamp = NBT.getInteger(t, 'Stable');
+    this.tickCounter = NBT.getInteger(t, 'Tick');
+    this.noBreedTicks = NBT.getInteger(t, 'MTick');
+    this.center.posX = NBT.getInteger(t, 'CX');
+    this.center.posY = NBT.getInteger(t, 'CY');
+    this.center.posZ = NBT.getInteger(t, 'CZ');
+    this.centerHelper.posX = NBT.getInteger(t, 'ACX');
+    this.centerHelper.posY = NBT.getInteger(t, 'ACY');
+    this.centerHelper.posZ = NBT.getInteger(t, 'ACZ');
+    for (const e of NBT.getCompoundList(t, 'Doors')) {
+      this.villageDoorInfoList.push(new VillageDoorInfo(NBT.getInteger(e, 'X'), NBT.getInteger(e, 'Y'), NBT.getInteger(e, 'Z'), NBT.getInteger(e, 'IDX'), NBT.getInteger(e, 'IDZ'), NBT.getInteger(e, 'TS')));
+    }
+    for (const e of NBT.getCompoundList(t, 'Players')) this.playerReputation.set(NBT.getString(e, 'Name'), NBT.getInteger(e, 'S'));
   }
 }

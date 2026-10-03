@@ -1,5 +1,7 @@
 import type { ItemStack } from '../../item/ItemStack';
-import type { MerchantRecipe } from './MerchantRecipe';
+import type { TagCompound } from '../../item/ItemStack';
+import { NBT, NBTType } from '../../world/storage/NBT';
+import { MerchantRecipe } from './MerchantRecipe';
 
 /** A villager's trades in offer order (MerchantRecipeList). */
 export class MerchantRecipeList extends Array<MerchantRecipe> {
@@ -35,5 +37,22 @@ export class MerchantRecipeList extends Array<MerchantRecipe> {
       }
     }
     this.push(r);
+  }
+
+  /** getRecipiesAsTags: {Recipes: [...]}. */
+  getRecipiesAsTags(): TagCompound {
+    const t: TagCompound = {};
+    NBT.setList(t, 'Recipes', NBTType.Compound, this.map((r) => r.writeToTags()));
+    return t;
+  }
+
+  /** MerchantRecipeList(NBTTagCompound). */
+  static fromTags(t: TagCompound): MerchantRecipeList {
+    const list = new MerchantRecipeList();
+    for (const r of NBT.getCompoundList(t, 'Recipes')) {
+      const recipe = MerchantRecipe.fromTags(r);
+      if (recipe) list.push(recipe);
+    }
+    return list;
   }
 }

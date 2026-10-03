@@ -7,6 +7,8 @@ import { headingPitch, headingYaw, smoothRotation } from './EntityArrow';
 import { Entity } from './Entity';
 import type { EntityLiving } from './EntityLiving';
 import type { IProjectile } from './IProjectile';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 const PI_F = f(Math.PI);
@@ -204,5 +206,27 @@ export abstract class EntityThrowable extends Entity implements IProjectile {
   setThrower(e: EntityLiving | null): void {
     this.thrower = e;
     this.throwerName = e?.isPlayerEntity ? e.getEntityName() : null;
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    NBT.setShort(tag, 'xTile', this.xTile);
+    NBT.setShort(tag, 'yTile', this.yTile);
+    NBT.setShort(tag, 'zTile', this.zTile);
+    NBT.setByte(tag, 'inTile', this.inTile);
+    NBT.setByte(tag, 'shake', this.throwableShake);
+    NBT.setByte(tag, 'inGround', this.inGround ? 1 : 0);
+    if (!this.throwerName && this.thrower?.isPlayerEntity) this.throwerName = this.thrower.getEntityName();
+    NBT.setString(tag, 'ownerName', this.throwerName ?? '');
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    this.xTile = NBT.getShort(tag, 'xTile');
+    this.yTile = NBT.getShort(tag, 'yTile');
+    this.zTile = NBT.getShort(tag, 'zTile');
+    this.inTile = NBT.getByte(tag, 'inTile') & 255;
+    this.throwableShake = NBT.getByte(tag, 'shake') & 255;
+    this.inGround = NBT.getByte(tag, 'inGround') === 1;
+    const owner = NBT.getString(tag, 'ownerName');
+    this.throwerName = owner.length > 0 ? owner : null;
   }
 }

@@ -15,6 +15,8 @@ import type { EntityAgeable } from './EntityAgeable';
 import { EntityAnimal } from './EntityAnimal';
 import { EntityList } from './EntityList';
 import type { EntityPlayer } from './EntityPlayer';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -57,10 +59,6 @@ export class EntityPig extends EntityAnimal {
   override canBeSteered(): boolean {
     const held = (this.riddenByEntity as EntityPlayer | null)?.getHeldItem();
     return held != null && held.itemID === ItemIds.carrotOnAStick;
-  }
-
-  readEntityFromNBT(tag: Record<string, unknown>): void {
-    if (tag.Saddle !== undefined) this.setSaddled(!!tag.Saddle);
   }
 
   protected override getLivingSound(): string | null {
@@ -127,5 +125,15 @@ export class EntityPig extends EntityAnimal {
 
   getAIControlledByPlayer(): EntityAIControlledByPlayer {
     return this.aiControlledByPlayer;
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    NBT.setBoolean(tag, 'Saddle', this.getSaddled());
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    this.setSaddled(NBT.getBoolean(tag, 'Saddle'));
   }
 }

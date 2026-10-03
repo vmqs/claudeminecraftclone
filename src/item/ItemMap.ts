@@ -110,6 +110,11 @@ function storage(w: IWorld): { data: Map<string, MapData>; ids: Map<string, numb
   return s;
 }
 
+/** A world's item data and id counters (MapStorage's loaded data and idcounts), for saving. */
+export function mapStorageOf(w: IWorld): { data: Map<string, MapData>; ids: Map<string, number> } {
+  return storage(w);
+}
+
 /** World.getUniqueDataId: the next free number for "map_<n>" (0, 1, 2...). */
 export function getUniqueDataId(w: IWorld, key: string): number {
   const s = storage(w);

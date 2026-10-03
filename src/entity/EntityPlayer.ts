@@ -29,6 +29,10 @@ import { EntityMob } from './EntityMob';
 import { InventoryPlayer } from './InventoryPlayer';
 import { PlayerCapabilities } from './PlayerCapabilities';
 import { PotionId } from './PotionEffects';
+import type { TagCompound } from '../item/ItemStack';
+import { ItemStack as ItemStackClass } from '../item/ItemStack';
+import { NBT, NBTType } from '../world/storage/NBT';
+import { InventoryEnderChest } from '../world/tileentity/TileEntityEnderChest';
 
 const f = Math.fround;
 
@@ -1059,5 +1063,120 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     } else {
       super.mountEntity(e);
     }
+  }
+
+  // ------------------------------------------------------------------ saving (NBT)
+
+  /**
+   * Saves hold the server's player, whose posY is its feet (EntityPlayerMP has yOffset 0), while
+   * a standing client player's posY is at its eyes (yOffset 1.62); sleeping and dead players have
+   * the same offset on both sides.
+   */
+  protected override getSavedPosYOffset(): number {
+    return this.yOffset === f(1.62) ? f(1.62) : 0;
+  }
+
+  /**
+   * EntityPlayer.writeEntityToNBT plus EntityPlayerMP's "playerGameType": inventory, ender
+   * chest, experience, score, bed spawn, sleep, hunger and abilities.
+   */
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    const inv: TagCompound[] = [];
+    const add = (s: ItemStack | null, slot: number): void => {
+      if (!s) return;
+      const t: TagCompound = {};
+      NBT.setByte(t, 'Slot', slot);
+      Object.assign(t, s.writeToNBT());
+      inv.push(t);
+    };
+    this.inventory.mainInventory.forEach((s, i) => add(s, i));
+    this.inventory.armorInventory.forEach((s, i) => add(s, i + 100));
+    NBT.setList(tag, 'Inventory', NBTType.Compound, inv);
+    NBT.setInteger(tag, 'SelectedItemSlot', this.inventory.currentItem);
+    NBT.setBoolean(tag, 'Sleeping', this.sleeping);
+    NBT.setShort(tag, 'SleepTimer', this.sleepTimer);
+    NBT.setFloat(tag, 'XpP', this.experience);
+    NBT.setInteger(tag, 'XpLevel', this.experienceLevel);
+    NBT.setInteger(tag, 'XpTotal', this.experienceTotal);
+    NBT.setInteger(tag, 'Score', this.getScore());
+    if (this.spawnChunk) {
+      NBT.setInteger(tag, 'SpawnX', this.spawnChunk.posX);
+      NBT.setInteger(tag, 'SpawnY', this.spawnChunk.posY);
+      NBT.setInteger(tag, 'SpawnZ', this.spawnChunk.posZ);
+      NBT.setBoolean(tag, 'SpawnForced', this.spawnForced);
+    }
+    const food = this.foodStats.writeNBT();
+    NBT.setInteger(tag, 'foodLevel', food.foodLevel);
+    NBT.setInteger(tag, 'foodTickTimer', food.foodTickTimer);
+    NBT.setFloat(tag, 'foodSaturationLevel', food.foodSaturationLevel);
+    NBT.setFloat(tag, 'foodExhaustionLevel', food.foodExhaustionLevel);
+    const c = this.capabilities;
+    const abilities: TagCompound = {};
+    NBT.setBoolean(abilities, 'invulnerable', c.disableDamage);
+    NBT.setBoolean(abilities, 'flying', c.isFlying);
+    NBT.setBoolean(abilities, 'mayfly', c.allowFlying);
+    NBT.setBoolean(abilities, 'instabuild', c.isCreativeMode);
+    NBT.setBoolean(abilities, 'mayBuild', c.allowEdit);
+    NBT.setFloat(abilities, 'flySpeed', c.getFlySpeed());
+    NBT.setFloat(abilities, 'walkSpeed', c.getWalkSpeed());
+    NBT.setCompoundTag(tag, 'abilities', abilities);
+    const ender = InventoryEnderChest.forPlayer(this).saveInventoryToNBT();
+    for (const t of ender) NBT.setByte(t, 'Slot', NBT.getByte(t, 'Slot'));
+    NBT.setList(tag, 'EnderItems', NBTType.Compound, ender);
+    if (this.gameType !== EnumGameType.NOT_SET) NBT.setInteger(tag, 'playerGameType', this.gameType.getID());
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    const inv = this.inventory;
+    inv.mainInventory.fill(null);
+    inv.armorInventory.fill(null);
+    for (const t of NBT.getCompoundList(tag, 'Inventory')) {
+      const slot = NBT.getByte(t, 'Slot') & 255;
+      const s = ItemStackClass.loadItemStackFromNBT(t);
+      if (!s) continue;
+      if (slot < inv.mainInventory.length) inv.mainInventory[slot] = s;
+      if (slot >= 100 && slot < inv.armorInventory.length + 100) inv.armorInventory[slot - 100] = s;
+    }
+    const sel = NBT.getInteger(tag, 'SelectedItemSlot');
+    inv.currentItem = sel >= 0 && sel < 9 ? sel : 0;
+    this.sleeping = NBT.getBoolean(tag, 'Sleeping');
+    this.sleepTimer = NBT.getShort(tag, 'SleepTimer');
+    this.experience = NBT.getFloat(tag, 'XpP');
+    this.experienceLevel = NBT.getInteger(tag, 'XpLevel');
+    this.experienceTotal = NBT.getInteger(tag, 'XpTotal');
+    this.addScore(NBT.getInteger(tag, 'Score') - this.getScore());
+    if (this.sleeping) {
+      this.playerLocation = new ChunkCoordinates(MathHelper.floor_double(this.posX), MathHelper.floor_double(this.posY), MathHelper.floor_double(this.posZ));
+      this.wakeUpPlayer(true, true, false);
+    }
+    if (NBT.hasKey(tag, 'SpawnX') && NBT.hasKey(tag, 'SpawnY') && NBT.hasKey(tag, 'SpawnZ')) {
+      this.spawnChunk = new ChunkCoordinates(NBT.getInteger(tag, 'SpawnX'), NBT.getInteger(tag, 'SpawnY'), NBT.getInteger(tag, 'SpawnZ'));
+      this.spawnForced = NBT.getBoolean(tag, 'SpawnForced');
+    }
+    if (NBT.hasKey(tag, 'foodLevel')) {
+      this.foodStats.readNBT({
+        foodLevel: NBT.getInteger(tag, 'foodLevel'),
+        foodTickTimer: NBT.getInteger(tag, 'foodTickTimer'),
+        foodSaturationLevel: NBT.getFloat(tag, 'foodSaturationLevel'),
+        foodExhaustionLevel: NBT.getFloat(tag, 'foodExhaustionLevel'),
+      });
+    }
+    if (NBT.hasKey(tag, 'abilities')) {
+      const a = NBT.getCompoundTag(tag, 'abilities');
+      const c = this.capabilities;
+      c.disableDamage = NBT.getBoolean(a, 'invulnerable');
+      c.isFlying = NBT.getBoolean(a, 'flying');
+      c.allowFlying = NBT.getBoolean(a, 'mayfly');
+      c.isCreativeMode = NBT.getBoolean(a, 'instabuild');
+      if (NBT.hasKey(a, 'flySpeed')) {
+        c.setFlySpeed(NBT.getFloat(a, 'flySpeed'));
+        c.setPlayerWalkSpeed(NBT.getFloat(a, 'walkSpeed'));
+      }
+      if (NBT.hasKey(a, 'mayBuild')) c.allowEdit = NBT.getBoolean(a, 'mayBuild');
+    }
+    if (NBT.hasKey(tag, 'EnderItems')) InventoryEnderChest.forPlayer(this).loadInventoryFromNBT(NBT.getCompoundList(tag, 'EnderItems'));
+    if (NBT.hasKey(tag, 'playerGameType')) this.gameType = EnumGameType.getByID(NBT.getInteger(tag, 'playerGameType'));
   }
 }

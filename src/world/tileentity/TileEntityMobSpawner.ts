@@ -7,6 +7,15 @@ import type { TagCompound } from '../../item/ItemStack';
 import type { IWorld } from '../IWorld';
 import type { World } from '../World';
 import { nbt } from './InventoryNBT';
+import { NBT, NBTType, cloneNBT, nbtSetType, nbtTypeOf, type NBTTypeId } from '../storage/NBT';
+
+/** Carries the recorded binary types of `from`'s keys over to `to`. */
+function copyTypes(from: TagCompound, to: TagCompound): void {
+  for (const k of Object.keys(from)) {
+    const t = nbtTypeOf(from, k);
+    if (t !== undefined) nbtSetType(to, k, t as NBTTypeId);
+  }
+}
 import { TileEntity } from './TileEntity';
 
 /** One weighted entry of "SpawnPotentials" (WeightedRandomMinecart). */
@@ -36,8 +45,13 @@ export class WeightedRandomMinecart implements WeightedRandomItem {
     return new WeightedRandomMinecart(nbt.getInt(tag, 'Weight'), (tag.Properties as TagCompound | undefined) ?? null, nbt.getString(tag, 'Type'));
   }
 
+  /** func_98220_a: {Properties, Type, Weight}. */
   toNBT(): TagCompound {
-    return { Properties: this.properties, Type: this.minecartName, Weight: this.itemWeight };
+    const t: TagCompound = {};
+    NBT.setCompoundTag(t, 'Properties', this.properties ? cloneNBT(this.properties) : {});
+    NBT.setString(t, 'Type', this.minecartName);
+    NBT.setInteger(t, 'Weight', this.itemWeight);
+    return t;
   }
 }
 
@@ -158,13 +172,41 @@ export abstract class MobSpawnerBaseLogic {
     return spawned;
   }
 
-  /** func_98265_a: spawns an entity (applying SpawnData properties when present). */
-  spawnEntity(e: Entity): Entity {
+  /**
+   * func_98265_a: spawns an entity. With SpawnData the entity is saved, the properties are
+   * copied over its tag and it is loaded back (riders in "Riding" are spawned and mounted the
+   * same way); otherwise it gets initCreature's random set-up. Without a world (the cage's
+   * render entity) nothing is spawned.
+   */
+  spawnEntity(e: Entity, inWorld = true): Entity {
     const props = this.randomMinecart?.properties;
+    const w = inWorld ? (e.worldObj as World | null) : null;
     if (props) {
-      (e as unknown as { readFromNBT?: (t: TagCompound) => void }).readFromNBT?.(structuredClone(props));
-      e.worldObj?.spawnEntityInWorld(e);
-    } else if (e.worldObj) {
+      let tag: TagCompound = {};
+      e.addEntityID(tag);
+      for (const k of Object.keys(props)) tag[k] = cloneNBT(props[k]);
+      copyTypes(props, tag);
+      e.readFromNBT(tag);
+      if (w) w.spawnEntityInWorld(e);
+      let rider = e;
+      while (tag.Riding && typeof tag.Riding === 'object') {
+        const riding = tag.Riding as TagCompound;
+        const mount = w ? EntityList.createEntityByName(NBT.getString(riding, 'id'), w) : null;
+        if (mount && w) {
+          const mt: TagCompound = {};
+          mount.addEntityID(mt);
+          for (const k of Object.keys(riding)) mt[k] = cloneNBT(riding[k]);
+          copyTypes(riding, mt);
+          mount.readFromNBT(mt);
+          mount.setLocationAndAngles(rider.posX, rider.posY, rider.posZ, rider.rotationYaw, rider.rotationPitch);
+          w.spawnEntityInWorld(mount);
+          rider.mountEntity(mount);
+          rider = mount;
+        }
+        tag = riding;
+        if (!mount) break;
+      }
+    } else if (w) {
       (e as unknown as { initCreature?: () => void }).initCreature?.();
       this.getSpawnerWorld()!.spawnEntityInWorld(e);
     }
@@ -202,17 +244,18 @@ export abstract class MobSpawnerBaseLogic {
   }
 
   writeToNBT(tag: TagCompound): void {
-    tag.EntityId = this.getEntityNameToSpawn();
-    tag.Delay = this.spawnDelay;
-    tag.MinSpawnDelay = this.minSpawnDelay;
-    tag.MaxSpawnDelay = this.maxSpawnDelay;
-    tag.SpawnCount = this.spawnCount;
-    tag.MaxNearbyEntities = this.maxNearbyEntities;
-    tag.RequiredPlayerRange = this.activatingRangeFromPlayer;
-    tag.SpawnRange = this.spawnRange;
-    if (this.randomMinecart?.properties) tag.SpawnData = structuredClone(this.randomMinecart.properties);
+    NBT.setString(tag, 'EntityId', this.getEntityNameToSpawn());
+    NBT.setShort(tag, 'Delay', this.spawnDelay);
+    NBT.setShort(tag, 'MinSpawnDelay', this.minSpawnDelay);
+    NBT.setShort(tag, 'MaxSpawnDelay', this.maxSpawnDelay);
+    NBT.setShort(tag, 'SpawnCount', this.spawnCount);
+    NBT.setShort(tag, 'MaxNearbyEntities', this.maxNearbyEntities);
+    NBT.setShort(tag, 'RequiredPlayerRange', this.activatingRangeFromPlayer);
+    NBT.setShort(tag, 'SpawnRange', this.spawnRange);
+    if (this.randomMinecart?.properties) NBT.setCompoundTag(tag, 'SpawnData', cloneNBT(this.randomMinecart.properties));
     if (this.randomMinecart || (this.spawnPotentials && this.spawnPotentials.length > 0)) {
-      tag.SpawnPotentials = this.spawnPotentials && this.spawnPotentials.length > 0 ? this.spawnPotentials.map((p) => p.toNBT()) : [this.randomMinecart!.toNBT()];
+      const list = this.spawnPotentials && this.spawnPotentials.length > 0 ? this.spawnPotentials.map((p) => p.toNBT()) : [this.randomMinecart!.toNBT()];
+      NBT.setList(tag, 'SpawnPotentials', NBTType.Compound, list);
     }
   }
 
@@ -220,8 +263,8 @@ export abstract class MobSpawnerBaseLogic {
   getEntityForRenderer(world: World): Entity | null {
     if (!this.renderEntity) {
       const e = EntityList.createEntityByName(this.getEntityNameToSpawn(), world);
-      const props = this.randomMinecart?.properties;
-      if (e && props) (e as unknown as { readFromNBT?: (t: TagCompound) => void }).readFromNBT?.(structuredClone(props));
+      // Created without a world in 1.5.2, so it is not spawned.
+      if (e && this.randomMinecart?.properties) this.spawnEntity(e, false);
       this.renderEntity = e;
     }
     return this.renderEntity;

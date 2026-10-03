@@ -5,7 +5,7 @@ import { GuiDisconnected } from './GuiDisconnected';
 import { GuiMainMenu } from './GuiMainMenu';
 import { GuiMultiplayer } from './GuiMultiplayer';
 import { GuiScreen } from './GuiScreen';
-import { SaveFormatMemory } from '../world/storage/SaveFormatMemory';
+import { SaveFormat } from '../world/storage/SaveFormat';
 
 /** "You died!" with the score, Respawn and Title screen (GuiGameOver); buttons wake after a second. */
 export class GuiGameOver extends GuiScreen {
@@ -35,9 +35,10 @@ export class GuiGameOver extends GuiScreen {
       // The respawn request makes the integrated server kick its owner ("Game over, man") and
       // delete the world (deleteWorldAndStopServer); the kick lands on GuiDisconnected, whose
       // button leads to the multiplayer screen, as in 1.5.2.
-      const folder = SaveFormatMemory.instance.currentFolder;
+      const folder = SaveFormat.instance.currentFolder;
+      // The world stops saving before the server shuts down, then its folder goes.
+      if (folder !== null) void SaveFormat.instance.deleteWorldDirectory(folder);
       this.mc.loadWorld(null);
-      if (folder !== null) SaveFormatMemory.instance.deleteWorldDirectory(folder);
       this.mc.displayGuiScreen(new GuiDisconnected(new GuiMultiplayer(new GuiMainMenu()), 'disconnect.disconnected', 'disconnect.genericReason', "You have died. Game over, man, it's game over!"));
     } else if (b.id === 1) {
       this.mc.thePlayer!.respawnPlayer();

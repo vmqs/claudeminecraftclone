@@ -209,7 +209,7 @@ export class World implements IWorld, IBlockAccess {
     for (const t of chunk.pendingTicks) {
       const natural = t[5] !== 0;
       if (natural) this.naturalDepth++;
-      this.scheduleBlockUpdate(t[0], t[1], t[2], t[3], t[4]);
+      this.scheduleBlockUpdate(t[0], t[1], t[2], t[3], t[4], t[6] ?? 0);
       if (natural) this.naturalDepth--;
     }
     chunk.pendingTicks = [];
@@ -231,7 +231,7 @@ export class World implements IWorld, IBlockAccess {
     this.lastChunkKey = Number.NaN;
     c.isChunkLoaded = false;
     for (const t of this.pendingTicks.removeInChunk(cx, cz)) {
-      c.pendingTicks.push([t.xCoord, t.yCoord, t.zCoord, t.blockID, Math.max(0, t.scheduledTime - this.worldInfo.totalTime), t.natural ? 1 : 0]);
+      c.pendingTicks.push([t.xCoord, t.yCoord, t.zCoord, t.blockID, Math.max(0, t.scheduledTime - this.worldInfo.totalTime), t.natural ? 1 : 0, t.priority]);
     }
     for (const list of c.entityLists) for (const e of list) if (!(e as unknown as EntityPlayer).isPlayerEntity) this.unloadedEntityList.push(e);
     for (const te of c.chunkTileEntityMap.values()) this.tileEntityRemoval.push(te);
@@ -1726,6 +1726,11 @@ export class World implements IWorld, IBlockAccess {
       e.priority = priority;
     }
     this.pendingTicks.add(e);
+  }
+
+  /** The scheduled updates inside a loaded chunk, left scheduled (getPendingBlockUpdates(chunk, false)). */
+  getPendingBlockUpdates(cx: number, cz: number): NextTickListEntry[] {
+    return this.pendingTicks.entriesInChunk(cx, cz);
   }
 
   isBlockTickScheduled(x: number, y: number, z: number, id: number): boolean {

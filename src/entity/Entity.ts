@@ -15,6 +15,8 @@ import { DamageSource } from './DamageSource';
 import { fireProtectedTicks } from './EnchantmentHooks';
 import { EntityList } from './EntityList';
 import type { EntityPlayer } from './EntityPlayer';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT, NBTType } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -1083,4 +1085,103 @@ export abstract class Entity {
   isPushedByWater(): boolean {
     return true;
   }
+
+  // ------------------------------------------------------------------ saving (NBT)
+
+  /** entityUniqueID (UUID.randomUUID), made when first saved. */
+  private uuid: [bigint, bigint] | null = null;
+
+  getUniqueId(): [bigint, bigint] {
+    if (!this.uuid) {
+      const r = (): bigint => BigInt(Math.floor(Math.random() * 0x100000000));
+      let most = (r() << 32n) | r();
+      let least = (r() << 32n) | r();
+      // Version 4, IETF variant, as UUID.randomUUID.
+      most = (most & ~0xf000n) | 0x4000n;
+      least = (least & 0x3fffffffffffffffn) | 0x8000000000000000n;
+      this.uuid = [BigInt.asIntN(64, most), BigInt.asIntN(64, least)];
+    }
+    return this.uuid;
+  }
+
+  /** addNotRiddenEntityID: the "id" and everything else, unless dead or not saved (players, eggs). */
+  addNotRiddenEntityID(tag: TagCompound): boolean {
+    const id = EntityList.getEntityString(this);
+    if (this.isDead || id === null) return false;
+    NBT.setString(tag, 'id', id);
+    this.writeToNBT(tag);
+    return true;
+  }
+
+  /** addEntityID: a rider saves its mount inside its own tag, so a ridden entity is skipped. */
+  addEntityID(tag: TagCompound): boolean {
+    if (this.riddenByEntity !== null) return false;
+    return this.addNotRiddenEntityID(tag);
+  }
+
+  /** writeToNBT: the Entity fields of every saved entity, then the subclass's, then its mount. */
+  writeToNBT(tag: TagCompound): void {
+    NBT.setList(tag, 'Pos', NBTType.Double, NBT.doubleList(this.posX, this.posY + this.ySize - this.getSavedPosYOffset(), this.posZ));
+    NBT.setList(tag, 'Motion', NBTType.Double, NBT.doubleList(this.motionX, this.motionY, this.motionZ));
+    NBT.setList(tag, 'Rotation', NBTType.Float, NBT.floatList(this.rotationYaw, this.rotationPitch));
+    NBT.setFloat(tag, 'FallDistance', this.fallDistance);
+    NBT.setShort(tag, 'Fire', this.fire);
+    NBT.setShort(tag, 'Air', this.getAir());
+    NBT.setBoolean(tag, 'OnGround', this.onGround);
+    NBT.setInteger(tag, 'Dimension', this.dimension);
+    NBT.setBoolean(tag, 'Invulnerable', this.invulnerable);
+    NBT.setInteger(tag, 'PortalCooldown', this.timeUntilPortal);
+    const [most, least] = this.getUniqueId();
+    NBT.setLong(tag, 'UUIDMost', most);
+    NBT.setLong(tag, 'UUIDLeast', least);
+    this.writeEntityToNBT(tag);
+    if (this.ridingEntity) {
+      const riding: TagCompound = {};
+      if (this.ridingEntity.addNotRiddenEntityID(riding)) NBT.setCompoundTag(tag, 'Riding', riding);
+    }
+  }
+
+  /** readFromNBT: position, motion (over 10 dropped), rotation, fire, air, then the subclass's fields. */
+  readFromNBT(tag: TagCompound): void {
+    const pos = NBT.getTagList<number>(tag, 'Pos');
+    const motion = NBT.getTagList<number>(tag, 'Motion');
+    const rot = NBT.getTagList<number>(tag, 'Rotation');
+    const n = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+    this.motionX = n(motion[0]);
+    this.motionY = n(motion[1]);
+    this.motionZ = n(motion[2]);
+    if (Math.abs(this.motionX) > 10) this.motionX = 0;
+    if (Math.abs(this.motionY) > 10) this.motionY = 0;
+    if (Math.abs(this.motionZ) > 10) this.motionZ = 0;
+    this.prevPosX = this.lastTickPosX = this.posX = n(pos[0]);
+    this.prevPosY = this.lastTickPosY = this.posY = n(pos[1]) + this.getSavedPosYOffset();
+    this.prevPosZ = this.lastTickPosZ = this.posZ = n(pos[2]);
+    this.prevRotationYaw = this.rotationYaw = f(n(rot[0]));
+    this.prevRotationPitch = this.rotationPitch = f(n(rot[1]));
+    this.fallDistance = NBT.getFloat(tag, 'FallDistance');
+    this.fire = NBT.getShort(tag, 'Fire');
+    this.setAir(NBT.getShort(tag, 'Air'));
+    this.onGround = NBT.getBoolean(tag, 'OnGround');
+    this.dimension = NBT.getInteger(tag, 'Dimension');
+    this.invulnerable = NBT.getBoolean(tag, 'Invulnerable');
+    this.timeUntilPortal = NBT.getInteger(tag, 'PortalCooldown');
+    if (NBT.hasKey(tag, 'UUIDMost') && NBT.hasKey(tag, 'UUIDLeast')) this.uuid = [NBT.getLong(tag, 'UUIDMost'), NBT.getLong(tag, 'UUIDLeast')];
+    this.setPosition(this.posX, this.posY, this.posZ);
+    this.setRotation(this.rotationYaw, this.rotationPitch);
+    this.readEntityFromNBT(tag);
+  }
+
+  /**
+   * How much higher posY is here than in the saved "Pos" (0 for every entity but the local
+   * player, see EntityPlayer).
+   */
+  protected getSavedPosYOffset(): number {
+    return 0;
+  }
+
+  /** The subclass's own fields (writeEntityToNBT). */
+  writeEntityToNBT(_tag: TagCompound): void {}
+
+  /** readEntityFromNBT; world-generation descriptors pass their `data` here too. */
+  readEntityFromNBT(_tag: TagCompound): void {}
 }

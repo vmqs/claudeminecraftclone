@@ -6,6 +6,8 @@ import { DamageSource } from './DamageSource';
 import { Entity } from './Entity';
 import { EntityLiving, getXPSplit } from './EntityLiving';
 import type { EntityPlayer } from './EntityPlayer';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -156,6 +158,18 @@ export class EntityXPOrb extends Entity {
 
   override canAttackWithItem(): boolean {
     return false;
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    NBT.setShort(tag, 'Health', (this.xpOrbHealth << 24) >> 24);
+    NBT.setShort(tag, 'Age', this.xpOrbAge);
+    NBT.setShort(tag, 'Value', this.xpValue);
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    this.xpOrbHealth = NBT.getShort(tag, 'Health') & 255;
+    this.xpOrbAge = NBT.getShort(tag, 'Age');
+    this.xpValue = NBT.getShort(tag, 'Value');
   }
 }
 

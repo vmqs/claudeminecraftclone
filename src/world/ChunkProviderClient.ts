@@ -8,6 +8,7 @@ import { ChunkSection } from './ChunkSection';
 import { TileEntity } from './tileentity/TileEntity';
 import { World } from './World';
 import { StructureLocator } from './gen/StructureLocator';
+import type { SaveHandler } from './storage/SaveHandler';
 
 /**
  * The main thread's chunk source: streams finalized chunks from the world-generation worker
@@ -38,6 +39,16 @@ export class ChunkProviderClient {
    * the world spawn while it is open to LAN (PlayerManager loaded chunks around every player).
    */
   extraCenters: { x: number; z: number; radius: number }[] = [];
+
+  /**
+   * The world's save (single player and LAN host): chunks found there are loaded from it
+   * instead of generated, and every chunk is saved when it unloads. Null for worlds that are
+   * not saved (tests), which keep the in-memory store above.
+   */
+  saveHandler: SaveHandler | null = null;
+  /** Saved chunks being read, and those read and waiting to be added. */
+  private readonly loadingSaved = new Set<number>();
+  private readonly savedIncoming: { k: number; cx: number; cz: number; chunk: Chunk | null }[] = [];
 
   /** findClosestStructure requests waiting for the worker. */
   private readonly structureWaiters = new Map<number, (pos: [number, number, number] | null) => void>();
@@ -121,6 +132,10 @@ export class ChunkProviderClient {
           this.post({ type: 'cancel', cx: kx, cz: kz });
         }
       }
+      for (const k of this.loadingSaved) {
+        const [kx, kz] = ChunkProviderClient.unkey(k);
+        if (!within(kx, kz, 1)) this.loadingSaved.delete(k);
+      }
       const drop: Chunk[] = [];
       for (const c of this.world.getLoadedChunks()) if (!within(c.xPosition, c.zPosition, 2)) drop.push(c);
       for (const c of drop) this.unloadChunk(c.xPosition, c.zPosition);
@@ -142,17 +157,45 @@ export class ChunkProviderClient {
           this.world.addChunk(kept);
           continue;
         }
-        if (this.requested.has(k)) continue;
+        if (this.requested.has(k) || this.loadingSaved.has(k)) continue;
+        if (this.saveHandler?.hasChunk(kx, kz)) {
+          this.loadSaved(k, kx, kz);
+          continue;
+        }
         this.requested.add(k);
         this.post({ type: 'request', cx: kx, cz: kz });
       }
     }
   }
 
+  /** AnvilChunkLoader.loadChunk, asynchronously: the chunk is added by processIncoming. */
+  private loadSaved(k: number, cx: number, cz: number): void {
+    const h = this.saveHandler!;
+    this.loadingSaved.add(k);
+    void h.loadChunk(this.world, cx, cz).then((chunk) => {
+      if (this.saveHandler === h) this.savedIncoming.push({ k, cx, cz, chunk });
+    });
+  }
+
   /** Adds chunks that arrived from the worker, within a time budget (milliseconds). */
   processIncoming(budgetMs: number): number {
     const t0 = performance.now();
     let n = 0;
+    while (this.savedIncoming.length > 0) {
+      const m = this.savedIncoming.shift()!;
+      if (!this.loadingSaved.delete(m.k) || this.world.chunkExists(m.cx, m.cz)) continue;
+      if (!m.chunk) {
+        // Missing or unreadable in the save: generated again, like the original.
+        this.requested.add(m.k);
+        this.post({ type: 'request', cx: m.cx, cz: m.cz });
+        continue;
+      }
+      // Never regenerated, so the world-generation animals are not added again.
+      this.populatedOnce.add(m.k);
+      this.world.addChunk(m.chunk);
+      n++;
+      if (performance.now() - t0 > budgetMs) return n;
+    }
     while (this.incoming.length > 0) {
       const m = this.incoming.shift()!;
       const k = World.chunkKey(m.cx, m.cz);
@@ -207,6 +250,11 @@ export class ChunkProviderClient {
   unloadChunk(cx: number, cz: number): void {
     const c = this.world.removeChunk(cx, cz);
     if (!c) return;
+    if (this.saveHandler) {
+      // ChunkProviderServer.unloadQueuedChunks: saved as it goes; it comes back from the save.
+      this.saveHandler.saveChunk(c, this.world);
+      return;
+    }
     // Generation is deterministic: only chunks changed by players (not by the world's own
     // ticking: leaf decay, grass, fluids settling) are kept whole; of the others only the
     // entities are kept, to be put back into the regenerated terrain.
@@ -217,6 +265,20 @@ export class ChunkProviderClient {
     }
     const entities = c.entityLists.flat().filter((e) => !e.isPlayerEntity && !e.isDead);
     if (entities.length > 0) this.storedEntities.set(k, entities);
+  }
+
+  /**
+   * A chunk of the save that can be read right now (queued for writing or cached because the
+   * player changed it), put into the world; for the bed check on respawn. Null otherwise.
+   */
+  loadSavedChunkNow(cx: number, cz: number): Chunk | null {
+    if (!this.saveHandler || this.world.chunkExists(cx, cz)) return null;
+    const c = this.saveHandler.loadChunkNow(this.world, cx, cz);
+    if (c) {
+      this.loadingSaved.delete(World.chunkKey(cx, cz));
+      this.world.addChunk(c);
+    }
+    return c;
   }
 
   /** Whether every chunk within `radius` of the block position is present. */
@@ -253,6 +315,9 @@ export class ChunkProviderClient {
 
   dispose(): void {
     if (StructureLocator.provider) StructureLocator.provider = null;
+    this.saveHandler = null;
+    this.loadingSaved.clear();
+    this.savedIncoming.length = 0;
     this.worker.terminate();
     this.incoming.length = 0;
     this.requested.clear();

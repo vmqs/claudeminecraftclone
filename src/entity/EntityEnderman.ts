@@ -9,6 +9,8 @@ import type { Entity } from './Entity';
 import { EntityMob } from './EntityMob';
 import type { EntityPlayer } from './EntityPlayer';
 import { tagNumber } from './HostileMobUtil';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -61,16 +63,6 @@ export class EntityEnderman extends EntityMob {
 
   getMaxHealth(): number {
     return 40;
-  }
-
-  readEntityFromNBT(tag: Record<string, unknown>): void {
-    this.setCarried(tagNumber(tag, 'carried') ?? 0);
-    this.setCarryingData(tagNumber(tag, 'carriedData') ?? 0);
-  }
-
-  writeEntityToNBT(tag: Record<string, unknown>): void {
-    tag.carried = this.getCarried();
-    tag.carriedData = this.getCarryingData();
   }
 
   protected override findPlayerToAttack(): Entity | null {
@@ -320,5 +312,17 @@ export class EntityEnderman extends EntityMob {
 
   override getAttackStrength(_target: Entity): number {
     return 7;
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    NBT.setShort(tag, 'carried', this.getCarried());
+    NBT.setShort(tag, 'carriedData', this.getCarryingData());
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    this.setCarried(NBT.getShort(tag, 'carried'));
+    this.setCarryingData(NBT.getShort(tag, 'carriedData'));
   }
 }

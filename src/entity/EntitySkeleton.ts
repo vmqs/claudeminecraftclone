@@ -20,6 +20,8 @@ import { EntityLiving, EnumCreatureAttribute } from './EntityLiving';
 import { EntityMob } from './EntityMob';
 import { burnInDaylight, maybeHalloweenHelmet, tagNumber } from './HostileMobUtil';
 import { PotionId, type PotionEffectLike } from './PotionEffects';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -184,18 +186,19 @@ export class EntitySkeleton extends EntityMob implements IRangedAttackMob {
     else this.setSize(f(0.6), f(1.8));
   }
 
-  readEntityFromNBT(tag: Record<string, unknown>): void {
-    const t = tagNumber(tag, 'SkeletonType');
-    if (t !== undefined) this.setSkeletonType(t);
-    this.setCombatTask();
-  }
-
-  writeEntityToNBT(tag: Record<string, unknown>): void {
-    tag.SkeletonType = this.getSkeletonType();
-  }
-
   override setCurrentItemOrArmor(slot: number, stack: ItemStack | null): void {
     super.setCurrentItemOrArmor(slot, stack);
     if (slot === 0 && this.aiArrowAttack) this.setCombatTask();
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    NBT.setByte(tag, 'SkeletonType', this.getSkeletonType());
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    if (NBT.hasKey(tag, 'SkeletonType')) this.setSkeletonType(NBT.getByte(tag, 'SkeletonType'));
+    this.setCombatTask();
   }
 }

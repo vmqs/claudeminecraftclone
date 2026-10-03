@@ -2,7 +2,7 @@ import { I18n } from '../core/I18n';
 import { javaStringHash } from '../core/JavaRandom';
 import { Keyboard } from '../client/Keyboard';
 import type { WorldInfo } from '../world/World';
-import { SaveFormatMemory } from '../world/storage/SaveFormatMemory';
+import { SaveFormat } from '../world/storage/SaveFormat';
 import { GuiButton } from './GuiButton';
 import { GuiCreateFlatWorld } from './GuiCreateFlatWorld';
 import { GuiScreen } from './GuiScreen';
@@ -100,7 +100,7 @@ export class GuiCreateWorld extends GuiScreen {
   static makeUniqueFolderName(name: string): string {
     name = name.replace(/[./"]/g, '_');
     for (const n of ILLEGAL_WORLD_NAMES) if (name.toUpperCase() === n) name = '_' + name + '_';
-    while (SaveFormatMemory.instance.getWorldInfo(name) !== null) name += '-';
+    while (SaveFormat.instance.getWorldInfo(name) !== null) name += '-';
     return name;
   }
 

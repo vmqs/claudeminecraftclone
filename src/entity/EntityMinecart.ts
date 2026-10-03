@@ -9,6 +9,8 @@ import type { DamageSource } from './DamageSource';
 import { Entity } from './Entity';
 import type { EntityPlayer } from './EntityPlayer';
 import { EntityList } from './EntityList';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -592,5 +594,25 @@ export abstract class EntityMinecart extends Entity {
 
   getCustomName(): string | null {
     return this.entityName;
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    if (this.hasDisplayTile()) {
+      NBT.setBoolean(tag, 'CustomDisplayTile', true);
+      NBT.setInteger(tag, 'DisplayTile', this.getDisplayTile()?.blockID ?? 0);
+      NBT.setInteger(tag, 'DisplayData', this.getDisplayTileData());
+      NBT.setInteger(tag, 'DisplayOffset', this.getDisplayTileOffset());
+    }
+    if (this.entityName !== null && this.entityName.length > 0) NBT.setString(tag, 'CustomName', this.entityName);
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    if (NBT.getBoolean(tag, 'CustomDisplayTile')) {
+      this.setDisplayTile(NBT.getInteger(tag, 'DisplayTile'));
+      this.setDisplayTileData(NBT.getInteger(tag, 'DisplayData'));
+      this.setDisplayTileOffset(NBT.getInteger(tag, 'DisplayOffset'));
+    }
+    const name = NBT.getString(tag, 'CustomName');
+    if (name.length > 0) this.entityName = name;
   }
 }

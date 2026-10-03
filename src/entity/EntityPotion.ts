@@ -5,6 +5,8 @@ import type { World } from '../world/World';
 import type { EntityLiving } from './EntityLiving';
 import { EntityThrowable } from './EntityThrowable';
 import { isInstantPotion, PotionHooks } from './PotionEffects';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -73,5 +75,17 @@ export class EntityPotion extends EntityThrowable {
     }
     this.worldObj.playAuxSFX(2002, Math.round(this.posX), Math.round(this.posY), Math.round(this.posZ), this.getPotionDamage());
     this.setDead();
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    if (this.potionDamage) NBT.setCompoundTag(tag, 'Potion', this.potionDamage.writeToNBT());
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    if (NBT.hasKey(tag, 'Potion')) this.potionDamage = ItemStack.loadItemStackFromNBT(NBT.getCompoundTag(tag, 'Potion'));
+    else this.setPotionDamage(NBT.getInteger(tag, 'potionValue'));
+    if (!this.potionDamage) this.setDead();
   }
 }

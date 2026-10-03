@@ -20,6 +20,8 @@ import { EntityMob } from './EntityMob';
 import type { EntityPlayer } from './EntityPlayer';
 import { burnInDaylight, isEntityNamed, maybeHalloweenHelmet, tagBool, tagNumber } from './HostileMobUtil';
 import { PotionId, type PotionEffectLike } from './PotionEffects';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -187,19 +189,6 @@ export class EntityZombie extends EntityMob {
     }
   }
 
-  readEntityFromNBT(tag: Record<string, unknown>): void {
-    if (tagBool(tag, 'IsBaby')) this.setChild(true);
-    if (tagBool(tag, 'IsVillager')) this.setVillager(true);
-    const t = tagNumber(tag, 'ConversionTime');
-    if (t !== undefined && t > -1) this.startConversion(t);
-  }
-
-  writeEntityToNBT(tag: Record<string, unknown>): void {
-    if (this.isChild()) tag.IsBaby = true;
-    if (this.isVillager()) tag.IsVillager = true;
-    tag.ConversionTime = this.isConverting() ? this.conversionTime : -1;
-  }
-
   /** Villagers killed on Normal (half the time) or Hard rise as zombie villagers. */
   override onKillEntity(victim: Entity): void {
     super.onKillEntity(victim);
@@ -296,5 +285,19 @@ export class EntityZombie extends EntityMob {
       }
     }
     return boost;
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    if (this.isChild()) NBT.setBoolean(tag, 'IsBaby', true);
+    if (this.isVillager()) NBT.setBoolean(tag, 'IsVillager', true);
+    NBT.setInteger(tag, 'ConversionTime', this.isConverting() ? this.conversionTime : -1);
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    if (NBT.getBoolean(tag, 'IsBaby')) this.setChild(true);
+    if (NBT.getBoolean(tag, 'IsVillager')) this.setVillager(true);
+    if (NBT.hasKey(tag, 'ConversionTime') && NBT.getInteger(tag, 'ConversionTime') > -1) this.startConversion(NBT.getInteger(tag, 'ConversionTime'));
   }
 }

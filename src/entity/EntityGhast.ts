@@ -6,6 +6,8 @@ import type { Entity } from './Entity';
 import { EntityFlying } from './EntityFlying';
 import { EntityLargeFireball } from './EntityLargeFireball';
 import { tagNumber } from './HostileMobUtil';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -170,12 +172,14 @@ export class EntityGhast extends EntityFlying {
     return 1;
   }
 
-  readEntityFromNBT(tag: Record<string, unknown>): void {
-    const p = tagNumber(tag, 'ExplosionPower');
-    if (p !== undefined) this.explosionStrength = p;
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    NBT.setInteger(tag, 'ExplosionPower', this.explosionStrength);
   }
 
-  writeEntityToNBT(tag: Record<string, unknown>): void {
-    tag.ExplosionPower = this.explosionStrength;
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    if (NBT.hasKey(tag, 'ExplosionPower')) this.explosionStrength = NBT.getInteger(tag, 'ExplosionPower');
   }
 }

@@ -18,6 +18,8 @@ import type { Entity } from './Entity';
 import { EntityGolem } from './EntityGolem';
 import type { EntityLiving } from './EntityLiving';
 import { mobSelector } from './IMob';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -117,10 +119,6 @@ export class EntityIronGolem extends EntityGolem {
     return this.isPlayerCreated() && name === 'Player' ? false : super.canAttackClass(name);
   }
 
-  readEntityFromNBT(tag: Record<string, unknown>): void {
-    if (tag.PlayerCreated !== undefined) this.setPlayerCreated(!!tag.PlayerCreated);
-  }
-
   /** Swings its arms (status 4), hits for 7-21 and throws the target upwards. */
   override attackEntityAsMob(e: Entity): boolean {
     this.attackTimer = 10;
@@ -201,5 +199,15 @@ export class EntityIronGolem extends EntityGolem {
   override onDeath(src: DamageSource): void {
     if (!this.isPlayerCreated() && this.attackingPlayer && this.villageObj) this.villageObj.setReputationForPlayer(this.attackingPlayer.getCommandSenderName(), -5);
     super.onDeath(src);
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    NBT.setBoolean(tag, 'PlayerCreated', this.isPlayerCreated());
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    this.setPlayerCreated(NBT.getBoolean(tag, 'PlayerCreated'));
   }
 }

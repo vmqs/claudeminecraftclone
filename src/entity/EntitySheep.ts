@@ -17,6 +17,8 @@ import { EntityAIWatchClosest } from './ai/EntityAIWatchClosest';
 import type { EntityAgeable } from './EntityAgeable';
 import { EntityAnimal } from './EntityAnimal';
 import type { EntityPlayer } from './EntityPlayer';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 const PI_F = f(Math.PI);
@@ -152,11 +154,6 @@ export class EntitySheep extends EntityAnimal {
     return super.interact(player);
   }
 
-  readEntityFromNBT(tag: Record<string, unknown>): void {
-    if (tag.Sheared !== undefined) this.setSheared(!!tag.Sheared);
-    if (typeof tag.Color === 'number') this.setFleeceColor(tag.Color);
-  }
-
   protected override getLivingSound(): string | null {
     return 'mob.sheep.say';
   }
@@ -228,5 +225,17 @@ export class EntitySheep extends EntityAnimal {
     const out = CraftingManager.getInstance().findMatchingRecipe(this.dyeGrid, a.worldObj);
     if (out && out.getItem().itemID === ItemIds.dyePowder) return out.getItemDamage();
     return this.worldObj.rand.nextBoolean() ? da : db;
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    NBT.setBoolean(tag, 'Sheared', this.getSheared());
+    NBT.setByte(tag, 'Color', this.getFleeceColor());
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    this.setSheared(NBT.getBoolean(tag, 'Sheared'));
+    this.setFleeceColor(NBT.getByte(tag, 'Color'));
   }
 }

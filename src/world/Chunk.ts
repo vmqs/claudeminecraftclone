@@ -47,8 +47,9 @@ export class Chunk {
   readonly chunkTileEntityMap = new Map<number, TileEntity>();
   readonly entityLists: Entity[][] = Array.from({ length: 16 }, () => []);
   /**
-   * Scheduled ticks waiting for the chunk to load: [x, y, z, blockId, delay, natural]. From the
-   * generator they are natural (6th element missing or 1); ticks saved on unload keep their origin.
+   * Scheduled ticks waiting for the chunk to load: [x, y, z, blockId, delay, natural, priority?].
+   * From the generator they are natural (6th element missing or 1); ticks saved on unload keep
+   * their origin.
    */
   pendingTicks: number[][] = [];
   /** Animals placed by world generation (performWorldGenSpawning), spawned when it loads. */

@@ -97,6 +97,11 @@ export class TickScheduler {
     return top;
   }
 
+  /** The entries inside a chunk, left in place (WorldServer.getPendingBlockUpdates(chunk, false)). */
+  entriesInChunk(cx: number, cz: number): NextTickListEntry[] {
+    return this.heap.filter((e) => e.xCoord >> 4 === cx && e.zCoord >> 4 === cz);
+  }
+
   /** Removes entries inside a chunk (when it unloads) and returns them. */
   removeInChunk(cx: number, cz: number): NextTickListEntry[] {
     const keep: NextTickListEntry[] = [];

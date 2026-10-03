@@ -8,6 +8,8 @@ import { DamageSource } from './DamageSource';
 import { EntityLiving } from './EntityLiving';
 import type { EntityPlayer } from './EntityPlayer';
 import { tagNumber } from './HostileMobUtil';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -76,14 +78,6 @@ export class EntitySlime extends EntityLiving {
 
   getSlimeSize(): number {
     return this.slimeSize;
-  }
-
-  readEntityFromNBT(tag: Record<string, unknown>): void {
-    this.setSlimeSize((tagNumber(tag, 'Size') ?? 0) + 1);
-  }
-
-  writeEntityToNBT(tag: Record<string, unknown>): void {
-    tag.Size = this.getSlimeSize() - 1;
   }
 
   protected getSlimeParticle(): string {
@@ -233,5 +227,15 @@ export class EntitySlime extends EntityLiving {
 
   protected makesSoundOnLand(): boolean {
     return this.getSlimeSize() > 2;
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    NBT.setInteger(tag, 'Size', this.getSlimeSize() - 1);
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    this.setSlimeSize(NBT.getInteger(tag, 'Size') + 1);
   }
 }

@@ -6,6 +6,8 @@ import type { Entity } from './Entity';
 import type { EntityPlayer } from './EntityPlayer';
 import { EntityZombie } from './EntityZombie';
 import { tagNumber } from './HostileMobUtil';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -48,16 +50,6 @@ export class EntityPigZombie extends EntityZombie {
       this.worldObj.getCollidingBoundingBoxes(this, this.boundingBox).length === 0 &&
       !this.worldObj.isAnyLiquid(this.boundingBox)
     );
-  }
-
-  override readEntityFromNBT(tag: Record<string, unknown>): void {
-    super.readEntityFromNBT(tag);
-    this.angerLevel = tagNumber(tag, 'Anger') ?? 0;
-  }
-
-  override writeEntityToNBT(tag: Record<string, unknown>): void {
-    super.writeEntityToNBT(tag);
-    tag.Anger = this.angerLevel;
   }
 
   protected override findPlayerToAttack(): Entity | null {
@@ -132,5 +124,15 @@ export class EntityPigZombie extends EntityZombie {
     let dmg = 5;
     if (held) dmg += held.getDamageVsEntity(this);
     return dmg;
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    NBT.setShort(tag, 'Anger', this.angerLevel);
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    this.angerLevel = NBT.getShort(tag, 'Anger');
   }
 }

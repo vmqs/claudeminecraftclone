@@ -3,6 +3,8 @@ import type { World } from '../world/World';
 import { EntityCreature } from './EntityCreature';
 import { EntityList } from './EntityList';
 import type { EntityPlayer } from './EntityPlayer';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -74,5 +76,15 @@ export abstract class EntityAgeable extends EntityCreature {
 
   private setScale(scale: number): void {
     super.setSize(f(this.baseWidth * scale), f(this.baseHeight * scale));
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    NBT.setInteger(tag, 'Age', this.getGrowingAge());
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    this.setGrowingAge(NBT.getInteger(tag, 'Age'));
   }
 }

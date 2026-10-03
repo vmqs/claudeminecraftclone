@@ -21,6 +21,8 @@ import type { EntityLiving } from './EntityLiving';
 import { EntityList } from './EntityList';
 import type { EntityPlayer } from './EntityPlayer';
 import { EntityTameable } from './EntityTameable';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 const isChicken = (e: Entity): e is EntityLiving => EntityList.getEntityString(e) === 'Chicken';
@@ -104,18 +106,6 @@ export class EntityOcelot extends EntityTameable {
   }
 
   protected override fall(_dist: number): void {}
-
-  readEntityFromNBT(tag: Record<string, unknown>): void {
-    if (typeof tag.Owner === 'string' && tag.Owner.length > 0) {
-      this.setOwner(tag.Owner);
-      this.setTamed(true);
-    }
-    if (tag.Sitting !== undefined) {
-      this.aiSit.setSitting(!!tag.Sitting);
-      this.setSitting(!!tag.Sitting);
-    }
-    if (typeof tag.CatType === 'number') this.setTameSkin(tag.CatType);
-  }
 
   /** Wild ocelots are silent (an empty sound name in 1.5.2). */
   protected override getLivingSound(): string | null {
@@ -230,5 +220,15 @@ export class EntityOcelot extends EntityTameable {
       kitten.setGrowingAge(-24000);
       this.worldObj.spawnEntityInWorld(kitten);
     }
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    NBT.setInteger(tag, 'CatType', this.getTameSkin());
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    this.setTameSkin(NBT.getInteger(tag, 'CatType'));
   }
 }
