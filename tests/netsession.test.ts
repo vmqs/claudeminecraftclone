@@ -343,6 +343,14 @@ check('guest is creative (LAN game mode)', bob.pc.isInCreativeMode() && bobMP!.c
   step(2);
   check('guest attack hurts the host mob', (pig as EntityLiving).hurtTime > 0 || (pig as EntityLiving).getHealth() < 10);
   check('hurt status shown on the guest copy', (copy as EntityLiving).hurtTime > 0);
+  // 64+ changes in the pig's chunk in one tick resend the whole chunk; the pig stays.
+  for (let x = 0; x < 14; x++) for (let z = 0; z < 5; z++) hw.setBlock(x, 6, z, B.glass, 0, 3);
+  step(4);
+  check('whole-chunk resend arrived', gw.getBlockId(13, 6, 4) === B.glass);
+  check('mob survives a whole-chunk resend', gw.loadedEntityList.includes(copy!) && gw.getChunkFromChunkCoords(copy!.chunkCoordX, copy!.chunkCoordZ).entityLists.some((l) => l.includes(copy!)));
+  for (let x = 0; x < 14; x++) for (let z = 0; z < 5; z++) hw.setBlock(x, 6, z, 0, 0, 3);
+  step(4);
+  check('mob survives a second resend', gw.loadedEntityList.includes(copy!) && gw.getBlockId(13, 6, 4) === 0);
   pig.setDead();
   step(2);
   check('dead mob removed on the guest', !gw.loadedEntityList.includes(copy!));

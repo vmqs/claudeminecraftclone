@@ -580,8 +580,13 @@ export class NetClientHandler {
       }
     }
     if (old) {
-      // A resent chunk (many changes at once): keep the entities that live in it.
-      for (const list of old.entityLists) for (const e of list) c.addEntity(e);
+      // A resent chunk (64+ changes in a tick, an explosion): its entities move to the new
+      // chunk and stay in the world (removeChunk would unload whatever the old one still holds).
+      for (const list of old.entityLists) {
+        const moved = [...list];
+        list.length = 0;
+        for (const e of moved) c.addEntity(e);
+      }
       w.removeChunk(p.cx, p.cz);
     }
     c.isModified = false;

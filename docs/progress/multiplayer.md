@@ -69,3 +69,5 @@ each (with a netsession / netprotocol check where it can be tested in Node).
   reported and ignored. The host handles its own 'host' action, ignores peers it closed until
   they leave (60 s for protocol abuse), and guests detect a second "host" (impostor) and fail.
   `tests/nettransport.test.ts` checks the patched wire layer.
+- [x] Major: a whole-chunk resend (64+ changes, explosions) unloaded the chunk's entities on the
+  guest; they now move to the new chunk object first.
