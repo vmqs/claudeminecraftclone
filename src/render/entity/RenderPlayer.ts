@@ -5,7 +5,7 @@ import type { EntityPlayer } from '../../entity/EntityPlayer';
 import { EnumAction } from '../../item/Item';
 import { GL } from '../gl/GL';
 import { ModelBiped } from './ModelBiped';
-import { renderHeadItem, renderHeldItem, setArmorModel, setArmorOverlay } from './RenderBiped';
+import { BIPED_FULL3D_OFFSET, renderHeadItem, renderHeldItem, setArmorModel, setArmorOverlay } from './RenderBiped';
 import { RenderLiving } from './RenderLiving';
 
 const f = Math.fround;
@@ -78,7 +78,7 @@ export class RenderPlayer extends RenderLiving {
       this.renderCape(p, pt);
     }
     const held = p.inventory.getCurrentItem();
-    if (held) renderHeldItem(this, p, held, this.modelBipedMain, p.getItemInUseCount() > 0 ? held.getItemUseAction() : null);
+    if (held) renderHeldItem(this, p, held, this.modelBipedMain, p.getItemInUseCount() > 0 ? held.getItemUseAction() : null, BIPED_FULL3D_OFFSET, true);
   }
 
   /** The cape swings behind with the chasing point, the walk bob and sneaking. */

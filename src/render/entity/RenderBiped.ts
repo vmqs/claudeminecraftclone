@@ -72,8 +72,23 @@ export function renderHeadItem(r: RenderLiving, e: EntityLiving, head: ItemStack
   GL.popMatrix();
 }
 
-/** The held item in the right hand: blocks, bows, full-3D tools and flat items differently. */
-export function renderHeldItem(r: RenderLiving, e: EntityLiving, held: ItemStack, model: ModelBiped, inUse: EnumAction | null): void {
+/** RenderBiped.func_82422_c: where full-3D tools sit in the hand (RenderSkeleton moves them out). */
+export const BIPED_FULL3D_OFFSET: readonly [number, number, number] = [0, f(0.1875), 0];
+
+/**
+ * The held item in the right hand: blocks, bows, full-3D tools and flat items differently.
+ * RenderPlayer tints each render pass with getColorFromItemStack (`tintPasses`); RenderBiped
+ * (zombies, skeletons, pig zombies) draws passes 0 and 1 untinted.
+ */
+export function renderHeldItem(
+  r: RenderLiving,
+  e: EntityLiving,
+  held: ItemStack,
+  model: ModelBiped,
+  inUse: EnumAction | null,
+  full3DOffset: readonly [number, number, number] = BIPED_FULL3D_OFFSET,
+  tintPasses = false,
+): void {
   GL.pushMatrix();
   if (model.isChild) {
     const s = f(0.5);
@@ -112,7 +127,7 @@ export function renderHeldItem(r: RenderLiving, e: EntityLiving, held: ItemStack
       GL.rotate(-10, 1, 0, 0);
       GL.rotate(-60, 0, 0, 1);
     }
-    GL.translate(0, f(0.1875), 0);
+    GL.translate(full3DOffset[0], full3DOffset[1], full3DOffset[2]);
     GL.scale(s, -s, s);
     GL.rotate(-100, 1, 0, 0);
     GL.rotate(45, 0, 1, 0);
@@ -126,8 +141,10 @@ export function renderHeldItem(r: RenderLiving, e: EntityLiving, held: ItemStack
   }
   const passes = item.requiresMultipleRenderPasses() ? 2 : 1;
   for (let pass = 0; pass < passes; pass++) {
-    const c = item.getColorFromItemStack(held, pass);
-    GL.color(((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255, 1);
+    if (tintPasses) {
+      const c = item.getColorFromItemStack(held, pass);
+      GL.color(((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255, 1);
+    }
     r.renderManager.itemRenderer?.renderItem(e, held, pass);
   }
   GL.popMatrix();
