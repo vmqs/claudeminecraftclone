@@ -457,7 +457,8 @@ const ENTITY_NAMES = [
   check('level.dat types', nbtTypeOf(data, 'RandomSeed') === NBTType.Long && nbtTypeOf(data, 'version') === NBTType.Int && data.version === 19133 && nbtTypeOf((data.GameRules as TagCompound), 'keepInventory') === NBTType.String);
   const p2 = new TestPlayer(w);
   p2.readFromNBT(data.Player as TagCompound);
-  check('player position and look', Math.abs(p2.posX - 5.5) < 1e-9 && Math.abs(p2.posZ + 3.25) < 1e-9 && Math.abs(p2.rotationYaw - 123) < 1e-4);
+  check('the player is saved at its feet, like the server player', ((data.Player as TagCompound).Pos as number[])[1] === 6);
+  check('player position and look', Math.abs(p2.boundingBox.minY - 6) < 1e-6 && Math.abs(p2.posX - 5.5) < 1e-9 && Math.abs(p2.posZ + 3.25) < 1e-9 && Math.abs(p2.rotationYaw - 123) < 1e-4);
   check('player inventory', p2.inventory.mainInventory[0]?.getItemDamage() === 100 && p2.inventory.mainInventory[35]?.stackSize === 33 && p2.inventory.armorInventory[3]?.itemID === I.helmetIron && p2.inventory.currentItem === 4);
   check('player xp, health, food, mode, flying', p2.experienceLevel === 7 && p2.experienceTotal === 120 && p2.experience === 0.25 && p2.getHealth() === 13 && p2.getFoodStats().getFoodLevel() === 9 && p2.gameType === EnumGameType.SURVIVAL && p2.capabilities.isFlying);
   check('ender chest', InventoryEnderChest.forPlayer(p2).getStackInSlot(2)?.stackSize === 9);

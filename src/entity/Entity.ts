@@ -1121,7 +1121,7 @@ export abstract class Entity {
 
   /** writeToNBT: the Entity fields of every saved entity, then the subclass's, then its mount. */
   writeToNBT(tag: TagCompound): void {
-    NBT.setList(tag, 'Pos', NBTType.Double, NBT.doubleList(this.posX, this.posY + this.ySize, this.posZ));
+    NBT.setList(tag, 'Pos', NBTType.Double, NBT.doubleList(this.posX, this.posY + this.ySize - this.getSavedPosYOffset(), this.posZ));
     NBT.setList(tag, 'Motion', NBTType.Double, NBT.doubleList(this.motionX, this.motionY, this.motionZ));
     NBT.setList(tag, 'Rotation', NBTType.Float, NBT.floatList(this.rotationYaw, this.rotationPitch));
     NBT.setFloat(tag, 'FallDistance', this.fallDistance);
@@ -1154,7 +1154,7 @@ export abstract class Entity {
     if (Math.abs(this.motionY) > 10) this.motionY = 0;
     if (Math.abs(this.motionZ) > 10) this.motionZ = 0;
     this.prevPosX = this.lastTickPosX = this.posX = n(pos[0]);
-    this.prevPosY = this.lastTickPosY = this.posY = n(pos[1]);
+    this.prevPosY = this.lastTickPosY = this.posY = n(pos[1]) + this.getSavedPosYOffset();
     this.prevPosZ = this.lastTickPosZ = this.posZ = n(pos[2]);
     this.prevRotationYaw = this.rotationYaw = f(n(rot[0]));
     this.prevRotationPitch = this.rotationPitch = f(n(rot[1]));
@@ -1169,6 +1169,14 @@ export abstract class Entity {
     this.setPosition(this.posX, this.posY, this.posZ);
     this.setRotation(this.rotationYaw, this.rotationPitch);
     this.readEntityFromNBT(tag);
+  }
+
+  /**
+   * How much higher posY is here than in the saved "Pos" (0 for every entity but the local
+   * player, see EntityPlayer).
+   */
+  protected getSavedPosYOffset(): number {
+    return 0;
   }
 
   /** The subclass's own fields (writeEntityToNBT). */

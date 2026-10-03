@@ -1068,6 +1068,15 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
   // ------------------------------------------------------------------ saving (NBT)
 
   /**
+   * Saves hold the server's player, whose posY is its feet (EntityPlayerMP has yOffset 0), while
+   * a standing client player's posY is at its eyes (yOffset 1.62); sleeping and dead players have
+   * the same offset on both sides.
+   */
+  protected override getSavedPosYOffset(): number {
+    return this.yOffset === f(1.62) ? f(1.62) : 0;
+  }
+
+  /**
    * EntityPlayer.writeEntityToNBT plus EntityPlayerMP's "playerGameType": inventory, ender
    * chest, experience, score, bed spawn, sleep, hunger and abilities.
    */
