@@ -235,8 +235,25 @@ export class RenderGlobal implements IWorldAccess {
 
   private markDirty(s: WorldRenderer): void {
     if (s.inFlight) s.stale = true;
+    else if (this.isEmptySection(s)) {
+      // Nothing to draw whatever the neighbours hold: settled at once, without a mesher slot
+      // (most sections of a new chunk are empty).
+      this.dirty.delete(s);
+      this.disposeSection(s);
+      s.needsUpdate = false;
+      s.stale = false;
+      s.meshedOnce = true;
+      return;
+    }
     s.needsUpdate = true;
     this.dirty.add(s);
+  }
+
+  private isEmptySection(s: WorldRenderer): boolean {
+    const w = this.theWorld;
+    if (!w) return false;
+    const sec = w.getChunkFromChunkCoords(s.sx, s.sz).sections[s.sy];
+    return !sec || sec.isEmpty();
   }
 
   static sectionKey(sx: number, sy: number, sz: number): number {
@@ -352,16 +369,6 @@ export class RenderGlobal implements IWorldAccess {
     neighbours.clear();
     for (const s of this.dirty) {
       if (s.inFlight || Math.abs(s.sx - cx) > r || Math.abs(s.sz - cz) > r) continue;
-      // An empty section has nothing to draw whatever its neighbours hold: settle it here
-      // instead of spending a mesher slot (most sections of a new chunk are empty).
-      const sec = w.getChunkFromChunkCoords(s.sx, s.sz).sections[s.sy];
-      if (!sec || sec.isEmpty()) {
-        this.dirty.delete(s);
-        this.disposeSection(s);
-        s.needsUpdate = false;
-        s.meshedOnce = true;
-        continue;
-      }
       const key = (s.isInFrustum ? 0 : 1e12) + this.sectionDistSq(s);
       if (best.length === free && key >= keys[free - 1]) continue;
       const ck = s.sx * 65536 + s.sz;
@@ -417,7 +424,6 @@ export class RenderGlobal implements IWorldAccess {
       this.jobs.delete(res.id);
       if (!s || this.sections.get(RenderGlobal.sectionKey(s.sx, s.sy, s.sz)) !== s) continue;
       s.inFlight = false;
-      if (s.stale) this.markDirty(s);
       for (let p = 0; p < 2; p++) {
         const data = res.passes[p];
         if (data) s.meshes[p] = GL.uploadTerrain(s.meshes[p], data, res.vertexCounts[p]);
@@ -430,6 +436,8 @@ export class RenderGlobal implements IWorldAccess {
       s.meshedOnce = true;
       if (s.hasGeometry) this.withGeometry.add(s);
       else this.withGeometry.delete(s);
+      // Changed while it was being meshed: mesh it again (or settle it, now empty).
+      if (s.stale) this.markDirty(s);
       WorldRenderer.chunksUpdated++;
       if (performance.now() - t0 > budget) break;
     }
