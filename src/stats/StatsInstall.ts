@@ -45,9 +45,11 @@ export function installStats(mc: Minecraft): void {
 
 /**
  * Minecraft.launchIntegratedServer: "Worlds played" for a new world, "Times played" for every
- * start.
+ * start, and "Multiplayer joins" too: 1.5.2's client logs in to its integrated server like to
+ * any other (NetClientHandler.handleLogin).
  */
 export function noteWorldLaunch(newWorld: boolean): void {
   if (newWorld) ClientStats.readStat(StatIds.createWorld);
   ClientStats.readStat(StatIds.startGame);
+  ClientStats.readStat(StatIds.joinMultiplayer);
 }

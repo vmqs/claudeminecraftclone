@@ -66,6 +66,12 @@ export class StatFileWriter {
     this.load(this.storage.load(user));
   }
 
+  /** Forgets every statistic of this user (saved as empty on the next sync). */
+  clear(): void {
+    this.stats.clear();
+    this.dirty = true;
+  }
+
   /** readStat: adds `amount` to the statistic. */
   readStat(stat: StatBase, amount: number): void {
     this.stats.set(stat, (this.stats.get(stat) ?? 0) + amount);
