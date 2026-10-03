@@ -38,7 +38,7 @@
   {"shot": "pl_sleep_fp.png"},
   {"ticks": 70},
   {"eval": "const st = mc.dev.player.state(); [__check('woke in the morning', !st.sleeping && st.time % 24000 < 100 && st.time > 18000, st), __check('spawn at the bed', st.bed && st.bed.posX === -393 && st.bed.posZ === -526, st.bed), __check('stands next to it (feet y 4)', Math.abs(mc.thePlayer.boundingBox.minY - 4) < 0.2, mc.thePlayer.boundingBox.minY)]"},
-  {"eval": "mc.dev.sky.pin(18000); mc.dev.ticks(1); mc.dev.tp(-391.5, 4, -527.5, 0, 0); const z = mc.dev.spawn('Zombie'); if (z) z.setLocationAndAngles(-388, 4, -523, 0, 0); const slept = mc.dev.player.sleepIn(-393, 4, -526); [!!z, __check('no sleep with a monster near (skipped without a Zombie class)', !z || !slept, mc.dev.player.state())]"},
+  {"eval": "mc.dev.sky.pin(18000); mc.dev.ticks(1); mc.dev.tp(-391.5, 4, -527.5, 0, 0); const z = mc.dev.newEntity('Zombie'); if (z) { z.setLocationAndAngles(-388, 4, -523, 0, 0); mc.theWorld.spawnEntityInWorld(z); } const slept = mc.dev.player.sleepIn(-393, 4, -526); [!!z, __check('no sleep with a monster near (skipped without a Zombie class)', !z || !slept, mc.dev.player.state())]"},
   {"eval": "mc.dev.entities('Zombie').forEach((z) => mc.theWorld.removeEntity(z)); if (mc.thePlayer.isPlayerSleeping()) mc.thePlayer.wakeUpPlayer(true, true, false); mc.dev.ticks(1); mc.dev.tp(-391.5, 4, -527.5, 0, 0); 'cleanup'"},
   {"eval": "mc.dev.player.effect(9, 20, 0); mc.dev.ticks(100); mc.dev.sky.pin(18000); const t = mc.thePlayer.timeInPortal; __check('nausea warps the view (100 ticks -> 0.667)', Math.abs(t - 0.6667) < 0.001, t)"},
   {"wait": 800},
