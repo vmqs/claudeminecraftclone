@@ -1,8 +1,9 @@
 [
   {"goto": "?dev=1&autostart=1&seed=claude&type=flat&time=6000&pos=-391.5,4,-527.5,0,0"},
   {"waitFor": "mc.dev.isInGame()", "timeout": 600000},
+  {"eval": "(() => { const w = mc.theWorld; w.worldInfo.gameRules.doMobSpawning = false; let n = 0; for (const e of [...w.loadedEntityList]) if (e.isLivingEntity && !e.isPlayerEntity) { e.setDead(); n++; } return { purgedMobs: n }; })()"},
   {"eval": "window.__fails = []; window.__check = (name, ok, detail) => { if (!ok) window.__fails.push(name + ' ' + JSON.stringify(detail ?? '')); return (ok ? 'ok   ' : 'FAIL ') + name; }; 'ready'"},
-  {"eval": "mc.gameSettings.renderDistance = 1; mc.gameSettings.fancyGraphics = true; mc.gameSettings.clouds = true; mc.dev.tp(-391.5, 4, -527.5, 0, 0); mc.dev.weather('clear'); mc.dev.hotbar([276, 261, 267, 50]); mc.dev.select(0); const P = mc.dev.player; P.armor(3, 310); P.armor(2, 307); P.armor(1, 300, 0xB02E26); P.armor(0, 317); P.bed(-387, 4, -519, 1); 'equipped'"},
+  {"eval": "mc.gameSettings.renderDistance = 1; mc.gameSettings.fancyGraphics = true; mc.gameSettings.clouds = true; mc.dev.tp(-391.5, 4, -527.5, 0, 0); mc.thePlayer.renderYawOffset = mc.thePlayer.prevRenderYawOffset = 0; mc.dev.weather('clear'); mc.dev.hotbar([276, 261, 267, 50]); mc.dev.select(0); const P = mc.dev.player; P.armor(3, 310); P.armor(2, 307); P.armor(1, 300, 0xB02E26); P.armor(0, 317); P.bed(-387, 4, -519, 1); 'equipped'"},
   {"wait": 1000},
   {"waitFor": "mc.dev.pendingSections(6) === 0", "timeout": 600000},
   {"ticks": 5},
