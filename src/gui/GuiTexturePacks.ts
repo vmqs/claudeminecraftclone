@@ -176,7 +176,8 @@ export class GuiTexturePacks extends GuiScreen {
       for (const file of files) {
         this.setStatus(translateOrFormatted('texturePack.importing', file.name), 60000);
         const result = await importTexturePackFile(this.mc.resources, file);
-        if (result.ok) this.setStatus(translateOrFormatted('texturePack.imported', result.name), 5000);
+        // What was converted or left out is said right away (the full list goes to the console).
+        if (result.ok) this.setStatus(translateOrFormatted('texturePack.imported', result.name) + (result.notes.length > 0 ? ': ' + result.notes.join('; ') : ''), 8000);
         else this.setStatus('§c' + translateOrFormatted('texturePack.importFailed', file.name, result.error), 8000);
         this.refreshPacks();
       }
