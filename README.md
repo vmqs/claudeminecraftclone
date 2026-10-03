@@ -20,6 +20,26 @@ set **Settings → Pages → Source** to **GitHub Actions**.
 
 See `docs/ARCHITECTURE.md` for how the code is organised.
 
+## Multiplayer
+
+Play with friends the way 1.5.2's **Open to LAN** works, but over the internet: one player's
+browser hosts the world and the others join it with a room code. The browsers connect directly
+to each other (WebRTC); there is no game server to run.
+
+- **Host:** in your world press Esc → **Open to LAN**, pick the game mode for other players,
+  Allow Cheats and your name, then **Start LAN World**. The chat shows a code such as
+  `Room code: K7XQ2M` (also copied to the clipboard, and shown on the pause menu). Keep the tab
+  open and visible while others play.
+- **Join:** title screen → **Multiplayer**, type your name in the **Name** box, then
+  **Direct Connect**, enter the room code and **Join Server**. **Add Server** saves a code.
+- **Names** are 3–16 letters, digits or underscores, are remembered by the browser and must be
+  unique in a room. They show above players, in chat, in the TAB list and in commands.
+
+Finding a room uses public signalling relays (Nostr and BitTorrent trackers). Most home
+networks connect fine; strict NATs and firewalls (some office, school and mobile networks)
+block direct links and would need a TURN relay, which the game does not provide. Details,
+the protocol and its limits: `docs/MULTIPLAYER.md`.
+
 ## Credits and legal
 
 - Textures: **Classic Faithful 32x** for 1.5.2, by Vattic, Evorp and the Faithful team,

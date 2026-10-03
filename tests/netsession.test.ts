@@ -309,6 +309,10 @@ check('guest is creative (LAN game mode)', bob.pc.isInCreativeMode() && bobMP!.c
   bob.mc.thePlayer!.sendChatMessage('/tell Alice psst');
   step(2);
   check('/tell to the host by name', hostChat.some((l) => l.includes('psst')), hostChat.slice(-3).join(' | '));
+  // A selector from a guest resolves on the host, around the guest's player.
+  bob.mc.thePlayer!.sendChatMessage('/tp @p 20 4 8');
+  step(4);
+  check('@p from a guest selects the guest', Math.abs(bob.mc.thePlayer!.posX - 20.5) < 0.01 && Math.abs(bob.mc.thePlayer!.posZ - 8.5) < 0.01, `${bob.mc.thePlayer!.posX},${bob.mc.thePlayer!.posZ}`);
   host.sendChatMessage('/tp Bob Alice');
   step(4);
   check('/tp <name> moves the guest', Math.abs(bob.mc.thePlayer!.posX - host.posX) < 0.6 && Math.abs(bob.mc.thePlayer!.posZ - host.posZ) < 0.6, `${bob.mc.thePlayer!.posX},${bob.mc.thePlayer!.posZ}`);

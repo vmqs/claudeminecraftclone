@@ -20,15 +20,17 @@ Resume from this file and `git log` after a restart.
    GuiDownloadTerrain, GuiDisconnected).
 6. [x] GUI: usernames on GuiMultiplayer / GuiShareToLan, Direct Connect with room codes,
    "Room code" chat line with copy, TAB list, nameplates.
-7. [ ] Node simulation test: host + guest Worlds over the in-memory transport.
-8. [ ] Browser test: two contexts, host + join, block placement, chat, nameplates, screenshots.
-9. [ ] Docs: docs/MULTIPLAYER.md, README section, ARCHITECTURE §13, TESTING.
+7. [x] Node simulation test: host + guest Worlds over the in-memory transport.
+8. [x] Browser test: two contexts, host + join, block placement, chat, nameplates, screenshots.
+9. [x] Docs: docs/MULTIPLAYER.md, README section, ARCHITECTURE §13, TESTING.
 
 ## Decisions
 
-- Star topology: the host joins the room as an active peer, guests join passive so they only
-  connect to the host (trystero `passive`). Host and guests join on two strategies (Nostr,
-  BitTorrent) at once; a guest uses whichever reaches the host first.
+- Star topology over a trystero room: every peer joins actively (passive guests waited for the
+  host's next announcement, up to a minute); the host greets each peer that joins with a 'host'
+  message and a guest talks only to the first peer that greets it. Host and guests join on two
+  strategies (Nostr, BitTorrent) at once; a guest keeps whichever greets first and leaves the
+  other. `?relay=` switches to a self-hosted ws relay (the browser test).
 - Guests never run entity logic: entities on a guest are animated from network updates
   (interpolation, limb swing, body yaw, hurt/death timers, per-class visual hooks), so no
   server-only code needs isRemote gates. Guest worlds are `isRemote`: no world generation, block
@@ -43,3 +45,9 @@ Resume from this file and `git log` after a restart.
 - World hooks (World.netEvents etc.), host side (src/net/server), guest side (src/net/client),
   Minecraft integration (shareToLan, connectToRoom, guest world/respawn/disconnect), GUIs
   committed. Next: Node host+guest simulation test (tests/netsession.test.ts), then browser test.
+- Node simulation test (tests/netsession.test.ts, 78 checks) and protocol test (93) pass.
+- Browser test scripts/mp-test.mjs: 14/14 over a local relay and real WebRTC (host-side
+  teleport for the face-to-face shots: a guest's own 6+ block jump from the world spawn is
+  corrected by the host, as in 1.5.2). Public relays are unreachable from the sandbox's
+  Chromium (TLS interception), so `--public` could not be exercised here.
+- Docs: docs/MULTIPLAYER.md, README "Multiplayer", ARCHITECTURE §1/§3/§5.6/§12/§13, TESTING.

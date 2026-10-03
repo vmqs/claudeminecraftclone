@@ -32,11 +32,13 @@ In scope:
 - **No world saving.** Worlds live in memory for the session. Modified chunks are kept in memory
   when unloaded so builds survive flying away and back. Options and key bindings *are* kept in
   `localStorage`, like `options.txt`.
+- **Multiplayer like Open to LAN**, peer to peer: the host's world is authoritative, guests join
+  with a room code over WebRTC (no game server), custom usernames (see `docs/MULTIPLAYER.md`).
 - Keyboard and mouse only (Pointer Lock).
 - Deployed as a static site to GitHub Pages.
 
 Out of scope (render as static or decorative where a block exists): redstone logic, Nether/End
-dimensions, multiplayer (planned: P2P rooms with the world hosted by one player), achievements,
+dimensions, dedicated servers, achievements,
 statistics, enchanting, brewing, trading. (The container and crafting frameworks exist, so a
 crafting table opens and works once recipes are registered, but no recipes are required.)
 
@@ -102,7 +104,11 @@ src/
   audio/                   SoundManager (Web Audio), SoundPool, music and record scheduling
   command/                 CommandHandler, CommandBase, PlayerSelector, ServerCommandManager and the
                            commands (/help, /time, /tp, /give, /kill, /seed, /say, /me, /tell so far)
-docs/                      ARCHITECTURE.md (this file), RESEARCH.md
+  net/                     multiplayer: room codes, usernames, protocol/ (packets, chunk codec),
+                           transport/ (WebRTC via trystero, in-memory), server/ (LanServer,
+                           NetServerHandler, EntityPlayerMP, EntityTracker), client/ (WorldClient,
+                           NetClientHandler, EntityClientPlayerMP, PlayerControllerGuest)
+docs/                      ARCHITECTURE.md (this file), MULTIPLAYER.md, TESTING.md, RESEARCH.md
 ```
 
 Modules under `block/`, `item/` (data only), `core/`, `world/gen/`, `world/ChunkCache`,
@@ -145,7 +151,8 @@ Minecraft (loop: rAF -> Timer -> runTick*n -> render)
 ```
 
 There is no integrated server: the client `World` is the simulation. Everything below runs on
-the main thread unless marked as a worker.
+the main thread unless marked as a worker. Multiplayer adds a `LanServer` beside the host's
+`World` and replaces a guest's world with a `WorldClient` fed by the host (§5.6).
 
 ### 5.1 Chunk data
 
@@ -249,6 +256,18 @@ check, the lightning roll (1 in 100000 while thundering), the ice and snow roll,
 block ticks per non-empty section, consuming `rand` and `updateLCG` in the original order.
 `World.updateEntities()` ticks weather effects, entities (then removes dead ones) and tile
 entities (`updateEntity`, with additions and removals deferred while iterating).
+
+### 5.6 Multiplayer
+
+A host keeps its single-player loop; `Minecraft.runTick` reads guest packets first
+(`netHandler.processReadPackets` on a guest), ticks the world, then `lanServer.tick()` (logins,
+chunk streaming, block changes, entity tracking, time, sounds and particles), and flushes at
+the end. A LAN game never pauses, and ticks from a timer while its tab is hidden. Guests'
+players are `EntityPlayerMP`s in the host world under server rules; the host world reports
+changes through `World.netEvents` (a `WorldNetListener`) and an `IWorldAccess`. A guest's
+`WorldClient` is `isRemote`: no world generation worker requests, block ticks, spawning or AI;
+its entities are animated from network updates (`src/net/client/RemoteEntityTick.ts`). Details
+in `docs/MULTIPLAYER.md`.
 
 ## 6. Rendering
 
@@ -542,6 +561,10 @@ See `docs/TESTING.md` for details.
   condition, evaluate JS, run ticks, press keys, capture) and writes PNGs, which can be compared
   with reference screenshots of the original game.
 - `npm run typecheck` and `npm run build` must stay green on every commit.
+- Multiplayer: `tests/netprotocol.test.ts` and `tests/netsession.test.ts` (Node, in-memory
+  transport) and `scripts/mp-test.mjs` (two browser contexts over WebRTC and a local relay);
+  `mc.dev.net` hosts, joins and reports the session; `?relay=`, `?signal=` and `?net=memory`
+  choose the transport.
 
 ## 13. Extension points
 
@@ -569,6 +592,7 @@ registries are imported once by `src/client/Minecraft.ts`.
 | World generation | `ChunkGenerator` implementations in `src/world/gen/` (chosen by `WorldGenServer`), `BiomeSource` (`WorldChunkManager` over the GenLayer stack, `SingleBiomeSource` for Superflat), `WorldGenerator` features from `ChunkProviderGenerate.populate` / `BiomeDecoration`, structures as `MapGenStructure` + `StructureStart` + `StructureComponent` pieces in `src/world/gen/structure/`, chest/dispenser/spawner contents through `ChestLoot` (`putTileEntityTag`), entities through `spawnGenEntity`. Superflat presets: `FlatGeneratorInfo`, `FLAT_PRESETS` (`src/gui/FlatPresets.ts`, built from `FlatGeneratorInfo` in Java HashMap order). Raw terrain can come from the nested `terrain.worker.ts` (`ChunkGenerator.provideTerrain` / `recordStructures`, `TerrainChunk`); `WorldGenServer` owns the spawn search and the stepwise 25x25 spawn area. World options: `WorldSettings.generatorOptions` / `bonusChest` (kept on `WorldInfo` so a resumed world's worker regenerates the same spawn chunks), passed to `new ChunkProviderClient(world, seed, type, features, { generatorOptions, bonusChest })`. Generated entities arrive as descriptors through `EntityList.fromDescriptor`, tile entities as NBT through `TileEntity.createAndLoadEntity`. Stronghold queries: `StructureLocator.findClosestStructure`. Code here must stay worker-safe (`IWorld`, no DOM or GL). |
 | Players | Sleeping: `EntityPlayer.sleepInBedAt` (the 1.5.2 refusals, `lieDownInBed` for a client copy), `wakeUpPlayer(immediately, updateWorld, setSpawn)`, `getSleepTimer` / `isPlayerFullyAsleep`, the bed spawn (`getBedLocation`, `setSpawnChunk`, `EntityPlayer.verifyRespawnCoordinates`, applied on respawn by `PlayerSpawning.respawn`, after `loadChunksAroundBed` in `src/client/BedRespawn.ts` puts kept chunks back); `World.updateAllPlayersSleepingFlag` skips the night once every player slept 100 ticks. Remote players: `EntityOtherPlayerMP` (network interpolation via `setPositionAndRotation2`, item use from the eating flag, `setCurrentItemOrArmor` for equipment). Container screens that list the active effects extend `InventoryEffectRenderer` (`src/gui/inventory/`; `GuiInventory` and `GuiContainerCreative` do, as in 1.5.2; effects listed in Java HashMap order by `hashMapOrder`). FOV: `EntityPlayerSP.getFOVMultiplier` (flying, speed potions and sprint, bow draw), eased by `EntityRenderer`; `settleFovModifier` for captures. Beacons apply effects through `TileEntityBeacon.applyEffect` (installed in `ItemBindings.ts`). |
 | Dev hooks | `src/client/DevTools.ts` (`?dev=1` → `window.mc.dev`), scenarios in `scripts/scenarios/`. |
+| Multiplayer | New packets: add a schema to `PACKETS` (`src/net/protocol/Packets.ts`; give it a direction for `allowedFrom` and keep fields bounded), handle it in `NetServerHandler.handle` (validate everything a guest sends) or `NetClientHandler`. World events reach guests through `World.netEvents` (`WorldNetListener`: block and tile entity changes, animations, statuses, pick-ups, explosions, block events, lightning, beds, player sounds) and the `IWorldAccess` the `LanServer` adds (sounds, particles, aux effects, crack progress); wrap client-only effects in `World.localEffectsOnly`. New entity classes: tracking range/interval, spawn data and networked metadata slots in `src/net/EntityNetData.ts` (`trackingParams`, `spawnData` / `createFromSpawn`, the metadata tables), guest-side animation state in `src/net/client/RemoteEntityVisuals.ts`. Rules that only the authoritative side may run check `world.isRemote` (blocks, tile entities, entities) or `EntityPlayer.isClientSide()` (players; true for guests and for `EntityOtherPlayerMP`). Windows: `Container.crafters` (`ICrafting`: `EntityPlayerMP` mirrors slots and progress bars); new window kinds get an id in `src/net/WindowTypes.ts` and a case in `EntityPlayerMP.displayGUI*` / `NetClientHandler`'s OpenWindow. Controllers: `mc.playerController` is a `PlayerControllerGuest` on guests; screens that change server state call `sendEnchantPacket`, `sendSlotPacket`, `sendPacketDropItem` or `mc.netHandler.addToSendQueue` (anvil names, beacon, signs). |
 | Block interaction hooks | `BlockGuiHooks.register(kind, handler)` (`src/block/BlockGuiHooks.ts`; chest, enderChest, workbench, furnace, dispenser, dropper, hopper, brewingStand, enchantment, anvil, beacon, sign, commandBlock; without a handler the player's `displayGUI*` runs). Survival breaking (`PlayerControllerMP`) calls `Block.harvestBlock` (drops, stats, exhaustion) after removing the block; `HarvestModifiers.silkTouch` / `fortune` are wired to `EnchantmentHelper`. Block events: `World.addBlockEvent` → `Block.onBlockEventReceived`. Mob spawners: `MobSpawnerBaseLogic.spawnHook`. |
 | HUD and GUI hooks | `GuiIngame` draws the survival bars when `PlayerControllerMP.shouldDrawHUD()` (Survival and Adventure), `GuiIngame.playerListProvider` (TAB list), `GuiIngame.scoreboardOverlay`, `GuiIngame.setRecordPlayingMessage`, `BossStatus.setBossStatus(boss, colorModifier)` for boss renderers (with `SkyHooks.hasColorModifier`), `EntityPlayer.gameTypeListener` (the controller) and `CommandGameMode.gameTypeListener` for game-mode changes, `mc.playerController.getCurrentGameType()` / `isInCreativeMode()` for mode checks, `EntityPlayer.getFoodStats()` / `canEat()` / `addExhaustion()`, `Minecraft.mcProfiler` sections (Shift+F3 chart), `getScoreboard(world)` (deaths and kills are counted by `EntityPlayer.onDeath` / `addToPlayerScore`). Overlays outside the HUD (pumpkin blur, portal swirl, first-person fire) live in `src/render/sky/ScreenOverlays.ts`. |
 

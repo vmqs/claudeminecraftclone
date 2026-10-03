@@ -27,6 +27,9 @@ URL parameters (any combination):
 | `?mode=survival\|hardcore\|adventure\|creative` | the autostart world's game mode (Creative when absent; Hardcore without cheats) |
 | `?mobs=0` | natural mob spawning off (gamerule `doMobSpawning`) and the first ticks' mobs removed, so captures are not pushed or attacked while chunks load |
 | `?preserve=1` | creates the WebGL context with `preserveDrawingBuffer` |
+| `?relay=ws://host:port` | multiplayer signalling through a self-hosted trystero WebSocket relay instead of the public ones (repeatable or comma separated; host and guests need the same one) |
+| `?signal=nostr,torrent` | which public signalling routes multiplayer uses (default both) |
+| `?net=memory` | multiplayer over an in-memory transport inside one page (development only) |
 
 `mc.dev` helpers (see `src/client/DevTools.ts`): `isInGame()`, `pendingSections(radius)`,
 `tp(x, y, z, yaw?, pitch?)`, `look(yaw, pitch)`, `setTime(t)`, `select(slot)`, `fillHotbar(ids?)`,
@@ -153,6 +156,44 @@ This is how tile-entity lifecycle, explosions, spawning and the RenderBlocks rew
 checked: the rewrite was compared byte for byte with the previous implementation over random
 `ChunkCache` snapshots (all render settings, rotations, overridden bounds and textures) and every
 block's item render. Keep such scripts outside the repository unless they become real tests.
+
+## Multiplayer
+
+```sh
+node scripts/run-node-test.mjs tests/netprotocol.test.ts tests/netsession.test.ts
+npm run build && node scripts/mp-test.mjs --out shots/mp
+```
+
+`tests/netprotocol.test.ts` round-trips every packet, frames and chunk data, and checks the
+limits (oversized frames, strings, lists and NBT, truncated and fuzzed input, packets from the
+wrong side), room codes and usernames. `tests/netsession.test.ts` builds a host `World` from flat
+chunks with a `LanServer` and joins guests over `MemoryTransport` (each guest a real
+`NetClientHandler` + `WorldClient`): login and chunk streaming (blocks and light), movement
+both ways and the long-jump correction, sneaking, placing and breaking both ways (prediction,
+multi-block changes, reach), survival digging timing, chat, commands, `/tell` and `/tp` by name, `@p` from a guest,
+a tracked mob (movement, metadata, attack, hurt and death), dropped items, a chest window
+(contents, clicks, closing), game mode changes, death and respawn, a second guest, name clashes,
+version mismatch, invalid names, malformed / unknown / oversized / server-only packets, NaN
+positions and packet floods, leaving, coming back with the same inventory and place, and the
+host closing the room.
+
+`scripts/mp-test.mjs` is the one browser test: `vite preview` on port 4400 and a trystero
+WebSocket relay on 4401 (`--port`, `--relay-port`), then two contexts of one headless Chromium.
+The host (`Alice`) opens a Superflat world to LAN; the guest (`Bob`) goes through Multiplayer
+and Direct Connect with the room code typed in lower case; both place blocks the other sees,
+chat by typing, look at each other's nameplates, open the TAB list, sneak, and finally the host
+quits and the guest lands on the disconnect screen. It prints PASS/FAIL per check (with both
+sides' state on a failure) and writes `01_host_open_to_lan.png` ... `11_guest_disconnected.png`.
+Signalling is local, but the game data goes over real WebRTC data channels. `--public` uses the
+public Nostr/BitTorrent relays instead, which needs a browser that can reach them (the sandbox
+used for development intercepts TLS, so only the local relay works there).
+
+`mc.dev.net` (`src/client/NetDevTools.ts`): `host(name?, mode?, cheats?)` opens the world to
+LAN and resolves with the room code; `join(code, name?)` opens Direct Connect's connecting
+screen; `state()` returns the role, room code, player list, guest state, loaded chunks and
+entities, other players' positions, bytes and the network screen (`'connecting'`,
+`'downloading'`, `'disconnected'`); `chat(n)` the last chat lines; `leave()`. The debug screens
+`multiplayer`, `directconnect`, `sharetolan` and `pause` open with `mc.dev.screen(name)`.
 
 ## Audio
 
