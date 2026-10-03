@@ -45,6 +45,15 @@ networks connect fine; strict NATs and firewalls (some office, school and mobile
 block direct links and would need a TURN relay, which the game does not provide. Details,
 the protocol and its limits: `docs/MULTIPLAYER.md`.
 
+## Saved worlds
+
+Worlds are saved in the browser (IndexedDB) the way 1.5.2 saves them: every 45 seconds, when you
+pause, and on **Save and Quit to Title**, so they are still there after reloading the page.
+**Singleplayer → Export** downloads the selected world as a `.zip` of a real 1.5.2 save folder
+(`level.dat` and `region/*.mca`), which you can unzip into `.minecraft/saves/` and open in
+Minecraft 1.5.2; **Import** adds such a `.zip` (a world folder zipped from 1.5.2's saves) to the
+list. Clearing the browser's site data deletes the saves, so export worlds you want to keep.
+
 ## Credits and legal
 
 - Textures: **Classic Faithful 32x** for 1.5.2, by Vattic, Evorp and the Faithful team,

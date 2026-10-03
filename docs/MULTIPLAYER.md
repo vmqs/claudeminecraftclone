@@ -54,8 +54,10 @@ token (another browser, someone else) the name is refused for 30 minutes after t
 ("Bob left this game a short while ago ..."), so nobody can pick up someone else's things.
 Logging in again while the old connection is still open (a reloaded tab) replaces the old one
 when the token matches ("You logged in from another location", as in 1.5.2). A guest who dies
-in Hardcore is kicked when it respawns and cannot come back under that name. Worlds are not
-saved (see ARCHITECTURE §1), so nothing survives the host closing the room.
+in Hardcore is kicked when it respawns and cannot come back under that name. The host's world
+is saved like any single-player world (ARCHITECTURE §5.7: autosave, Save and Quit); guests never
+save it. What guests carry (their inventory and position) is kept by the room only while it is
+open, so it does not survive the host closing the room.
 
 **If joining fails.** *Could not connect to the host* means no host answered for that code (a
 typo, or the host closed the room) or the browsers could not open a direct link. WebRTC uses
