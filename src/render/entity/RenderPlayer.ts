@@ -1,4 +1,5 @@
 import { ItemIds } from '../../block/BlockIds';
+import { getScoreboard, ScorePlayerTeam } from '../../command/scoreboard/Scoreboard';
 import { MathHelper } from '../../core/MathHelper';
 import type { Entity } from '../../entity/Entity';
 import type { EntityLiving } from '../../entity/EntityLiving';
@@ -131,6 +132,40 @@ export class RenderPlayer extends RenderLiving {
     GL.rotate(180, 0, 1, 0);
     this.modelBipedMain.renderCloak(SCALE);
     GL.popMatrix();
+  }
+
+  /**
+   * func_96450_a: within 10 blocks a player's below-name objective (display slot 2) floats above
+   * the name.
+   */
+  protected override renderNameLabel(e: EntityLiving, x: number, y: number, z: number, name: string, scale: number, distSq: number): void {
+    const board = getScoreboard(e.worldObj);
+    if (distSq < 100) {
+      const objective = board.getObjectiveInDisplaySlot(2);
+      if (objective) {
+        const score = board.getPlayerScore(e.getEntityName(), objective);
+        this.renderLivingLabel(e, `${score.getScorePoints()} ${objective.getDisplayName()}`, x, e.isPlayerSleeping() ? y - 1.5 : y, z, 64);
+        y += f(f((this.getFontRendererFromRenderManager()?.FONT_HEIGHT ?? 9) * f(1.15)) * scale);
+      }
+    }
+    super.renderNameLabel(e, x, y, z, name, scale, distSq);
+  }
+
+  protected override getTranslatedEntityName(e: EntityLiving): string {
+    return ScorePlayerTeam.formatPlayerName(getScoreboard(e.worldObj).getPlayersTeam(e.getEntityName()), e.getEntityName());
+  }
+
+  /**
+   * func_98034_c: an invisible player stays hidden, except from team mates of a team that sees
+   * friendly invisibles, who see it faintly.
+   */
+  protected override isVisibleToViewer(e: EntityLiving): boolean {
+    if (!e.isInvisible()) return false;
+    const viewer = this.renderManager.livingPlayer;
+    const board = getScoreboard(e.worldObj);
+    const team = board.getPlayersTeam(e.getEntityName());
+    if (!team || !viewer) return true;
+    return board.getPlayersTeam(viewer.getEntityName()) !== team || !team.canSeeFriendlyInvisibles;
   }
 
   /** renderPlayerScale */
