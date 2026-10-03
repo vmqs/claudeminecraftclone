@@ -36,20 +36,29 @@ Seed `claude`, default world type, Far render distance (27x27 chunks loaded), Fa
 
 ### World load (headless Chromium, SwiftShader, 4 shared cores)
 
-| Milestone (ms after Create New World) | Before (d0e00fc) | After |
-|---|---|---|
-| Building terrain done (player placed) | 8274 | 6510 |
-| Downloading terrain closed (playable) | 45922 | 8197 |
-| 5x5 chunks loaded and meshed | 52426 | 34586 |
-| All 729 chunks received | ~87000 | ~24500 |
-| Area fully meshed (section count stops growing) | ~130000 | ~27000 |
-| Main-thread JS per frame, standing | 67 ms | 74 ms |
-| JS heap allocation, standing | 8.2 MB/s | 3.3 MB/s |
+Default world from the title screen (ms after Create New World). "Before" and "after (run 2)"
+are `load-bench.mjs` runs on a busy machine (load average up to 7-8); "after (final)" is
+`perf.json` on a quiet one (load average ~1).
 
-"Area fully meshed" is when the number of sections with geometry stops growing; the stricter
-"no section within 8 chunks waiting for a mesh" never settles for long in a forest, because world
-ticks keep re-meshing sections (leaf decay, water), so `mc.dev.perf.areaShown(r)` (every section
-meshed once) is the metric used from now on.
+| Milestone | Before (d0e00fc) | After (run 2) | After (final) |
+|---|---|---|---|
+| Building terrain done (player placed) | 8274 | 6510 | 5016 |
+| Downloading terrain closed (playable) | 45922 | 8197 | 7704 |
+| Every section within 2 chunks meshed | 52426 ¹ | 34586 ¹ | 11504 |
+| Every section within 8 chunks meshed | ~130000 ² | ~27000 ² | 17518 |
+| All 729 chunks received | ~87000 | ~24500 | - |
+| Main-thread JS per frame, standing | 67 ms | 74 ms | - |
+| JS heap allocation, standing | 8.2 MB/s | 3.3 MB/s | - |
+
+¹ "no section within the radius waiting for a mesh", which world ticks keep re-arming in a
+forest (leaf decay, water); ² when the count of sections with geometry stops growing. The final
+run uses `mc.dev.perf.areaShown(r)` (every section meshed once), which is what the eye sees.
+
+The same `perf.json` run timed a Superflat world (Normal distance) on both builds from page
+load to playable: **94776 ms before, 3583 ms after**, and rendered the same frozen scenes on both
+(a palette of ~80 block types with smooth lighting, an overhang's shadows, a line-up of 12 mobs,
+the creative inventory): pixel-identical (`compare -metric AE` = 0) except 32 pixels of the
+compass icon's needle in the inventory, which follows the game clock.
 
 ### Components (Node, one core)
 
@@ -64,6 +73,9 @@ meshed once) is the metric used from now on.
 | Meshing per forest section (smooth lighting, fancy) | 3.3-3.8 ms | 1.3-1.4 ms |
 | Meshing per forest section (smooth lighting off) | 2.0-3.0 ms | 0.72-0.78 ms |
 | World tick, 169 chunks, ~175 mobs | ~3.6 ms | ~3.6 ms |
+| Scheduled-tick queue (68k entries): one chunk unload | ~100 ms | 1.3 ms |
+| Scheduled-tick queue: 1000 polls (one tick's worth) | 3.0-3.6 ms | 1.8-1.9 ms |
+| Scheduled-tick queue: adding 170k entries | 300-350 ms | 200-220 ms |
 
 ## What changed
 
@@ -88,6 +100,11 @@ World load:
 - **Mesher pool** up to four workers on machines with six or more cores.
 
 Runtime:
+- **Scheduled block updates** (`TickScheduler`): every new chunk brings ~480 scheduled ticks
+  (gravel and sand placed by population, as in 1.5.2), so the queue holds tens of thousands of
+  entries while a world streams in. Unloading a chunk rebuilt the whole heap; now its entries
+  are flagged and skipped, positions are numeric keys, and a chunk's entries come back in the
+  order they would run (the original's TreeSet order).
 - **Uniforms** are only sent when they change (one program; matrices by their stack version):
   a terrain section draw is now the model-view matrix and the draw call instead of ~15 calls.
 - The terrain pass reuses its section list and sort keys instead of allocating per frame.
@@ -97,6 +114,14 @@ Already in place and kept: chunk payloads, snapshots, meshes and terrain are tra
 copied; empty sections are not sent; the atlases and colormaps are stitched once at start-up and
 only sent to the meshers again on a texture pack change; entity models are display lists; entity
 queries use the chunks' entity lists like 1.5.2.
+
+## Still open
+
+- Long main-thread frames while a world streams in: the final run saw 34 tasks over 50 ms in
+  the first 17 s, the longest 843 ms, on SwiftShader (frames take ~1 s there, so ten catch-up
+  ticks run per frame, each draining up to 1000 scheduled updates and adding new chunks' ticks).
+  The tick-queue fix above landed after that run.
+- Population (2 s of the spawn area on one core) is sequential by design.
 
 ## Checked and left alone
 

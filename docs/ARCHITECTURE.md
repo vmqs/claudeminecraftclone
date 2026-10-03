@@ -273,7 +273,9 @@ stitching. Grass, foliage, and water colormaps are sent to workers once at init.
 `World.tick()` covers world time and moon phase, weather cycling (`World.clientWeather.tick()`: the
 server's `updateWeather`, then the client's view of it, see §6.4), mob spawning
 (`World.mobSpawner`, by default `SpawnerAnimals.findChunksForSpawning`), scheduled block updates
-(`scheduleBlockUpdate`, `tickRate`), and `tickBlocksAndAmbiance`: per active chunk the mood-sound
+(`scheduleBlockUpdate`, `tickRate`; at most 1000 per tick from `TickScheduler`, a heap with a
+position index whose chunk removal flags entries instead of rebuilding, and whose `inChunk(cx, cz)`
+lists a chunk's entries in run order for saving), and `tickBlocksAndAmbiance`: per active chunk the mood-sound
 check, the lightning roll (1 in 100000 while thundering), the ice and snow roll, and 3 random
 block ticks per non-empty section, consuming `rand` and `updateLCG` in the original order.
 `World.updateEntities()` ticks weather effects, entities (then removes dead ones) and tile

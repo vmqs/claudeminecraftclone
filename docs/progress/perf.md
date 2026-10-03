@@ -13,8 +13,8 @@ Baseline commit d0e00fc. Numbers in docs/PERFORMANCE.md.
 - GL uniform caching, terrain list reuse, mesher pool up to 4
 - IdleTasks hook (Minecraft loop), PerfDevTools (mc.dev.perf), perf.json A/B scenario
 - docs: ARCHITECTURE §5.2/§5.4/§13, TESTING, PERFORMANCE
-- Browser runs used: 2 of 3 (baseline, after). Run 3 = scripts/scenarios/perf.json with baseline
-  dist on :5222 (scratchpad basesrc/dist) and new dist on :4222.
+- Browser runs used: 3 of 3 (baseline, after, final perf.json A/B: identical except compass).
+- TickScheduler rewrite (after the final run; tests/tickscheduler.test.ts + world tests)
 
 ## Next
-- final run (perf.json), fill numbers, compare ab_base vs ab_new
+- nothing planned; final report
