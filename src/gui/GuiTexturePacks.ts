@@ -215,6 +215,10 @@ export class GuiTexturePacks extends GuiScreen {
         const tex = thumbnails.get(id);
         if (tex) GL.gl.deleteTexture(tex);
         thumbnails.delete(id);
+        if (this.mc.resources.selectedPack === null && this.mc.gameSettings.skin === pack.fileName) {
+          this.mc.gameSettings.skin = 'Default';
+          this.mc.gameSettings.saveOptions();
+        }
         this.refreshPacks();
         void this.mc.fontRenderer.readFontData(this.mc.resources);
         this.mc.renderGlobal.loadRenderers();

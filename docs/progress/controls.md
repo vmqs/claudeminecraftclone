@@ -7,7 +7,10 @@ Done:
 - Sprint key hold/toggle (MovementInput.sprint, EntityPlayerSP.updateSprintKey).
 - OptiFine zoom (`src/client/Zoom.ts`, EntityRenderer hooks).
 - GuiControls scrolls (6 rows, wheel + bar), Sprint Hold/Toggle and Reset Keys buttons.
+- Texture packs: Default by default, `?pack=`, import .zip (picker or drop) into IndexedDB,
+  delete with confirmation, 1.6+ packs converted (`scripts/gen-pack-map.mjs` ->
+  `src/assets/ModernPackMap.ts`), "Incompatible" like 1.5.2 for packs without textures/.
+- tests/controls.test.ts, scripts/scenarios/controls.json, mc.dev.controls, docs.
 
 Next:
-- Texture packs: Default as the default, import .zip into IndexedDB, delete, 1.6+ mapping.
-- Node test, scripts/scenarios/controls.json, screenshots, docs.
+- Verify the screenshots of the scenario (world with the imported pack, zoom, inventory swap).

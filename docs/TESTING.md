@@ -27,6 +27,7 @@ URL parameters (any combination):
 | `?mode=survival\|hardcore\|adventure\|creative` | the autostart world's game mode (Creative when absent; Hardcore without cheats) |
 | `?mobs=0` | natural mob spawning off (gamerule `doMobSpawning`) and the first ticks' mobs removed, so captures are not pushed or attacked while chunks load |
 | `?preserve=1` | creates the WebGL context with `preserveDrawingBuffer` |
+| `?pack=<id\|name\|default>` | the texture pack for this page load only (`?pack=faithful` for captures compared with the Faithful reference set; Default is the default) |
 | `?relay=ws://host:port` | with `?dev=1` only: multiplayer signalling through a self-hosted trystero WebSocket relay instead of the public ones (repeatable or comma separated; host and guests need the same one) |
 | `?signal=nostr,torrent` | which public signalling routes multiplayer uses (default both) |
 | `?net=memory` | multiplayer over an in-memory transport inside one page (development only) |
@@ -57,6 +58,12 @@ helmet), `use(ticksLeft)` (a bow drawn n ticks: `72000 - n`), `effect(id, second
 y, z, yaw, {held, armor, color, sneak, use, bed})` (an `EntityOtherPlayerMP` posed like the
 reference harness's `otherplayer`), `clearOthers()`, `state()` (sleep timer, bed, effects, FOV).
 `mc.dev.sky.pin` also settles the eased FOV (`EntityRenderer.settleFovModifier`).
+`mc.dev.controls` (`src/client/ControlsDevTools.ts`): `bindings()`, `bind(name, code)` (by
+description such as `'Zoom'` or `'Hotbar Slot 1'`), `state()` (zoom, smooth camera, sprinting,
+sprint mode and toggle, current item, the Controls screen's scroll row), `scrollControls(row)`,
+`packs()`, `makeTestPack('classic' | 'modern')` (a recoloured pack generated in the page, since
+automation has no file picker), `importPack(name, bytes | base64)`, `importTestPack(kind)`,
+`selectPack(idOrName)` (resolves once the textures reloaded) and `removePack(id)`.
 Key codes are LWJGL codes (`src/client/Keyboard.ts`, e.g. W = 17, space = 57, left shift = 42).
 A key or button must stay down for at least one tick to be seen by the player, which is what
 `press` and `click` do.
@@ -86,6 +93,9 @@ node scripts/shot.mjs survival               # survival HUD (full, damaged, hurt
 node scripts/shot.mjs sky                    # sky, fog, clouds, render distances, rain, thunder and a bolt,
                                              # snow, desert, underwater, lava, in-wall and pumpkin overlays
 node scripts/shot.mjs worldgen               # seeds "claude"/123456789 vs the reference spawn, cave, biomes, village; flat and large biomes
+node scripts/shot.mjs controls               # Controls screen (scroll, rebinding, duplicates, Sprint Hold/Toggle,
+                                             # Reset Keys), texture pack import (1.5 and 1.6+ test packs, a broken
+                                             # zip) and use, zoom, sprint key, rebound hotbar keys (asserts)
 node scripts/shot.mjs player                 # F5 back/front, bow and sword poses, a posed line-up of players,
                                              # the effect list, night vision, blindness, sleeping in a bed
                                              # (Leave Bed, skip to morning, bed spawn), nausea, a boat (checks)
@@ -141,6 +151,10 @@ Checks that live in the repository are in `tests/` and run with
 (recipes and smelting, the item registry with names/potions/enchantments, item placement
 against an in-memory world, and the survival rules against a real `World`: game modes, mining
 times and drops, hunger, damage, eating, death and respawn). `tests/renderblocks.test.ts` renders every render type, metadata value and item;
+`tests/controls.test.ts` checks the key bindings and options (saving, loading options saved before
+the new bindings, Reset Keys), the sprint key in Hold and Toggle mode against a real `World`, the
+zoom key, and the texture pack importer (folder-wrapped 1.5 packs, pre-1.5 packs, converted 1.6+
+packs with animations, layout checks, broken and hostile archives);
 `tests/containers.test.ts` drives the creative grid and every container (furnace, workbench, chest,
 dispenser, hopper, brewing, enchanting, anvil); `tests/mobshostile.test.ts` and
 `tests/mobspassive.test.ts` run every mob in a real `World` (Creative targeting rules, spawners,

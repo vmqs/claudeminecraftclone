@@ -67,7 +67,7 @@ export class UserPackStore {
         if (!db.objectStoreNames.contains(META)) db.createObjectStore(META, { keyPath: 'id' });
         if (!db.objectStoreNames.contains(FILES)) db.createObjectStore(FILES, { keyPath: 'id' });
       };
-      const db = await Promise.race([request(req), new Promise<never>((_, reject) => setTimeout(() => reject(new Error('IndexedDB timed out')), 5000))]);
+      const db = await Promise.race([request(req), new Promise<never>((_, reject) => setTimeout(() => reject(new Error('IndexedDB timed out')), 2000))]);
       return new UserPackStore(db, true);
     } catch (e) {
       console.warn('[packs] IndexedDB unavailable, imported packs last for this session only', e);
