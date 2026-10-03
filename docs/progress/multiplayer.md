@@ -71,3 +71,6 @@ each (with a netsession / netprotocol check where it can be tested in Node).
   `tests/nettransport.test.ts` checks the patched wire layer.
 - [x] Major: a whole-chunk resend (64+ changes, explosions) unloaded the chunk's entities on the
   guest; they now move to the new chunk object first.
+- [x] Major: boats could not be steered by guests; riding guests send Packet13-style steering
+  (motion in x/z, y = stance = -999, moving bit set) and the host sets the rider's motion
+  ("Nope!" above 1 block/tick), as 1.5.2's NetServerHandler.

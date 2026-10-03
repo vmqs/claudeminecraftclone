@@ -78,7 +78,8 @@ export class EntityClientPlayerMP extends EntityPlayerSP {
     const rotated = dyaw !== 0 || dpitch !== 0;
     const ground = this.onGround ? 4 : 0;
     if (this.ridingEntity) {
-      this.sendQueue.addToSendQueue({ type: 'Flying', flags: 2 | ground, x: this.motionX, y: -999, stance: -999, z: this.motionZ, yaw: this.rotationYaw, pitch: this.rotationPitch });
+      // Packet13PlayerLookMove(motionX, -999, -999, motionZ): the steering of a boat or cart.
+      this.sendQueue.addToSendQueue({ type: 'Flying', flags: 1 | 2 | ground, x: this.motionX, y: -999, stance: -999, z: this.motionZ, yaw: this.rotationYaw, pitch: this.rotationPitch });
       moved = false;
     } else {
       const flags = (moved ? 1 : 0) | (rotated ? 2 : 0) | ground;

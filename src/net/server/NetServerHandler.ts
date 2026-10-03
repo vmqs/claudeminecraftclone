@@ -340,11 +340,25 @@ export class NetServerHandler {
       let pitch = player.rotationPitch;
       if (rotating) {
         yaw = p.yaw;
-        pitch = p.pitch;
+        pitch = MathHelper.clamp_float(p.pitch, -90, 90);
+      }
+      // A rider sends its steering as motion (x and z, with y and stance -999); boats read it
+      // from the rider in their next update, which runs before the rider's (and its reset).
+      let mx = 0;
+      let mz = 0;
+      if (moving && p.y === -999 && p.stance === -999) {
+        if (Math.abs(p.x) > 1 || Math.abs(p.z) > 1) {
+          this.kick('Nope!', true);
+          return;
+        }
+        mx = p.x;
+        mz = p.z;
       }
       player.ridingEntity.updateRiderPosition();
       player.onGround = onGround;
       player.setPositionAndRotation(player.posX, player.posY, player.posZ, yaw, pitch);
+      player.motionX = mx;
+      player.motionZ = mz;
       this.lastPosX = player.posX;
       this.lastPosY = player.posY;
       this.lastPosZ = player.posZ;
@@ -363,7 +377,9 @@ export class NetServerHandler {
     let z = player.posZ;
     let yaw = player.rotationYaw;
     let pitch = player.rotationPitch;
-    if (moving) {
+    // A steering packet sent just before the host dismounted the player is not a position.
+    const moves = moving && !(p.y === -999 && p.stance === -999);
+    if (moves) {
       x = p.x;
       y = p.y;
       z = p.z;

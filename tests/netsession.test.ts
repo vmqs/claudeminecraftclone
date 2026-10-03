@@ -495,6 +495,40 @@ check('guest is creative (LAN game mode)', bob.pc.isInCreativeMode() && bobMP!.c
   step(2);
 }
 
+// ---------------------------------------------------------------------- riding a boat
+{
+  // A pool at x 0..7, z 0..15 (y 1..3), well inside the loaded chunks (entities near the edge
+  // of the loaded area do not tick).
+  for (let x = 0; x < 8; x++) for (let z = 0; z < 16; z++) for (let y = 1; y <= 3; y++) hw.setBlock(x, y, z, B.waterStill, 0, 3);
+  const gp = bob.mc.thePlayer!;
+  const me = hostPlayerOf('Bob')!;
+  me.setPositionAndUpdate(3.5, 4, -0.5);
+  step(10);
+  const boat = EntityList.createEntityByName('Boat', hw)!;
+  boat.setLocationAndAngles(3.5, 3.6, 1.5, 0, 0);
+  hw.spawnEntityInWorld(boat);
+  step(10);
+  const copy = gw.loadedEntityList.find((e) => EntityList.getEntityString(e) === 'Boat');
+  bob.pc.interactWithEntity(gp, copy!);
+  step(5);
+  check('guest mounts the boat', me.ridingEntity === boat && gp.ridingEntity === copy);
+  const z0 = boat.posZ;
+  gp.rotationYaw = 0;
+  gp.movementInput.moveForward = 1;
+  step(60);
+  gp.movementInput.moveForward = 0;
+  check('guest steers the boat on the host', boat.posZ - z0 > 1, `moved ${(boat.posZ - z0).toFixed(3)}`);
+  check('the boat moves on the guest too', !!copy && Math.abs(copy.posZ - boat.posZ) < 1, `${copy?.posZ} vs ${boat.posZ}`);
+  // 1.5.2 gets out of a boat with another right click on it.
+  bob.pc.interactWithEntity(gp, copy!);
+  step(5);
+  check('right-clicking again dismounts the guest', me.ridingEntity === null && gp.ridingEntity === null && bob.handler.state === 'play', `${me.ridingEntity} ${gp.ridingEntity} ${bob.disconnected?.reason}`);
+  boat.setDead();
+  for (let x = 0; x < 8; x++) for (let z = 0; z < 16; z++) for (let y = 1; y <= 3; y++) hw.setBlock(x, y, z, B.stone, 0, 3);
+  me.setPositionAndUpdate(10.5, 4, 10.5);
+  step(10);
+}
+
 // ---------------------------------------------------------------------- second guest and refusals
 {
   const carol = await join('Carol');
