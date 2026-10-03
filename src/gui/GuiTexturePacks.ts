@@ -177,7 +177,7 @@ export class GuiTexturePacks extends GuiScreen {
         this.setStatus(translateOrFormatted('texturePack.importing', file.name), 60000);
         const result = await importTexturePackFile(this.mc.resources, file);
         // What was converted or left out is said right away (the full list goes to the console).
-        if (result.ok) this.setStatus(translateOrFormatted('texturePack.imported', result.name) + (result.notes.length > 0 ? ': ' + result.notes.join('; ') : ''), 8000);
+        if (result.ok) this.setStatus(translateOrFormatted('texturePack.imported', result.name) + (result.notes.length > 0 ? ' (' + result.notes.join(', ') + ')' : ''), 8000);
         else this.setStatus('§c' + translateOrFormatted('texturePack.importFailed', file.name, result.error), 8000);
         this.refreshPacks();
       }
@@ -252,8 +252,12 @@ const TEXT_ROOM = 156;
 
 /** The pack rows (GuiTexturePackSlot): 32x32 icon, file name and two description lines. */
 class GuiTexturePackSlot extends GuiSlot {
-  /** Where each imported row's delete button was drawn this frame. */
-  private readonly deleteAt = new Map<number, [number, number]>();
+  /**
+   * Where each imported row's delete button was drawn in the last frame (GuiSlot handles a
+   * click before it draws the rows), and the map the frame being drawn fills.
+   */
+  private deleteAt = new Map<number, [number, number]>();
+  private drawingDeleteAt = new Map<number, [number, number]>();
 
   constructor(private readonly gui: GuiTexturePacks) {
     super(gui.mc, gui.width, gui.height, 32, gui.height - 55 + 4, 36);
@@ -287,8 +291,9 @@ class GuiTexturePackSlot extends GuiSlot {
   }
 
   override drawScreen(mx: number, my: number, pt: number): void {
-    this.deleteAt.clear();
+    this.drawingDeleteAt = new Map();
     super.drawScreen(mx, my, pt);
+    this.deleteAt = this.drawingDeleteAt;
   }
 
   protected drawSlot(i: number, x: number, y: number, h: number, t: Tessellator): void {
@@ -317,7 +322,7 @@ class GuiTexturePackSlot extends GuiSlot {
       const b = this.gui.deleteButton;
       b.xPosition = x + 194;
       b.yPosition = y + 6;
-      this.deleteAt.set(i, [b.xPosition, b.yPosition]);
+      this.drawingDeleteAt.set(i, [b.xPosition, b.yPosition]);
       b.drawButtonOn(this.gui.mc, this.mouseX, this.mouseY);
     }
     this.gui.drawString(font, name, x + 32 + 2, y + 1, 0xffffff);

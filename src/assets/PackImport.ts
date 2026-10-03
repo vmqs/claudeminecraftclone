@@ -193,7 +193,7 @@ export function readTexturePack(fileName: string, zip: Uint8Array, modern: Moder
   } catch (e) {
     throw new PackImportError(`the archive could not be read (${e instanceof Error ? e.message : String(e)})`);
   }
-  if (entries > LIMITS.entries) notes.push(`only the first ${LIMITS.entries} entries were read`);
+  if (entries > LIMITS.entries) notes.push(`only the first ${LIMITS.entries} entries read`);
   if (skippedLarge > 0) notes.push(`${skippedLarge} oversized files left out`);
   const byPath = new Map<string, Uint8Array>();
   for (const [n, data] of Object.entries(raw)) {
@@ -242,9 +242,9 @@ function keepClassic(files: Map<string, Uint8Array>, pack: ImportedPack): void {
   }
   const txt = files.get('pack.txt');
   if (txt) pack.description = textDecoder.decode(txt.subarray(0, 4096)).trim();
-  if (files.has('terrain.png') && ![...files.keys()].some((p) => p.startsWith('textures/'))) pack.notes.push('a pre-1.5 pack: terrain.png and gui/items.png are not used by 1.5.2');
-  if (skipped > 0) pack.notes.push(`${skipped} files 1.5.2 does not use left out`);
-  if (broken > 0) pack.notes.push(`${broken} broken or misshapen images left out`);
+  if (files.has('terrain.png') && ![...files.keys()].some((p) => p.startsWith('textures/'))) pack.notes.push('pre-1.5 pack: terrain.png and items.png unused');
+  if (skipped > 0) pack.notes.push(`${skipped} unused files left out`);
+  if (broken > 0) pack.notes.push(`${broken} broken images left out`);
 }
 
 function convertModern(files: Map<string, Uint8Array>, pack: ImportedPack, modern: ModernMap | null): void {
@@ -293,7 +293,7 @@ function convertModern(files: Map<string, Uint8Array>, pack: ImportedPack, moder
     if (used) converted++;
     else misshapen++;
   }
-  pack.notes.push(`converted from a 1.6+ resource pack (format ${format}): ${converted} textures`);
-  if (unknown > 0) pack.notes.push(`${unknown} textures 1.5.2 has no place for left out`);
-  if (misshapen > 0) pack.notes.push(`${misshapen} textures with a different layout left out`);
+  pack.notes.push(`1.6+ format ${format}: ${converted} textures converted`);
+  if (unknown > 0) pack.notes.push(`${unknown} with no 1.5.2 place left out`);
+  if (misshapen > 0) pack.notes.push(`${misshapen} with a new layout left out`);
 }

@@ -155,10 +155,6 @@ export class GuiControls extends GuiScreen {
     super.mouseClicked(x, y, button);
   }
 
-  protected override mouseClickMove(_x: number, y: number, button: number, _held: number): void {
-    if (button === 0 && this.dragOffset >= 0) this.scrollToThumb(y);
-  }
-
   protected override mouseMovedOrUp(x: number, y: number, button: number): void {
     if (button === 0) this.dragOffset = -1;
     super.mouseMovedOrUp(x, y, button);
@@ -170,6 +166,11 @@ export class GuiControls extends GuiScreen {
   }
 
   override drawScreen(mx: number, my: number, pt: number): void {
+    // The thumb follows the mouse while the button is held (mouse moves are polled, as GuiSlot does).
+    if (this.dragOffset >= 0) {
+      if (Mouse.isButtonDown(0)) this.scrollToThumb(my);
+      else this.dragOffset = -1;
+    }
     this.drawDefaultBackground();
     this.drawCenteredString(this.fontRenderer, this.screenTitle, Math.trunc(this.width / 2), 20, 0xffffff);
     const left = this.getLeftBorder();

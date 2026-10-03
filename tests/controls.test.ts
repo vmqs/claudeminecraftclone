@@ -261,7 +261,7 @@ function expectError(name: string, fn: () => unknown): void {
   check('classic: description', pack.description === 'Line one\nLine two', JSON.stringify(pack.description));
   check('classic: folder stripped and files kept', files.join() === 'gui/gui.png,mob/pig.png,pack.png,pack.txt,textures/blocks/stone.png,textures/blocks/water.png,textures/blocks/water.txt,textures/items/apple.png', files.join());
   check('classic: compatible', pack.layout === 'classic' && pack.compatible);
-  check('classic: notes', pack.notes.some((n) => n.includes('left out')) && pack.notes.some((n) => n.includes('broken')), pack.notes.join('; '));
+  check('classic: notes', pack.notes.some((n) => n.includes('unused files left out')) && pack.notes.some((n) => n.includes('broken')), pack.notes.join('; '));
 }
 
 {
@@ -294,7 +294,7 @@ function expectError(name: string, fn: () => unknown): void {
   check('modern: gui and entities', f.has('gui/gui.png') && f.has('mob/pig.png') && f.has('item/chest.png') && f.has('pack.png'));
   check('modern: 64x64 skin left out', !f.has('mob/char.png'));
   check('modern: compatible', pack.compatible);
-  check('modern: notes', pack.notes.some((n) => n.includes('format 1')) && pack.notes.some((n) => n.includes('different layout')) && pack.notes.some((n) => n.includes('no place')), pack.notes.join('; '));
+  check('modern: notes', pack.notes.some((n) => n.includes('format 1:')) && pack.notes.some((n) => n.includes('new layout')) && pack.notes.some((n) => n.includes('no 1.5.2 place')), pack.notes.join('; '));
   const later = readTexturePack('Later.zip', zipSync({ 'pack.mcmeta': strToU8('{"pack":{"pack_format":15,"description":"x"}}'), 'assets/minecraft/textures/entity/chest/normal.png': png(64, 64), 'assets/minecraft/textures/block/oak_log.png': png(16, 16) }), modern);
   check('modern: 1.15+ chests left out', !later.files.has('item/chest.png') && later.files.has('textures/blocks/tree_side.png'));
 }
