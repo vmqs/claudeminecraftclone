@@ -19,6 +19,7 @@ import type { EntityPlayer } from '../entity/EntityPlayer';
 import { FontRenderer } from '../gui/FontRenderer';
 import { GuiDownloadTerrain, screenCoversWorld } from '../gui/GuiDownloadTerrain';
 import { FrameBudget } from './FrameBudget';
+import { IdleTasks } from './IdleTasks';
 import { GuiGameOver } from '../gui/GuiGameOver';
 import { GuiGameStopped } from '../gui/GuiGameStopped';
 import { GuiIngame } from '../gui/GuiIngame';
@@ -430,6 +431,7 @@ export class Minecraft implements SettingsListener {
     prof.startSection('root');
     this.screenshotListener();
     for (const l of this.frameListeners) l();
+    IdleTasks.run();
     this.updateDisplaySize();
     this.fpsCounter++;
     // A game open to LAN, or one joined over the network, never pauses (IntegratedServer.getPublic).
@@ -460,6 +462,7 @@ export class Minecraft implements SettingsListener {
           this.timer.updateTimer();
           for (let i = 0; i < this.timer.elapsedTicks; i++) this.runTick();
           this.chunkProvider?.processIncoming(8);
+          IdleTasks.run(10);
         } catch (e) {
           console.error(e);
         }
