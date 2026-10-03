@@ -12,6 +12,7 @@ import { smoothRotation, headingPitch, headingYaw } from './EntityArrow';
 import { EntityItem } from './EntityItem';
 import type { EntityPlayer } from './EntityPlayer';
 import { EntityXPOrb } from './EntityXPOrb';
+import { StatIds } from '../stats/StatIds';
 
 const f = Math.fround;
 const PI_F = f(Math.PI);
@@ -248,6 +249,7 @@ export class EntityFishHook extends Entity {
       fish.motionY = dy * k + MathHelper.sqrt_double(d) * 0.08;
       fish.motionZ = dz * k;
       this.worldObj.spawnEntityInWorld(fish);
+      angler.addStat(StatIds.fishCaught, 1);
       angler.worldObj.spawnEntityInWorld(new EntityXPOrb(angler.worldObj, angler.posX, angler.posY + 0.5, angler.posZ + 0.5, this.rand.nextInt(6) + 1));
       wear = 1;
     }

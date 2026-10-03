@@ -29,6 +29,7 @@ import { EntityMob } from './EntityMob';
 import { InventoryPlayer } from './InventoryPlayer';
 import { PlayerCapabilities } from './PlayerCapabilities';
 import { PotionId } from './PotionEffects';
+import { AchievementIds, StatIds } from '../stats/StatIds';
 
 const f = Math.fround;
 
@@ -180,6 +181,8 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     this.chasingPosX += dx * 0.25;
     this.chasingPosZ += dz * 0.25;
     this.chasingPosY += dy * 0.25;
+    this.addStat(StatIds.playOneMinute, 1);
+    if (this.ridingEntity === null) this.startMinecartRidingCoordinate = null;
     if (!this.isClientSide()) {
       // NetServerHandler.handleFlying: leaving the ground upwards costs 0.2 (also for sprint jumps).
       if (this.serverOnGround && !this.onGround && this.posY - this.serverPosY > 0) this.addExhaustion(f(0.2));
@@ -250,11 +253,15 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
   }
 
   override updateRidden(): void {
+    const x = this.posX;
+    const y = this.posY;
+    const z = this.posZ;
     const yaw = this.rotationYaw;
     const pitch = this.rotationPitch;
     super.updateRidden();
     this.prevCameraYaw = this.cameraYaw;
     this.cameraYaw = 0;
+    this.addMountedMovementStat(this.posX - x, this.posY - y, this.posZ - z);
     const mount = this.ridingEntity as Entity | null;
     if (mount && EntityList.getEntityString(mount) === 'Pig') {
       // A pig steered with a carrot keeps the rider's own view.
@@ -363,6 +370,7 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     const shooter = attacker ? (attacker as Entity & { shootingEntity?: Entity | null }).shootingEntity : null;
     if (attacker && EntityList.getEntityString(attacker) === 'Arrow' && shooter) attacker = shooter;
     if (attacker && attacker.isLivingEntity) this.alertWolves(attacker as EntityLiving, false);
+    this.addStat(StatIds.damageTaken, amount);
     return super.attackEntityFrom(src, amount);
   }
 
@@ -619,23 +627,64 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
   }
 
   /**
-   * Exhaustion for the distance covered in one tick (addMovementStat): 0.015 per metre diving or
-   * swimming, 0.01 walking and 0.1 sprinting on the ground; climbing and flying are free.
+   * The distance covered in one tick (addMovementStat), in centimetres: dove, swum, climbed
+   * (upwards only), walked, or flown (more than 25 cm, which includes falling and jumping).
+   * Exhaustion: 0.015 per metre diving or swimming, 0.01 walking and 0.1 sprinting on the
+   * ground; climbing and flying are free.
    */
   addMovementStat(dx: number, dy: number, dz: number): void {
     if (this.ridingEntity !== null) return;
     const cm = (d: number) => Math.floor(f(f(f(MathHelper.sqrt_double(d)) * 100) + 0.5));
     if (this.isInsideOfMaterial(Material.water)) {
       const n = cm(dx * dx + dy * dy + dz * dz);
-      if (n > 0) this.addExhaustion(f(f(f(0.015) * n) * f(0.01)));
+      if (n > 0) {
+        this.addStat(StatIds.diveOneCm, n);
+        this.addExhaustion(f(f(f(0.015) * n) * f(0.01)));
+      }
     } else if (this.isInWater()) {
       const n = cm(dx * dx + dz * dz);
-      if (n > 0) this.addExhaustion(f(f(f(0.015) * n) * f(0.01)));
+      if (n > 0) {
+        this.addStat(StatIds.swimOneCm, n);
+        this.addExhaustion(f(f(f(0.015) * n) * f(0.01)));
+      }
     } else if (this.isOnLadder()) {
-      // distanceClimbed only.
+      if (dy > 0) this.addStat(StatIds.climbOneCm, Math.round(dy * 100));
     } else if (this.onGround) {
       const n = cm(dx * dx + dz * dz);
-      if (n > 0) this.addExhaustion(f(f((this.isSprinting() ? f(0.099999994) : f(0.01)) * n) * f(0.01)));
+      if (n > 0) {
+        this.addStat(StatIds.walkOneCm, n);
+        this.addExhaustion(f(f((this.isSprinting() ? f(0.099999994) : f(0.01)) * n) * f(0.01)));
+      }
+    } else {
+      const n = cm(dx * dx + dz * dz);
+      if (n > 25) this.addStat(StatIds.flyOneCm, n);
+    }
+  }
+
+  /** Where the current minecart ride started (startMinecartRidingCoordinate), for "On A Rail". */
+  private startMinecartRidingCoordinate: ChunkCoordinates | null = null;
+
+  /**
+   * addMountedMovementStat: distance by minecart (1 km from where the ride started earns "On A
+   * Rail"), by boat or by pig.
+   */
+  private addMountedMovementStat(dx: number, dy: number, dz: number): void {
+    const mount = this.ridingEntity as Entity | null;
+    if (!mount) return;
+    const n = Math.floor(f(f(f(MathHelper.sqrt_double(dx * dx + dy * dy + dz * dz)) * 100) + 0.5));
+    if (n <= 0) return;
+    const kind = EntityList.getEntityString(mount) ?? '';
+    if (kind.startsWith('Minecart')) {
+      this.addStat(StatIds.minecartOneCm, n);
+      const x = MathHelper.floor_double(this.posX);
+      const y = MathHelper.floor_double(this.posY);
+      const z = MathHelper.floor_double(this.posZ);
+      if (this.startMinecartRidingCoordinate === null) this.startMinecartRidingCoordinate = new ChunkCoordinates(x, y, z);
+      else if (this.startMinecartRidingCoordinate.getDistanceSquared(x, y, z) >= 1000000) this.addStat(AchievementIds.onARail, 1);
+    } else if (kind === 'Boat') {
+      this.addStat(StatIds.boatOneCm, n);
+    } else if (kind === 'Pig') {
+      this.addStat(StatIds.pigOneCm, n);
     }
   }
 
@@ -756,6 +805,7 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
       }
       if (critical) this.onCriticalHit(target);
       if (enchantDamage > 0) this.onEnchantmentCritical(target);
+      if (damage >= 18) this.triggerAchievement(AchievementIds.overkill);
       this.setLastAttackingEntity(target);
       if (target.isLivingEntity) applyThorns(this, target as EntityLiving, this.rand);
     }
@@ -767,6 +817,7 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     }
     if (target.isLivingEntity) {
       if (target.isEntityAlive()) this.alertWolves(target as EntityLiving, true);
+      this.addStat(StatIds.damageDealt, damage);
       if (fireAspect > 0 && hit) target.setFire(fireAspect * 4);
       else if (litByAspect) target.extinguish();
     }
@@ -814,6 +865,7 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
       item.motionZ += Math.sin(a) * spread;
     }
     this.joinEntityItemWithWorld(item);
+    this.addStat(StatIds.drop, 1);
     return item;
   }
 
@@ -863,7 +915,20 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
   }
 
   protected override fall(dist: number): void {
-    if (!this.capabilities.allowFlying) super.fall(dist);
+    if (this.capabilities.allowFlying) return;
+    if (dist >= 2) this.addStat(StatIds.fallOneCm, Math.round(dist * 100));
+    super.fall(dist);
+  }
+
+  /** "Jumps", then the jump itself (its exhaustion is the server's, see onUpdate). */
+  protected override jump(): void {
+    super.jump();
+    this.addStat(StatIds.jump, 1);
+  }
+
+  /** Killing a monster earns "Monster Hunter". */
+  override onKillEntity(e: Entity): void {
+    if (e.isIMob) this.triggerAchievement(AchievementIds.killEnemy);
   }
 
   /** Adventure mode: only blocks that are always harvestable or that the held tool works on. */
@@ -926,6 +991,7 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     this.motionX = f(-MathHelper.cos(a) * f(0.1));
     this.motionZ = f(-MathHelper.sin(a) * f(0.1));
     this.yOffset = f(0.1);
+    this.addStat(StatIds.deaths, 1);
   }
 
   /** Also counts the kill for the totalKillCount (and, for a player, playerKillCount) objectives. */
@@ -935,6 +1001,7 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     const name = this.getEntityName();
     board.increaseScores(ScoreObjectiveCriteria.totalKillCount, name);
     if (e instanceof EntityPlayer) board.increaseScores(ScoreObjectiveCriteria.playerKillCount, name);
+    this.addStat(e instanceof EntityPlayer ? StatIds.playerKills : StatIds.mobKills, 1);
   }
 
   addScore(n: number): void {

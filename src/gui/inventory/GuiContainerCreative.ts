@@ -13,6 +13,7 @@ import { GuiInventory } from './GuiInventory';
 import { InventoryEffectRenderer } from './InventoryEffectRenderer';
 import { Slot } from './Slot';
 import { SlotCreativeInventory } from './SlotCreativeInventory';
+import { AchievementIds } from '../../stats/StatIds';
 
 /** Drops a stack from the creative window; the server gave such items the short creative lifetime. */
 
@@ -41,6 +42,7 @@ export class GuiContainerCreative extends InventoryEffectRenderer {
     this.creative = container;
     player.openContainer = container;
     this.allowUserInput = true;
+    player.addStat(AchievementIds.openInventory, 1);
     this.ySize = 136;
     this.xSize = 195;
   }

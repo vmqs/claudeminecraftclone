@@ -2,6 +2,22 @@ import type { EntityPlayer } from '../../entity/EntityPlayer';
 import { ItemStack } from '../../item/ItemStack';
 import type { IInventory } from './IInventory';
 import { Slot } from './Slot';
+import { BlockIds, ItemIds } from '../../block/BlockIds';
+import { AchievementIds } from '../../stats/StatIds';
+
+/** What crafting an item earns (SlotCrafting.onCrafting). */
+const CRAFTING_ACHIEVEMENTS = new Map<number, number>([
+  [BlockIds.workbench, AchievementIds.buildWorkBench],
+  [ItemIds.pickaxeWood, AchievementIds.buildPickaxe],
+  [BlockIds.furnaceIdle, AchievementIds.buildFurnace],
+  [ItemIds.hoeWood, AchievementIds.buildHoe],
+  [ItemIds.bread, AchievementIds.makeBread],
+  [ItemIds.cake, AchievementIds.bakeCake],
+  [ItemIds.pickaxeStone, AchievementIds.buildBetterPickaxe],
+  [ItemIds.swordWood, AchievementIds.buildSword],
+  [BlockIds.enchantmentTable, AchievementIds.enchantments],
+  [BlockIds.bookShelf, AchievementIds.bookcase],
+]);
 
 /** A crafting output slot (SlotCrafting): taking the result uses up one of each ingredient. */
 export class SlotCrafting extends Slot {
@@ -28,11 +44,13 @@ export class SlotCrafting extends Slot {
     return super.decrStackSize(n);
   }
 
-  /** The crafting achievements (workbench, pickaxe, furnace...) would be awarded here. */
+  /** "Crafted" for the amount taken, and the crafting achievements (workbench, pickaxe, furnace...). */
   protected override onCrafting(stack: ItemStack, amount?: number): void {
     if (amount !== undefined) this.amountCrafted += amount;
     stack.onCrafting(this.thePlayer.worldObj, this.thePlayer, this.amountCrafted);
     this.amountCrafted = 0;
+    const achievement = CRAFTING_ACHIEVEMENTS.get(stack.itemID);
+    if (achievement !== undefined) this.thePlayer.addStat(achievement, 1);
   }
 
   override onPickupFromSlot(_player: EntityPlayer, stack: ItemStack | null): void {

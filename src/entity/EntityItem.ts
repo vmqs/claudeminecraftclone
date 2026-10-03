@@ -8,6 +8,7 @@ import { World } from '../world/World';
 import { DamageSource } from './DamageSource';
 import { Entity } from './Entity';
 import type { EntityPlayer } from './EntityPlayer';
+import { AchievementIds } from '../stats/StatIds';
 
 const f = Math.fround;
 
@@ -127,6 +128,10 @@ export class EntityItem extends Entity {
     const stack = this.getEntityItem();
     const count = stack.stackSize;
     if (this.delayBeforeCanPickup !== 0 || !player.inventory.addItemStackToInventory(stack)) return;
+    if (stack.itemID === BlockIds.wood) player.triggerAchievement(AchievementIds.mineWood);
+    if (stack.itemID === ItemIds.leather) player.triggerAchievement(AchievementIds.killCow);
+    if (stack.itemID === ItemIds.diamond) player.triggerAchievement(AchievementIds.diamonds);
+    if (stack.itemID === ItemIds.blazeRod) player.triggerAchievement(AchievementIds.blazeRod);
     this.playSound('random.pop', f(0.2), f(f(f(f(this.rand.nextFloat() - this.rand.nextFloat()) * f(0.7)) + 1) * 2));
     player.onItemPickup(this, count);
     if (stack.stackSize <= 0) this.setDead();

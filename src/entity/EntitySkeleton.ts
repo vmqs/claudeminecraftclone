@@ -20,6 +20,10 @@ import { EntityLiving, EnumCreatureAttribute } from './EntityLiving';
 import { EntityMob } from './EntityMob';
 import { burnInDaylight, maybeHalloweenHelmet, tagNumber } from './HostileMobUtil';
 import { PotionId, type PotionEffectLike } from './PotionEffects';
+import type { DamageSource } from './DamageSource';
+import { EntityList } from './EntityList';
+import type { EntityPlayer } from './EntityPlayer';
+import { AchievementIds } from '../stats/StatIds';
 
 const f = Math.fround;
 
@@ -101,6 +105,18 @@ export class EntitySkeleton extends EntityMob implements IRangedAttackMob {
   override onLivingUpdate(): void {
     burnInDaylight(this, this.rand);
     super.onLivingUpdate();
+  }
+
+  /** An arrow from a player 50 or more blocks away (horizontally) earns "Sniper Duel". */
+  override onDeath(src: DamageSource): void {
+    super.onDeath(src);
+    const shooter = src.getEntity();
+    const arrow = src.getSourceOfDamage();
+    if (arrow && EntityList.getEntityString(arrow) === 'Arrow' && shooter?.isPlayerEntity) {
+      const dx = shooter.posX - this.posX;
+      const dz = shooter.posZ - this.posZ;
+      if (dx * dx + dz * dz >= 2500) (shooter as EntityPlayer).triggerAchievement(AchievementIds.snipeSkeleton);
+    }
   }
 
   protected override getDropItemId(): number {

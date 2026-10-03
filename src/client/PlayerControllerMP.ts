@@ -110,7 +110,7 @@ export class PlayerControllerMP extends PlayerControllerCreative {
       const held = p.getCurrentEquippedItem();
       const canHarvest = p.canHarvestBlock(block);
       if (held) {
-        held.getItem().onBlockDestroyed(held, w, id, x, y, z, p);
+        held.onBlockDestroyed(w, id, x, y, z, p);
         if (held.stackSize === 0) p.destroyCurrentEquippedItem();
       }
       if (removed && canHarvest) block.harvestBlock(w, p, x, y, z, meta);
