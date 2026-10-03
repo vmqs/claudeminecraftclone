@@ -261,6 +261,8 @@ const bed = Block.blocksList[B.bed]!;
   bed.onBlockActivated(w, hx, 4, hz, p, 1, 0.5, 0.5, 0.5);
   check('sleeps (dir 2)', p.isPlayerSleeping());
   p.capabilities.disableDamage = false;
+  // A fresh player's spawn protection (survival's initialInvulnerability) would block the hit.
+  p.initialInvulnerability = 0;
   p.attackEntityFrom(DamageSource.generic, 1);
   check('hurt in bed: woken without a new spawn point', !p.isPlayerSleeping() && p.getBedLocation() === null && p.getSleepTimer() === 100);
   p.capabilities.disableDamage = true;
