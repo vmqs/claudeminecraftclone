@@ -58,6 +58,9 @@ node scripts/shot.mjs interact               # walk, fly, break and place, with 
 node scripts/shot.mjs effects                # every particle type, spawn rules, sounds, records and music (asserts)
 node scripts/shot.mjs inventory              # E, slot tooltip, pick up and put back a stack
 node scripts/shot.mjs dynamics               # fluids over time, falling blocks, fire, trees, leaf decay, snow (counts in the log)
+node scripts/shot.mjs renderblocks           # every render type, tile-entity renderers, fluids, end portal, 3D item icons (vanilla captures in ref/extra/renderblocks*)
+node scripts/shot.mjs mobshostile            # the 14 hostile mobs and variants; Creative players are ignored at night (asserts)
+node scripts/shot.mjs mobspassive            # the 12 passive mobs and variants, milking, shearing, taming, trading window (log)
 node scripts/shot.mjs chat                   # chat line, /time, /give @p, /help, Tab completion, /kill
 node scripts/shot.mjs flat                   # a Superflat world (bedrock, dirt, dirt, grass; spawn y=4)
 node scripts/shot.mjs entities               # items, arrows, orbs, paintings, frames, TNT, boat, minecarts, player damage rules (checks in the log)
@@ -114,7 +117,11 @@ npx rolldown check.ts --format esm --platform node -o check.mjs && node check.mj
 Checks that live in the repository are in `tests/` and run with
 `node scripts/run-node-test.mjs tests/crafting.test.ts tests/items.test.ts tests/placement.test.ts`
 (recipes and smelting, the item registry with names/potions/enchantments, and item placement
-against an in-memory world). `tests/dynamics.test.ts` runs dynamic block behaviour (fluid flow
+against an in-memory world). `tests/renderblocks.test.ts` renders every render type, metadata value and item;
+`tests/containers.test.ts` drives the creative grid and every container (furnace, workbench, chest,
+dispenser, hopper, brewing, enchanting, anvil); `tests/mobshostile.test.ts` and
+`tests/mobspassive.test.ts` run every mob in a real `World` (Creative targeting rules, spawners,
+breeding, taming, villages). `tests/dynamics.test.ts` runs dynamic block behaviour (fluid flow
 shapes, falling blocks, leaf decay, saplings, fire, crops, weather, melting, portals) against a
 real `World` built from flat chunks by `tests/dynamicsWorld.ts` (`makeWorld`, `addFakePlayer`
 so random ticks run, `tick`). The `dynamics` scenario pours water and lava, drops sand and gravel,
