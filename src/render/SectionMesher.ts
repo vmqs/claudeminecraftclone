@@ -15,8 +15,8 @@ export class SectionMesher {
   /** Per block id (snapshots hold ids 0-255): Block.isOpaqueCube() (leaves change it with the graphics setting). */
   private readonly opaque = new Uint8Array(256);
   /**
-   * Per block id: a full cube drawn by render type 0 or 31 whose faces are culled only by
-   * opaque neighbours (Block.shouldSideBeRendered and setBlockBoundsBasedOnState not
+   * Per block id: a full cube drawn by render type 0 (1) or 31 (2, logs) whose faces are culled
+   * only by opaque neighbours (Block.shouldSideBeRendered and setBlockBoundsBasedOnState not
    * overridden). Such a block with six opaque-cube neighbours draws nothing.
    */
   private readonly enclosable = new Uint8Array(256);
@@ -40,7 +40,9 @@ export class SectionMesher {
         b.maxX === 1 &&
         b.maxY === 1 &&
         b.maxZ === 1
-          ? 1
+          ? type === 31
+            ? 2
+            : 1
           : 0;
     }
   }
@@ -79,8 +81,8 @@ export class SectionMesher {
                 continue;
               }
               if (enclosable[id] && opaque[ids[i - 1]] && opaque[ids[i + 1]] && opaque[ids[i - S]] && opaque[ids[i + S]] && opaque[ids[i - S * S]] && opaque[ids[i + S * S]]) {
-                // Every face is culled. The smooth-lit path would still have set this brightness.
-                if (RenderBlocks.aoLevel !== 0 && Block.lightValue[id] === 0) t.setBrightness(0xf000f);
+                // Every face is culled: nothing to draw, only the renderer's state to keep.
+                rb.skipEnclosedCube(block, enclosable[id] === 2);
                 continue;
               }
               rb.renderBlockByRenderType(block, ox + x, oy + y, oz + z);

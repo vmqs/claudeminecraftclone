@@ -391,6 +391,20 @@ export class RenderBlocks {
     this.updatePartialBounds();
   }
 
+  /**
+   * What renderBlockByRenderType leaves behind for a full cube of render type 0 or 31 whose six
+   * faces are all culled, without drawing anything (the mesher skips enclosed cubes): the log's
+   * texture rotations put back, smooth lighting off again and, on the smooth-lit path, the
+   * tessellator brightness it sets. (The render bounds are set again by the next block.)
+   */
+  skipEnclosedCube(block: Block, log: boolean): void {
+    if (log) {
+      this.uvRotateSouth = this.uvRotateEast = this.uvRotateWest = this.uvRotateNorth = this.uvRotateTop = this.uvRotateBottom = 0;
+    }
+    this.enableAO = false;
+    if (RenderBlocks.aoLevel !== 0 && Block.lightValue[block.blockID] === 0) Tessellator.instance.setBrightness(0xf000f);
+  }
+
   setRenderBoundsFromBlock(block: Block): void {
     if (this.lockBlockBounds) return;
     this.renderMinX = block.getBlockBoundsMinX();
