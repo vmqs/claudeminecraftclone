@@ -80,6 +80,8 @@ export interface SettingsListener {
   onFullscreenToggled?(): void;
   /** A chat size or opacity option changed (GuiNewChat re-wraps its lines). */
   onChatOptionsChanged?(): void;
+  /** The options were saved (sendSettingsToServer: the integrated server takes the difficulty). */
+  onSettingsSaved?(): void;
 }
 
 /** All 1.5.2 options with their defaults, persisted to localStorage in options.txt form. */
@@ -468,6 +470,7 @@ export class GameSettings {
     } catch {
       /* storage unavailable */
     }
+    this.listener?.onSettingsSaved?.();
   }
 
   shouldRenderClouds(): boolean {

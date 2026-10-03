@@ -35,6 +35,14 @@ export class GuiOptions extends GuiScreen {
     const cx = Math.trunc(this.width / 2);
     const h6 = Math.trunc(this.height / 6);
     addOptionButtons(this as unknown as { buttonList: GuiButton[] }, GuiOptions.relevantOptions, this.options, cx - 155, h6 - 12);
+    if (this.mc.theWorld?.worldInfo.hardcore) {
+      // A hardcore world is always Hard: the button is greyed out and says so.
+      const b = this.buttonList.find((x) => x instanceof GuiSmallButton && x.returnEnumOptions() === EnumOptions.DIFFICULTY);
+      if (b) {
+        b.enabled = false;
+        b.displayString = t('options.difficulty') + ': ' + t('options.difficulty.hardcore');
+      }
+    }
     this.buttonList.push(new GuiButton(101, cx - 152, h6 + 96 - 6, 150, 20, t('options.video')));
     this.buttonList.push(new GuiButton(100, cx + 2, h6 + 96 - 6, 150, 20, t('options.controls')));
     this.buttonList.push(new GuiButton(102, cx - 152, h6 + 120 - 6, 150, 20, t('options.language')));

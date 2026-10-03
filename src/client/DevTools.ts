@@ -6,6 +6,7 @@ import { GuiCreateWorld } from '../gui/GuiCreateWorld';
 import { Item } from '../item/Item';
 import { ItemStack } from '../item/ItemStack';
 import { SkyDevTools } from '../render/sky/SkyDevTools';
+import { SurvivalDevTools } from './SurvivalDevTools';
 import { type WeatherKind, WeatherCycle } from '../world/WeatherCycle';
 import { Keyboard, Mouse } from './Keyboard';
 import type { Minecraft } from './Minecraft';
@@ -18,9 +19,12 @@ const DEV_HOTBAR = [1, 2, 3, 4, 5, 17, 20, 50, 276];
 export class DevTools {
   /** Sky and weather helpers (pin, strike, setBiome, fill, helmet). */
   readonly sky: SkyDevTools;
+  /** Survival helpers (state, damage, hunger, mining, armour). */
+  readonly survival: SurvivalDevTools;
 
   constructor(private readonly mc: Minecraft) {
     this.sky = new SkyDevTools(mc);
+    this.survival = new SurvivalDevTools(mc);
   }
 
   /** True once the player stands in a loaded, meshed area with no screen open. */
@@ -180,7 +184,7 @@ export class DevTools {
  * URL hooks: ?dev=1 exposes window.mc; ?autostart=1&seed=&type= creates a world directly
  * (&structures=0, &bonus=1 and &preset=<superflat string> as on the More World Options page);
  * ?hotbar=1 fills the hotbar; ?time= sets the world time; ?pos=x,y,z[,yaw,pitch] teleports
- * (feet position); ?fly=1 starts flying.
+ * (feet position); ?fly=1 starts flying; ?mode=survival|hardcore|adventure picks the game mode.
  */
 export function installDevHooks(mc: Minecraft, params: URLSearchParams): void {
   const dev = new DevTools(mc);
@@ -188,12 +192,18 @@ export function installDevHooks(mc: Minecraft, params: URLSearchParams): void {
   if (!params.has('autostart')) return;
   const seed = GuiCreateWorld.parseSeed(params.get('seed') ?? '') ?? undefined;
   const type = params.get('type') ?? 'default';
+  // ?mode=survival|hardcore|adventure|creative (Creative when absent, like the earlier dev worlds).
+  const mode = params.get('mode') ?? 'creative';
+  const gameType = mode === 'creative' ? 1 : mode === 'adventure' ? 2 : 0;
   mc.launchIntegratedServer('dev', 'New World', {
     seed,
     terrainType: type,
     mapFeatures: params.get('structures') !== '0',
     generatorOptions: params.get('preset') ?? undefined,
     bonusChest: params.get('bonus') === '1',
+    gameType,
+    hardcore: mode === 'hardcore',
+    allowCommands: mode !== 'hardcore',
   });
   let applied = false;
   mc.frameListeners.push(() => {
