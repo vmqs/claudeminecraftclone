@@ -123,6 +123,17 @@ export class AccountDevTools {
     };
   }
 
+  /**
+   * Stops the game loop and draws the boot splash exactly as start-up does (for a screenshot of
+   * the real boot path; reload the page afterwards).
+   */
+  async showBootSplash(index: number): Promise<number> {
+    this.mc.running = false;
+    await new Promise((r) => requestAnimationFrame(r));
+    await new BootSplash(this.mc.canvas, this.mc.renderEngine).show(index);
+    return BootSplash.shownIndex + 1;
+  }
+
   /** One RGBA pixel of the local skin (null for Steve). */
   localPixel(x: number, y: number): number[] | null {
     const s = PlayerSkins.local;

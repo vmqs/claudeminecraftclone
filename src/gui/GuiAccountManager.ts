@@ -247,7 +247,10 @@ export class GuiAccountManager extends GuiScreen {
     GL.alphaFunc(GL.GREATER, f(0.1));
     GL.color(1, 1, 1, 1);
     bindSkin(this.mc.renderEngine, PlayerSkins.local, '/mob/char.png');
+    // ModelBase starts as a child model; RenderLiving sets these from the entity every frame.
     this.model.onGround = 0;
+    this.model.isChild = false;
+    this.model.isRiding = false;
     this.model.render(null, 0, 0, f(this.ticks + pt), 0, 0, SCALE);
     GL.popMatrix();
     GL.disable(GL.RESCALE_NORMAL);
