@@ -55,11 +55,14 @@ export class GuiEditSign extends GuiScreen {
     if (net) {
       // A LAN guest's sign: the host checks the text and tells everyone (Packet130UpdateSign).
       net.addToSendQueue({ type: 'UpdateSign', x: te.xCoord, y: te.yCoord, z: te.zCoord, line0: lines[0] ?? '', line1: lines[1] ?? '', line2: lines[2] ?? '', line3: lines[3] ?? '' });
+      this.setEditable(true);
     } else {
       // The integrated server's markBlockForUpdate: a LAN game sends the new text to its guests.
+      // Here the editor's sign is the world's own, which stays non-editable (guests cannot
+      // rewrite it; in 1.5.2 only the client's copy became editable again).
       this.mc.theWorld?.markBlockForUpdate(te.xCoord, te.yCoord, te.zCoord);
+      (te as TileEntity & { editor?: object | null }).editor = null;
     }
-    this.setEditable(true);
   }
 
   override updateScreen(): void {

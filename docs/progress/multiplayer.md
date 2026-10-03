@@ -100,3 +100,7 @@ each (with a netsession / netprotocol check where it can be tested in Node).
 - [x] Minor: /publish opens the world to LAN (Survival, no cheats) and prints the room code.
 - [x] Minor: host-only /kick, /ban (name for the session, browser tab 12 h), /pardon, /banlist,
   /whitelist (on keeps everyone playing; closes the game to new players). Guests never get them.
+- [x] Minor: signs remember who placed them (TileEntitySign.editor); the host takes a guest's text
+  only for the sign it just placed, and the host's own editor no longer makes its signs editable.
+- [x] Minor: Leave Bed only for a sleeping player; dead guests' world actions are ignored; entity
+  use needs a crosshair target (canBeCollidedWith); book pages and titles lose § and control chars.

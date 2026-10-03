@@ -21,7 +21,7 @@ import { Vec3 } from '../src/core/Vec3';
 import { DamageSource } from '../src/entity/DamageSource';
 import type { Entity } from '../src/entity/Entity';
 import { EntityList } from '../src/entity/EntityList';
-import type { EntityLiving } from '../src/entity/EntityLiving';
+import { ChunkCoordinates, type EntityLiving } from '../src/entity/EntityLiving';
 import { EntityOtherPlayerMP } from '../src/entity/EntityOtherPlayerMP';
 import { PlayerSpawning } from '../src/entity/PlayerSpawning';
 import { registerBlockItems } from '../src/item/Items';
@@ -413,6 +413,54 @@ check('guest is creative (LAN game mode)', bob.pc.isInCreativeMode() && bobMP!.c
   step(2);
 }
 
+// ---------------------------------------------------------------------- smaller checks on what guests send
+{
+  const r = await rawJoin('Probe');
+  const pp = hostPlayerOf('Probe')!;
+  pp.setGameType(EnumGameType.SURVIVAL);
+  step(2);
+  // Leave Bed while awake is ignored (1.5.2 put the player next to its last bed from anywhere).
+  hw.setBlock(20, 4, 20, B.bed, 0, 3);
+  hw.setBlock(20, 4, 21, B.bed, 8, 3);
+  pp.playerLocation = new ChunkCoordinates(20, 4, 21);
+  const x0 = pp.posX;
+  r.send([{ type: 'EntityAction', entityId: pp.entityId, state: 3 }]);
+  step(2);
+  check('leave bed while awake does not teleport', pp.posX === x0 && !pp.isPlayerSleeping(), `${pp.posX} vs ${x0}`);
+  hw.setBlock(20, 4, 20, 0, 0, 3);
+  hw.setBlock(20, 4, 21, 0, 0, 3);
+  // A dropped item cannot be "attacked" (an item, orb or arrow is not a crosshair target).
+  hw.dropItemStack(pp.posX + 1, pp.posY + 0.5, pp.posZ, new ItemStack(I.diamond, 1, 0));
+  step(1);
+  const drop = hw.loadedEntityList.find((e) => EntityList.getEntityString(e) === 'Item' && e.getDistanceSqToEntity(pp) < 4);
+  r.send([{ type: 'UseEntity', targetEntity: drop?.entityId ?? -1, leftClick: true }]);
+  step(1);
+  check('dropped items are not attackable', !!drop && !drop.isDead);
+  drop?.setDead();
+  // Book text loses formatting codes and control characters.
+  pp.inventory.mainInventory[pp.inventory.currentItem] = new ItemStack(386, 1, 0);
+  r.send([{ type: 'CustomPayload', channel: 'MC|BSign', data: new TextEncoder().encode(JSON.stringify({ pages: ['§kHidden\u0007 text'], title: '§4Title\n' })) }]);
+  step(1);
+  const book = pp.inventory.getCurrentItem();
+  check('book text without formatting codes', book?.itemID === 387 && (book.stackTagCompound?.pages as string[])[0] === 'kHidden text' && book.stackTagCompound?.title === '4Title', JSON.stringify(book?.stackTagCompound));
+  pp.inventory.mainInventory[pp.inventory.currentItem] = null;
+  // A dead guest cannot place or break blocks from its death screen.
+  pp.inventory.mainInventory[0] = new ItemStack(B.stone, 8, 0);
+  pp.inventory.currentItem = 0;
+  pp.attackEntityFrom(DamageSource.outOfWorld, 1000);
+  step(1);
+  const px = Math.floor(pp.posX);
+  const pz = Math.floor(pp.posZ) + 2;
+  r.send([{ type: 'Place', x: px, y: 3, z: pz, direction: 1, item: new ItemStack(B.stone, 8, 0), hitX: 8, hitY: 16, hitZ: 8 }]);
+  step(1);
+  check('a dead guest cannot place blocks', hw.getBlockId(px, 4, pz) === 0);
+  r.send([{ type: 'KickDisconnect', reason: 'Quitting' }]);
+  step(2);
+  // Its drops would confuse the item checks below.
+  for (const e of hw.loadedEntityList) if (EntityList.getEntityString(e) === 'Item' || EntityList.getEntityString(e) === 'XPOrb') e.setDead();
+  step(2);
+}
+
 // ---------------------------------------------------------------------- blocks
 {
   // The host gives the guest stone; the slot reaches the guest.
@@ -579,6 +627,43 @@ check('guest is creative (LAN game mode)', bob.pc.isInCreativeMode() && bobMP!.c
   bobMP!.inventory.mainInventory[7] = null;
   for (let i = 0; i < 36; i++) if (bobMP!.inventory.mainInventory[i]?.itemID === I.emerald) bobMP!.inventory.mainInventory[i] = null;
   step(2);
+}
+
+// ---------------------------------------------------------------------- signs
+{
+  const gp = bob.mc.thePlayer!;
+  const me = hostPlayerOf('Bob')!;
+  me.inventory.mainInventory[1] = new ItemStack(I.sign, 4, 0);
+  me.inventory.currentItem = 1;
+  gp.inventory.currentItem = 1;
+  step(3);
+  bob.pc.onPlayerRightClick(gp, gw, gp.inventory.getCurrentItem(), 9, 3, 12, 1, new Vec3(9.5, 4, 12.5));
+  step(3);
+  const sign = hw.getBlockTileEntity(9, 4, 12) as unknown as { signText: string[]; setEditable(v: boolean): void; editor: object | null } | null;
+  check('guest places a sign', !!sign && hw.getBlockId(9, 4, 12) === B.signPost, String(hw.getBlockId(9, 4, 12)));
+  const write = (who: Guest, x: number, z: number, text: string) => {
+    who.handler.addToSendQueue({ type: 'UpdateSign', x, y: 4, z, line0: text, line1: '', line2: '', line3: '' });
+    who.handler.flush();
+    step(3);
+  };
+  write(bob, 9, 12, 'hello');
+  check('the placer writes its sign', sign?.signText[0] === 'hello', sign?.signText.join('|'));
+  check('the sign text reaches the guests', (gw.getBlockTileEntity(9, 4, 12) as unknown as { signText: string[] } | null)?.signText[0] === 'hello');
+  write(bob, 9, 12, 'changed');
+  check('a written sign cannot be rewritten', sign?.signText[0] === 'hello', sign?.signText.join('|'));
+  // A sign the host wrote (its editor closed): no guest may change it.
+  hw.setBlock(8, 4, 12, B.signPost, 0, 3);
+  const hostSign = hw.getBlockTileEntity(8, 4, 12) as unknown as { signText: string[]; setEditable(v: boolean): void };
+  hostSign.signText[0] = 'Alice';
+  step(2);
+  write(bob, 8, 12, 'pwned');
+  check("guests cannot rewrite the host's signs", hostSign.signText[0] === 'Alice', hostSign.signText.join('|'));
+  hw.setBlock(8, 4, 12, 0, 0, 3);
+  hw.setBlock(9, 4, 12, 0, 0, 3);
+  me.inventory.mainInventory[1] = null;
+  me.inventory.currentItem = 8;
+  gp.inventory.currentItem = 8;
+  step(3);
 }
 
 // ---------------------------------------------------------------------- death and respawn

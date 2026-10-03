@@ -9,6 +9,11 @@ export class TileEntitySign extends TileEntity {
   /** The line the sign editor's cursor is on (-1 when not editing). */
   lineBeingEdited = -1;
   private editable = true;
+  /**
+   * Who may write this sign's text (the player that placed it; not saved). A LAN host only takes
+   * a guest's text for the sign that guest just placed.
+   */
+  editor: object | null = null;
 
   override writeToNBT(tag: TagCompound): void {
     super.writeToNBT(tag);

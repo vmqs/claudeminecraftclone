@@ -285,7 +285,10 @@ export class ItemSign extends Item {
     }
     stack.stackSize--;
     const te = w.getBlockTileEntity(x, y, z);
-    if (te) player.displayGUIEditSign(te);
+    if (te) {
+      (te as TileEntity & { editor?: object | null }).editor = player;
+      player.displayGUIEditSign(te);
+    }
     return true;
   }
 }

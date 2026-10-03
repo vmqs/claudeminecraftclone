@@ -43,6 +43,9 @@ const PUSH_TICKS = 40;
 
 type Flying = PacketOf<'Flying'>;
 
+/** What a dead player cannot do (it is not in the world any more, or lies there dead). */
+const DEAD_IGNORES = new Set<Packet['type']>(['BlockDig', 'Place', 'UseEntity', 'WindowClick', 'CreativeSetSlot', 'EnchantItem', 'UpdateSign', 'Animation', 'EntityAction', 'CustomPayload']);
+
 /** Size of a rejoin token (MC|Rejoin): 128 random bits. */
 export const REJOIN_TOKEN_BYTES = 16;
 export const toHex = (b: Uint8Array) => [...b].map((v) => v.toString(16).padStart(2, '0')).join('');
@@ -277,6 +280,8 @@ export class NetServerHandler {
       return;
     }
     const player = this.player!;
+    // A dead guest (on its death screen) only chats, respawns, closes windows and leaves.
+    if ((player.isDead || player.getHealth() <= 0) && DEAD_IGNORES.has(p.type)) return;
     switch (p.type) {
       case 'KeepAlive':
         if (p.id === this.keepAliveId) player.ping = Math.round((player.ping * 3 + (performance.now() - this.keepAliveSent)) / 4);
@@ -692,7 +697,9 @@ export class NetServerHandler {
     else if (state === 2) player.setSneaking(false);
     else if (state === 4) player.setSprinting(true);
     else if (state === 5) player.setSprinting(false);
-    else if (state === 3) {
+    else if (state === 3 && player.isPlayerSleeping()) {
+      // Leave Bed; only for a sleeping player (1.5.2 woke anyone, which put the player next to
+      // its last bed from anywhere).
       player.wakeUpPlayer(false, true, true);
       this.hasMoved = false;
     }
@@ -709,6 +716,9 @@ export class NetServerHandler {
     const player = this.player!;
     const target = this.server.getEntityById(id);
     if (!target || target === player || target.isDead) return;
+    // What the client's crosshair can pick (mobs, players, vehicles, paintings, frames); not
+    // dropped items, orbs or arrows, which a guest could otherwise destroy from afar.
+    if (!target.canBeCollidedWith()) return;
     const reach = player.canEntityBeSeen(target) ? 36 : 9;
     if (player.getDistanceSqToEntity(target) >= reach) return;
     if (!leftClick) player.interactWith(target);
@@ -775,9 +785,14 @@ export class NetServerHandler {
     const w = this.server.world;
     if (p.y < 0 || p.y >= 256 || !w.blockExists(p.x, p.y, p.z)) return;
     if (player.getDistanceSq(p.x + 0.5, p.y + 0.5, p.z + 0.5) > 64 * 64) return;
-    const te = w.getBlockTileEntity(p.x, p.y, p.z) as unknown as { signText?: string[]; isEditable?: () => boolean; onInventoryChanged(): void } | null;
+    const te = w.getBlockTileEntity(p.x, p.y, p.z) as unknown as { signText?: string[]; isEditable?: () => boolean; editor?: object | null; onInventoryChanged(): void } | null;
     if (!te || !Array.isArray(te.signText)) return;
-    if (te.isEditable && !te.isEditable()) return;
+    // Only the sign this guest just placed (1.5.2 let anyone write a sign until it was reloaded).
+    if ((te.isEditable && !te.isEditable()) || te.editor !== player) {
+      console.warn(`[lan] ${player.username} just tried to change a sign that is not theirs to edit`);
+      return;
+    }
+    te.editor = null;
     const lines = [p.line0, p.line1, p.line2, p.line3].map((l) => (l.length > 15 || [...l].some((ch) => ch === '§' || ch < ' ' || ch === '\x7f') ? '!?' : l));
     for (let i = 0; i < 4; i++) te.signText[i] = lines[i];
     (te as unknown as { setEditable?: (v: boolean) => void }).setEditable?.(false);
@@ -810,11 +825,13 @@ export class NetServerHandler {
     } catch {
       return;
     }
-    const pages = Array.isArray(tag.pages) ? tag.pages.filter((p): p is string => typeof p === 'string').slice(0, 50).map((p) => p.slice(0, 256)) : [];
+    // Like chat, signs and anvil names: no formatting codes or control characters (newlines are page breaks).
+    const clean = (t: string) => t.replace(/[§\u0000-\u0009\u000b-\u001f\u007f]/g, '');
+    const pages = Array.isArray(tag.pages) ? tag.pages.filter((p): p is string => typeof p === 'string').slice(0, 50).map((p) => clean(p.slice(0, 256))) : [];
     held.stackTagCompound ??= {};
     held.stackTagCompound.pages = pages;
     if (sign) {
-      const title = typeof tag.title === 'string' ? tag.title.slice(0, 16) : '';
+      const title = typeof tag.title === 'string' ? clean(tag.title.slice(0, 16)).replace(/\n/g, '') : '';
       held.stackTagCompound.author = player.username;
       held.stackTagCompound.title = title;
       held.itemID = 387;
