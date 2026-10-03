@@ -13,6 +13,9 @@
   "wait": 1500
  },
  {
+  "eval": "(() => { const w = mc.theWorld; let n = 0; for (const e of [...w.loadedEntityList]) if (e.isLivingEntity && !e.isPlayerEntity) { e.setDead(); n++; } return { purgedMobs: n }; })()"
+ },
+ {
   "waitFor": "mc.dev.pendingSections(3) === 0",
   "timeout": 600000
  },
@@ -107,6 +110,12 @@
  },
  {
   "wait": 1500
+ },
+ {
+  "eval": "(() => { const w = mc.theWorld; let n = 0; for (const e of [...w.loadedEntityList]) if (e.isLivingEntity && !e.isPlayerEntity) { e.setDead(); n++; } return { purgedMobs: n }; })()"
+ },
+ {
+  "wait": 500
  },
  {
   "shot": "rb_tileentities.png"
