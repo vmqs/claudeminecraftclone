@@ -100,7 +100,7 @@
   {"eval": "(() => { mc.gameSettings.thirdPersonView = 0; mc.dev.look(0, 30); mc.dev.ticks(2); return true; })()"},
   {"wait": 1200},
   {"shot": "acc_18_first_person_arm.png"},
-  {"key": "e"},
+  {"eval": "(() => { mc.dev.press(18, 1); return mc.currentScreen !== null; })()"},
   {"waitFor": "mc.currentScreen !== null", "timeout": 10000},
   {"wait": 1200},
   {"shot": "acc_19_inventory.png"},
