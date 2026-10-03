@@ -1,8 +1,11 @@
+import { ItemIds } from '../../block/BlockIds';
+import { getScoreboard, ScorePlayerTeam } from '../../command/scoreboard/Scoreboard';
 import { MathHelper } from '../../core/MathHelper';
 import type { Entity } from '../../entity/Entity';
 import type { EntityLiving } from '../../entity/EntityLiving';
 import type { EntityPlayer } from '../../entity/EntityPlayer';
 import { EnumAction } from '../../item/Item';
+import { ItemStack } from '../../item/ItemStack';
 import { GL } from '../gl/GL';
 import { ModelBiped } from './ModelBiped';
 import { BIPED_FULL3D_OFFSET, renderHeadItem, renderHeldItem, setArmorModel, setArmorOverlay } from './RenderBiped';
@@ -77,8 +80,31 @@ export class RenderPlayer extends RenderLiving {
       this.loadTexture(RenderPlayer.capeTexture);
       this.renderCape(p, pt);
     }
-    const held = p.inventory.getCurrentItem();
-    if (held) renderHeldItem(this, p, held, this.modelBipedMain, p.getItemInUseCount() > 0 ? held.getItemUseAction() : null, BIPED_FULL3D_OFFSET, true);
+    let held = p.inventory.getCurrentItem();
+    if (held) {
+      // While the line is out, a fishing rod is drawn as a plain stick.
+      if (p.fishEntity) held = new ItemStack(ItemIds.stick, 1, 0);
+      renderHeldItem(this, p, held, this.modelBipedMain, p.getItemInUseCount() > 0 ? held.getItemUseAction() : null, BIPED_FULL3D_OFFSET, true);
+    }
+  }
+
+  /** renderPlayerSleep: a sleeping body is moved towards the foot of the bed. */
+  protected override renderLivingAt(e: EntityLiving, x: number, y: number, z: number): void {
+    const p = e as EntityPlayer;
+    if (p.isEntityAlive() && p.isPlayerSleeping()) super.renderLivingAt(p, x + p.sleepOffsetX, y + p.sleepOffsetY, z + p.sleepOffsetZ);
+    else super.renderLivingAt(p, x, y, z);
+  }
+
+  /** rotatePlayer: a sleeping body lies on its back along the bed. */
+  protected override rotateCorpse(e: EntityLiving, age: number, bodyYaw: number, pt: number): void {
+    const p = e as EntityPlayer;
+    if (p.isEntityAlive() && p.isPlayerSleeping()) {
+      GL.rotate(p.getBedOrientationInDegrees(), 0, 1, 0);
+      GL.rotate(this.getDeathMaxRotation(p), 0, 0, 1);
+      GL.rotate(270, 0, 1, 0);
+    } else {
+      super.rotateCorpse(p, age, bodyYaw, pt);
+    }
   }
 
   /** The cape swings behind with the chasing point, the walk bob and sneaking. */
@@ -106,6 +132,40 @@ export class RenderPlayer extends RenderLiving {
     GL.rotate(180, 0, 1, 0);
     this.modelBipedMain.renderCloak(SCALE);
     GL.popMatrix();
+  }
+
+  /**
+   * func_96450_a: within 10 blocks a player's below-name objective (display slot 2) floats above
+   * the name.
+   */
+  protected override renderNameLabel(e: EntityLiving, x: number, y: number, z: number, name: string, scale: number, distSq: number): void {
+    const board = getScoreboard(e.worldObj);
+    if (distSq < 100) {
+      const objective = board.getObjectiveInDisplaySlot(2);
+      if (objective) {
+        const score = board.getPlayerScore(e.getEntityName(), objective);
+        this.renderLivingLabel(e, `${score.getScorePoints()} ${objective.getDisplayName()}`, x, e.isPlayerSleeping() ? y - 1.5 : y, z, 64);
+        y += f(f((this.getFontRendererFromRenderManager()?.FONT_HEIGHT ?? 9) * f(1.15)) * scale);
+      }
+    }
+    super.renderNameLabel(e, x, y, z, name, scale, distSq);
+  }
+
+  protected override getTranslatedEntityName(e: EntityLiving): string {
+    return ScorePlayerTeam.formatPlayerName(getScoreboard(e.worldObj).getPlayersTeam(e.getEntityName()), e.getEntityName());
+  }
+
+  /**
+   * func_98034_c: an invisible player stays hidden, except from team mates of a team that sees
+   * friendly invisibles, who see it faintly.
+   */
+  protected override isVisibleToViewer(e: EntityLiving): boolean {
+    if (!e.isInvisible()) return false;
+    const viewer = this.renderManager.livingPlayer;
+    const board = getScoreboard(e.worldObj);
+    const team = board.getPlayersTeam(e.getEntityName());
+    if (!team || !viewer) return true;
+    return board.getPlayersTeam(viewer.getEntityName()) !== team || !team.canSeeFriendlyInvisibles;
   }
 
   /** renderPlayerScale */

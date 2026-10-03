@@ -60,6 +60,7 @@ import { Profiler } from './Profiler';
 import { DebugHooks } from '../command/CommandDebug';
 import { GuiProfilerChart } from '../gui/GuiProfilerChart';
 import { GuiSleepMP } from '../gui/GuiSleepMP';
+import { loadChunksAroundBed } from './BedRespawn';
 
 /** World creation options (WorldSettings). */
 export interface WorldSettings {
@@ -866,6 +867,8 @@ export class Minecraft implements SettingsListener {
     this.renderViewEntity = p;
     p.preparePlayerToSpawn();
     // The client flips the new player, then the server's position packet sets its real angles.
+    // Kept-in-memory chunks around the bed come back first so the bed can be found.
+    loadChunksAroundBed(old, w, this.chunkProvider);
     this.playerController.flipPlayer(p);
     PlayerSpawning.respawn(p, old, w);
     this.playerController.setGameType(p.gameType);

@@ -3,6 +3,8 @@ import { EnchantmentHelper } from '../enchantment/EnchantmentHelper';
 import type { EntityLiving } from '../entity/EntityLiving';
 import { SkyHooks } from '../render/sky/SkyHooks';
 import { StructureLocator } from '../world/gen/StructureLocator';
+import { PotionEffect } from '../potion/PotionEffect';
+import { TileEntityBeacon } from '../world/tileentity/TileEntityBeacon';
 import { TileEntityFurnace } from '../world/tileentity/TileEntityFurnace';
 import { FurnaceRecipes } from './crafting/FurnaceRecipes';
 import { StructureSearch } from './ItemThrowable';
@@ -21,6 +23,7 @@ import { StructureSearch } from './ItemThrowable';
  * - Block.harvestBlock asks EnchantmentHelper for silk touch and fortune (HarvestModifiers).
  * - Furnaces smelt with the FurnaceRecipes table (TileEntityFurnace.smeltingResult).
  * - The sky, fog and lightmap code reads potion effects from EntityLiving (SkyHooks.potionDuration).
+ * - Beacons apply their effects as ambient PotionEffects (TileEntityBeacon.applyEffect).
  */
 StructureSearch.locate = (name, x, y, z) => StructureLocator.findClosestStructure(name, x, y, z);
 
@@ -33,3 +36,6 @@ SkyHooks.potionDuration = (e, id) => {
 };
 
 TileEntityFurnace.smeltingResult = (id) => FurnaceRecipes.smelting().getSmeltingResult(id);
+
+// Beacons give players in range an ambient effect (fewer, paler swirls) every 80 ticks.
+TileEntityBeacon.applyEffect = (p, id, duration, amplifier, ambient) => p.addPotionEffect(new PotionEffect(id, duration, amplifier, ambient));

@@ -1,11 +1,9 @@
-import { BlockBed } from '../block/BlockBed';
-import { BlockIds } from '../block/BlockIds';
 import { JavaRandom } from '../core/JavaRandom';
 import type { World, WorldInfo } from '../world/World';
 import { InventoryEnderChest } from '../world/tileentity/TileEntityEnderChest';
 import { EnumGameType } from '../world/EnumGameType';
 import { ChunkCoordinates } from './EntityLiving';
-import type { EntityPlayer } from './EntityPlayer';
+import { EntityPlayer } from './EntityPlayer';
 import type { FoodStats } from './FoodStats';
 
 /** What a player keeps in its save data beyond position and inventory (EntityPlayerMP's NBT). */
@@ -67,15 +65,7 @@ export const PlayerSpawning = {
    * forced spawn the spot itself if feet and head are free of solids and liquids; null otherwise.
    */
   verifyRespawnCoordinates(w: World, c: ChunkCoordinates, forced: boolean): ChunkCoordinates | null {
-    if (w.getBlockId(c.posX, c.posY, c.posZ) === BlockIds.bed) {
-      const spot = BlockBed.getNearestEmptyChunkCoordinates(w, c.posX, c.posY, c.posZ, 0);
-      return spot ? new ChunkCoordinates(spot.posX, spot.posY, spot.posZ) : null;
-    }
-    const feet = w.getBlockMaterial(c.posX, c.posY, c.posZ);
-    const head = w.getBlockMaterial(c.posX, c.posY + 1, c.posZ);
-    const feetFree = !feet.isSolid() && !feet.isLiquid();
-    const headFree = !head.isSolid() && !head.isLiquid();
-    return forced && feetFree && headFree ? c : null;
+    return EntityPlayer.verifyRespawnCoordinates(w, c, forced);
   },
 
   /**

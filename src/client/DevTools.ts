@@ -11,6 +11,7 @@ import { type WeatherKind, WeatherCycle } from '../world/WeatherCycle';
 import { Keyboard, Mouse } from './Keyboard';
 import type { Minecraft } from './Minecraft';
 import { openScreenByName } from '../gui/GuiDebugScreens';
+import { PlayerDevTools } from './PlayerDevTools';
 
 /** The hotbar of the reference captures: stone, grass, dirt, cobble, planks, log, glass, torch, diamond sword. */
 const DEV_HOTBAR = [1, 2, 3, 4, 5, 17, 20, 50, 276];
@@ -21,10 +22,13 @@ export class DevTools {
   readonly sky: SkyDevTools;
   /** Survival helpers (state, damage, hunger, mining, armour). */
   readonly survival: SurvivalDevTools;
+  /** Player helpers (armour, item use, effects, beds, other players). */
+  readonly player: PlayerDevTools;
 
   constructor(private readonly mc: Minecraft) {
     this.sky = new SkyDevTools(mc);
     this.survival = new SurvivalDevTools(mc);
+    this.player = new PlayerDevTools(mc);
   }
 
   /** True once the player stands in a loaded, meshed area with no screen open. */

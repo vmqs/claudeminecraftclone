@@ -291,13 +291,13 @@ export class RenderLiving extends Render {
   /** Name tags of named mobs: always when set to, otherwise when looked at. */
   protected passSpecialRender(e: EntityLiving, x: number, y: number, z: number): void {
     const rm = this.renderManager;
-    if (rm.options?.hideGUI || e === rm.livingPlayer || !this.isVisibleToViewer(e)) return;
+    if (rm.options?.hideGUI || e === rm.livingPlayer || (e.isInvisible() && this.isVisibleToViewer(e))) return;
     if (!(e.getAlwaysRenderNameTag() || (e.hasCustomName() && e === rm.pointedEntity))) return;
     const scale = f(f(0.016666668) * f(1.6));
     const d2 = e.getDistanceSqToEntity(rm.livingPlayer!);
     const range = e.isSneaking() ? 32 : 64;
     if (d2 >= range * range) return;
-    const name = e.getEntityName();
+    const name = this.getTranslatedEntityName(e);
     if (e.isSneaking()) {
       const fr = this.getFontRendererFromRenderManager();
       if (!fr) return;
@@ -320,8 +320,18 @@ export class RenderLiving extends Render {
       GL.color(1, 1, 1, 1);
       GL.popMatrix();
     } else {
-      this.renderLivingLabel(e, name, x, e.isPlayerSleeping() ? y - 1.5 : y, z, 64);
+      this.renderNameLabel(e, x, y, z, name, scale, d2);
     }
+  }
+
+  /** getTranslatedEntityName: the name shown above the entity (a player's carries its team's prefix and suffix). */
+  protected getTranslatedEntityName(e: EntityLiving): string {
+    return e.getEntityName();
+  }
+
+  /** func_96449_a: the floating name of an entity that is not sneaking (players add their score). */
+  protected renderNameLabel(e: EntityLiving, x: number, y: number, z: number, name: string, _scale: number, _distSq: number): void {
+    this.renderLivingLabel(e, name, x, e.isPlayerSleeping() ? y - 1.5 : y, z, 64);
   }
 
   private drawLabelBackground(width: number, yOff: number): void {

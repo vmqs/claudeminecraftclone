@@ -47,6 +47,12 @@ harness's `freeze` (partial tick 0, `mc.dev.ticks(n)` still steps) and pins clou
 flicker, fog brightness, vignette and arm sway; `unfreeze()`; `strike(x, z)` (lightning bolt);
 `setBiome(id)` for every loaded column (12 Ice Plains = snow, 2 Desert = no rain);
 `fill(id, y0, y1, radius?)`; `helmet(id | null)` (86 = pumpkin).
+`mc.dev.player` (`src/client/PlayerDevTools.ts`): `armor(slot, id, color?)` (slot 0 boots ... 3
+helmet), `use(ticksLeft)` (a bow drawn n ticks: `72000 - n`), `effect(id, seconds, amplifier?)`,
+`bed(x, y, z, dir)` (foot block), `sleepIn(x, y, z)` (right-clicks the bed), `otherPlayer(name, x,
+y, z, yaw, {held, armor, color, sneak, use, bed})` (an `EntityOtherPlayerMP` posed like the
+reference harness's `otherplayer`), `clearOthers()`, `state()` (sleep timer, bed, effects, FOV).
+`mc.dev.sky.pin` also settles the eased FOV (`EntityRenderer.settleFovModifier`).
 Key codes are LWJGL codes (`src/client/Keyboard.ts`, e.g. W = 17, space = 57, left shift = 42).
 A key or button must stay down for at least one tick to be seen by the player, which is what
 `press` and `click` do.
@@ -76,6 +82,9 @@ node scripts/shot.mjs survival               # survival HUD (full, damaged, hurt
 node scripts/shot.mjs sky                    # sky, fog, clouds, render distances, rain, thunder and a bolt,
                                              # snow, desert, underwater, lava, in-wall and pumpkin overlays
 node scripts/shot.mjs worldgen               # seeds "claude"/123456789 vs the reference spawn, cave, biomes, village; flat and large biomes
+node scripts/shot.mjs player                 # F5 back/front, bow and sword poses, a posed line-up of players,
+                                             # the effect list, night vision, blindness, sleeping in a bed
+                                             # (Leave Bed, skip to morning, bed spawn), nausea, a boat (checks)
 node scripts/shot.mjs path/to/scenario.json --url http://localhost:5173/ --server none
 ```
 

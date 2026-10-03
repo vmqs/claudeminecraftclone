@@ -30,6 +30,7 @@ export class SkyDevTools {
     const er = mc.entityRenderer;
     er.torchFlickerX = er.torchFlickerDX = er.torchFlickerY = er.torchFlickerDY = 0;
     er.settleFogBrightness();
+    er.settleFovModifier();
     er.lightmapUpdateNeeded = true;
     p.renderArmYaw = p.prevRenderArmYaw = p.rotationYaw;
     p.renderArmPitch = p.prevRenderArmPitch = p.rotationPitch;

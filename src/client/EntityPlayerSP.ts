@@ -1,3 +1,4 @@
+import { ItemIds } from '../block/BlockIds';
 import { MathHelper } from '../core/MathHelper';
 import type { Entity } from '../entity/Entity';
 import { EntityPlayer } from '../entity/EntityPlayer';
@@ -182,6 +183,10 @@ export class EntityPlayerSP extends EntityPlayer {
       this.timeInPortal = f(this.timeInPortal + f(0.0125));
       if (this.timeInPortal >= 1) this.timeInPortal = 1;
       this.inPortal = false;
+    } else if ((this.getActivePotionEffect(PotionId.confusion)?.getDuration() ?? 0) > 60) {
+      // Nausea warps the view like a portal, slowly, until its last 3 seconds.
+      this.timeInPortal = f(this.timeInPortal + f(0.006666667));
+      if (this.timeInPortal > 1) this.timeInPortal = 1;
     } else {
       if (this.timeInPortal > 0) this.timeInPortal = f(this.timeInPortal - f(0.05));
       if (this.timeInPortal < 0) this.timeInPortal = 0;
@@ -235,10 +240,17 @@ export class EntityPlayerSP extends EntityPlayer {
     }
   }
 
+  /** Flying widens the view by 10%, speed (sprint, potions) by half its gain; drawing a bow zooms in up to 15%. */
   getFOVMultiplier(): number {
     let m = 1;
     if (this.capabilities.isFlying) m = f(m * f(1.1));
     m = f(m * f(f(f(f(this.landMovementFactor * this.getSpeedModifier()) / this.speedOnGround) + 1) / 2));
+    const using = this.getItemInUse();
+    if (this.isUsingItem() && using && using.itemID === ItemIds.bow) {
+      let k = f(this.getItemInUseDuration() / 20);
+      k = k > 1 ? 1 : f(k * k);
+      m = f(m * f(1 - f(k * f(0.15))));
+    }
     return m;
   }
 
@@ -288,7 +300,19 @@ export class EntityPlayerSP extends EntityPlayer {
   }
 
   override isSneaking(): boolean {
-    return this.movementInput.sneak;
+    return this.movementInput.sneak && !this.sleeping;
+  }
+
+  /**
+   * The client's copy of a sleeping player getting up (Packet18Animation 3, sent only for a
+   * sleeping player -> wakeUpPlayer(false, false, false)) always lets the dark overlay fade out,
+   * whatever the server's reason was.
+   */
+  override wakeUpPlayer(immediately: boolean, updateWorld: boolean, setSpawn: boolean): void {
+    const wasSleeping = this.sleeping;
+    const timer = this.sleepTimer;
+    super.wakeUpPlayer(immediately, updateWorld, setSpawn);
+    this.sleepTimer = wasSleeping ? 100 : timer;
   }
 
   override playSound(name: string, volume: number, pitch: number): void {

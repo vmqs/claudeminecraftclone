@@ -1,4 +1,7 @@
 import { Block } from '../block/Block';
+import { type BedSleepStatus, BlockBed } from '../block/BlockBed';
+import { BlockDirectional } from '../block/BlockDirectional';
+import { BlockIds } from '../block/BlockIds';
 import { Material } from '../block/Material';
 import { AxisAlignedBB } from '../core/AxisAlignedBB';
 import { Vec3 } from '../core/Vec3';
@@ -22,6 +25,7 @@ import { EntityList } from './EntityList';
 import { CombatTracker } from './CombatTracker';
 import { FoodStats } from './FoodStats';
 import { EnumGameType } from '../world/EnumGameType';
+import { EntityMob } from './EntityMob';
 import { InventoryPlayer } from './InventoryPlayer';
 import { PlayerCapabilities } from './PlayerCapabilities';
 import { PotionId } from './PotionEffects';
@@ -76,9 +80,6 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
   protected foodStats = new FoodStats();
   /** Recent damage, for the death message (CombatTracker). */
   readonly combatTracker: CombatTracker = new CombatTracker(this);
-  /** The bed (or /spawnpoint) this player respawns at, and whether it is used without a bed. */
-  private spawnChunk: ChunkCoordinates | null = null;
-  private spawnForced = false;
   /** The game mode the server keeps for this player (ItemInWorldManager.gameType). */
   gameType: EnumGameType = EnumGameType.NOT_SET;
   /** Ticks of spawn protection left (EntityPlayerMP.initialInvulnerability): only the void hurts. */
@@ -119,15 +120,18 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
   getItemInUseDuration(): number {
     return this.isUsingItem() ? this.itemInUse!.getMaxItemUseDuration() - this.itemInUseCount : 0;
   }
+  /** Starts using an item; the eating flag is what other players' clients see of it. */
   setItemInUse(stack: ItemStack | null, count: number): void {
     if (stack !== this.itemInUse) {
       this.itemInUse = stack;
       this.itemInUseCount = count;
+      if (!this.worldObj.isRemote) this.setEating(true);
     }
   }
   clearItemInUse(): void {
     this.itemInUse = null;
     this.itemInUseCount = 0;
+    if (!this.worldObj.isRemote) this.setEating(false);
   }
   stopUsingItem(): void {
     if (this.itemInUse) this.itemInUse.onPlayerStoppedUsing(this.worldObj, this, this.itemInUseCount);
@@ -146,6 +150,7 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
       }
     }
     if (this.xpCooldown > 0) this.xpCooldown--;
+    this.updateSleepTimer();
     super.onUpdate();
     if (!this.worldObj.isRemote && !this.openContainer.canInteractWith(this)) {
       this.closeScreen();
@@ -351,8 +356,185 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     return super.attackEntityFrom(src, amount);
   }
 
-  /** Bed sleeping is not implemented yet; the original wakes the player when hurt. */
-  wakeUpPlayer(_resetTimer: boolean, _updateWorld: boolean, _setSpawn: boolean): void {}
+  // ------------------------------------------------------------------ sleeping in beds
+
+  /** Lying in a bed. */
+  protected sleeping = false;
+  /** The head block of the bed slept in (playerLocation). */
+  playerLocation: ChunkCoordinates | null = null;
+  /** Ticks asleep (up to 100); after waking it runs on from 100 to 110 while the dark fades. */
+  protected sleepTimer = 0;
+  /** Offset of the lying body from the bed (field_71079_bU, field_71082_cx, field_71089_bV). */
+  sleepOffsetX = 0;
+  sleepOffsetY = 0;
+  sleepOffsetZ = 0;
+  /** The respawn point set by a bed or /spawnpoint, and whether it needs no bed (spawnForced). */
+  protected spawnChunk: ChunkCoordinates | null = null;
+  protected spawnForced = false;
+
+  /** The sleep part of onUpdate: count the sleep, and get up when the bed is gone or it is day. */
+  private updateSleepTimer(): void {
+    if (this.isPlayerSleeping()) {
+      this.sleepTimer++;
+      if (this.sleepTimer > 100) this.sleepTimer = 100;
+      if (!this.worldObj.isRemote) {
+        if (!this.isInBed()) this.wakeUpPlayer(true, true, false);
+        else if (this.worldObj.isDaytime()) this.wakeUpPlayer(false, true, true);
+      }
+    } else if (this.sleepTimer > 0) {
+      this.sleepTimer++;
+      if (this.sleepTimer >= 110) this.sleepTimer = 0;
+    }
+  }
+
+  /**
+   * Lies down in the bed whose head is at (x, y, z). Refused while asleep or dead, outside a
+   * surface world, by day ("You can only sleep at night"), more than 3 blocks away (2 up/down,
+   * measured from the feet like the server's player) and with any EntityMob within 8 blocks
+   * (5 up/down): "You may not rest now, there are monsters nearby" holds in Creative too.
+   */
+  sleepInBedAt(x: number, y: number, z: number): BedSleepStatus {
+    const w = this.worldObj;
+    if (!w.isRemote) {
+      if (this.isPlayerSleeping() || !this.isEntityAlive()) return 'OTHER_PROBLEM';
+      if (!w.provider.isSurfaceWorld()) return 'NOT_POSSIBLE_HERE';
+      if (w.isDaytime()) return 'NOT_POSSIBLE_NOW';
+      if (Math.abs(this.posX - x) > 3 || Math.abs(this.boundingBox.minY - y) > 2 || Math.abs(this.posZ - z) > 3) return 'TOO_FAR_AWAY';
+      const box = AxisAlignedBB.getBoundingBox(x - 8, y - 5, z - 8, x + 8, y + 5, z + 8);
+      if (w.getEntitiesWithinAABB((e): e is EntityMob => e instanceof EntityMob, box).length > 0) return 'NOT_SAFE';
+    }
+    this.lieDownInBed(x, y, z);
+    if (!w.isRemote) w.updateAllPlayersSleepingFlag();
+    return 'OK';
+  }
+
+  /** The unchecked part of sleepInBedAt (what a client does on Packet17Sleep): lie down in the bed at (x, y, z). */
+  protected lieDownInBed(x: number, y: number, z: number): void {
+    const w = this.worldObj;
+    this.setSize(f(0.2), f(0.2));
+    this.yOffset = f(0.2);
+    if (w.blockExists(x, y, z)) {
+      const dir = BlockDirectional.getDirection(w.getBlockMetadata(x, y, z));
+      let ox = f(0.5);
+      let oz = f(0.5);
+      if (dir === 0) oz = f(0.9);
+      else if (dir === 1) ox = f(0.1);
+      else if (dir === 2) oz = f(0.1);
+      else if (dir === 3) ox = f(0.9);
+      this.setSleepOffset(dir);
+      this.setPosition(f(x + ox), f(y + f(0.9375)), f(z + oz));
+    } else {
+      this.setPosition(f(x + f(0.5)), f(y + f(0.9375)), f(z + f(0.5)));
+    }
+    this.sleeping = true;
+    this.sleepTimer = 0;
+    this.playerLocation = new ChunkCoordinates(x, y, z);
+    this.motionX = this.motionZ = this.motionY = 0;
+  }
+
+  /** func_71013_b: the body lies 1.8 blocks towards the foot of a bed facing `dir`. */
+  private setSleepOffset(dir: number): void {
+    this.sleepOffsetX = 0;
+    this.sleepOffsetZ = 0;
+    if (dir === 0) this.sleepOffsetZ = f(-1.8);
+    else if (dir === 1) this.sleepOffsetX = f(1.8);
+    else if (dir === 2) this.sleepOffsetZ = f(1.8);
+    else if (dir === 3) this.sleepOffsetX = f(-1.8);
+  }
+
+  /**
+   * Gets up: full size again, standing on a free spot next to the bed (or on top of it), the bed
+   * marked free. `immediately` skips the fade of the dark overlay, `updateWorld` refreshes the
+   * world's everyone-asleep flag, `setSpawn` makes the bed this player's spawn point.
+   */
+  wakeUpPlayer(immediately: boolean, updateWorld: boolean, setSpawn: boolean): void {
+    this.setSize(f(0.6), f(1.8));
+    this.resetHeight();
+    const bed = this.playerLocation;
+    const w = this.worldObj;
+    if (bed && w.getBlockId(bed.posX, bed.posY, bed.posZ) === BlockIds.bed) {
+      BlockBed.setBedOccupied(w, bed.posX, bed.posY, bed.posZ, false);
+      const spot = BlockBed.getNearestEmptyChunkCoordinates(w, bed.posX, bed.posY, bed.posZ, 0) ?? { posX: bed.posX, posY: bed.posY + 1, posZ: bed.posZ };
+      this.setPosition(f(spot.posX + f(0.5)), f(f(spot.posY + this.yOffset) + f(0.1)), f(spot.posZ + f(0.5)));
+    }
+    this.sleeping = false;
+    if (!w.isRemote && updateWorld) w.updateAllPlayersSleepingFlag();
+    this.sleepTimer = immediately ? 0 : 100;
+    if (setSpawn) this.setSpawnChunk(this.playerLocation, false);
+  }
+
+  /** The bed slept in is still there. */
+  private isInBed(): boolean {
+    const bed = this.playerLocation;
+    return !!bed && this.worldObj.getBlockId(bed.posX, bed.posY, bed.posZ) === BlockIds.bed;
+  }
+
+  /**
+   * Where a player with spawn point `c` respawns: next to the bed if it still stands there, or
+   * on `c` itself for a forced (/spawnpoint) spawn with room for the player; null when the bed
+   * is gone ("Your home bed was missing or obstructed").
+   */
+  static verifyRespawnCoordinates(w: World, c: ChunkCoordinates, forced: boolean): ChunkCoordinates | null {
+    if (w.getBlockId(c.posX, c.posY, c.posZ) === BlockIds.bed) {
+      const spot = BlockBed.getNearestEmptyChunkCoordinates(w, c.posX, c.posY, c.posZ, 0);
+      return spot ? new ChunkCoordinates(spot.posX, spot.posY, spot.posZ) : null;
+    }
+    const feet = w.getBlockMaterial(c.posX, c.posY, c.posZ);
+    const head = w.getBlockMaterial(c.posX, c.posY + 1, c.posZ);
+    const feetFree = !feet.isSolid() && !feet.isLiquid();
+    const headFree = !head.isSolid() && !head.isLiquid();
+    return forced && feetFree && headFree ? c : null;
+  }
+
+  /** The yaw the lying body faces, from the bed's direction. */
+  getBedOrientationInDegrees(): number {
+    const bed = this.playerLocation;
+    if (bed) {
+      const dir = BlockDirectional.getDirection(this.worldObj.getBlockMetadata(bed.posX, bed.posY, bed.posZ));
+      if (dir === 0) return 90;
+      if (dir === 1) return 0;
+      if (dir === 2) return 270;
+      if (dir === 3) return 180;
+    }
+    return 0;
+  }
+
+  override isPlayerSleeping(): boolean {
+    return this.sleeping;
+  }
+
+  /** Slept the full 100 ticks (the night is skipped once every player has). */
+  isPlayerFullyAsleep(): boolean {
+    return this.sleeping && this.sleepTimer >= 100;
+  }
+
+  getSleepTimer(): number {
+    return this.sleepTimer;
+  }
+
+  /** A sleeping player's small box is inside the bed, which does not suffocate. */
+  override isEntityInsideOpaqueBlock(): boolean {
+    return !this.sleeping && super.isEntityInsideOpaqueBlock();
+  }
+
+  /** The spawn point from a bed or /spawnpoint (getBedLocation), or null for the world spawn. */
+  getBedLocation(): ChunkCoordinates | null {
+    return this.spawnChunk;
+  }
+
+  isSpawnForced(): boolean {
+    return this.spawnForced;
+  }
+
+  setSpawnChunk(c: ChunkCoordinates | null, forced: boolean): void {
+    if (c) {
+      this.spawnChunk = new ChunkCoordinates(c.posX, c.posY, c.posZ);
+      this.spawnForced = forced;
+    } else {
+      this.spawnChunk = null;
+      this.spawnForced = false;
+    }
+  }
 
   /**
    * Sends this player's tame wolves within 16 blocks (4 up/down) after `target`, unless it is
@@ -441,20 +623,6 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
       const n = cm(dx * dx + dz * dz);
       if (n > 0) this.addExhaustion(f(f((this.isSprinting() ? f(0.099999994) : f(0.01)) * n) * f(0.01)));
     }
-  }
-
-  /** The bed or /spawnpoint position this player respawns at (null: the world spawn). */
-  getBedLocation(): ChunkCoordinates | null {
-    return this.spawnChunk;
-  }
-
-  isSpawnForced(): boolean {
-    return this.spawnForced;
-  }
-
-  setSpawnChunk(c: ChunkCoordinates | null, forced: boolean): void {
-    this.spawnChunk = c ? new ChunkCoordinates(c.posX, c.posY, c.posZ) : null;
-    this.spawnForced = c ? forced : false;
   }
 
   /**
@@ -705,6 +873,11 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
 
   override getEntityName(): string {
     return this.username;
+  }
+
+  /** Other players' names always float above them (func_94059_bO). */
+  override getAlwaysRenderNameTag(): boolean {
+    return true;
   }
 
   sendPlayerAbilities(): void {}

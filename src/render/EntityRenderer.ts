@@ -1,4 +1,5 @@
 import { Block } from '../block/Block';
+import { BlockIds } from '../block/BlockIds';
 import { Material } from '../block/Material';
 import type { Minecraft } from '../client/Minecraft';
 import { MouseFilter } from '../client/MouseFilter';
@@ -8,6 +9,7 @@ import { Vec3 } from '../core/Vec3';
 import type { Entity } from '../entity/Entity';
 import type { EntityLiving } from '../entity/EntityLiving';
 import type { EntityPlayer } from '../entity/EntityPlayer';
+import { PotionId } from '../entity/PotionEffects';
 import { ActiveRenderInfo } from './ActiveRenderInfo';
 import { RenderManager } from './entity/RenderManager';
 import { Frustum } from './Frustum';
@@ -122,6 +124,16 @@ export class EntityRenderer {
     this.fogColor1 = this.fogColor2 = this.fogBrightnessTarget();
   }
 
+  /** Jumps the eased FOV modifier to its target (for captures, as the reference harness does). */
+  settleFovModifier(): void {
+    const p = this.mc.thePlayer;
+    if (!p) return;
+    let m = p.getFOVMultiplier();
+    if (m > 1.5) m = 1.5;
+    if (m < 0.1) m = f(0.1);
+    this.fovModifierHand = this.fovModifierHandPrev = m;
+  }
+
   /** Picks the block (reach) or entity (3 blocks, 6 in creative) under the crosshair. */
   getMouseOver(pt: number): void {
     const view = this.mc.renderViewEntity;
@@ -231,7 +243,19 @@ export class EntityRenderer {
     const y = e.prevPosY + (e.posY - e.prevPosY) * pt - yOff;
     const z = e.prevPosZ + (e.posZ - e.prevPosZ) * pt;
     GL.rotate(f(this.prevCamRoll + (this.camRoll - this.prevCamRoll) * pt), 0, 0, 1);
-    if (this.mc.gameSettings.thirdPersonView > 0) {
+    let eyeOffset = yOff;
+    if (e.isPlayerSleeping()) {
+      // Lying in a bed: look along the bed, whatever the player's own yaw and pitch.
+      eyeOffset = f(eyeOffset + 1);
+      GL.translate(0, f(0.3), 0);
+      const w = this.mc.theWorld!;
+      const bx = MathHelper.floor_double(e.posX);
+      const by = MathHelper.floor_double(e.posY);
+      const bz = MathHelper.floor_double(e.posZ);
+      if (w.getBlockId(bx, by, bz) === BlockIds.bed) GL.rotate((w.getBlockMetadata(bx, by, bz) & 3) * 90, 0, 1, 0);
+      GL.rotate(f(f(e.prevRotationYaw + (e.rotationYaw - e.prevRotationYaw) * pt) + 180), 0, -1, 0);
+      GL.rotate(f(e.prevRotationPitch + (e.rotationPitch - e.prevRotationPitch) * pt), -1, 0, 0);
+    } else if (this.mc.gameSettings.thirdPersonView > 0) {
       let dist = f(this.thirdPersonDistanceTemp + (this.thirdPersonDistance - this.thirdPersonDistanceTemp) * pt);
       const yaw = e.rotationYaw;
       let pitch = e.rotationPitch;
@@ -260,7 +284,7 @@ export class EntityRenderer {
     }
     GL.rotate(f(e.prevRotationPitch + (e.rotationPitch - e.prevRotationPitch) * pt), 1, 0, 0);
     GL.rotate(f(f(e.prevRotationYaw + (e.rotationYaw - e.prevRotationYaw) * pt) + 180), 0, 1, 0);
-    GL.translate(0, yOff, 0);
+    GL.translate(0, eyeOffset, 0);
     this.cloudFog = this.mc.renderGlobal.hasCloudFog();
   }
 
@@ -275,7 +299,8 @@ export class EntityRenderer {
     if (this.mc.gameSettings.viewBobbing) this.setupViewBobbing(pt);
     const portal = f(this.mc.thePlayer!.prevTimeInPortal + (this.mc.thePlayer!.timeInPortal - this.mc.thePlayer!.prevTimeInPortal) * pt);
     if (portal > 0) {
-      const speed = 20;
+      // Nausea turns the warp more slowly than a portal does.
+      const speed = this.mc.thePlayer!.isPotionActive(PotionId.confusion) ? 7 : 20;
       let s = f(f(5 / f(f(portal * portal) + 5)) - f(portal * f(0.04)));
       s = f(s * s);
       GL.rotate(f((this.rendererUpdateCount + pt) * speed), 0, 1, 1);
