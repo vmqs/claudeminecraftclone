@@ -255,12 +255,15 @@ export class EntityPlayerSP extends EntityPlayer {
   }
 
   /**
-   * The client's copy of a player getting up (Packet18Animation 3 -> wakeUpPlayer(false, false,
-   * false)) always lets the dark overlay fade out, whatever the server's reason was.
+   * The client's copy of a sleeping player getting up (Packet18Animation 3, sent only for a
+   * sleeping player -> wakeUpPlayer(false, false, false)) always lets the dark overlay fade out,
+   * whatever the server's reason was.
    */
   override wakeUpPlayer(immediately: boolean, updateWorld: boolean, setSpawn: boolean): void {
+    const wasSleeping = this.sleeping;
+    const timer = this.sleepTimer;
     super.wakeUpPlayer(immediately, updateWorld, setSpawn);
-    this.sleepTimer = 100;
+    this.sleepTimer = wasSleeping ? 100 : timer;
   }
 
   override playSound(name: string, volume: number, pitch: number): void {

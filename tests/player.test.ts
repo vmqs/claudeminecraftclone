@@ -11,7 +11,10 @@ import { BlockIds as B, ItemIds as I } from '../src/block/BlockIds';
 import { EntityPlayerSP, type PlayerClient } from '../src/client/EntityPlayerSP';
 import { ChunkCoordinates } from '../src/entity/EntityLiving';
 import { EntityMob } from '../src/entity/EntityMob';
+import { EntityOtherPlayerMP } from '../src/entity/EntityOtherPlayerMP';
 import { EntityPlayer } from '../src/entity/EntityPlayer';
+import { DamageSource } from '../src/entity/DamageSource';
+import { hashMapOrder, potionLevelSuffix } from '../src/gui/inventory/InventoryEffectRenderer';
 import { PotionId } from '../src/entity/PotionEffects';
 import { installPotionHooks } from '../src/entity/ItemHooksInstall';
 import { registerBlockItems } from '../src/item/Items';
@@ -233,6 +236,50 @@ const bed = Block.blocksList[B.bed]!;
   const hp = p.getHealth();
   p.onUpdate();
   check('instant damage cannot hurt a Creative player', p.getHealth() === hp);
+}
+
+// ---------------------------------------------------------------- other players, hurt in bed, effect list
+{
+  const w = makeWorld();
+  const p = makePlayer(w, 0, 0);
+  const [hx, hz] = placeBed(w, 4, 4, 2);
+  w.setWorldTime(6000);
+  w.tick();
+  const other = new EntityOtherPlayerMP(w, 'Alex');
+  other.setLocationAndAngles(hx + 0.5, 4, hz + 0.5, 0, 0);
+  w.spawnEntityInWorld(other);
+  check('other player: feet at posY (yOffset 0)', other.yOffset === 0 && other.boundingBox.minY === 4);
+  check('other player lies down by day (Packet17Sleep, no checks)', other.sleepInBedAt(hx, 4, hz) === 'OK' && other.isPlayerSleeping());
+  check('other player: dir 2 lies at z+0.1, offset z +1.8, orientation 270', Math.abs(other.posZ - (hz + 0.1)) < 1e-6 && other.sleepOffsetZ === f(1.8) && other.getBedOrientationInDegrees() === 270);
+  check('other player: lies a quarter block higher until updated', other.sleepOffsetY === f(0.25));
+  check('other players show their name tag', other.getAlwaysRenderNameTag());
+  w.removeEntity(other);
+
+  w.setWorldTime(18000);
+  w.tick();
+  p.setLocationAndAngles(hx + 0.5, 4, hz - 1.5, 0, 0);
+  bed.onBlockActivated(w, hx, 4, hz, p, 1, 0.5, 0.5, 0.5);
+  check('sleeps (dir 2)', p.isPlayerSleeping());
+  p.capabilities.disableDamage = false;
+  p.attackEntityFrom(DamageSource.generic, 1);
+  check('hurt in bed: woken without a new spawn point', !p.isPlayerSleeping() && p.getBedLocation() === null && p.getSleepTimer() === 100);
+  p.capabilities.disableDamage = true;
+  for (let i = 0; i < 5; i++) p.onUpdate();
+  p.wakeUpPlayer(false, true, true);
+  check('waking an awake player keeps the fade going', p.getSleepTimer() === 105, String(p.getSleepTimer()));
+
+  p.setItemInUse(new ItemStack(I.bow, 1, 0), 100);
+  check('item use raises the eating flag', p.isEating());
+  p.clearItemInUse();
+  check('and clears it', !p.isEating());
+}
+{
+  const e = (id: number) => new PotionEffect(id, 100, 0);
+  const order = hashMapOrder([e(1), e(3), e(8), e(12), e(16), e(13)]).map((x) => x.getPotionID());
+  check('effect list in Java HashMap order (16 first)', order.join() === '16,1,3,8,12,13', order.join());
+  const order2 = hashMapOrder([e(1), e(17)]).map((x) => x.getPotionID());
+  check('same bucket: the later effect first (Java 7 HashMap)', order2.join() === '17,1', order2.join());
+  check('level suffixes', potionLevelSuffix(0) === '' && potionLevelSuffix(1) === ' II' && potionLevelSuffix(3) === ' IV' && potionLevelSuffix(4) === '');
 }
 
 report();

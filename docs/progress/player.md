@@ -18,7 +18,7 @@ Branch `w2/player`, base 96e8639.
 - [x] InventoryEffectRenderer (effect list beside the survival inventory)
 - [x] RenderPlayer details (fishing rod -> stick, name tags), EntityOtherPlayerMP, eating flag
 - [x] Beacon effect hook, FOV settling for captures
-- [x] Node test tests/player.test.ts (46 checks) + scripts/scenarios/player.json (all checks pass)
+- [x] Node test tests/player.test.ts (59 checks) + scripts/scenarios/player.json (all checks pass)
 - [x] Vanilla references: scratchpad ref/extra/player (private harness vanilla-player with
       otherplayer/bed/sleepin/useitem/armorcolor commands)
 
