@@ -43,6 +43,10 @@ const PUSH_TICKS = 40;
 
 type Flying = PacketOf<'Flying'>;
 
+/** Size of a rejoin token (MC|Rejoin): 128 random bits. */
+export const REJOIN_TOKEN_BYTES = 16;
+export const toHex = (b: Uint8Array) => [...b].map((v) => v.toString(16).padStart(2, '0')).join('');
+
 const finite = (...v: number[]) => v.every((n) => Number.isFinite(n));
 
 /**
@@ -80,6 +84,12 @@ export class NetServerHandler {
   private pushTicks = 0;
   /** Loaded chunks on the guest (PlayerManager), by World.chunkKey. */
   readonly loadedChunks = new Set<number>();
+  /** The rejoin token the guest showed (MC|Rejoin after the handshake), as hex; '' when none. */
+  presentedToken = '';
+  /** The token this player's saved state is tied to (sent to the guest after the login). */
+  token = '';
+  /** Whether LanServer.canJoin ran for this login. */
+  loginChecked = false;
   /** Bytes and messages sent (F3 and tests). */
   bytesSent = 0;
   framesSent = 0;
@@ -117,6 +127,14 @@ export class NetServerHandler {
     }
     this.incoming.push(...packets);
     if (this.incoming.length > PACKET_BURST * 2) this.kick('Sending too many packets', true);
+  }
+
+  /** The guest left (Packet255 "Quitting"). */
+  private quit(): void {
+    if (this.state === 'closed') return;
+    this.state = 'closed';
+    this.conn.close();
+    this.server.playerDisconnected(this, 'Quitting');
   }
 
   private onConnectionLost(reason: string): void {
@@ -210,11 +228,16 @@ export class NetServerHandler {
   private handle(p: Packet): void {
     if (this.state === 'handshake') {
       if (p.type === 'Handshake') this.handleHandshake(p);
-      else if (p.type === 'KickDisconnect') this.onConnectionLost('Quitting');
+      else if (p.type === 'KickDisconnect') this.quit();
       else this.kick('Protocol error, expected a handshake', true);
       return;
     }
-    if (this.state === 'login') return;
+    if (this.state === 'login') {
+      // The rejoin token comes right after the handshake (LanServer checks it before the login).
+      if (p.type === 'CustomPayload' && p.channel === 'MC|Rejoin' && p.data.length === REJOIN_TOKEN_BYTES) this.presentedToken = toHex(p.data);
+      else if (p.type === 'KickDisconnect') this.quit();
+      return;
+    }
     const player = this.player!;
     switch (p.type) {
       case 'KeepAlive':
@@ -274,10 +297,7 @@ export class NetServerHandler {
       case 'CustomPayload':
         return this.handleCustomPayload(p.channel, p.data);
       case 'KickDisconnect':
-        this.state = 'closed';
-        this.conn.close();
-        this.server.playerDisconnected(this, 'Quitting');
-        return;
+        return this.quit();
       default:
         this.kick(`Protocol error, unexpected packet ${p.type}`, true);
     }
@@ -292,11 +312,6 @@ export class NetServerHandler {
     }
     if (!isValidUsername(p.username)) {
       this.kick('Invalid username!');
-      return;
-    }
-    const refusal = this.server.canJoin(p.username);
-    if (refusal) {
-      this.kick(refusal);
       return;
     }
     this.username = p.username;

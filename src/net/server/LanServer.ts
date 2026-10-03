@@ -16,7 +16,7 @@ import type { Packet } from '../protocol/Packets';
 import type { HostTransport, NetConnection } from '../transport/Transport';
 import { EntityPlayerMP, type PlayerServer } from './EntityPlayerMP';
 import { EntityTracker } from './EntityTracker';
-import { NetServerHandler } from './NetServerHandler';
+import { NetServerHandler, REJOIN_TOKEN_BYTES, toHex } from './NetServerHandler';
 
 /** What the LAN server needs from the host's game client. */
 export interface LanHostClient {
@@ -54,12 +54,21 @@ interface SavedPlayer {
   currentItem: number;
   state: PlayerSurvivalState;
   dead: boolean;
+  /** The rejoin token the player was given: only a guest showing it gets this state back. */
+  token: string;
+  /** When the player left (performance.now()). */
+  leftAt: number;
 }
 
 export interface PlayerListEntry {
   name: string;
   responseTime: number;
 }
+
+/** Guests whose state is kept (the oldest is forgotten first). */
+const MAX_SAVED_PLAYERS = 64;
+/** How long a departed guest's name stays reserved for its owner (then the name is free again). */
+const SAVED_NAME_RESERVED_MS = 30 * 60 * 1000;
 
 const CHUNKS_PER_TICK = 4;
 const MAX_PENDING_SENDS = 24;
@@ -81,6 +90,13 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
   code = '';
   private readonly pendingLogins: { h: NetServerHandler; since: number }[] = [];
   private readonly saved = new Map<string, SavedPlayer>();
+  /** Lower-case names that died in Hardcore this session (BanEntry "Death in Hardcore"). */
+  private readonly hardcoreDead = new Set<string>();
+  /** Lower-case names the host banned for the session (/ban), with the reason. */
+  readonly bannedNames = new Map<string, string>();
+  /** /whitelist: when on, only these lower-case names may join. */
+  whitelistOn = false;
+  readonly whitelist = new Set<string>();
   private readonly changedBlocks = new Map<number, Set<number>>();
   private readonly changedTiles = new Set<string>();
   private readonly chunkCache = new Map<number, { data: Uint8Array; tick: number }>();
@@ -145,12 +161,32 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
 
   // ------------------------------------------------------------------ players
 
-  /** A refusal reason for a name, or null (the original kicked the older login; here the newcomer is told). */
-  canJoin(name: string): string | null {
+  /**
+   * allowUserToConnect: a refusal reason for a guest about to log in, or null. Runs after the
+   * handshake and the rejoin token. A second login under a connected player's name wins when it
+   * shows that player's token ("You logged in from another location", as 1.5.2 did for every
+   * second login); without it the name is taken. A departed guest's name stays reserved for the
+   * guest holding its token for a while, so nobody else gets its things.
+   */
+  private canJoin(h: NetServerHandler): string | null {
+    const name = h.username;
     const lower = name.toLowerCase();
     if (this.host.hostName.toLowerCase() === lower) return `The name ${name} is already taken`;
-    for (const h of this.handlers) if (h.state !== 'handshake' && h.state !== 'closed' && h.username.toLowerCase() === lower) return `The name ${name} is already taken`;
-    const count = this.handlers.filter((h) => h.state === 'play' || h.state === 'login').length;
+    const ban = this.bannedNames.get(lower);
+    if (ban !== undefined) return `You are banned from this game: ${ban}`;
+    if (this.hardcoreDead.has(lower)) return "You have died. Game over, man, it's game over!";
+    if (this.whitelistOn && !this.whitelist.has(lower)) return 'You are not white-listed on this server!';
+    for (const o of this.handlers) {
+      if (o === h || (o.state !== 'play' && o.state !== 'login') || o.username.toLowerCase() !== lower) continue;
+      if (h.presentedToken !== '' && h.presentedToken === o.token) o.kick('You logged in from another location');
+      else return `The name ${name} is already taken`;
+    }
+    const saved = this.saved.get(lower);
+    if (saved && saved.token !== h.presentedToken) {
+      if (performance.now() - saved.leftAt < SAVED_NAME_RESERVED_MS) return `${name} left this game a short while ago; to come back as ${name}, rejoin from the same browser, or pick another name`;
+      this.saved.delete(lower);
+    }
+    const count = this.handlers.filter((o) => o !== h && (o.state === 'play' || o.state === 'login')).length;
     if (count + 1 >= this.settings.maxPlayers) return 'The server is full!';
     return null;
   }
@@ -178,6 +214,15 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
         this.pendingLogins.splice(i--, 1);
         continue;
       }
+      if (!h.loginChecked) {
+        h.loginChecked = true;
+        const refusal = this.canJoin(h);
+        if (refusal) {
+          this.pendingLogins.splice(i--, 1);
+          h.kick(refusal);
+          continue;
+        }
+      }
       const saved = this.saved.get(h.username.toLowerCase());
       const ready = saved && !saved.dead ? this.chunkReadyAt(saved.x, saved.z) : this.spawnAreaReady();
       if (!ready) {
@@ -201,6 +246,8 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
     }
     if (saved && !saved.dead) p.setLocationAndAngles(saved.x, saved.y, saved.z, saved.yaw, saved.pitch);
     else PlayerSpawning.placeAtWorldSpawn(p, w);
+    h.token = saved?.token || h.token || randomToken();
+    this.saved.delete(h.username.toLowerCase());
     h.completeLogin(p);
     p.theItemInWorldManager.initializeGameType(saved ? p.gameType : this.settings.gameType);
     const info = w.worldInfo;
@@ -220,6 +267,8 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
       viewDistance: this.settings.viewDistance,
       allowCommands: this.settings.allowCommands,
     });
+    // The guest keeps this to get its things back when it rejoins (MC|Rejoin).
+    h.sendPacket({ type: 'CustomPayload', channel: 'MC|Rejoin', data: fromHex(h.token) });
     h.sendPacket({ type: 'SpawnPosition', x: info.spawnX, y: info.spawnY, z: info.spawnZ });
     p.sendPlayerAbilities();
     h.sendPacket({ type: 'UpdateTime', totalTime: info.totalTime, worldTime: info.worldTime });
@@ -245,7 +294,11 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
     if (!p) return;
     console.info(`[lan] ${p.username} lost connection: ${reason}`);
     p.mountEntityAndWakeUp();
-    this.saved.set(p.username.toLowerCase(), {
+    const lower = p.username.toLowerCase();
+    if (this.world.worldInfo.hardcore && p.getHealth() <= 0) this.hardcoreDead.add(lower);
+    this.saved.delete(lower);
+    while (this.saved.size >= MAX_SAVED_PLAYERS) this.saved.delete(this.saved.keys().next().value!);
+    this.saved.set(lower, {
       x: p.posX,
       y: p.posY,
       z: p.posZ,
@@ -256,6 +309,8 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
       currentItem: p.inventory.currentItem,
       state: PlayerSpawning.captureState(p),
       dead: p.getHealth() <= 0,
+      token: h.token,
+      leftAt: performance.now(),
     });
     // The cursor stack and open windows drop like on a server logout.
     p.closeInventory();
@@ -272,6 +327,8 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
     if (!old || old.getHealth() > 0) return;
     const w = this.world;
     if (w.worldInfo.hardcore) {
+      // 1.5.2 put a "Death in Hardcore" ban entry; the name stays out for the session.
+      this.hardcoreDead.add(old.username.toLowerCase());
       h.kick("You have died. Game over, man, it's game over!");
       return;
     }
@@ -625,6 +682,18 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
       if (dx * dx + dy * dy + dz * dz < 1024) h.sendPacket({ type: 'BlockDestroy', entityId, x, y, z, progress });
     }
   }
+}
+
+function randomToken(): string {
+  const b = new Uint8Array(REJOIN_TOKEN_BYTES);
+  globalThis.crypto.getRandomValues(b);
+  return toHex(b);
+}
+
+function fromHex(hex: string): Uint8Array {
+  const out = new Uint8Array(hex.length >> 1);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return out;
 }
 
 function levelSound(name: string, x: number, y: number, z: number, volume: number, pitch: number): Packet {

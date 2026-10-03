@@ -31,6 +31,12 @@ import type { PlayerControllerGuest } from './PlayerControllerGuest';
 import { INTERPOLATION_STEPS, setRemoteTarget, snapToTarget } from './RemoteEntityTick';
 import { WorldClient } from './WorldClient';
 
+function fromHex(hex: string): Uint8Array {
+  const out = new Uint8Array(hex.length >> 1);
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
+
 /** Largest message the host may send (a chunk is far smaller), and the most packets in one. */
 const MAX_HOST_MESSAGE = 8 * 1024 * 1024;
 const MAX_HOST_PACKETS = 8192;
@@ -58,6 +64,10 @@ export interface GuestClient {
   critParticles?(target: Entity, magic: boolean): void;
   /** The guest's controller, for the selected slot the host sets. */
   readonly guestController: PlayerControllerGuest | null;
+  /** The rejoin token kept for this room and name (hex), if any. */
+  rejoinToken?(): string | null;
+  /** The host gave this player a rejoin token (MC|Rejoin): keep it for the room and name. */
+  storeRejoinToken?(token: string): void;
 }
 
 /**
@@ -96,6 +106,9 @@ export class NetClientHandler {
   /** Sends the handshake (Packet2): protocol version and username. */
   start(): void {
     this.addToSendQueue({ type: 'Handshake', protocolVersion: PROTOCOL_VERSION, gameVersion: GAME_VERSION, username: this.client.username });
+    // Coming back to a room: the token the host gave this name gets its things back.
+    const token = this.client.rejoinToken?.() ?? null;
+    if (token && /^[0-9a-f]{32}$/.test(token)) this.addToSendQueue({ type: 'CustomPayload', channel: 'MC|Rejoin', data: fromHex(token) });
     this.flush();
   }
 
@@ -365,6 +378,7 @@ export class NetClientHandler {
       case 'AutoComplete':
         return this.client.autocompleteResponse(p.text.split('\u0000'));
       case 'CustomPayload':
+        if (p.channel === 'MC|Rejoin' && p.data.length === 16) this.client.storeRejoinToken?.([...p.data].map((v) => v.toString(16).padStart(2, '0')).join(''));
         return;
       case 'KickDisconnect':
         return this.fail('disconnect.disconnected', p.reason);

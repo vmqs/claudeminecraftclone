@@ -126,6 +126,8 @@ interface Guest {
 }
 
 const guests: Guest[] = [];
+/** The guests' "browser storage" of rejoin tokens, by name. */
+const rejoinTokens = new Map<string, string>();
 
 async function join(name: string, version = PROTOCOL_VERSION): Promise<Guest> {
   const conn = await hub.guest().connect('ABC234', 1000);
@@ -175,6 +177,8 @@ async function join(name: string, version = PROTOCOL_VERSION): Promise<Guest> {
     printChat: (msg) => chat.push(msg),
     setGameType: (t) => g.pc.setGameType(t),
     autocompleteResponse() {},
+    rejoinToken: () => rejoinTokens.get(name.toLowerCase()) ?? null,
+    storeRejoinToken: (t) => rejoinTokens.set(name.toLowerCase(), t),
   };
   g.handler = new NetClientHandler(client, conn);
   g.pc = new PlayerControllerGuest(mc as never, g.handler);
@@ -678,6 +682,36 @@ check('guest is creative (LAN game mode)', bob.pc.isInCreativeMode() && bobMP!.c
   check('TAB list without the leaver', !bob.handler.playerInfo.has('Carol'));
 }
 
+// ---------------------------------------------------------------------- names of departed guests
+{
+  const owner = await join('Owner');
+  step(10);
+  hostPlayerOf('Owner')!.inventory.mainInventory[0] = new ItemStack(I.diamond, 64, 0);
+  step(2);
+  owner.handler.disconnect();
+  step(3);
+  const thief = await rawJoin('owner');
+  check("someone else cannot take a departed guest's things", hostPlayerOf('owner') === null && thief.kick()?.includes('left this game') === true, thief.kick());
+  const back = await join('Owner');
+  step(10);
+  check('the owner gets them back with its token', back.handler.state === 'play' && hostPlayerOf('Owner')?.inventory.mainInventory[0]?.stackSize === 64);
+  back.handler.disconnect();
+  step(3);
+  // Hardcore: a dead guest is kicked when it respawns and cannot come back under that name.
+  hw.worldInfo.hardcore = true;
+  const hardy = await join('Hardy');
+  step(10);
+  hostPlayerOf('Hardy')!.attackEntityFrom(DamageSource.outOfWorld, 1000);
+  step(3);
+  hardy.mc.thePlayer!.respawnPlayer();
+  step(3);
+  check('hardcore death kicks the guest', hardy.disconnected?.reason === "You have died. Game over, man, it's game over!", hardy.disconnected?.reason);
+  const again = await join('Hardy');
+  step(5);
+  check('a hardcore death keeps the name out', again.disconnected?.reason === "You have died. Game over, man, it's game over!" && hostPlayerOf('Hardy') === null, again.disconnected?.reason);
+  hw.worldInfo.hardcore = false;
+}
+
 // ---------------------------------------------------------------------- reconnect keeps the inventory
 {
   hostPlayerOf('Bob')!.inventory.mainInventory[5] = new ItemStack(I.emerald, 7, 0);
@@ -689,10 +723,17 @@ check('guest is creative (LAN game mode)', bob.pc.isInCreativeMode() && bobMP!.c
   step(10);
   check('returning player keeps its things', again.mc.thePlayer!.inventory.mainInventory[5]?.itemID === I.emerald);
   check('returning player keeps its place', Math.abs(again.mc.thePlayer!.posX - lastPos) < 0.01, `${again.mc.thePlayer!.posX} vs ${lastPos}`);
+  // Logging in again while the old connection is still open (a reloaded tab): with the token the
+  // new login wins, as in 1.5.2; the old one is told why.
+  const twin = await join('Bob');
+  step(10);
+  check('a second login with the token replaces the first', twin.handler.state === 'play' && again.disconnected?.reason === 'You logged in from another location' && hostPlayerOf('Bob')?.inventory.mainInventory[5]?.itemID === I.emerald, `${twin.handler.state} ${twin.disconnected?.reason} / ${again.disconnected?.reason}`);
+  const lastWithoutToken = await rawJoin('bob');
+  check('a second login without the token is refused', lastWithoutToken.kick()?.includes('already taken') === true, lastWithoutToken.kick());
   // Host closes the game: the guest is told.
   lan.stop();
   step(3);
-  check('host closing shows the guest a reason', again.disconnected?.reason === 'Server closed', again.disconnected?.reason);
+  check('host closing shows the guest a reason', twin.disconnected?.reason === 'Server closed', twin.disconnected?.reason);
   check('host world back to single player', hw.netEvents === null);
 }
 

@@ -71,6 +71,7 @@ import { PlayerControllerGuest } from '../net/client/PlayerControllerGuest';
 import type { WorldClient } from '../net/client/WorldClient';
 import { CONNECT_TIMEOUT_MS, makeGuestTransport, makeHostTransport } from '../net/NetSession';
 import { generateRoomCode, normalizeRoomCode } from '../net/RoomCode';
+import { loadRejoinToken, saveRejoinToken } from '../net/RejoinTokens';
 import { ConnectError, type GuestTransport } from '../net/transport/Transport';
 import { loadUsername } from '../net/Username';
 import { EntityCrit2FX } from '../render/particle/EntityCrit2FX';
@@ -142,6 +143,8 @@ export class Minecraft implements SettingsListener {
   /** The connection to a host while playing as a guest (NetClientHandler). */
   netHandler: NetClientHandler | null = null;
   private guestTransport: GuestTransport | null = null;
+  /** The room code this guest joined (for its rejoin token). */
+  private guestRoomCode: string | null = null;
   displayWidth = 854;
   displayHeight = 480;
   inGameHasFocus = false;
@@ -1030,6 +1033,7 @@ export class Minecraft implements SettingsListener {
     }
     const transport = makeGuestTransport();
     this.guestTransport = transport;
+    this.guestRoomCode = code;
     transport.connect(code, CONNECT_TIMEOUT_MS).then(
       (conn) => {
         if (this.guestTransport !== transport) {
@@ -1081,6 +1085,10 @@ export class Minecraft implements SettingsListener {
       },
       critParticles: (target: Entity, magic: boolean) => {
         if (this.theWorld) this.effectRenderer.addEffect(new EntityCrit2FX(this.theWorld, target, magic ? 'magicCrit' : undefined));
+      },
+      rejoinToken: () => (this.guestRoomCode ? loadRejoinToken(this.guestRoomCode, this.username) : null),
+      storeRejoinToken: (token) => {
+        if (this.guestRoomCode) saveRejoinToken(this.guestRoomCode, this.username, token);
       },
     };
   }

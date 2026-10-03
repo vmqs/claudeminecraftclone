@@ -82,3 +82,8 @@ each (with a netsession / netprotocol check where it can be tested in Node).
   password are PBKDF2-SHA256 (200k iterations) halves of the code, so relay observers cannot
   enumerate rooms cheaply. TODO in docs: say plainly that every peer in a room sees the others'
   IP addresses; host moderation is /kick, /ban, /whitelist (minor fixes below).
+- [x] Major: saved guest state is tied to a 128-bit rejoin token (MC|Rejoin custom payload both
+  ways; the guest keeps it in localStorage per room and name, `net/RejoinTokens.ts`). Without it a
+  departed guest's name is refused for 30 min; a second login with the token replaces the first
+  ("You logged in from another location", also the minor relogin finding). Saved states capped at 64.
+- [x] Major: a Hardcore death keeps the name out for the session (respawn kick, or leaving dead).
