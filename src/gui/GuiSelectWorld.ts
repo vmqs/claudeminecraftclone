@@ -1,14 +1,20 @@
 import { I18n } from '../core/I18n';
 import type { Tessellator } from '../render/gl/Tessellator';
-import { formatSaveDate, SaveFormatMemory, type SaveSummary } from '../world/storage/SaveFormatMemory';
+import { formatSaveDate, SaveFormat, type SaveSummary } from '../world/storage/SaveFormat';
+import { downloadFile, exportWorld, importWorld, MAX_ZIP_BYTES, pickFile } from '../world/storage/WorldTransfer';
 import { GuiButton } from './GuiButton';
 import { GuiCreateWorld } from './GuiCreateWorld';
+import { GuiErrorScreen } from './GuiErrorScreen';
 import { GuiRenameWorld } from './GuiRenameWorld';
 import { GuiScreen } from './GuiScreen';
 import { GuiSlot } from './GuiSlot';
 import { GuiYesNo } from './GuiYesNo';
 
-/** "Select World" (GuiSelectWorld): the worlds of this session with Play, Create, Rename, Delete and Re-Create. */
+/**
+ * "Select World" (GuiSelectWorld): the saved worlds, most recently played first, with Play,
+ * Create, Rename, Delete and Re-Create; Import and Export (a .zip of the 1.5.2 save folder) sit
+ * in the header so the original layout below stays as it was.
+ */
 export class GuiSelectWorld extends GuiScreen {
   /** Fixed by tests for repeatable captures (the reference pins 5/7/13 12:00 PM); null = the real date. */
   static pinnedDate: number | null = null;
@@ -24,6 +30,8 @@ export class GuiSelectWorld extends GuiScreen {
   buttonSelect!: GuiButton;
   buttonRename!: GuiButton;
   buttonRecreate!: GuiButton;
+  buttonExport!: GuiButton;
+  private readonly onSavesChanged = (): void => this.reloadSaves();
 
   constructor(protected readonly parentScreen: GuiScreen) {
     super();
@@ -47,8 +55,34 @@ export class GuiSelectWorld extends GuiScreen {
   }
 
   private loadSaves(): void {
-    this.saveList = SaveFormatMemory.instance.getSaveList();
+    const saves = SaveFormat.instance;
+    this.saveList = saves.getSaveList();
     this.selectedWorld = -1;
+    saves.listeners.add(this.onSavesChanged);
+    void saves.ensureLoaded();
+  }
+
+  /** The list changed (read from the browser's storage, renamed, deleted, imported). */
+  private reloadSaves(selectFolder?: string): void {
+    const keep = selectFolder ?? (this.selectedWorld >= 0 ? this.saveList[this.selectedWorld]?.fileName : undefined);
+    this.saveList = SaveFormat.instance.getSaveList();
+    const i = keep === undefined ? -1 : this.saveList.findIndex((s) => s.fileName === keep);
+    this.setSelected(i);
+  }
+
+  setSelected(i: number): void {
+    this.selectedWorld = i;
+    const ok = i >= 0 && i < this.saveList.length;
+    if (!this.buttonSelect) return;
+    this.buttonSelect.enabled = ok;
+    this.buttonRename.enabled = ok;
+    this.buttonDelete.enabled = ok;
+    this.buttonRecreate.enabled = ok;
+    this.buttonExport.enabled = ok;
+  }
+
+  override onGuiClosed(): void {
+    SaveFormat.instance.listeners.delete(this.onSavesChanged);
   }
 
   getSaveFileName(i: number): string {
@@ -70,10 +104,13 @@ export class GuiSelectWorld extends GuiScreen {
     this.buttonList.push((this.buttonDelete = new GuiButton(2, cx - 76, this.height - 28, 72, 20, t('selectWorld.delete'))));
     this.buttonList.push((this.buttonRecreate = new GuiButton(7, cx + 4, this.height - 28, 72, 20, t('selectWorld.recreate'))));
     this.buttonList.push(new GuiButton(0, cx + 82, this.height - 28, 72, 20, t('gui.cancel')));
+    this.buttonList.push(new GuiButton(8, cx - 154, 6, 72, 20, 'Import'));
+    this.buttonList.push((this.buttonExport = new GuiButton(9, cx + 82, 6, 72, 20, 'Export')));
     this.buttonSelect.enabled = false;
     this.buttonDelete.enabled = false;
     this.buttonRename.enabled = false;
     this.buttonRecreate.enabled = false;
+    this.buttonExport.enabled = false;
   }
 
   protected override actionPerformed(b: GuiButton): void {
@@ -92,9 +129,13 @@ export class GuiSelectWorld extends GuiScreen {
       this.mc.displayGuiScreen(this.parentScreen);
     } else if (b.id === 7) {
       const gui = new GuiCreateWorld(this);
-      const info = SaveFormatMemory.instance.getWorldInfo(this.getSaveFileName(this.selectedWorld));
+      const info = SaveFormat.instance.getWorldInfo(this.getSaveFileName(this.selectedWorld));
       if (info) gui.copyWorldInfo(info);
       this.mc.displayGuiScreen(gui);
+    } else if (b.id === 8) {
+      this.importWorld();
+    } else if (b.id === 9) {
+      this.exportWorld(this.getSaveFileName(this.selectedWorld));
     } else {
       this.worldSlotContainer.actionPerformed(b);
     }
@@ -106,22 +147,82 @@ export class GuiSelectWorld extends GuiScreen {
     this.selected = true;
     const folder = this.getSaveFileName(i) ?? 'World' + i;
     const name = this.getSaveName(i) ?? 'World' + i;
-    if (SaveFormatMemory.instance.canLoadWorld(folder)) this.mc.launchIntegratedServer(folder, name, null);
+    if (SaveFormat.instance.canLoadWorld(folder)) this.mc.launchIntegratedServer(folder, name, null);
   }
 
   override confirmClicked(ok: boolean, id: number): void {
     if (!this.deleting) return;
     this.deleting = false;
     if (ok) {
-      SaveFormatMemory.instance.deleteWorldDirectory(this.getSaveFileName(id));
-      this.loadSaves();
+      SaveFormat.instance.deleteWorldDirectory(this.getSaveFileName(id)).catch((e: unknown) => {
+        this.mc.displayGuiScreen(new GuiErrorScreen('Failed to delete world', e instanceof Error ? e.message : String(e), this));
+      });
     }
     this.mc.displayGuiScreen(this);
+  }
+
+  /** Import: a .zip of a 1.5.2 save folder becomes a world of the list. */
+  private importWorld(): void {
+    void pickFile('.zip,application/zip').then(async (file) => {
+      if (!file) return;
+      if (file.size > MAX_ZIP_BYTES) {
+        this.mc.displayGuiScreen(new GuiErrorScreen('Failed to import world', 'The file is too large (more than 512 MB)', this));
+        return;
+      }
+      await this.runImport(new Uint8Array(await file.arrayBuffer()), file.name);
+    });
+  }
+
+  /** Imports zip bytes behind a progress screen (also used by the dev tools). */
+  async runImport(bytes: Uint8Array, fileName: string): Promise<string | null> {
+    const ls = this.mc.loadingScreen;
+    ls.resetProgressAndMessage('Importing world');
+    ls.resetProgresAndWorkingMessage(fileName);
+    ls.setLoadingProgress(0);
+    await new Promise((r) => setTimeout(r, 0));
+    try {
+      const r = await importWorld(SaveFormat.instance, bytes, fileName, (p) => ls.setLoadingProgress(p));
+      ls.onNoMoreProgress();
+      this.mc.displayGuiScreen(this);
+      this.reloadSaves(r.folder);
+      return r.folder;
+    } catch (e) {
+      ls.onNoMoreProgress();
+      this.mc.displayGuiScreen(new GuiErrorScreen('Failed to import world', e instanceof Error ? e.message : String(e), this));
+      return null;
+    }
+  }
+
+  /** Export: the selected world as <folder>.zip (level.dat, region/*.mca, players, data). */
+  private exportWorld(folder: string): void {
+    void this.runExport(folder).then((zip) => {
+      if (zip) downloadFile(zip, folder + '.zip');
+    });
+  }
+
+  async runExport(folder: string): Promise<Uint8Array | null> {
+    const ls = this.mc.loadingScreen;
+    ls.resetProgressAndMessage('Exporting world');
+    ls.resetProgresAndWorkingMessage(folder);
+    ls.setLoadingProgress(0);
+    await new Promise((r) => setTimeout(r, 0));
+    try {
+      const zip = await exportWorld(SaveFormat.instance, folder, (p) => ls.setLoadingProgress(p));
+      ls.onNoMoreProgress();
+      return zip;
+    } catch (e) {
+      ls.onNoMoreProgress();
+      this.mc.displayGuiScreen(new GuiErrorScreen('Failed to export world', e instanceof Error ? e.message : String(e), this));
+      return null;
+    }
   }
 
   override drawScreen(mx: number, my: number, pt: number): void {
     this.worldSlotContainer.drawScreen(mx, my, pt);
     this.drawCenteredString(this.fontRenderer, this.screenTitle, Math.trunc(this.width / 2), 20, 0xffffff);
+    const saves = SaveFormat.instance;
+    if (saves.loadError) this.drawCenteredString(this.fontRenderer, 'Could not read the saved worlds: ' + saves.loadError, Math.trunc(this.width / 2), 40, 0xff5555);
+    else if (!saves.backend.persistent && this.saveList.length === 0) this.drawCenteredString(this.fontRenderer, 'This browser cannot store worlds: they last until the page closes', Math.trunc(this.width / 2), 40, 0xa0a0a0);
     super.drawScreen(mx, my, pt);
   }
 
@@ -143,12 +244,8 @@ class GuiWorldSlot extends GuiSlot {
 
   protected elementClicked(i: number, doubleClick: boolean): void {
     const g = this.gui;
-    g.selectedWorld = i;
+    g.setSelected(i);
     const ok = g.selectedWorld >= 0 && g.selectedWorld < this.getSize();
-    g.buttonSelect.enabled = ok;
-    g.buttonRename.enabled = ok;
-    g.buttonDelete.enabled = ok;
-    g.buttonRecreate.enabled = ok;
     if (doubleClick && ok) g.selectWorld(i);
   }
 

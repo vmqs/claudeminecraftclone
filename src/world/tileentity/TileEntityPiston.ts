@@ -7,6 +7,7 @@ import type { TagCompound } from '../../item/ItemStack';
 import type { IWorld } from '../IWorld';
 import { nbt } from './InventoryNBT';
 import { TileEntity } from './TileEntity';
+import { NBT } from '../storage/NBT';
 
 const f = Math.fround;
 
@@ -141,10 +142,10 @@ export class TileEntityPiston extends TileEntity {
 
   override writeToNBT(tag: TagCompound): void {
     super.writeToNBT(tag);
-    tag.blockId = this.storedBlockID;
-    tag.blockData = this.storedMetadata;
-    tag.facing = this.storedOrientation;
-    tag.progress = this.lastProgress;
-    tag.extending = this.extending;
+    NBT.setInteger(tag, 'blockId', this.storedBlockID);
+    NBT.setInteger(tag, 'blockData', this.storedMetadata);
+    NBT.setInteger(tag, 'facing', this.storedOrientation);
+    NBT.setFloat(tag, 'progress', this.lastProgress);
+    NBT.setBoolean(tag, 'extending', this.extending);
   }
 }

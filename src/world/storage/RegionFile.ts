@@ -65,6 +65,36 @@ export function encodeRegion(chunks: RegionChunk[]): Uint8Array {
 }
 
 /**
+ * The stored chunks of a region file without decompressing them: local position, compression
+ * (1 gzip, 2 zlib), the compressed payload and the timestamp. Slots pointing outside the file
+ * or with impossible lengths are skipped (RegionFile returns no stream for them).
+ */
+export function readRegionPayloads(bytes: Uint8Array): { x: number; z: number; kind: number; payload: Uint8Array; timestamp: number }[] {
+  if (bytes.length < 2 * SECTOR) {
+    if (bytes.length === 0) return [];
+    throw new NBTError('Region file is too short');
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const totalSectors = Math.ceil(bytes.length / SECTOR);
+  const out: { x: number; z: number; kind: number; payload: Uint8Array; timestamp: number }[] = [];
+  for (let i = 0; i < 1024; i++) {
+    const off = view.getInt32(i * 4);
+    if (off === 0) continue;
+    const sector = off >>> 8;
+    const count = off & 255;
+    if (sector < 2 || sector + count > totalSectors) continue;
+    const at = sector * SECTOR;
+    if (at + 5 > bytes.length) continue;
+    const len = view.getInt32(at);
+    if (len <= 1 || len > SECTOR * count || at + 4 + len > bytes.length) continue;
+    const kind = bytes[at + 4];
+    if (kind !== 1 && kind !== 2) continue;
+    out.push({ x: i & 31, z: i >> 5, kind, payload: bytes.subarray(at + 5, at + 4 + len), timestamp: view.getInt32(SECTOR + i * 4) });
+  }
+  return out;
+}
+
+/**
  * Reads every chunk of a region file (RegionFile.getChunkDataInputStream for each slot) and
  * returns the decompressed NBT bytes. Slots pointing outside the file, with bad lengths or an
  * unknown compression are skipped, as the original returns no stream for them.

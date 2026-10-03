@@ -24,6 +24,9 @@ export function loadChunksAroundBed(old: EntityPlayer, w: World, chunks: ChunkPr
     if (kept && !w.chunkExists(cx, cz)) {
       chunks.stored.delete(k);
       w.addChunk(kept);
+    } else if (!w.chunkExists(cx, cz)) {
+      // A saved world: the chunk from the save (still queued, or cached since the player changed it).
+      chunks.loadSavedChunkNow(cx, cz);
     }
   }
 }

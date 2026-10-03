@@ -8,6 +8,7 @@ import { ItemStack, type TagCompound } from '../../item/ItemStack';
 import type { ISidedInventory } from './ISidedInventory';
 import { isUseableByPlayerAt, nbt, readItemsFromNBT, writeItemsToNBT } from './InventoryNBT';
 import { TileEntity } from './TileEntity';
+import { NBT } from '../storage/NBT';
 
 /** Swaps the furnace block between lit and unlit (BlockFurnace.updateFurnaceBlockState), set by BlockFurnace. */
 export type FurnaceStateUpdater = (burning: boolean, te: TileEntityFurnace) => void;
@@ -80,8 +81,8 @@ export class TileEntityFurnace extends TileEntity implements ISidedInventory {
 
   override writeToNBT(tag: TagCompound): void {
     super.writeToNBT(tag);
-    tag.BurnTime = (this.furnaceBurnTime << 16) >> 16;
-    tag.CookTime = (this.furnaceCookTime << 16) >> 16;
+    NBT.setShort(tag, 'BurnTime', this.furnaceBurnTime);
+    NBT.setShort(tag, 'CookTime', this.furnaceCookTime);
     writeItemsToNBT(tag, this.furnaceItemStacks);
     if (this.isInvNameLocalized()) tag.CustomName = this.customName;
   }

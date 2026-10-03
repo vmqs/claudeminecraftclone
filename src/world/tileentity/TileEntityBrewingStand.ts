@@ -5,6 +5,7 @@ import { ItemStack, type TagCompound } from '../../item/ItemStack';
 import type { ISidedInventory } from './ISidedInventory';
 import { isUseableByPlayerAt, nbt, readItemsFromNBT, writeItemsToNBT } from './InventoryNBT';
 import { TileEntity } from './TileEntity';
+import { NBT } from '../storage/NBT';
 
 /**
  * Potion maths the brewing stand needs (PotionHelper.applyIngredient, ItemPotion.getEffects and
@@ -143,7 +144,7 @@ export class TileEntityBrewingStand extends TileEntity implements ISidedInventor
 
   override writeToNBT(tag: TagCompound): void {
     super.writeToNBT(tag);
-    tag.BrewTime = (this.brewTime << 16) >> 16;
+    NBT.setShort(tag, 'BrewTime', this.brewTime);
     writeItemsToNBT(tag, this.brewingItemStacks);
     if (this.isInvNameLocalized()) tag.CustomName = this.customName;
   }

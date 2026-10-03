@@ -44,7 +44,10 @@ import { TextureManager } from '../render/texture/TextureManager';
 import { ChunkProviderClient } from '../world/ChunkProviderClient';
 import { ColorizerFoliage, ColorizerGrass, rgbaToIntBuffer } from '../world/biome/Colorizer';
 import { World, WorldInfo } from '../world/World';
-import { type PlayerSnapshot, SaveFormatMemory } from '../world/storage/SaveFormatMemory';
+import { SaveFormat } from '../world/storage/SaveFormat';
+import { WorldSaveController } from '../world/storage/WorldSaveController';
+import type { TagCompound } from '../item/ItemStack';
+import { GuiErrorScreen } from '../gui/GuiErrorScreen';
 import { EntityPlayerSP } from './EntityPlayerSP';
 import { pickBlock } from './PickBlock';
 import { EnumOptions, GameSettings, type SettingsListener } from './GameSettings';
@@ -97,8 +100,10 @@ interface PendingWorld {
   world: World;
   provider: ChunkProviderClient;
   phase: 'spawn' | 'terrain';
-  /** A world from the session's list: its player goes back where it was. */
-  restore?: PlayerSnapshot | null;
+  /** A saved world: the single player's tag from level.dat (null for a new player). */
+  player?: TagCompound | null;
+  /** Writes level.dat as soon as the player is in (a new world, so it is listed at once). */
+  isNew?: boolean;
 }
 
 /**
@@ -198,6 +203,8 @@ export class Minecraft implements SettingsListener {
   readonly mcProfiler = new Profiler();
   private readonly profilerChart = new GuiProfilerChart(this.mcProfiler);
   private pendingWorld: PendingWorld | null = null;
+  /** Saving of the world being played (autosave, pause, unloading chunks, Save and Quit). */
+  readonly saveController = new WorldSaveController(this);
   private leftClickCounter = 0;
   private rightClickDelayTimer = 0;
   private fpsCounter = 0;
@@ -568,6 +575,7 @@ export class Minecraft implements SettingsListener {
       }
     }
     this.netHandler?.flush();
+    if (!this.netHandler) this.saveController.onTick(this.theWorld, this.thePlayer, this.isGamePaused);
     prof.endSection();
   }
 
@@ -825,6 +833,12 @@ export class Minecraft implements SettingsListener {
   /** Creates a world and starts streaming its terrain (the integrated server start-up). */
   launchIntegratedServer(folder: string, name: string, ws: WorldSettings | null): void {
     this.loadWorld(null);
+    // A world still being written waits for it (the original's server shutdown came first too).
+    const closing = this.saveController.closing;
+    if (closing) {
+      void closing.then(() => this.launchIntegratedServer(folder, name, ws));
+      return;
+    }
     if (ws === null) {
       this.resumeIntegratedServer(folder);
       return;
@@ -839,11 +853,13 @@ export class Minecraft implements SettingsListener {
     info.gameType = ws.gameType ?? 1;
     info.hardcore = ws.hardcore ?? false;
     info.bonusChest = ws.bonusChest ?? false;
-    SaveFormatMemory.instance.create(folder, info);
+    info.lastTimePlayed = Date.now();
+    const handler = SaveFormat.instance.createWorld(folder);
     const world = new World(info);
     const provider = new ChunkProviderClient(world, info.seed, ws.terrainType, ws.mapFeatures, { generatorOptions: info.generatorOptions, bonusChest: info.bonusChest });
+    this.saveController.attach(handler, provider);
     this.chunkProvider = provider;
-    this.pendingWorld = { world, provider, phase: 'spawn' };
+    this.pendingWorld = { world, provider, phase: 'spawn', isNew: true };
     this.loadingScreen.resetProgressAndMessage(I18n.translateToLocal('menu.loadingLevel'));
     this.loadingScreen.resetProgresAndWorkingMessage(I18n.translateToLocal('menu.generatingTerrain'));
     void provider.findSpawn().then((s) => {
@@ -855,21 +871,44 @@ export class Minecraft implements SettingsListener {
     });
   }
 
-  /** Play on a world of this session: the suspended world continues with a new generator worker. */
+  /**
+   * Play Selected World: level.dat and the list of saved chunks are read, then the world runs
+   * with a new generator worker for the chunks that were never saved.
+   */
   private resumeIntegratedServer(folder: string): void {
-    const saves = SaveFormatMemory.instance;
-    const e = saves.resume(folder);
-    if (!e || !e.world || !e.provider) return;
-    const info = e.info;
-    const provider = new ChunkProviderClient(e.world, info.seed, info.terrainType, info.mapFeaturesEnabled, { generatorOptions: info.generatorOptions, bonusChest: info.bonusChest });
-    provider.adoptStore(e.provider);
-    e.provider.dispose();
-    this.chunkProvider = provider;
-    this.pendingWorld = { world: e.world, provider, phase: 'terrain', restore: e.player };
-    saves.markResumed(e);
     this.loadingScreen.resetProgressAndMessage(I18n.translateToLocal('menu.loadingLevel'));
     this.loadingScreen.resetProgresAndWorkingMessage(I18n.translateToLocal('menu.generatingTerrain'));
+    const token = {};
+    this.openingWorld = token;
+    void SaveFormat.instance.openWorld(folder, this.username).then(
+      ({ handler, info, player }) => {
+        if (this.openingWorld !== token) {
+          handler.closed = true;
+          return;
+        }
+        this.openingWorld = null;
+        const world = new World(info);
+        const provider = new ChunkProviderClient(world, info.seed, info.terrainType, info.mapFeaturesEnabled, { generatorOptions: info.generatorOptions, bonusChest: info.bonusChest });
+        this.saveController.attach(handler, provider);
+        this.chunkProvider = provider;
+        this.pendingWorld = { world, provider, phase: 'terrain', player };
+        // The bed's chunks stay readable at once for a respawn far from it.
+        const sx = player && 'SpawnX' in player ? Number(player.SpawnX) : null;
+        const sz = player && 'SpawnZ' in player ? Number(player.SpawnZ) : null;
+        if (sx !== null && sz !== null) for (const [dx, dz] of [[-3, -3], [3, -3], [-3, 3], [3, 3]]) void handler.keepChunk((sx + dx) >> 4, (sz + dz) >> 4);
+      },
+      (e: unknown) => {
+        if (this.openingWorld !== token) return;
+        this.openingWorld = null;
+        this.loadingScreen.onNoMoreProgress();
+        if (SaveFormat.instance.currentFolder === folder) SaveFormat.instance.currentFolder = null;
+        this.displayGuiScreen(new GuiErrorScreen('Failed to load world', e instanceof Error ? e.message : String(e), new GuiMainMenu()));
+      },
+    );
   }
+
+  /** The world being opened from the save (a newer request or leaving cancels it). */
+  private openingWorld: object | null = null;
 
   /** Spawn-area loading (MinecraftServer.initialWorldChunkLoad, on a smaller radius). */
   private tickLoading(): void {
@@ -889,10 +928,35 @@ export class Minecraft implements SettingsListener {
     this.pendingWorld = null;
     this.loadingScreen.onNoMoreProgress();
     this.loadWorld(pw.world);
-    if (pw.restore && !pw.restore.dead) SaveFormatMemory.restorePlayer(this.thePlayer!, pw.restore);
-    else this.spawnPlayerAtWorldSpawn();
-    if (pw.restore?.state) PlayerSpawning.restoreState(this.thePlayer!, pw.restore.state, pw.restore.dead);
-    this.playerController.setGameType(PlayerSpawning.initializeGameType(this.thePlayer!, pw.world.worldInfo));
+    const p = this.thePlayer!;
+    if (pw.player) {
+      // readPlayerData: the saved player (position, inventory, health, abilities, game mode...).
+      try {
+        p.readFromNBT(pw.player);
+      } catch (e) {
+        console.warn('The saved player could not be read', e);
+      }
+      if (p.getHealth() <= 0) {
+        // Saved dead: back as a fresh player at its bed or the world spawn, keeping its mode and bed.
+        p.setEntityHealth(p.getMaxHealth());
+        p.deathTime = 0;
+        p.setAir(300);
+        p.fallDistance = 0;
+        p.extinguish();
+        p.getFoodStats().readNBT({ foodLevel: 20, foodTickTimer: 0, foodSaturationLevel: 5, foodExhaustionLevel: 0 });
+        this.spawnPlayerAtWorldSpawn();
+      }
+      p.prevRotationYaw = p.rotationYaw;
+      p.prevRotationPitch = p.rotationPitch;
+      p.rotationYawHead = p.prevRotationYawHead = p.rotationYaw;
+      // The entity moved after it was added to the world's chunk lists.
+      pw.world.updateEntityWithOptionalForce(p, false);
+    } else {
+      this.spawnPlayerAtWorldSpawn();
+    }
+    this.playerController.setGameType(PlayerSpawning.initializeGameType(p, pw.world.worldInfo));
+    this.playerController.setPlayerCapabilities(p);
+    if (pw.isNew) void this.saveController.handler?.saveLevel(pw.world.worldInfo, p);
     const provider = pw.provider;
     this.displayGuiScreen(
       new GuiDownloadTerrain(() => {
@@ -901,6 +965,11 @@ export class Minecraft implements SettingsListener {
         return this.renderGlobal.pendingNear(p, 1) === 0;
       }),
     );
+  }
+
+  /** A save could not be written: the player sees it in chat (and the world list shows it). */
+  reportSaveError(message: string): void {
+    this.ingameGUI?.getChatGUI().printChatMessage('\u00a7cCould not save the world: ' + message);
   }
 
   /** EntityPlayerMP's spawn: a random spot within 10 blocks of the world spawn, on the ground. */
@@ -916,10 +985,23 @@ export class Minecraft implements SettingsListener {
     if (world === null) {
       this.stopMultiplayer();
       this.pendingWorld = null;
+      this.openingWorld = null;
       this.loadingScreen.onNoMoreProgress();
-      // The world stays in the session's world list (the integrated server's save on shutdown).
-      const kept = !!this.theWorld && !!this.chunkProvider && SaveFormatMemory.instance.saveAndSuspend(this.theWorld, this.chunkProvider, this.thePlayer);
-      if (!kept) this.chunkProvider?.dispose();
+      // The integrated server's save on shutdown: everything is written behind "Saving level".
+      const provider = this.chunkProvider;
+      if (this.theWorld && provider) {
+        // playerLoggedOut: writePlayerData, then removeEntity (which dismounts it).
+        let playerTag: TagCompound | null = null;
+        if (this.thePlayer && this.saveController.handler) {
+          playerTag = {};
+          this.thePlayer.writeToNBT(playerTag);
+        }
+        if (this.thePlayer) this.theWorld.removeEntity(this.thePlayer);
+        if (!this.saveController.close(this.theWorld, provider, playerTag, () => provider.dispose())) provider.dispose();
+      } else {
+        this.saveController.discard();
+        provider?.dispose();
+      }
       this.chunkProvider = null;
       this.renderGlobal?.setWorldAndLoadRenderers(null);
       this.effectRenderer?.clearEffects(null);
