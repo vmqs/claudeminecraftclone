@@ -107,7 +107,7 @@ export const PACKETS = {
   /** Packet15Place: use the held item on a block face (direction 255: in the air). */
   Place: def(15, 'c2s', { x: 'i32', y: 'i16', z: 'i32', direction: 'u8', item: 'item', hitX: 'u8', hitY: 'u8', hitZ: 'u8' }),
   /** Packet16BlockItemSwitch: the selected hotbar slot. */
-  BlockItemSwitch: def(16, 'c2s', { slot: 'i16' }),
+  BlockItemSwitch: def(16, 'both', { slot: 'i16' }),
   /** Packet17Sleep: an entity lies down in the bed at (x, y, z). */
   Sleep: def(17, 's2c', { entityId: 'i32', x: 'i32', y: 'i32', z: 'i32' }),
   /** Packet18Animation: 1 swing arm, 2 hurt, 3 wake up, 6 critical hit, 7 magic critical hit. */

@@ -20,7 +20,8 @@ export type WorldGenRequest =
     }
   | { type: 'request'; cx: number; cz: number }
   | { type: 'cancel'; cx: number; cz: number }
-  | { type: 'player'; cx: number; cz: number; radius: number }
+  /** The player's chunk and load radius; `others` are more areas to keep (a LAN host's guests). */
+  | { type: 'player'; cx: number; cz: number; radius: number; others?: [cx: number, cz: number, radius: number][] }
   /** WorldServer.createSpawnPosition: answered with a 'spawn' message. */
   | { type: 'findSpawn' }
   /** World.findClosestStructure ("Stronghold" for eyes of ender): answered with 'structure'. */

@@ -573,6 +573,14 @@ export abstract class EntityLiving extends Entity {
       if (this.arrowHitTimer <= 0) this.setArrowCountInEntity(arrows - 1);
     }
     this.onLivingUpdate();
+    this.updateBodyRotation();
+  }
+
+  /**
+   * The end of EntityLiving.onUpdate: the body turns towards the way it walks (or the body helper
+   * of AI mobs follows the head), and the walked distance grows. A guest's copies run it too.
+   */
+  updateBodyRotation(): void {
     const dx = this.posX - this.prevPosX;
     const dz = this.posZ - this.prevPosZ;
     const distSq = f(dx * dx + dz * dz);
@@ -914,6 +922,11 @@ export abstract class EntityLiving extends Entity {
       this.motionX *= slip;
       this.motionZ *= slip;
     }
+    this.updateLimbSwing();
+  }
+
+  /** The end of moveEntityWithHeading: the limbs swing with the distance moved this tick. */
+  updateLimbSwing(): void {
     this.prevLimbYaw = this.limbYaw;
     const dx = this.posX - this.prevPosX;
     const dz = this.posZ - this.prevPosZ;
@@ -1176,7 +1189,7 @@ export abstract class EntityLiving extends Entity {
     if (this.isInWater() || this.handleLavaMovement()) this.isJumping = this.rand.nextFloat() < f(0.8);
   }
 
-  protected updateArmSwingProgress(): void {
+  updateArmSwingProgress(): void {
     const end = this.getArmSwingAnimationEnd();
     if (this.isSwingInProgress) {
       this.swingProgressInt++;

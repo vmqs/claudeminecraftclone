@@ -26,6 +26,16 @@ export const ClickMode = {
 export const OUTSIDE_WINDOW = -999;
 
 /**
+ * Who hears about a window's changes (ICrafting): a LAN host's guest player (window packets),
+ * or a guest's creative inventory (creative set-slot packets).
+ */
+export interface ICrafting {
+  sendContainerAndContentsToPlayer(c: Container, items: (ItemStack | null)[]): void;
+  sendSlotContents(c: Container, slot: number, stack: ItemStack | null): void;
+  sendProgressBarUpdate(c: Container, id: number, value: number): void;
+}
+
+/**
  * A container window's slots and the click logic (Container): crafting tables, chests, the
  * player inventory. Subclasses add slots with addSlotToContainer and implement
  * canInteractWith and transferStackInSlot (shift-click).
@@ -33,6 +43,8 @@ export const OUTSIDE_WINDOW = -999;
 export abstract class Container {
   readonly inventoryItemStacks: (ItemStack | null)[] = [];
   readonly inventorySlots: Slot[] = [];
+  /** Listeners told about changed slots by detectAndSendChanges (none in single player). */
+  readonly crafters: ICrafting[] = [];
   windowId = 0;
   private transactionID = 0;
   /** field_94535_f: 0 = spread evenly (left drag), 1 = one each (right drag). */
@@ -53,12 +65,29 @@ export abstract class Container {
     return this.inventorySlots.map((s) => s.getStack());
   }
 
-  /** Remembers the current contents (the server sent changes to clients here). */
+  /** Remembers the current contents and tells the crafters about every slot that changed. */
   detectAndSendChanges(): void {
     for (let i = 0; i < this.inventorySlots.length; i++) {
       const now = this.inventorySlots[i].getStack();
-      if (!ItemStack.areItemStacksEqual(this.inventoryItemStacks[i], now)) this.inventoryItemStacks[i] = now ? now.copy() : null;
+      if (!ItemStack.areItemStacksEqual(this.inventoryItemStacks[i], now)) {
+        const copy = now ? now.copy() : null;
+        this.inventoryItemStacks[i] = copy;
+        for (const c of this.crafters) c.sendSlotContents(this, i, copy ? copy.copy() : null);
+      }
     }
+  }
+
+  /** addCraftingToCrafters: the new listener gets the whole window at once. */
+  addCraftingToCrafters(c: ICrafting): void {
+    if (this.crafters.includes(c)) return;
+    this.crafters.push(c);
+    c.sendContainerAndContentsToPlayer(this, this.getInventory());
+    this.detectAndSendChanges();
+  }
+
+  removeCraftingFromCrafters(c: ICrafting): void {
+    const i = this.crafters.indexOf(c);
+    if (i >= 0) this.crafters.splice(i, 1);
   }
 
   enchantItem(_player: EntityPlayer, _button: number): boolean {

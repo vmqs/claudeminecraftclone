@@ -17,6 +17,21 @@ const requested = new Map<number, [number, number]>();
 let playerCX = 0;
 let playerCZ = 0;
 let keepRadius = 13;
+/** More areas to keep and serve (a LAN host's guests): [cx, cz, radius]. */
+let otherAreas: [number, number, number][] = [];
+
+/** Squared chunk distance to the nearest area that wants chunks. */
+function distanceSq(cx: number, cz: number): number {
+  let d = (cx - playerCX) ** 2 + (cz - playerCZ) ** 2;
+  for (const [ox, oz] of otherAreas) d = Math.min(d, (cx - ox) ** 2 + (cz - oz) ** 2);
+  return d;
+}
+
+/** Whether a chunk lies within `extra` chunks beyond one of the other areas. */
+function nearOtherArea(cx: number, cz: number, extra: number): boolean {
+  for (const [ox, oz, r] of otherAreas) if (Math.max(Math.abs(cx - ox), Math.abs(cz - oz)) <= r + extra) return true;
+  return false;
+}
 let sinceEvict = 0;
 let scheduled = false;
 /** The spawn area still to load (MinecraftServer.initialWorldChunkLoad), in order. */
@@ -123,7 +138,7 @@ function arrangeTerrain(need: [number, number][], ahead: [number, number][]): 'r
 function nearestRequested(n: number): [number, number][] {
   const best: [number, number, number][] = [];
   for (const [cx, cz] of requested.values()) {
-    const d = (cx - playerCX) ** 2 + (cz - playerCZ) ** 2;
+    const d = distanceSq(cx, cz);
     if (best.length === n && d >= best[n - 1][2]) continue;
     let i = best.length < n ? best.length : n - 1;
     best[i] = [cx, cz, d];
@@ -190,8 +205,8 @@ function pump(): void {
   if (++sinceEvict >= 32) {
     sinceEvict = 0;
     // Keep two rings beyond the loaded area: finalizing needs populated neighbours.
-    server.evict(playerCX, playerCZ, keepRadius, (k) => requested.has(k));
-    server.dropPrefetched(playerCX, playerCZ, keepRadius + 2);
+    server.evict(playerCX, playerCZ, keepRadius, (k) => requested.has(k) || (otherAreas.length > 0 && nearOtherArea(...GenWorld.unkey(k), 3)));
+    server.dropPrefetched(playerCX, playerCZ, keepRadius + 2, (cx, cz) => nearOtherArea(cx, cz, 5));
   }
   schedule();
 }
@@ -250,6 +265,7 @@ self.onmessage = (e: MessageEvent<WorldGenRequest>) => {
       playerCX = m.cx;
       playerCZ = m.cz;
       keepRadius = m.radius + 3;
+      otherAreas = m.others ?? [];
       break;
   }
 };

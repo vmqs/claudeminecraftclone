@@ -320,8 +320,8 @@ export class WorldGenServer {
   }
 
   /** Drops prefetched terrain farther than `radius` from (pcx, pcz) (it can be made again). */
-  dropPrefetched(pcx: number, pcz: number, radius: number): void {
-    for (const [k, t] of this.prefetched) if (Math.max(Math.abs(t.cx - pcx), Math.abs(t.cz - pcz)) > radius) this.prefetched.delete(k);
+  dropPrefetched(pcx: number, pcz: number, radius: number, keep?: (cx: number, cz: number) => boolean): void {
+    for (const [k, t] of this.prefetched) if (Math.max(Math.abs(t.cx - pcx), Math.abs(t.cz - pcz)) > radius && !keep?.(t.cx, t.cz)) this.prefetched.delete(k);
   }
 
   stats(): { live: number; stored: number; storedBytes: number; populated: number } {

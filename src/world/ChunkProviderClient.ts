@@ -30,8 +30,14 @@ export class ChunkProviderClient {
   private lastCX = Number.NaN;
   private lastCZ = Number.NaN;
   private lastRadius = -1;
+  private lastOthers = '';
   /** Chunk radius kept loaded around the player. */
   loadRadius = 9;
+  /**
+   * More areas to keep loaded, in block coordinates with a chunk radius: a LAN host's guests and
+   * the world spawn while it is open to LAN (PlayerManager loaded chunks around every player).
+   */
+  extraCenters: { x: number; z: number; radius: number }[] = [];
 
   /** findClosestStructure requests waiting for the worker. */
   private readonly structureWaiters = new Map<number, (pos: [number, number, number] | null) => void>();
@@ -94,25 +100,36 @@ export class ChunkProviderClient {
     const cx = MathHelper.floor_double(x) >> 4;
     const cz = MathHelper.floor_double(z) >> 4;
     const r = this.loadRadius;
+    const others: [number, number, number][] = this.extraCenters.map((c) => [MathHelper.floor_double(c.x) >> 4, MathHelper.floor_double(c.z) >> 4, c.radius]);
+    const othersKey = others.length > 0 ? others.join(';') : '';
+    const within = (kx: number, kz: number, extra: number): boolean => {
+      if (Math.abs(kx - cx) <= r + extra && Math.abs(kz - cz) <= r + extra) return true;
+      for (const [ox, oz, or] of others) if (Math.abs(kx - ox) <= or + extra && Math.abs(kz - oz) <= or + extra) return true;
+      return false;
+    };
     // Also when the render distance changed while standing still.
-    if (cx !== this.lastCX || cz !== this.lastCZ || r !== this.lastRadius) {
+    if (cx !== this.lastCX || cz !== this.lastCZ || r !== this.lastRadius || othersKey !== this.lastOthers) {
       this.lastCX = cx;
       this.lastCZ = cz;
       this.lastRadius = r;
-      this.post({ type: 'player', cx, cz, radius: r });
+      this.lastOthers = othersKey;
+      this.post(others.length > 0 ? { type: 'player', cx, cz, radius: r, others } : { type: 'player', cx, cz, radius: r });
       for (const k of this.requested) {
         const [kx, kz] = ChunkProviderClient.unkey(k);
-        if (Math.abs(kx - cx) > r + 1 || Math.abs(kz - cz) > r + 1) {
+        if (!within(kx, kz, 1)) {
           this.requested.delete(k);
           this.post({ type: 'cancel', cx: kx, cz: kz });
         }
       }
       const drop: Chunk[] = [];
-      for (const c of this.world.getLoadedChunks()) {
-        if (Math.abs(c.xPosition - cx) > r + 2 || Math.abs(c.zPosition - cz) > r + 2) drop.push(c);
-      }
+      for (const c of this.world.getLoadedChunks()) if (!within(c.xPosition, c.zPosition, 2)) drop.push(c);
       for (const c of drop) this.unloadChunk(c.xPosition, c.zPosition);
     }
+    this.requestArea(cx, cz, r);
+    for (const [ox, oz, or] of others) this.requestArea(ox, oz, or);
+  }
+
+  private requestArea(cx: number, cz: number, r: number): void {
     for (let dz = -r; dz <= r; dz++) {
       for (let dx = -r; dx <= r; dx++) {
         const kx = cx + dx;

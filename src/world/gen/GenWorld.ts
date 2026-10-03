@@ -52,6 +52,11 @@ export class GenWorld implements ChunkHost {
     return (cx + 0x200000) * 0x400000 + (cz + 0x200000);
   }
 
+  /** The chunk coordinates of a key. */
+  static unkey(k: number): [number, number] {
+    return [Math.floor(k / 0x400000) - 0x200000, (k % 0x400000) - 0x200000];
+  }
+
   /** The last chunk looked up (keys are not small integers, so Map lookups are slow). */
   private lastCx = 0x7fffffff;
   private lastCz = 0x7fffffff;
