@@ -67,9 +67,10 @@ function spread(light: Uint8Array, head0: number, tail0: number, topY: number): 
  * Computes the final sky and block light of `center` from its populated 3x3 neighbourhood
  * (`around[(dz + 1) * 3 + (dx + 1)]`). Sky light is 15 at and above the height map and spreads
  * from there; block light spreads from Block.lightValue sources. Results are written into the
- * center chunk's sections.
+ * center chunk's sections, or into the arrays `out` gives for each existing section (the chunk's own
+ * light is then left as it is).
  */
-export function computeChunkLight(around: Chunk[], center: Chunk): void {
+export function computeChunkLight(around: Chunk[], center: Chunk, out?: (sy: number) => { skyLight: Uint8Array; blockLight: Uint8Array } | null): void {
   let topY = 0;
   for (const c of around) topY = Math.max(topY, c.getTopFilledSegment() + 16);
   topY = Math.min(256, Math.max(topY, 16));
@@ -142,7 +143,7 @@ export function computeChunkLight(around: Chunk[], center: Chunk): void {
   spread(sky, 0, tail, topY);
 
   for (let sy = 0; sy < 16; sy++) {
-    const s = center.sections[sy];
+    const s = out ? (center.sections[sy] ? out(sy) : null) : center.sections[sy];
     if (!s) continue;
     const yBase = sy << 4;
     if (yBase >= topY) {

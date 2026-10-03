@@ -8,6 +8,7 @@ import { ChunkSection } from './ChunkSection';
 import { TileEntity } from './tileentity/TileEntity';
 import { World } from './World';
 import { StructureLocator } from './gen/StructureLocator';
+import { WorldGenWorkers } from './WorldGenWorkers';
 
 /**
  * The main thread's chunk source: streams finalized chunks from the world-generation worker
@@ -18,7 +19,9 @@ import { StructureLocator } from './gen/StructureLocator';
 export class ChunkProviderClient {
   private readonly worker: Worker;
   private readonly requested = new Set<number>();
-  private readonly incoming: ChunkPayload[] = [];
+  /** Chunks from the worker not yet added (from incomingHead on). */
+  private incoming: ChunkPayload[] = [];
+  private incomingHead = 0;
   /** Unloaded chunks kept in memory (player-modified or holding entities). */
   readonly stored = new Map<number, Chunk>();
   /** Chunks that already received their world-generation animals (regenerating must not add more). */
@@ -50,7 +53,7 @@ export class ChunkProviderClient {
     mapFeatures: boolean,
     options: { generatorOptions?: string | null; bonusChest?: boolean } = {},
   ) {
-    this.worker = new Worker(new URL('../workers/worldgen.worker.ts', import.meta.url), { type: 'module' });
+    this.worker = WorldGenWorkers.take();
     this.worker.onmessage = (e: MessageEvent<WorldGenResponse>) => this.onMessage(e.data);
     this.worker.onerror = (e) => console.error('[worldgen]', e.message);
     this.post({ type: 'init', seed: seed.toString(), worldType, mapFeatures, generatorOptions: options.generatorOptions ?? null, bonusChest: options.bonusChest ?? false });
@@ -153,8 +156,19 @@ export class ChunkProviderClient {
   processIncoming(budgetMs: number): number {
     const t0 = performance.now();
     let n = 0;
-    while (this.incoming.length > 0) {
-      const m = this.incoming.shift()!;
+    while (this.incomingHead < this.incoming.length) {
+      const m = this.incoming[this.incomingHead++];
+      if (this.incomingHead === this.incoming.length) {
+        this.incoming = [];
+        this.incomingHead = 0;
+      } else if (this.incomingHead >= 256) {
+        this.incoming = this.incoming.slice(this.incomingHead);
+        this.incomingHead = 0;
+      }
+      if (m.replace) {
+        this.replaceChunk(m);
+        continue;
+      }
       const k = World.chunkKey(m.cx, m.cz);
       if (!this.requested.delete(k) || this.world.chunkExists(m.cx, m.cz)) continue;
       this.world.addChunk(this.makeChunk(m));
@@ -191,6 +205,25 @@ export class ChunkProviderClient {
     c.isModified = false;
     c.playerModified = false;
     return c;
+  }
+
+  /**
+   * A chunk the worker sent again because it changed after it was sent (see worldgen.worker.ts):
+   * the blocks, light, height map and biomes of the loaded copy are replaced unless a player has
+   * changed it already. Entities, tile entities and ticks stay.
+   */
+  private replaceChunk(m: ChunkPayload): void {
+    if (!this.world.chunkExists(m.cx, m.cz)) return;
+    const c = this.world.getChunkFromChunkCoords(m.cx, m.cz);
+    if (c.playerModified) return;
+    const fresh = this.makeChunk({ ...m, tileEntities: [], pendingTicks: [], entities: [] });
+    for (let i = 0; i < 16; i++) c.sections[i] = fresh.sections[i];
+    c.heightMap.set(fresh.heightMap);
+    c.heightMapMinimum = fresh.heightMapMinimum;
+    c.biomes.set(fresh.biomes);
+    const x0 = m.cx * 16;
+    const z0 = m.cz * 16;
+    this.world.markBlockRangeForRenderUpdate(x0, 0, z0, x0 + 15, 255, z0 + 15);
   }
 
   /** performWorldGenSpawning's animals, created through EntityList (unknown names are skipped). */
@@ -238,8 +271,10 @@ export class ChunkProviderClient {
   suspend(): void {
     for (const c of [...this.world.getLoadedChunks()]) this.unloadChunk(c.xPosition, c.zPosition);
     this.worker.terminate();
-    this.incoming.length = 0;
+    this.incoming = [];
+    this.incomingHead = 0;
     this.requested.clear();
+    WorldGenWorkers.prewarm();
   }
 
   /** Takes over the chunk store of a suspended provider for the same world. */
@@ -254,10 +289,12 @@ export class ChunkProviderClient {
   dispose(): void {
     if (StructureLocator.provider) StructureLocator.provider = null;
     this.worker.terminate();
-    this.incoming.length = 0;
+    this.incoming = [];
+    this.incomingHead = 0;
     this.requested.clear();
     this.stored.clear();
     this.storedEntities.clear();
+    WorldGenWorkers.prewarm();
   }
 
   private static unkey(k: number): [number, number] {

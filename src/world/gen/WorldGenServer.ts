@@ -182,16 +182,31 @@ export class WorldGenServer {
    * The finished chunk (cx, cz): population has run for every chunk that writes into it
    * ((cx-1..cx, cz-1..cz)) and its light is computed from the populated 3x3 neighbourhood.
    */
-  finalizeChunk(cx: number, cz: number): ChunkPayload {
+  finalizeChunk(cx: number, cz: number, keepLight = false): ChunkPayload {
     for (let dx = -2; dx <= 1; dx++) for (let dz = -2; dz <= 1; dz++) this.ensurePopulated(cx + dx, cz + dz);
     const around: Chunk[] = [];
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) around.push(this.ensureTerrain(cx + dx, cz + dz));
     const c = around[4];
-    computeChunkLight(around, c);
     const sections: SectionPayload[] = [];
-    for (const s of c.sections) {
-      if (!s || s.isEmpty()) continue;
-      sections.push({ y: s.yBase, blocks: s.blocks.slice(), meta: s.meta.slice(), skyLight: s.skyLight.slice(), blockLight: s.blockLight.slice() });
+    if (keepLight) {
+      // The light goes into the payload only; the chunk keeps the light population maintained.
+      const bySy: (SectionPayload | null)[] = [];
+      for (const s of c.sections) {
+        if (!s || s.isEmpty()) {
+          bySy.push(null);
+          continue;
+        }
+        const p = { y: s.yBase, blocks: s.blocks.slice(), meta: s.meta.slice(), skyLight: new Uint8Array(4096), blockLight: new Uint8Array(4096) };
+        bySy.push(p);
+        sections.push(p);
+      }
+      computeChunkLight(around, c, (sy) => bySy[sy]);
+    } else {
+      computeChunkLight(around, c);
+      for (const s of c.sections) {
+        if (!s || s.isEmpty()) continue;
+        sections.push({ y: s.yBase, blocks: s.blocks.slice(), meta: s.meta.slice(), skyLight: s.skyLight.slice(), blockLight: s.blockLight.slice() });
+      }
     }
     const ticks = c.pendingTicks.filter((t) => t[0] >> 4 === cx && t[2] >> 4 === cz);
     const tileEntities = this.collectTileEntities(c);
@@ -217,6 +232,24 @@ export class WorldGenServer {
       out.push(t);
     }
     return out;
+  }
+
+  /**
+   * Whether chunk (cx, cz) can be finalized while the spawn area is still loading without
+   * changing anything the rest of the spawn area does: every population that writes into its 3x3
+   * neighbourhood (and the ring around that) has run, so nothing is generated, populated or
+   * loaded by finalizing it, and finalizeChunk(cx, cz, true) leaves the chunks' light alone.
+   */
+  canFinalizeEarly(cx: number, cz: number): boolean {
+    for (let dx = -3; dx <= 2; dx++) for (let dz = -3; dz <= 2; dz++) if (!this.populated.has(key(cx + dx, cz + dz))) return false;
+    return true;
+  }
+
+  /** Block writes into the 3x3 chunks around (cx, cz) so far (GenWorld.blockWrites). */
+  neighbourhoodWrites(cx: number, cz: number): number {
+    let n = 0;
+    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) n += this.world.writesIn(cx + dx, cz + dz);
+    return n;
   }
 
   // ------------------------------------------------------------------ spawn

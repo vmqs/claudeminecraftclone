@@ -47,6 +47,17 @@ export class GenWorld implements ChunkHost {
    * loads or generates it then); returns the chunk or undefined.
    */
   missingChunk: ((cx: number, cz: number) => Chunk | undefined) | null = null;
+  /**
+   * Block changes made through setBlock / setBlockMetadataWithNotify, counted per chunk in the
+   * same direct-mapped grid as the chunk cache (chunks 64 apart share a counter, which can only
+   * make a change look bigger).
+   */
+  readonly blockWrites = new Uint32Array(GRID * GRID);
+
+  /** Block writes counted so far for chunk (cx, cz) (see blockWrites). */
+  writesIn(cx: number, cz: number): number {
+    return this.blockWrites[((cx & (GRID - 1)) * GRID) | (cz & (GRID - 1))];
+  }
 
   constructor(readonly biomeSource: BiomeSource) {}
 
@@ -185,6 +196,7 @@ export class GenWorld implements ChunkHost {
     const c = this.chunkAt(x, z);
     if (!c) return false;
     const changed = c.setBlockIDWithMetadata(x & 15, y, z & 15, id, meta);
+    if (changed) this.countWrite(c);
     this.updateAllLightTypes(x, y, z);
     if (changed && (flags & 1) !== 0) this.notifyBlocksOfNeighborChange(x, y, z, id);
     return changed;
@@ -193,8 +205,12 @@ export class GenWorld implements ChunkHost {
     const c = this.chunkAt(x, z);
     if (!c || y < 0 || y >= 256) return false;
     const changed = c.setBlockMetadata(x & 15, y, z & 15, meta);
+    if (changed) this.countWrite(c);
     if (changed && (flags & 1) !== 0) this.notifyBlocksOfNeighborChange(x, y, z, this.getBlockId(x, y, z));
     return changed;
+  }
+  private countWrite(c: Chunk): void {
+    this.blockWrites[((c.xPosition & (GRID - 1)) * GRID) | (c.zPosition & (GRID - 1))]++;
   }
   setBlockToAir(x: number, y: number, z: number): boolean {
     return this.setBlock(x, y, z, 0, 0, 3);

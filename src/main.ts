@@ -6,6 +6,7 @@ import './gui/inventory/ContainerBindings';
 import { installDevHooks } from './client/DevTools';
 import { Minecraft } from './client/Minecraft';
 import { GL } from './render/gl/GL';
+import { WorldGenWorkers } from './world/WorldGenWorkers';
 
 async function boot(): Promise<void> {
   const canvas = document.getElementById('game') as HTMLCanvasElement;
@@ -20,6 +21,7 @@ async function boot(): Promise<void> {
   const mc = new Minecraft(canvas, rm);
   await mc.startGame();
   mc.run();
+  WorldGenWorkers.prewarm();
   installDevHooks(mc, new URLSearchParams(location.search));
   canvas.dataset.ready = '1';
   canvas.focus();
