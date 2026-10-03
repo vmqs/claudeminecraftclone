@@ -4,8 +4,16 @@ import type { Chunk } from '../Chunk';
 import { World, type WorldInfo } from '../World';
 import { readChunkFromNBT, writeChunkToNBT } from './AnvilChunkLoader';
 import { NBTError, readNBT, writeCompressedNBT, writeNBT, zlibDeflate, zlibInflate } from './NBT';
-import type { SaveBackend } from './SaveBackend';
+import { SaveError, type SaveBackend } from './SaveBackend';
 import { levelDatRoot, worldInfoToNBT } from './WorldInfoNBT';
+
+let lastSessionTime = 0;
+
+/** A session time stamp no other handler of this page uses (Date.now(), bumped when equal). */
+function nextSessionTime(): number {
+  lastSessionTime = Math.max(Date.now(), lastSessionTime + 1);
+  return lastSessionTime;
+}
 
 interface QueuedChunk {
   cx: number;
@@ -39,9 +47,11 @@ export class SaveHandler {
   onError: ((message: string) => void) | null = null;
   /** The world's data/ files that changed (maps, idcounts), written with level.dat. */
   worldData: (() => Map<string, Uint8Array>) | null = null;
-  /** Total bytes written by the last full save (level.dat's SizeOnDisk). */
-  private sizeOnDisk = 0;
   closed = false;
+  /** session.lock's time stamp of this session (SaveHandler.initializationTime), unique per handler. */
+  private readonly sessionTime = nextSessionTime();
+  /** Whether this session wrote session.lock (only then are writes checked against it). */
+  private locked = false;
 
   constructor(
     readonly backend: SaveBackend,
@@ -185,6 +195,7 @@ export class SaveHandler {
         return;
       }
       try {
+        await this.checkSessionLock();
         await this.backend.putChunks(
           this.folder,
           items.map(({ q }) => ({ cx: q.cx, cz: q.cz, data: q.data! })),
@@ -256,12 +267,14 @@ export class SaveHandler {
       tag = player as TagCompound;
     }
     info.lastTimePlayed = Date.now();
-    const bytes = writeCompressedNBT(levelDatRoot(worldInfoToNBT(info, tag, this.sizeOnDisk)));
+    // SizeOnDisk stays 0, as the integrated server writes it.
+    const bytes = writeCompressedNBT(levelDatRoot(worldInfoToNBT(info, tag, 0)));
     const files = new Map<string, Uint8Array | null>(this.worldData?.() ?? []);
     files.set('level.dat', bytes);
     const run = async (): Promise<void> => {
       if (this.closed) return;
       try {
+        await this.checkSessionLock();
         await this.backend.putFiles(this.folder, files);
         this.error = null;
       } catch (e) {
@@ -281,11 +294,26 @@ export class SaveHandler {
     if (wait) await this.flush(progress);
     else this.pump(8);
     await this.saveLevel(world.worldInfo, player);
-    try {
-      this.sizeOnDisk = await this.backend.folderSize(this.folder);
-    } catch {
-      // Only for SizeOnDisk.
-    }
+  }
+
+  /**
+   * setSessionLock: session.lock holds this session's start time (a big-endian long), so a
+   * second tab opening the same world takes it over and this one stops writing.
+   */
+  lockSession(): void {
+    const b = new Uint8Array(8);
+    new DataView(b.buffer).setBigInt64(0, BigInt(this.sessionTime));
+    this.locked = true;
+    this.runFirst(() => this.backend.putFiles(this.folder, new Map([['session.lock', b]])));
+  }
+
+  /** checkSessionLock: throws (and stops saving) when another session took the world over. */
+  private async checkSessionLock(): Promise<void> {
+    if (!this.locked) return;
+    const b = await this.backend.getFile(this.folder, 'session.lock');
+    if (b && b.length >= 8 && new DataView(b.buffer, b.byteOffset, 8).getBigInt64(0) === BigInt(this.sessionTime)) return;
+    this.closed = true;
+    throw new SaveError('The save is being accessed from another location, aborting');
   }
 
   /** Runs `fn` before every write of this handler (clearing a reused folder). */

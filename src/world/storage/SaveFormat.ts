@@ -186,6 +186,7 @@ export class SaveFormat {
     this.currentFolder = folder;
     const h = this.attach(new SaveHandler(this.backend, folder));
     h.runFirst(() => this.backend.deleteFolder(folder));
+    h.lockSession();
     return h;
   }
 
@@ -225,6 +226,7 @@ export class SaveFormat {
       if (bytes) dataFiles.set(path, bytes);
     }
     const handler = new SaveHandler(this.backend, folder, await this.backend.chunkPositions(folder));
+    handler.lockSession();
     this.currentFolder = folder;
     return { handler: this.attach(handler), info, player, data: dataFiles };
   }

@@ -598,6 +598,20 @@ async function saves(): Promise<void> {
     check('villages round trip', hex(writeNBT(vt2)) === hex(writeNBT(vt)) && vw.villageCollectionObj.getVillageList().length === 1);
     check('scoreboard saved and read back', !!o4 && o4.getDisplayName() === 'Kills' && b4.getPlayerScore('Steve', o4).getScorePoints() === 12 && b4.getObjectiveInDisplaySlot(1) === o4 && b4.getPlayersTeam('Steve')?.getColorPrefix() === '\u00a7c');
   }
+  // session.lock: a second session (another tab) on the same world takes it over; the first stops saving.
+  {
+    const lw = flatWorld(0);
+    const first = format2.createWorld('Locked');
+    await first.saveAll(lw, null, true);
+    // Another tab: its own SaveFormat over the same storage.
+    const second = (await new SaveFormat(backend).openWorld('Locked')).handler;
+    await second.saveAll(lw, null, true);
+    let reported = '';
+    first.onError = (m) => (reported = m);
+    lw.setBlock(1, 9, 1, B.stone, 0, 3);
+    await first.saveAll(lw, null, true);
+    check('the older session stops saving', first.closed && reported.includes('another location') && second.error === null, JSON.stringify({ closed: first.closed, reported, err: first.error, second: second.error }));
+  }
   // Deleting stops a world's saving and removes everything.
   await format2.deleteWorldDirectory('MyWorld');
   check('delete', !format2.canLoadWorld('MyWorld') && (await backend.chunkPositions('MyWorld')).length === 0 && (await backend.getFile('MyWorld', 'level.dat')) === null);

@@ -304,7 +304,12 @@ browsers without IndexedDB). `navigator.storage.persist()` is requested once.
   (reads check the queue first, like AnvilChunkLoader's pending list); every 900 ticks and when
   the game pauses the loaded chunks and level.dat are saved without a screen; hiding the tab saves
   too; Save and Quit writes everything behind "Saving level" / "Saving chunks" before the next
-  world can open. Player-modified chunks stay cached (compressed) so a bed can be found
+  world can open. Autosave and Save and Quit only write chunks that need it (`needsSaving`:
+  never saved, changed, or holding entities), unloading always writes. `session.lock` holds the
+  session's start time: a second tab opening the same world takes it over and the first one stops
+  saving with 1.5.2's "The save is being accessed from another location, aborting". The world's
+  `data/` files (maps and `idcounts.dat`, `villages.dat`, `scoreboard.dat`, `WorldData.ts`) are
+  read when it opens and written with level.dat when they changed. Player-modified chunks stay cached (compressed) so a bed can be found
   synchronously on respawn (`ChunkProviderClient.loadSavedChunkNow`). A LAN host saves its world;
   guests never save (their `WorldClient` has no save handler); guests' own player data is not
   written to `players/` (the LAN server keeps it in memory for rejoins).
