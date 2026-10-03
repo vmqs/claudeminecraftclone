@@ -166,6 +166,7 @@ export class ChunkProviderClient {
         this.incomingHead = 0;
       }
       if (m.replace) {
+        this.replacedChunks++;
         this.replaceChunk(m);
         continue;
       }
@@ -250,6 +251,14 @@ export class ChunkProviderClient {
     }
     const entities = c.entityLists.flat().filter((e) => !e.isPlayerEntity && !e.isDead);
     if (entities.length > 0) this.storedEntities.set(k, entities);
+  }
+
+  /** Chunks that sent again because they changed after an early send (see processIncoming). */
+  replacedChunks = 0;
+
+  /** Queue sizes for the performance tools (mc.dev.perf). */
+  queueStats(): { incoming: number; requested: number; stored: number; replaced: number } {
+    return { incoming: this.incoming.length - this.incomingHead, requested: this.requested.size, stored: this.stored.size, replaced: this.replacedChunks };
   }
 
   /** Whether every chunk within `radius` of the block position is present. */

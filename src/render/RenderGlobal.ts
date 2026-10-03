@@ -46,6 +46,8 @@ export class WorldRenderer {
   hasGeometry = false;
   /** Squared distance from the camera to the centre, set while sorting a pass. */
   sortDistance = 0;
+  /** A mesh (or the knowledge that there is nothing to draw) arrived at least once. */
+  meshedOnce = false;
   readonly posX: number;
   readonly posY: number;
   readonly posZ: number;
@@ -357,6 +359,7 @@ export class RenderGlobal implements IWorldAccess {
         this.dirty.delete(s);
         this.disposeSection(s);
         s.needsUpdate = false;
+        s.meshedOnce = true;
         continue;
       }
       const key = (s.isInFrustum ? 0 : 1e12) + this.sectionDistSq(s);
@@ -382,6 +385,7 @@ export class RenderGlobal implements IWorldAccess {
       if (!center || center.isEmpty()) {
         this.disposeSection(s);
         s.needsUpdate = false;
+        s.meshedOnce = true;
         continue;
       }
       const snap = this.snapshots.pop() ?? allocSnapshot();
@@ -423,6 +427,7 @@ export class RenderGlobal implements IWorldAccess {
         }
       }
       s.hasGeometry = !!(s.meshes[0] || s.meshes[1]);
+      s.meshedOnce = true;
       if (s.hasGeometry) this.withGeometry.add(s);
       else this.withGeometry.delete(s);
       WorldRenderer.chunksUpdated++;
@@ -440,6 +445,24 @@ export class RenderGlobal implements IWorldAccess {
     // In flight (sent, or the result is waiting for upload) and not dirty again.
     for (const s of this.jobs.values()) if (!s.needsUpdate && near(s)) n++;
     return n;
+  }
+
+  /**
+   * Sections within `radius` chunks of the viewer that have never had a mesh: what the first
+   * view of a newly loaded area still lacks (re-meshes of sections already drawn don't count).
+   */
+  unmeshedNear(viewer: Entity, radius: number): number {
+    const cx = MathHelper.floor_double(viewer.posX) >> 4;
+    const cz = MathHelper.floor_double(viewer.posZ) >> 4;
+    let n = 0;
+    for (const s of this.dirty) if (!s.meshedOnce && Math.abs(s.sx - cx) <= radius && Math.abs(s.sz - cz) <= radius) n++;
+    for (const s of this.jobs.values()) if (!s.meshedOnce && !s.needsUpdate && Math.abs(s.sx - cx) <= radius && Math.abs(s.sz - cz) <= radius) n++;
+    return n;
+  }
+
+  /** Queue sizes for the performance tools (mc.dev.perf). */
+  queueStats(): { sections: number; withGeometry: number; dirty: number; inFlight: number; resultsWaiting: number; meshers: number } {
+    return { sections: this.sections.size, withGeometry: this.withGeometry.size, dirty: this.dirty.size, inFlight: this.jobs.size, resultsWaiting: this.results.length, meshers: this.workers.length };
   }
 
   clipRenderersByFrustum(fr: Frustum): void {

@@ -149,6 +149,8 @@ try {
         if (m.world === undefined && mc.thePlayer) m.world = t;
         if (m.playable === undefined && mc.dev.isInGame()) m.playable = t;
         for (const r of [1, 2, 4, 6, 8]) if (m[`meshed${r}`] === undefined && m.world !== undefined && loaded(r)) m[`meshed${r}`] = t;
+        // Every section within r meshed once (re-meshes after world ticks don't hold it back).
+        if (mc.dev.perf) for (const r of [2, 4, 8]) if (m[`shown${r}`] === undefined && m.world !== undefined && mc.dev.perf.areaShown(r)) m[`shown${r}`] = t;
         const w = mc.theWorld;
         let geo = 0;
         const rg = mc.renderGlobal;

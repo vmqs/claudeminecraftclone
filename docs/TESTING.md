@@ -57,6 +57,11 @@ helmet), `use(ticksLeft)` (a bow drawn n ticks: `72000 - n`), `effect(id, second
 y, z, yaw, {held, armor, color, sneak, use, bed})` (an `EntityOtherPlayerMP` posed like the
 reference harness's `otherplayer`), `clearOthers()`, `state()` (sleep timer, bed, effects, FOV).
 `mc.dev.sky.pin` also settles the eased FOV (`EntityRenderer.settleFovModifier`).
+`mc.dev.perf` (`src/client/PerfDevTools.ts`): `stats()` (frame interval, idle time, the frame
+budget, draw calls, the meshing and chunk queues, chunks sent twice), `unmeshed(r)` (sections
+within r chunks never meshed yet), `areaShown(r)` (every chunk within r loaded and every section
+meshed once; unlike `pendingSections` it ignores re-meshes caused by world ticks), `idleProbe(n)`
+/ `idleRuns()` (an IdleTasks probe).
 Key codes are LWJGL codes (`src/client/Keyboard.ts`, e.g. W = 17, space = 57, left shift = 42).
 A key or button must stay down for at least one tick to be seen by the player, which is what
 `press` and `click` do.
@@ -156,6 +161,30 @@ This is how tile-entity lifecycle, explosions, spawning and the RenderBlocks rew
 checked: the rewrite was compared byte for byte with the previous implementation over random
 `ChunkCache` snapshots (all render settings, rotations, overridden bounds and textures) and every
 block's item render. Keep such scripts outside the repository unless they become real tests.
+
+## Performance
+
+```sh
+node scripts/perf/bench.mjs worldgen [seed] [type] [radius]   # spawn search, spawn area, finalization (Node)
+node scripts/perf/bench.mjs popul [seed] [type]               # the population critical path without terrain
+node scripts/perf/bench.mjs mesher [seed] [radius] [ao] [fancy] # snapshot copy + meshing per section, mesh hash
+node scripts/perf/bench.mjs tick [seed] [radius] [ticks]      # world ticks with mobs (randoms pinned)
+node scripts/perf/load-bench.mjs --url http://localhost:4222/ [--shots] [--json out.json]   # browser: load, frames, heap
+node scripts/run-node-test.mjs tests/worldgen-golden.test.ts tests/worldgen-worker.test.ts tests/mesher-golden.test.ts tests/frame-budget.test.ts
+node scripts/shot.mjs perf --url http://localhost:4222/ --server none   # needs a baseline build on :5222, see below
+```
+
+`tests/worldgen-golden.test.ts` and `tests/mesher-golden.test.ts` hash worker payloads and
+section meshes of fixed seeds (every smooth-lighting and graphics setting) against values
+recorded before the performance work: any optimization of generation or meshing must keep them.
+`tests/worldgen-worker.test.ts` runs `worldgen.worker.ts` under Node with fake nested terrain
+workers (`tests/fakeWorkerEnv.ts`, random delays) and checks that chunks served while the spawn
+area loads equal a plain spawn-area-first generation. `scripts/scenarios/perf.json` renders the
+same frozen Superflat scenes (a block palette, smooth-lighting shadows, a mob line-up, the
+creative inventory) from a baseline build served on port 5222 (`ab_base_*.png`) and from the
+current one (`ab_new_*.png`) for a pixel comparison (`compare -metric AE ab_base_x.png
+ab_new_x.png`), asserts the `mc.dev.perf` checks, then times a default world from the title
+screen. Numbers and how they were taken: `docs/PERFORMANCE.md`.
 
 ## Multiplayer
 
