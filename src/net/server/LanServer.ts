@@ -17,6 +17,7 @@ import type { HostTransport, NetConnection } from '../transport/Transport';
 import { EntityPlayerMP, type PlayerServer } from './EntityPlayerMP';
 import { EntityTracker } from './EntityTracker';
 import { NetServerHandler, REJOIN_TOKEN_BYTES, toHex } from './NetServerHandler';
+import { SkinRelay } from './SkinRelay';
 
 /** What the LAN server needs from the host's game client. */
 export interface LanHostClient {
@@ -30,6 +31,10 @@ export interface LanHostClient {
   getPossibleCompletions(sender: EntityPlayer, text: string): string[];
   /** Areas the host must keep loaded besides its own (guests, the spawn). */
   setExtraLoadCenters(centers: { x: number; z: number; radius: number }[]): void;
+  /** The host player's skin, 64x32 RGBA (null: Steve); see SkinRelay. */
+  hostSkin?(): Uint8Array | null;
+  /** A guest's skin for the host's renderer (null: Steve again). */
+  playerSkin?(name: string, rgba: Uint8Array | null): void;
 }
 
 export interface LanSettings {
@@ -94,6 +99,8 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
   readonly world: World;
   readonly handlers: NetServerHandler[] = [];
   readonly tracker: EntityTracker;
+  /** Everyone's skins (MC|Skin). */
+  readonly skins = new SkinRelay(this);
   code = '';
   private readonly pendingLogins: { h: NetServerHandler; since: number }[] = [];
   private readonly saved = new Map<string, SavedPlayer>();
@@ -291,6 +298,7 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
     // Everyone's entry in the new player's TAB list, and the new player in everyone's.
     for (const entry of this.playerList()) h.sendPacket({ type: 'PlayerInfo', name: entry.name, connected: true, ping: entry.responseTime });
     this.broadcast({ type: 'PlayerInfo', name: p.username, connected: true, ping: 0 }, h);
+    this.skins.joined(h);
     this.sendChatMsg(`§e${p.username} joined the game.`);
   }
 
@@ -300,6 +308,7 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
     if (i >= 0) this.handlers.splice(i, 1);
     this.tracker.removePlayer(h);
     this.particles.delete(h);
+    this.skins.left(h);
     const p = h.player;
     if (!p) return;
     console.info(`[lan] ${p.username} lost connection: ${reason}`);
@@ -478,6 +487,7 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
     }
     if (this.ticks % 100 === 0) for (const entry of this.playerList()) this.broadcast({ type: 'PlayerInfo', name: entry.name, connected: true, ping: entry.responseTime });
     if (this.ticks % 200 === 0) for (const [k, v] of this.chunkCache) if (this.ticks - v.tick > 200) this.chunkCache.delete(k);
+    this.skins.tick(this.ticks);
     for (const h of this.handlers) h.flush();
   }
 

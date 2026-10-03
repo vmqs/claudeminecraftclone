@@ -4,6 +4,7 @@ import { GuiButton } from './GuiButton';
 import type { ServerData } from './GuiMultiplayer';
 import { GuiScreen } from './GuiScreen';
 import { GuiTextField } from './GuiTextField';
+import { javaSplitColon } from '../net/connect/ServerAddress';
 
 /** "Edit Server Info" (GuiScreenAddServer): name, address and the hide-address toggle. */
 export class GuiScreenAddServer extends GuiScreen {
@@ -46,7 +47,7 @@ export class GuiScreenAddServer extends GuiScreen {
   }
 
   private updateAddButton(): void {
-    this.buttonList[0].enabled = this.serverAddress.getText().length > 0 && this.serverAddress.getText().split(':').length > 0 && this.serverName.getText().length > 0;
+    this.buttonList[0].enabled = this.serverAddress.getText().length > 0 && javaSplitColon(this.serverAddress.getText()).length > 0 && this.serverName.getText().length > 0;
   }
 
   override onGuiClosed(): void {

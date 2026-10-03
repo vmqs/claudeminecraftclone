@@ -18,6 +18,7 @@ import { ScreenOverlays } from './sky/ScreenOverlays';
 import { MapItemRenderer } from './MapItemRenderer';
 import { ItemIds } from '../block/BlockIds';
 import type { ItemMap } from '../item/ItemMap';
+import { bindPlayerSkin } from './entity/SkinTextures';
 
 const f = Math.fround;
 const PI_F = f(Math.PI);
@@ -268,7 +269,7 @@ export class ItemRenderer {
       b = MathHelper.sin(f(MathHelper.sqrt_float(sw2) * PI_F));
       GL.rotate(f(b * 70), 0, 1, 0);
       GL.rotate(f(-c * 20), 0, 0, 1);
-      this.mc.renderEngine.bindTexture(p.getTextureName());
+      bindPlayerSkin(this.mc.renderEngine, p);
       GL.translate(-1, f(3.6), f(3.5));
       GL.rotate(120, 0, 0, 1);
       GL.rotate(200, 1, 0, 0);
@@ -301,7 +302,7 @@ export class ItemRenderer {
     GL.rotate(90, 0, 1, 0);
     GL.rotate(f(lift * -85), 0, 0, 1);
     GL.enable(GL.RESCALE_NORMAL);
-    this.mc.renderEngine.bindTexture(p.getTextureName());
+    bindPlayerSkin(this.mc.renderEngine, p);
     for (let side = 0; side < 2; side++) {
       const s = side * 2 - 1;
       GL.pushMatrix();

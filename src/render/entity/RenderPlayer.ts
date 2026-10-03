@@ -10,6 +10,7 @@ import { GL } from '../gl/GL';
 import { ModelBiped } from './ModelBiped';
 import { BIPED_FULL3D_OFFSET, renderHeadItem, renderHeldItem, setArmorModel, setArmorOverlay } from './RenderBiped';
 import { RenderLiving } from './RenderLiving';
+import { bindPlayerSkin } from './SkinTextures';
 
 const f = Math.fround;
 const SCALE = f(0.0625);
@@ -34,6 +35,11 @@ export class RenderPlayer extends RenderLiving {
 
   bindTexture(path: string): void {
     this.loadTexture(path);
+  }
+
+  /** The player's skin (loadDownloadableImageTexture(skinUrl, getTexture())), Steve without one. */
+  protected override bindEntityTexture(e: EntityLiving): void {
+    bindPlayerSkin(this.renderManager.renderEngine, e as EntityPlayer);
   }
 
   override doRender(e: Entity, x: number, y: number, z: number, yaw: number, pt: number): void {

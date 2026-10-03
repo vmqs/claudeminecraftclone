@@ -30,6 +30,7 @@ import { EntityClientPlayerMP } from './EntityClientPlayerMP';
 import type { PlayerControllerGuest } from './PlayerControllerGuest';
 import { INTERPOLATION_STEPS, setRemoteTarget, snapToTarget } from './RemoteEntityTick';
 import { WorldClient } from './WorldClient';
+import { decodePlayerSkin, encodeOwnSkin, SKIN_CHANNEL } from '../SkinSync';
 
 function fromHex(hex: string): Uint8Array {
   const out = new Uint8Array(hex.length >> 1);
@@ -70,6 +71,10 @@ export interface GuestClient {
   rejoinToken?(): string | null;
   /** The host gave this player a rejoin token (MC|Rejoin): keep it for the room and name. */
   storeRejoinToken?(token: string): void;
+  /** This player's skin (64x32 RGBA, null for Steve); sent to the host when it changes (MC|Skin). */
+  localSkin?(): Uint8Array | null;
+  /** Another player's skin from the host (null: Steve). */
+  playerSkin?(name: string, rgba: Uint8Array | null): void;
 }
 
 /**
@@ -192,7 +197,10 @@ export class NetClientHandler {
         console.error('[lan] error handling', p.type, e);
       }
     }
-    if (this.state === 'play') this.sendClientInfo();
+    if (this.state === 'play') {
+      this.sendClientInfo();
+      this.sendSkin();
+    }
     if (++this.ticksSinceMessage > TIMEOUT_TICKS) this.fail('disconnect.lost', 'disconnect.timeout');
   }
 
@@ -382,6 +390,10 @@ export class NetClientHandler {
         return this.client.autocompleteResponse(p.text.split('\u0000'));
       case 'CustomPayload':
         if (p.channel === 'MC|Rejoin' && p.data.length === 16) this.client.storeRejoinToken?.([...p.data].map((v) => v.toString(16).padStart(2, '0')).join(''));
+        else if (p.channel === SKIN_CHANNEL) {
+          const skin = decodePlayerSkin(p.data);
+          if (skin && skin.name !== player.username) this.client.playerSkin?.(skin.name, skin.rgba);
+        }
         return;
       case 'KickDisconnect':
         return this.fail('disconnect.disconnected', p.reason);
@@ -421,6 +433,17 @@ export class NetClientHandler {
   }
 
   private sentClientInfo = '';
+  /** The skin last sent to the host (undefined: none yet). */
+  private sentSkin: Uint8Array | null | undefined = undefined;
+
+  /** MC|Skin: this player's skin, after the login and whenever it changes. */
+  private sendSkin(): void {
+    if (!this.client.localSkin) return;
+    const skin = this.client.localSkin();
+    if (skin === this.sentSkin || (skin === null && this.sentSkin === undefined)) return;
+    this.sentSkin = skin;
+    this.addToSendQueue({ type: 'CustomPayload', channel: SKIN_CHANNEL, data: encodeOwnSkin(skin) });
+  }
 
   /** GameSettings.sendSettingsToServer: the render distance (the host streams that far) and chat visibility. */
   private sendClientInfo(): void {
