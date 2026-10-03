@@ -21,9 +21,16 @@ import { ItemStack } from '../src/item/ItemStack';
 import { Chunk } from '../src/world/Chunk';
 import { EnumGameType } from '../src/world/EnumGameType';
 import { World, WorldInfo } from '../src/world/World';
+import { existsSync, readFileSync } from 'node:fs';
+import { I18n } from '../src/core/I18n';
 import { check, report } from './harness';
 
 registerBlockItems();
+// Death messages read better translated; without the fetched assets the keys are compared.
+const LANG = 'public/assets/vanilla/lang/en_US.lang';
+const haveLang = existsSync(LANG);
+if (haveLang) I18n.load(readFileSync(LANG, 'utf8'));
+const said = (msg: string, key: string, text: string) => (haveLang ? msg === text : msg === key);
 
 /** A world of 3x3 chunks: bedrock at y 0, stone up to y 3, air above. */
 function makeWorld(gameType = 0, hardcore = false): World {
@@ -322,6 +329,25 @@ function clearItems(w: World): void {
   }
   check('air runs out after 300 ticks, first drowning hit at 320', firstHurt >= 319 && firstHurt <= 322, `first hit at ${firstHurt}`);
   check('drowning keeps hurting every 20 ticks (2 per hit: 320, 340, 360)', dr.p.getHealth() === 14, `${dr.p.getHealth()}`);
+}
+
+// ------------------------------------------------------------------ death messages
+{
+  const high = session(0);
+  high.p.fallDistance = 10;
+  high.p.attackEntityFrom(DamageSource.fall, 7);
+  const m1 = high.p.combatTracker.getDeathMessage();
+  check('a long fall: "fell from a high place"', said(m1, 'death.fell.accident.generic', 'Player fell from a high place'), m1);
+  const low = session(0);
+  low.p.fallDistance = 4;
+  low.p.attackEntityFrom(DamageSource.fall, 1);
+  const m2 = low.p.combatTracker.getDeathMessage();
+  check('a short fall: "hit the ground too hard"', said(m2, 'death.attack.fall', 'Player hit the ground too hard'), m2);
+  const wet = session(0);
+  wet.p.attackEntityFrom(DamageSource.drown, 2);
+  const m3 = wet.p.combatTracker.getDeathMessage();
+  check('drowning: "drowned"', said(m3, 'death.attack.drown', 'Player drowned'), m3);
+  check('no damage at all: "died"', session(0).p.combatTracker.getDeathMessage() === 'Player died');
 }
 
 // ------------------------------------------------------------------ experience
