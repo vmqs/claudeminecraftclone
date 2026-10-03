@@ -21,6 +21,11 @@ import { WorldGenServer } from '../../src/world/gen/WorldGenServer';
 import { World, WorldInfo } from '../../src/world/World';
 
 registerBlockItems();
+// Unseeded randoms (the world's, every entity's) come from Math.random and the clock: pin both
+// so runs spawn the same mobs and compare.
+let lcg = 12345;
+Math.random = () => ((lcg = (Math.imul(lcg, 1103515245) + 12345) >>> 0) / 4294967296);
+Date.now = () => 1_700_000_000_000;
 const seedText = process.argv[2] ?? 'claude';
 const radius = Number(process.argv[3] ?? 6);
 const ticks = Number(process.argv[4] ?? 600);
