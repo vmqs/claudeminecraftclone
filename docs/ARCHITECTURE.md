@@ -29,9 +29,10 @@ In scope:
   the death screen and respawns at the bed or the world spawn.
 - World generation is a **port of 1.5.2's generator**: the same seed gives the same biomes,
   terrain, caves, decoration and structures (Default, Large Biomes and Superflat with presets).
-- **No world saving.** Worlds live in memory for the session. Modified chunks are kept in memory
-  when unloaded so builds survive flying away and back. Options and key bindings *are* kept in
-  `localStorage`, like `options.txt`.
+- **World saving like 1.5.2's singleplayer saves** (§5.7): worlds are stored in IndexedDB in the
+  real Anvil format (level.dat, region chunks, players) and survive reloading the page; the world
+  list can export a world as a .zip that opens in Minecraft 1.5.2 and import such a .zip. Options
+  and key bindings are kept in `localStorage`, like `options.txt`.
 - **Multiplayer like Open to LAN**, peer to peer: the host's world is authoritative, guests join
   with a room code over WebRTC (no game server), custom usernames (see `docs/MULTIPLAYER.md`).
 - Keyboard and mouse only (Pointer Lock).
@@ -104,6 +105,9 @@ src/
   audio/                   SoundManager (Web Audio), SoundPool, music and record scheduling
   command/                 CommandHandler, CommandBase, PlayerSelector, ServerCommandManager and the
                            commands (/help, /time, /tp, /give, /kill, /seed, /say, /me, /tell so far)
+  world/storage/           saving (§5.7): NBT codec, region files, AnvilChunkLoader, level.dat,
+                           IndexedDB/memory backends, SaveHandler, SaveFormat (world list),
+                           WorldSaveController (autosave, Save and Quit), .zip import/export
   net/                     multiplayer: room codes, usernames, protocol/ (packets, chunk codec),
                            transport/ (WebRTC via trystero, in-memory), server/ (LanServer,
                            NetServerHandler, EntityPlayerMP, EntityTracker), client/ (WorldClient,
@@ -225,9 +229,11 @@ around the player is meshed. `Chunk` only needs a `ChunkHost` (an `IWorld` plus 
 render-update hooks), which both the client `World` and the worker's `GenWorld` implement.
 
 Edits made by world simulation (block ticks, fluids, leaf decay, weather, light) run inside
-`World.runNaturally`; anything else marks the chunk `playerModified`. When a chunk unloads, a
-player-modified chunk is kept whole, otherwise only its entities are kept, and it is
-re-requested (the worker sends the same chunk again) when it comes back.
+`World.runNaturally`; anything else marks the chunk `playerModified`. A saved world (every
+single-player world and a LAN host's) has a `ChunkProviderClient.saveHandler`: chunks present in
+the save are read from it instead of being generated, and every chunk is saved when it unloads
+(§5.7). Without one (tests), a player-modified chunk is kept whole in memory when it unloads,
+otherwise only its entities are kept, and it is re-requested from the worker when it comes back.
 
 ### 5.3 Lighting (main thread)
 
@@ -268,6 +274,48 @@ changes through `World.netEvents` (a `WorldNetListener`) and an `IWorldAccess`. 
 `WorldClient` is `isRemote`: no world generation worker requests, block ticks, spawning or AI;
 its entities are animated from network updates (`src/net/client/RemoteEntityTick.ts`). Details
 in `docs/MULTIPLAYER.md`.
+
+### 5.7 Saving (`src/world/storage/`)
+
+Worlds are saved like 1.5.2's integrated server, in its file formats, into IndexedDB
+(`SaveBackend`: one database, `files` keyed `[folder, path]` holding `level.dat`,
+`players/<name>.dat`, `data/*.dat`, and `chunks` keyed `[folder, cx, cz]` holding each chunk's
+zlib-compressed NBT exactly as a region-file sector run stores it; `MemoryBackend` for tests and
+browsers without IndexedDB). `navigator.storage.persist()` is requested once.
+- **NBT** (`NBT.ts`): tags stay plain objects (`TagCompound`); the binary type of each key is
+  recorded in a hidden map by the typed setters (`NBT.setShort(tag, 'Fire', n)`, `setList(tag,
+  key, NBTType.Double, list)`...) and by the reader, so imported tags are written back with their
+  types. Untyped numbers fall back to the 1.5.2 item and enchantment key types (`Slot` byte,
+  `id`/`Damage`/`lvl` short...), else int or double. New `writeEntityToNBT` / `writeToNBT` code
+  must use the typed setters with the 1.5.2 types (the original's getters throw on a wrong type).
+- **Chunks** (`AnvilChunkLoader.ts`): `{Level: {xPos, zPos, LastUpdate, TerrainPopulated,
+  HeightMap, Sections[{Y, Blocks, Data, BlockLight, SkyLight}], Biomes, Entities, TileEntities,
+  TileTicks}}`; entities through `Entity.addEntityID` (players and unsaved classes are skipped, a
+  rider carries its mount under `Riding`), back through `EntityList.createEntityFromNBT`.
+  Region files (`RegionFile.ts`) are only built for export and read on import.
+- **Entities and tile entities**: `Entity.writeToNBT/readFromNBT` (Pos, Motion, Rotation, Fire,
+  Air, UUID...) call the class's `writeEntityToNBT/readEntityFromNBT` with the 1.5.2 keys;
+  `EntityPlayer` adds the inventory, ender chest, XP, food, abilities, bed and `playerGameType`.
+  World-generation descriptors still pass `data` to `readEntityFromNBT`.
+- **level.dat** (`WorldInfoNBT.ts`): `WorldInfo` and the single player's tag under `Player`
+  (gzip NBT, `version` 19133). A world without `Player` reads `players/<username>.dat`.
+- **Lifecycle** (`SaveHandler`, `WorldSaveController`, hooked from `Minecraft`): chunks are
+  snapshotted when they unload or are saved, compressed a few per tick and written in batches
+  (reads check the queue first, like AnvilChunkLoader's pending list); every 900 ticks and when
+  the game pauses the loaded chunks and level.dat are saved without a screen; hiding the tab saves
+  too; Save and Quit writes everything behind "Saving level" / "Saving chunks" before the next
+  world can open. Player-modified chunks stay cached (compressed) so a bed can be found
+  synchronously on respawn (`ChunkProviderClient.loadSavedChunkNow`). A LAN host saves its world;
+  guests never save (their `WorldClient` has no save handler); guests' own player data is not
+  written to `players/` (the LAN server keeps it in memory for rejoins).
+- **World list** (`SaveFormat`, `GuiSelectWorld`): read once at start-up from every level.dat
+  (level.dat_old as fallback), sorted by last played, then folder; rename edits `LevelName`;
+  delete stops the world's saving and removes the folder; Hardcore deletion goes through it.
+- **Import/export** (`WorldTransfer.ts`): Export zips `<folder>/level.dat`, `region/r.X.Z.mca`,
+  `players/`, `data/`; Import takes the shallowest level.dat in a .zip (with or without the top
+  folder), keeps only overworld files, checks sizes (512 MB zip, 64 MB per file, 1 GB total),
+  rejects McRegion worlds and unreadable level.dat with an `ImportError` (shown by
+  `GuiErrorScreen`), stores chunks as they are (gzip chunks re-deflated) and lists the world last.
 
 ## 6. Rendering
 
@@ -482,7 +530,7 @@ them for remote players) and the client's view:
 - **Modes**: `EnumGameType` (`src/world/EnumGameType.ts`), `EntityPlayer.setGameType` (used by
   `/gamemode`) → `EntityPlayer.gameTypeListener` → `PlayerControllerMP.setGameType`. The world's
   difficulty is the options' (`GameSettings` listener `onSettingsSaved`), Hard in Hardcore.
-  Leaving a world keeps the survival state in `PlayerSnapshot.state`.
+  Leaving a world saves the player into level.dat (`EntityPlayer.writeToNBT`, §5.7).
 
 ## 9. GUI
 
@@ -493,7 +541,8 @@ icons work naturally. `FontRenderer` measures glyph widths from the *vanilla* `f
 the original did (it read the font image from the jar), and draws with the selected pack's image. It
 supports shadows (offset 1, colour ×0.25), `§` colour and format codes, and unicode fallback
 through `font/glyph_XX.png` and `glyph_sizes.bin`. Screens: main menu (rotating panorama, logo,
-random splash, version string), select world (in-memory worlds), create world (with "More World
+random splash, version string), select world (saved worlds, §5.7, with Import/Export in the
+header), create world (with "More World
 Options": seed, structures, world type Default, Superflat, or Large Biomes, cheats, bonus chest),
 options, video settings, controls, sounds, language (English), texture packs (bundled Faithful vs
 Default), pause menu, loading screens, chat with commands, the creative inventory (12 tabs, search,
@@ -592,6 +641,7 @@ registries are imported once by `src/client/Minecraft.ts`.
 | Chat | `EntityPlayer.addChatMessage(langKey)`, `sendChatToPlayer(text)`, `Minecraft.ingameGUI.getChatGUI().printChatMessage(text)`. |
 | World generation | `ChunkGenerator` implementations in `src/world/gen/` (chosen by `WorldGenServer`), `BiomeSource` (`WorldChunkManager` over the GenLayer stack, `SingleBiomeSource` for Superflat), `WorldGenerator` features from `ChunkProviderGenerate.populate` / `BiomeDecoration`, structures as `MapGenStructure` + `StructureStart` + `StructureComponent` pieces in `src/world/gen/structure/`, chest/dispenser/spawner contents through `ChestLoot` (`putTileEntityTag`), entities through `spawnGenEntity`. Superflat presets: `FlatGeneratorInfo`, `FLAT_PRESETS` (`src/gui/FlatPresets.ts`, built from `FlatGeneratorInfo` in Java HashMap order). Raw terrain can come from the nested `terrain.worker.ts` (`ChunkGenerator.provideTerrain` / `recordStructures`, `TerrainChunk`); `WorldGenServer` owns the spawn search and the stepwise 25x25 spawn area. World options: `WorldSettings.generatorOptions` / `bonusChest` (kept on `WorldInfo` so a resumed world's worker regenerates the same spawn chunks), passed to `new ChunkProviderClient(world, seed, type, features, { generatorOptions, bonusChest })`. Generated entities arrive as descriptors through `EntityList.fromDescriptor`, tile entities as NBT through `TileEntity.createAndLoadEntity`. Stronghold queries: `StructureLocator.findClosestStructure`. Code here must stay worker-safe (`IWorld`, no DOM or GL). |
 | Players | Sleeping: `EntityPlayer.sleepInBedAt` (the 1.5.2 refusals, `lieDownInBed` for a client copy), `wakeUpPlayer(immediately, updateWorld, setSpawn)`, `getSleepTimer` / `isPlayerFullyAsleep`, the bed spawn (`getBedLocation`, `setSpawnChunk`, `EntityPlayer.verifyRespawnCoordinates`, applied on respawn by `PlayerSpawning.respawn`, after `loadChunksAroundBed` in `src/client/BedRespawn.ts` puts kept chunks back); `World.updateAllPlayersSleepingFlag` skips the night once every player slept 100 ticks. Remote players: `EntityOtherPlayerMP` (network interpolation via `setPositionAndRotation2`, item use from the eating flag, `setCurrentItemOrArmor` for equipment). Container screens that list the active effects extend `InventoryEffectRenderer` (`src/gui/inventory/`; `GuiInventory` and `GuiContainerCreative` do, as in 1.5.2; effects listed in Java HashMap order by `hashMapOrder`). FOV: `EntityPlayerSP.getFOVMultiplier` (flying, speed potions and sprint, bow draw), eased by `EntityRenderer`; `settleFovModifier` for captures. Beacons apply effects through `TileEntityBeacon.applyEffect` (installed in `ItemBindings.ts`). |
+| Saving | Saved entity classes override `writeEntityToNBT` / `readEntityFromNBT` (call `super`, use the typed `NBT.set*` helpers with the 1.5.2 key types, `src/world/storage/NBT.ts`); tile entities `writeToNBT` / `readFromNBT`. Non-entity world data that must persist goes into the save folder's files through `SaveHandler.backend.putFiles(folder, ...)` (e.g. `data/<name>.dat` as gzip NBT); export and import carry `players/` and `data/` along. The open world's save: `mc.saveController.handler` (`saveAll`, `saveLevel`), the list: `SaveFormat.instance` (`listeners` for changes). |
 | Dev hooks | `src/client/DevTools.ts` (`?dev=1` → `window.mc.dev`), scenarios in `scripts/scenarios/`. |
 | Multiplayer | New packets: add a schema to `PACKETS` (`src/net/protocol/Packets.ts`; give it a direction for `allowedFrom` and keep fields bounded), handle it in `NetServerHandler.handle` (validate everything a guest sends) or `NetClientHandler`. World events reach guests through `World.netEvents` (`WorldNetListener`: block and tile entity changes, animations, statuses, pick-ups, explosions, block events, lightning, beds, player sounds) and the `IWorldAccess` the `LanServer` adds (sounds, particles, aux effects, crack progress); wrap client-only effects in `World.localEffectsOnly`. New entity classes: tracking range/interval, spawn data and networked metadata slots in `src/net/EntityNetData.ts` (`trackingParams`, `spawnData` / `createFromSpawn`, the metadata tables), guest-side animation state in `src/net/client/RemoteEntityVisuals.ts`. Rules that only the authoritative side may run check `world.isRemote` (blocks, tile entities, entities) or `EntityPlayer.isClientSide()` (players; true for guests and for `EntityOtherPlayerMP`). Windows: `Container.crafters` (`ICrafting`: `EntityPlayerMP` mirrors slots and progress bars); new window kinds get an id in `src/net/WindowTypes.ts` and a case in `EntityPlayerMP.displayGUI*` / `NetClientHandler`'s OpenWindow. Controllers: `mc.playerController` is a `PlayerControllerGuest` on guests; screens that change server state call `sendEnchantPacket`, `sendSlotPacket`, `sendPacketDropItem` or `mc.netHandler.addToSendQueue` (anvil names, beacon, signs). Item tags cross the network only through the whitelist in `src/net/protocol/ItemTags.ts`: a new tag key an item reads must be added there (with its type and limits) or guests lose it; stacks a creative guest may create are decided by `src/net/server/CreativeItems.ts`. A new guest action that changes the world needs its own `ActionLimit` in `NetServerHandler` and must be ignored for dead players (`DEAD_IGNORES`). Host-only commands go in `HOST_ONLY_COMMANDS` (`EntityPlayerMP`) and reach the LAN game through `CommandServer.lan()`. |
 | Block interaction hooks | `BlockGuiHooks.register(kind, handler)` (`src/block/BlockGuiHooks.ts`; chest, enderChest, workbench, furnace, dispenser, dropper, hopper, brewingStand, enchantment, anvil, beacon, sign, commandBlock; without a handler the player's `displayGUI*` runs). Survival breaking (`PlayerControllerMP`) calls `Block.harvestBlock` (drops, stats, exhaustion) after removing the block; `HarvestModifiers.silkTouch` / `fortune` are wired to `EnchantmentHelper`. Block events: `World.addBlockEvent` → `Block.onBlockEventReceived`. Mob spawners: `MobSpawnerBaseLogic.spawnHook`. |

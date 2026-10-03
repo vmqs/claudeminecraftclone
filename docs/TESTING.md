@@ -86,6 +86,9 @@ node scripts/shot.mjs survival               # survival HUD (full, damaged, hurt
 node scripts/shot.mjs sky                    # sky, fog, clouds, render distances, rain, thunder and a bolt,
                                              # snow, desert, underwater, lava, in-wall and pumpkin overlays
 node scripts/shot.mjs worldgen               # seeds "claude"/123456789 vs the reference spawn, cave, biomes, village; flat and large biomes
+node scripts/shot.mjs persistence            # world saving: build, Save and Quit, reload the page, the world list,
+                                             # reopen (blocks, chest, sign, furnace, named sheep, villager, player
+                                             # inventory/health/food/xp/position), export + import, delete (asserts)
 node scripts/shot.mjs player                 # F5 back/front, bow and sword poses, a posed line-up of players,
                                              # the effect list, night vision, blindness, sleeping in a bed
                                              # (Leave Bed, skip to morning, bed spawn), nausea, a boat (checks)
@@ -195,12 +198,42 @@ Signalling is local, but the game data goes over real WebRTC data channels. `--p
 public Nostr/BitTorrent relays instead, which needs a browser that can reach them (the sandbox
 used for development intercepts TLS, so only the local relay works there).
 
+`mc.dev.saves` (`src/client/SaveDevTools.ts`): `ready()` (the saved worlds once read), `list()`,
+`state()` (open world's folder, chunks stored and queued, last error, Save and Quit running),
+`saveNow()`, `quit()` (Save and Quit to Title, resolves when everything is stored), `open(folder)`
+(Play Selected World), `exportZip(folder)`, `importZip(bytes, name)`, `roundTrip(folder)` (export
+and import through the world list's code, returns the new folder) and `deleteAll()`. Saves live
+in the page's IndexedDB, so a scenario's `goto` (same browser context) is a real page reload.
+
 `mc.dev.net` (`src/client/NetDevTools.ts`): `host(name?, mode?, cheats?)` opens the world to
 LAN and resolves with the room code; `join(code, name?)` opens Direct Connect's connecting
 screen; `state()` returns the role, room code, player list, guest state, loaded chunks and
 entities, other players' positions, bytes and the network screen (`'connecting'`,
 `'downloading'`, `'disconnected'`); `chat(n)` the last chat lines; `leave()`. The debug screens
 `multiplayer`, `directconnect`, `sharetolan` and `pause` open with `mc.dev.screen(name)`.
+
+## Saving
+
+```sh
+node scripts/run-node-test.mjs tests/persistence.test.ts
+```
+
+checks the NBT codec (every tag type, modified UTF-8, the 1.5.2 key types, truncated and fuzzed
+input), region files, nibble packing, every entity class and tile entity (save, load, save again
+gives the same bytes; sheep colour, tamed owners, villager trades, creeper power, baby zombie
+villagers, slime size, custom names, minecart chests, riders), a chunk with blocks, light,
+biomes, a chest, a sign, entities, a rider and a scheduled tick, level.dat with the player
+(inventory, armour, ender chest, xp, food, abilities, game mode), and the saves over the memory
+backend: listing, the save queue, reopening, rename, export to a .zip (`level.dat` +
+`region/r.X.Z.mca`), import (with or without the top folder), bad imports (not a zip, no or bad
+level.dat, McRegion, truncated) and delete; `ChunkProviderClient` reads saved chunks instead of
+asking the generator and saves chunks as they unload.
+
+Compatibility with the real game was checked with the vanilla harness: a world exported here
+(`level.dat`, regions, player) opens in Minecraft 1.5.2 with its blocks, chest, sign, named sheep
+and the player's position, inventory, health and xp; the same world saved again by 1.5.2, and a
+world created by 1.5.2, import here with everything readable (`players/<name>.dat` is used when
+level.dat has no player).
 
 ## Audio
 
