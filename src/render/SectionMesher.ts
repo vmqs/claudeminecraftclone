@@ -12,20 +12,20 @@ const S = SNAPSHOT_SIZE;
  * unorm16 uv, rgba8. Runs in the mesher workers.
  */
 export class SectionMesher {
-  /** Per block id: Block.isOpaqueCube() (leaves change it with the graphics setting). */
-  private readonly opaque = new Uint8Array(4096);
+  /** Per block id (snapshots hold ids 0-255): Block.isOpaqueCube() (leaves change it with the graphics setting). */
+  private readonly opaque = new Uint8Array(256);
   /**
    * Per block id: a full cube drawn by render type 0 or 31 whose faces are culled only by
    * opaque neighbours (Block.shouldSideBeRendered and setBlockBoundsBasedOnState not
    * overridden). Such a block with six opaque-cube neighbours draws nothing.
    */
-  private readonly enclosable = new Uint8Array(4096);
+  private readonly enclosable = new Uint8Array(256);
 
   private updateTables(): void {
     const opaque = this.opaque;
     const enclosable = this.enclosable;
     const base = Block.prototype;
-    for (let id = 0; id < 4096; id++) {
+    for (let id = 0; id < 256; id++) {
       const b = Block.blocksList[id];
       opaque[id] = b && b.isOpaqueCube() ? 1 : 0;
       const type = b ? b.getRenderType() : -1;
