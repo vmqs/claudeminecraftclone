@@ -405,6 +405,19 @@ check('guest is creative (LAN game mode)', bob.pc.isInCreativeMode() && bobMP!.c
   gp.closeScreen();
   step(2);
   check('closing the window reaches the host', bobMP!.openContainer === bobMP!.inventoryContainer);
+  // Closing the guest's own inventory (E) sends CloseWindow 0; the host keeps mirroring it.
+  gp.closeScreen();
+  step(2);
+  check('player stays a crafter of its inventory after E', bobMP!.inventoryContainer.crafters.includes(bobMP!));
+  bobMP!.inventory.mainInventory[7] = new ItemStack(I.stick, 3, 0);
+  step(2);
+  check('host slot change after E reaches the guest', gp.inventory.mainInventory[7]?.itemID === I.stick && gp.inventory.mainInventory[7]?.stackSize === 3, String(gp.inventory.mainInventory[7]));
+  hw.dropItemStack(bobMP!.posX, bobMP!.posY + 0.2, bobMP!.posZ, new ItemStack(I.emerald, 2, 0));
+  step(20);
+  check('pickup after E reaches the guest', gp.inventory.hasItem(I.emerald) && bobMP!.inventory.hasItem(I.emerald), gp.inventory.mainInventory.filter(Boolean).join(','));
+  bobMP!.inventory.mainInventory[7] = null;
+  for (let i = 0; i < 36; i++) if (bobMP!.inventory.mainInventory[i]?.itemID === I.emerald) bobMP!.inventory.mainInventory[i] = null;
+  step(2);
 }
 
 // ---------------------------------------------------------------------- death and respawn

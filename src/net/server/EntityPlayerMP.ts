@@ -371,9 +371,13 @@ export class EntityPlayerMP extends EntityPlayer implements ICrafting {
     this.closeInventory();
   }
 
-  /** The guest closed its window (Packet101): drop the cursor stack, back to the inventory. */
+  /**
+   * The guest closed its window (Packet101): drop the cursor stack, back to the inventory. The
+   * player stays a crafter of its own inventoryContainer (it is never discarded), so closing the
+   * inventory screen (E) does not stop slot updates; only a discarded window lets go of it.
+   */
   closeInventory(): void {
-    this.openContainer.removeCraftingFromCrafters(this);
+    if (this.openContainer !== this.inventoryContainer) this.openContainer.removeCraftingFromCrafters(this);
     this.openContainer.onCraftGuiClosed(this);
     this.openContainer = this.inventoryContainer;
   }

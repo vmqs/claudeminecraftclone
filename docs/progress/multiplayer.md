@@ -51,3 +51,11 @@ Resume from this file and `git log` after a restart.
   corrected by the host, as in 1.5.2). Public relays are unreachable from the sandbox's
   Chromium (TLS interception), so `--public` could not be exercised here.
 - Docs: docs/MULTIPLAYER.md, README "Multiplayer", ARCHITECTURE §1/§3/§5.6/§12/§13, TESTING.
+
+## Review fixes (after e451cc9)
+
+Working through the runtime + security review findings, blockers and majors first, one commit
+each (with a netsession / netprotocol check where it can be tested in Node).
+
+- [x] Blocker: closing the guest's own inventory (CloseWindow 0) took it off its
+  inventoryContainer's crafters; only discarded windows drop the crafter now.
