@@ -10,17 +10,20 @@ this file in the same commit.
 ## 1. Scope
 
 In scope:
-- **Creative mode only.** The player is invulnerable, flies with double-tap space, breaks blocks
-  instantly, and gets items from the creative inventory. There is no hunger, no health or XP bar,
-  and no crafting requirement.
+- **Survival, Hardcore and Creative** (and Adventure through `/gamemode`), as in 1.5.2. Create
+  World defaults to Survival; the mode lives on the player (`EntityPlayer.gameType`, the
+  server's `ItemInWorldManager`) and the client's `PlayerControllerMP` follows it. Creative: the
+  player is invulnerable, flies with double-tap space, breaks blocks instantly and gets items
+  from the creative inventory. Survival: health, hunger, air, armour and experience, timed
+  mining with tool tiers and drops, item wear, death and respawn (see §8.1). Hardcore: Survival
+  on Hard, without cheats, and death deletes the world.
 - **Overworld only.** There is no Nether or End. Blocks and items from those dimensions still exist
   in the creative inventory and can be placed.
 - **Mobs and combat.** All overworld mobs and every spawn egg in the 1.5.2 creative inventory,
   with their AI, natural spawning, drops, and the original models and animations. The player can
   hit, shoot (bow), and explode mobs. As in 1.5.2, hostile mobs do not target a Creative player
   (`World.getClosestVulnerablePlayer` skips players whose capabilities disable damage); they
-  still fight each other (iron golems, wolves). Only out-of-world damage (`/kill`, falling into
-  the void) kills the player, which shows the death screen and respawns at the world spawn.
+  still fight each other (iron golems, wolves); outside Creative they hunt the player.
 - World generation is a **close approximation** of 1.5.2. The same algorithms are welcome, but
   seed-exact output is not a requirement.
 - **No world saving.** Worlds live in memory for the session. Modified chunks are kept in memory
@@ -29,8 +32,8 @@ In scope:
 - Keyboard and mouse only (Pointer Lock).
 - Deployed as a static site to GitHub Pages.
 
-Out of scope (render as static or decorative where a block exists): redstone logic, Survival,
-Hardcore, crafting and furnace processing, Nether/End dimensions, multiplayer, achievements,
+Out of scope (render as static or decorative where a block exists): redstone logic, Nether/End
+dimensions, multiplayer (planned: P2P rooms with the world hosted by one player), achievements,
 statistics, enchanting, brewing, trading. (The container and crafting frameworks exist, so a
 crafting table opens and works once recipes are registered, but no recipes are required.)
 
@@ -363,9 +366,37 @@ which passes optional `data` to the entity's `readEntityFromNBT`.
 `EntityPlayerSP` uses the original movement: `landMovementFactor 0.1`,
 `jumpMovementFactor 0.02`, sprint (double-tap forward), Creative flight (double-tap jump, vertical
 speed ±0.15×3, flySpeed 0.05), sneaking at 0.3× with the edge guard, step height 0.5, eye height
-1.62, and a 0.6×1.8 box. `PlayerControllerCreative`: left click breaks instantly, and holding it
-breaks again after a 5-tick delay. Right click places or uses with a 4-tick repeat. Middle click
-picks the block. Reach is 5 blocks.
+1.62, and a 0.6×1.8 box. `PlayerControllerMP` (`src/client/`, extending the creative-only
+`PlayerControllerCreative`): in Creative left click breaks instantly, and holding it breaks again
+after a 5-tick delay, reach 5; right click places or uses with a 4-tick repeat; middle click picks
+the block (and only Creative conjures it).
+
+### 8.1 Survival
+
+Single player ran a client and an integrated server; here both halves act on the one `World`
+and the one player entity, each exactly once, keeping the server's rules (so a host can later run
+them for remote players) and the client's view:
+- **Mining** (`PlayerControllerMP`): `Block.getPlayerRelativeBlockHardness` (float maths: hardness,
+  `ItemTool.getStrVsBlock`, `canHarvestBlock` /30 vs /100, haste/fatigue, ×0.2 under water or in
+  the air) accumulates per tick; at 1 the block breaks (`onBlockHarvested`, held-tool wear,
+  `Block.harvestBlock` drops when the player can harvest), then 5 ticks pass. Reach 4.5. The crack
+  overlay is `RenderGlobal.blockDamage` (`src/render/BlockDamageOverlay.ts`, destroy_0..9 over the
+  block via `RenderBlocks.renderBlockUsingTexture`); dig sounds are `BlockMiningSounds`.
+- **Player** (`EntityPlayer`): `FoodStats` (`src/entity/FoodStats.ts`: 20 food, saturation,
+  exhaustion, regeneration at 18+, starvation by difficulty), exhaustion from moving (per-tick
+  distance), leaving the ground (0.2, the integrated server's rule, also for sprint jumps),
+  attacking, being hurt and harvesting; 60 ticks of spawn protection; `CombatTracker` death
+  messages; sprinting needs food > 6. Damage, air, fall, fire, armour and knockback are
+  `EntityLiving`'s. The client's quirks are kept: the local player's `attackedAtYaw` stays 0 and
+  the HUD's `prevHealth` is 0.
+- **Death and respawn**: `EntityPlayer.onDeath` drops everything (unless keepInventory);
+  `Minecraft.respawnPlayer` → `PlayerSpawning.respawn` (`src/entity/PlayerSpawning.ts`):
+  `clonePlayer`, the same game mode, the bed or forced spawn via `verifyRespawnCoordinates`
+  ("tile.bed.notValid" otherwise). Hardcore's Delete world ends on the 1.5.2 kick screen.
+- **Modes**: `EnumGameType` (`src/world/EnumGameType.ts`), `EntityPlayer.setGameType` (used by
+  `/gamemode`) → `EntityPlayer.gameTypeListener` → `PlayerControllerMP.setGameType`. The world's
+  difficulty is the options' (`GameSettings` listener `onSettingsSaved`), Hard in Hardcore.
+  Leaving a world keeps the survival state in `PlayerSnapshot.state`.
 
 ## 9. GUI
 
@@ -471,8 +502,8 @@ registries are imported once by `src/client/Minecraft.ts`.
 | Chat | `EntityPlayer.addChatMessage(langKey)`, `sendChatToPlayer(text)`, `Minecraft.ingameGUI.getChatGUI().printChatMessage(text)`. |
 | World generation | `ChunkGenerator` implementations in `src/world/gen/` (selected in `worldgen.worker.ts` on `init`), `BiomeSource` (`PlaceholderBiomeSource` is the stand-in for the GenLayer stack), `WorldGenerator` features run from `ChunkProviderGenerate.populate` / `BiomeDecorator`, superflat presets in `FlatGeneratorInfo`. Code here must stay worker-safe (`IWorld`, no DOM or GL). |
 | Dev hooks | `src/client/DevTools.ts` (`?dev=1` → `window.mc.dev`), scenarios in `scripts/scenarios/`. |
-| Block interaction hooks | `BlockGuiHooks.register(kind, handler)` (`src/block/BlockGuiHooks.ts`; chest, enderChest, workbench, furnace, dispenser, dropper, hopper, brewingStand, enchantment, anvil, beacon, sign, commandBlock; without a handler the player's `displayGUI*` runs). Survival breaking calls `Block.harvestBlock` (drops, stats, exhaustion) after removing the block; `HarvestModifiers.silkTouch` / `fortune` are wired to `EnchantmentHelper`. Block events: `World.addBlockEvent` → `Block.onBlockEventReceived`. Mob spawners: `MobSpawnerBaseLogic.spawnHook`. |
-| HUD and GUI hooks | `GuiIngame` draws the survival bars whenever the player is not in creative (food, air, XP, armour read by duck typing), `GuiIngame.playerListProvider` (TAB list), `GuiIngame.scoreboardOverlay`, `GuiIngame.setRecordPlayingMessage`, `BossStatus.setBossStatus(boss, colorModifier)` for boss renderers (with `SkyHooks.hasColorModifier`), `CommandGameMode.gameTypeListener` for the survival controller, `Minecraft.mcProfiler` sections (Shift+F3 chart), `getScoreboard(world)` (deaths and kills are counted by `EntityPlayer.onDeath` / `addToPlayerScore`). Overlays outside the HUD (pumpkin blur, portal swirl, first-person fire) live in `src/render/sky/ScreenOverlays.ts`. |
+| Block interaction hooks | `BlockGuiHooks.register(kind, handler)` (`src/block/BlockGuiHooks.ts`; chest, enderChest, workbench, furnace, dispenser, dropper, hopper, brewingStand, enchantment, anvil, beacon, sign, commandBlock; without a handler the player's `displayGUI*` runs). Survival breaking (`PlayerControllerMP`) calls `Block.harvestBlock` (drops, stats, exhaustion) after removing the block; `HarvestModifiers.silkTouch` / `fortune` are wired to `EnchantmentHelper`. Block events: `World.addBlockEvent` → `Block.onBlockEventReceived`. Mob spawners: `MobSpawnerBaseLogic.spawnHook`. |
+| HUD and GUI hooks | `GuiIngame` draws the survival bars when `PlayerControllerMP.shouldDrawHUD()` (Survival and Adventure), `GuiIngame.playerListProvider` (TAB list), `GuiIngame.scoreboardOverlay`, `GuiIngame.setRecordPlayingMessage`, `BossStatus.setBossStatus(boss, colorModifier)` for boss renderers (with `SkyHooks.hasColorModifier`), `EntityPlayer.gameTypeListener` (the controller) and `CommandGameMode.gameTypeListener` for game-mode changes, `mc.playerController.getCurrentGameType()` / `isInCreativeMode()` for mode checks, `EntityPlayer.getFoodStats()` / `canEat()` / `addExhaustion()`, `Minecraft.mcProfiler` sections (Shift+F3 chart), `getScoreboard(world)` (deaths and kills are counted by `EntityPlayer.onDeath` / `addToPlayerScore`). Overlays outside the HUD (pumpkin blur, portal swirl, first-person fire) live in `src/render/sky/ScreenOverlays.ts`. |
 
 **Cross-slice wiring (wave-1 merge).** Links that need every slice present are made in one of two
 places: `src/item/ItemBindings.ts` (imported by `main.ts`; harvest enchantments, `SkyHooks.potionDuration`

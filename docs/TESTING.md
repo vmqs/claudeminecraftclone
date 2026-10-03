@@ -24,6 +24,7 @@ URL parameters (any combination):
 | `?time=<ticks>` | sets the world time once the player exists (6000 = noon, 18000 = midnight) |
 | `?pos=x,y,z[,yaw,pitch]` | teleports the player (feet position) once the player exists |
 | `?fly=1` | starts flying |
+| `?mode=survival\|hardcore\|adventure\|creative` | the autostart world's game mode (Creative when absent; Hardcore without cheats) |
 | `?preserve=1` | creates the WebGL context with `preserveDrawingBuffer` |
 
 `mc.dev` helpers (see `src/client/DevTools.ts`): `isInGame()`, `pendingSections(radius)`,
@@ -36,6 +37,11 @@ URL parameters (any combination):
 player, e.g. `spawn('Arrow', '@p', 2)` or `spawn('FishHook', '@p')`), `entities(name?)`,
 and `lib` (`Block`, `Item`, `ItemStack`, `EntityList`). Setting `mc.timer.timerSpeed = 0` freezes
 game time (and partial ticks) for a capture while `mc.dev.ticks(n)` still advances it.
+`mc.dev.survival` (`src/client/SurvivalDevTools.ts`): `state()` (mode, health, food, saturation,
+exhaustion, air, armour, xp, mining progress, bed...), `setMode(m)`, `setHealth(h)`,
+`setFood(level, saturation?)`, `exhaust(n)`, `damage(sourceName, n)`, `vulnerable()` (ends spawn
+protection), `armor(slot, id)`, `xp(points, levels?)`, `inventory()`, `drops(radius?)`,
+`clearDrops()`.
 `mc.dev.sky` (`src/render/sky/SkyDevTools.ts`): `pin(time?)` freezes the clock like the reference
 harness's `freeze` (partial tick 0, `mc.dev.ticks(n)` still steps) and pins cloud ticks, torch
 flicker, fog brightness, vignette and arm sway; `unfreeze()`; `strike(x, z)` (lightning bolt);
@@ -60,6 +66,9 @@ node scripts/shot.mjs inventory              # E, slot tooltip, pick up and put 
 node scripts/shot.mjs chat                   # chat line, /time, /give @p, /help, Tab completion, /kill
 node scripts/shot.mjs flat                   # a Superflat world (bedrock, dirt, dirt, grass; spawn y=4)
 node scripts/shot.mjs entities               # items, arrows, orbs, paintings, frames, TNT, boat, minecarts (checks in the log)
+node scripts/shot.mjs survival               # survival HUD (full, damaged, hurt flash, air, hardcore), crack overlay,
+                                             # timed mining, eating, fall damage, drowning, death, respawn,
+                                             # inventory, /gamemode, /xp, hardcore deletion (asserts)
 node scripts/shot.mjs sky                    # sky, fog, clouds, render distances, rain, thunder and a bolt,
                                              # snow, desert, underwater, lava, in-wall and pumpkin overlays
 node scripts/shot.mjs path/to/scenario.json --url http://localhost:5173/ --server none
@@ -110,9 +119,10 @@ npx rolldown check.ts --format esm --platform node -o check.mjs && node check.mj
 ```
 
 Checks that live in the repository are in `tests/` and run with
-`node scripts/run-node-test.mjs tests/crafting.test.ts tests/items.test.ts tests/placement.test.ts`
-(recipes and smelting, the item registry with names/potions/enchantments, and item placement
-against an in-memory world). The `items` and `item-icons` scenarios exercise items in the game.
+`node scripts/run-node-test.mjs tests/crafting.test.ts tests/items.test.ts tests/placement.test.ts tests/survival.test.ts`
+(recipes and smelting, the item registry with names/potions/enchantments, item placement
+against an in-memory world, and the survival rules against a real `World`: game modes, mining
+times and drops, hunger, damage, eating, death and respawn). The `items` and `item-icons` scenarios exercise items in the game.
 
 This is how tile-entity lifecycle, explosions, spawning and the RenderBlocks rewrite were
 checked: the rewrite was compared byte for byte with the previous implementation over random
