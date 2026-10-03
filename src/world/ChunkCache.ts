@@ -48,15 +48,43 @@ const lightBrightnessTable = (() => {
   return t;
 })();
 
+/** Remembered mixedBrightness values per snapshot cell, valid where the stamp is the cache's. */
+const memoBright = new Int32Array(S * S2);
+const memoStamp = new Uint32Array(S * S2);
+let memoGeneration = 0;
+
 /**
  * ChunkCache over a padded snapshot: what RenderBlocks reads while meshing one section.
  * Reads outside the snapshot return air and default light.
  */
 export class ChunkCache implements IBlockAccess {
+  private readonly memoGen: number;
+
   constructor(
     readonly snap: SectionSnapshot,
     readonly skylightSubtracted = 0,
-  ) {}
+  ) {
+    if (memoGeneration === 0xffffffff) {
+      memoStamp.fill(0);
+      memoGeneration = 0;
+    }
+    this.memoGen = ++memoGeneration;
+  }
+
+  /**
+   * What Block.getMixedBrightnessForBlock returns for (x, y, z) when the block does not
+   * override it, remembered per cell: smooth lighting samples each cell for many faces, and
+   * the snapshot does not change while a section is meshed.
+   */
+  mixedBrightness(x: number, y: number, z: number): number {
+    const i = this.index(x, y, z);
+    if (i < 0) return this.getLightBrightnessForSkyBlocks(x, y, z, Block.lightValue[this.getBlockId(x, y, z)]);
+    if (memoStamp[i] === this.memoGen) return memoBright[i];
+    const v = this.getLightBrightnessForSkyBlocks(x, y, z, Block.lightValue[this.getBlockId(x, y, z)]);
+    memoStamp[i] = this.memoGen;
+    memoBright[i] = v;
+    return v;
+  }
 
   private index(x: number, y: number, z: number): number {
     const lx = x - this.snap.x0;

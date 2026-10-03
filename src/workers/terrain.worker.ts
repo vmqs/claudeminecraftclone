@@ -13,20 +13,26 @@ declare const self: DedicatedWorkerGlobalScope;
  * result is the same as making it in the world-generation worker.
  */
 let gen: ChunkProviderGenerate | null = null;
+let round: number | undefined;
 
 self.onmessage = (e: MessageEvent<TerrainRequest>) => {
   const m = e.data;
   if (m.type === 'init') {
     gen = new ChunkProviderGenerate(BigInt(m.seed), false, m.worldType);
+    round = m.round;
     return;
   }
-  if (!gen) return;
   let reply: TerrainResponse;
-  try {
-    reply = { type: 'terrain', chunk: toTerrainChunk(m.cx, m.cz, gen.provideTerrain(m.cx, m.cz)) };
-  } catch (err) {
-    console.error(`[terrain] chunk ${m.cx},${m.cz} failed`, err);
-    reply = { type: 'failed', cx: m.cx, cz: m.cz };
+  if (!gen || m.round !== round) {
+    // A request of another world: answered so the sender's count of pending requests stays right.
+    reply = { type: 'failed', cx: m.cx, cz: m.cz, round: m.round };
+  } else {
+    try {
+      reply = { type: 'terrain', chunk: toTerrainChunk(m.cx, m.cz, gen.provideTerrain(m.cx, m.cz)), round };
+    } catch (err) {
+      console.error(`[terrain] chunk ${m.cx},${m.cz} failed`, err);
+      reply = { type: 'failed', cx: m.cx, cz: m.cz, round };
+    }
   }
   self.postMessage(reply, reply.type === 'terrain' ? terrainTransferables(reply.chunk) : []);
 };

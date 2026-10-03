@@ -1,6 +1,7 @@
 import { Block } from '../block/Block';
 import type { BlockLeaves } from '../block/BlockLeaves';
 import { Blocks } from '../block/Blocks';
+import { FrameBudget } from '../client/FrameBudget';
 import type { Minecraft } from '../client/Minecraft';
 import { AxisAlignedBB } from '../core/AxisAlignedBB';
 import { JavaRandom } from '../core/JavaRandom';
@@ -13,7 +14,7 @@ import { ItemIds } from '../block/BlockIds';
 import { Item } from '../item/Item';
 import type { ItemStack } from '../item/ItemStack';
 import type { MesherRequest, MesherResponse, MeshResult } from '../workers/mesherProtocol';
-import { allocSnapshot, SNAPSHOT_PAD, SNAPSHOT_SIZE, type SectionSnapshot } from '../world/ChunkCache';
+import { allocSnapshot, type SectionSnapshot } from '../world/ChunkCache';
 import { ColorizerFoliage, ColorizerGrass } from '../world/biome/Colorizer';
 import type { IWorldAccess } from '../world/IWorldAccess';
 import type { World } from '../world/World';
@@ -23,12 +24,15 @@ import { Tessellator } from './gl/Tessellator';
 import type { EntityFX } from './particle/EntityFX';
 import { createParticle, type ParticleFactory, particleFactories, unculledParticleFactories } from './particle/ParticleFactories';
 import { RenderHelper } from './RenderHelper';
+import { fillSectionSnapshot } from './SectionSnapshotFill';
 import { BlockDamageOverlay } from './BlockDamageOverlay';
 import { RenderManager } from './entity/RenderManager';
 import { TileEntityRenderer } from './tileentity/TileEntityRenderer';
 
 const f = Math.fround;
-const S = SNAPSHOT_SIZE;
+
+const nearFirst = (a: WorldRenderer, b: WorldRenderer): number => a.sortDistance - b.sortDistance;
+const farFirst = (a: WorldRenderer, b: WorldRenderer): number => b.sortDistance - a.sortDistance;
 
 /** One 16^3 render section (WorldRenderer): two passes of uploaded geometry. */
 export class WorldRenderer {
@@ -40,6 +44,10 @@ export class WorldRenderer {
   stale = false;
   isInFrustum = true;
   hasGeometry = false;
+  /** Squared distance from the camera to the centre, set while sorting a pass. */
+  sortDistance = 0;
+  /** A mesh (or the knowledge that there is nothing to draw) arrived at least once. */
+  meshedOnce = false;
   readonly posX: number;
   readonly posY: number;
   readonly posZ: number;
@@ -143,7 +151,10 @@ export class RenderGlobal implements IWorldAccess {
   uploadBudgetMs = 4;
 
   constructor(private readonly mc: Minecraft) {
-    const n = Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 4) - 2));
+    // Two cores are left for the main thread and world generation; at least two meshers
+    // where there are more than two cores, at most four.
+    const cores = navigator.hardwareConcurrency || 4;
+    const n = cores <= 2 ? 1 : Math.max(2, Math.min(4, cores - 2));
     for (let i = 0; i < n; i++) {
       const worker = new Worker(new URL('../workers/mesher.worker.ts', import.meta.url), { type: 'module' });
       const w: MesherWorker = { worker, busy: 0 };
@@ -224,8 +235,25 @@ export class RenderGlobal implements IWorldAccess {
 
   private markDirty(s: WorldRenderer): void {
     if (s.inFlight) s.stale = true;
+    else if (this.isEmptySection(s)) {
+      // Nothing to draw whatever the neighbours hold: settled at once, without a mesher slot
+      // (most sections of a new chunk are empty).
+      this.dirty.delete(s);
+      this.disposeSection(s);
+      s.needsUpdate = false;
+      s.stale = false;
+      s.meshedOnce = true;
+      return;
+    }
     s.needsUpdate = true;
     this.dirty.add(s);
+  }
+
+  private isEmptySection(s: WorldRenderer): boolean {
+    const w = this.theWorld;
+    if (!w) return false;
+    const sec = w.getChunkFromChunkCoords(s.sx, s.sz).sections[s.sy];
+    return !sec || sec.isEmpty();
   }
 
   static sectionKey(sx: number, sy: number, sz: number): number {
@@ -300,50 +328,7 @@ export class RenderGlobal implements IWorldAccess {
   }
 
   private fillSnapshot(snap: SectionSnapshot, s: WorldRenderer): void {
-    const w = this.theWorld!;
-    const x0 = s.posX - SNAPSHOT_PAD;
-    const y0 = s.posY - SNAPSHOT_PAD;
-    const z0 = s.posZ - SNAPSHOT_PAD;
-    snap.x0 = x0;
-    snap.y0 = y0;
-    snap.z0 = z0;
-    const center = w.getChunkFromChunkCoords(s.sx, s.sz).sections[s.sy];
-    snap.empty = !center || center.isEmpty();
-    if (snap.empty) return;
-    for (let lz = 0; lz < S; lz++) {
-      const wz = z0 + lz;
-      for (let lx = 0; lx < S; lx++) {
-        const wx = x0 + lx;
-        const chunk = w.getChunkFromChunkCoords(wx >> 4, wz >> 4);
-        snap.biomes[lz * S + lx] = chunk.biomes[((wz & 15) << 4) | (wx & 15)];
-        const bx = wx & 15;
-        const bz = wz & 15;
-        for (let ly = 0; ly < S; ly++) {
-          const wy = y0 + ly;
-          const i = (ly * S + lz) * S + lx;
-          if (wy < 0 || wy >= 256) {
-            snap.ids[i] = 0;
-            snap.meta[i] = 0;
-            snap.sky[i] = 15;
-            snap.blk[i] = 0;
-            continue;
-          }
-          const sec = chunk.sections[wy >> 4];
-          if (sec) {
-            const j = ((wy & 15) << 8) | (bz << 4) | bx;
-            snap.ids[i] = sec.blocks[j];
-            snap.meta[i] = sec.meta[j];
-            snap.sky[i] = sec.skyLight[j];
-            snap.blk[i] = sec.blockLight[j];
-          } else {
-            snap.ids[i] = 0;
-            snap.meta[i] = 0;
-            snap.sky[i] = chunk.getSavedLightValue(0, bx, wy, bz);
-            snap.blk[i] = 0;
-          }
-        }
-      }
-    }
+    fillSectionSnapshot(this.theWorld!, snap, s.sx, s.sy, s.sz);
   }
 
   /** Records the viewer position and hands the most urgent dirty sections to the meshers. */
@@ -376,9 +361,12 @@ export class RenderGlobal implements IWorldAccess {
     const cx = MathHelper.floor_double(this.viewerX) >> 4;
     const cz = MathHelper.floor_double(this.viewerZ) >> 4;
     const r = this.renderRadius;
-    const best: WorldRenderer[] = [];
-    const keys: number[] = [];
-    const neighbours = new Map<number, boolean>();
+    const best = this.dispatchBest;
+    const keys = this.dispatchKeys;
+    best.length = 0;
+    keys.length = 0;
+    const neighbours = this.dispatchNeighbours;
+    neighbours.clear();
     for (const s of this.dirty) {
       if (s.inFlight || Math.abs(s.sx - cx) > r || Math.abs(s.sz - cz) > r) continue;
       const key = (s.isInFrustum ? 0 : 1e12) + this.sectionDistSq(s);
@@ -404,6 +392,7 @@ export class RenderGlobal implements IWorldAccess {
       if (!center || center.isEmpty()) {
         this.disposeSection(s);
         s.needsUpdate = false;
+        s.meshedOnce = true;
         continue;
       }
       const snap = this.snapshots.pop() ?? allocSnapshot();
@@ -420,16 +409,21 @@ export class RenderGlobal implements IWorldAccess {
   }
 
   static readonly JOBS_PER_WORKER = 3;
+  /** The sections drawn in a pass (reused every frame). */
+  private readonly renderList: WorldRenderer[] = [];
+  private readonly dispatchBest: WorldRenderer[] = [];
+  private readonly dispatchKeys: number[] = [];
+  private readonly dispatchNeighbours = new Map<number, boolean>();
 
   private uploadResults(): void {
     const t0 = performance.now();
+    const budget = FrameBudget.ms(this.uploadBudgetMs);
     while (this.results.length > 0) {
       const res = this.results.shift()!;
       const s = this.jobs.get(res.id);
       this.jobs.delete(res.id);
       if (!s || this.sections.get(RenderGlobal.sectionKey(s.sx, s.sy, s.sz)) !== s) continue;
       s.inFlight = false;
-      if (s.stale) this.markDirty(s);
       for (let p = 0; p < 2; p++) {
         const data = res.passes[p];
         if (data) s.meshes[p] = GL.uploadTerrain(s.meshes[p], data, res.vertexCounts[p]);
@@ -439,10 +433,13 @@ export class RenderGlobal implements IWorldAccess {
         }
       }
       s.hasGeometry = !!(s.meshes[0] || s.meshes[1]);
+      s.meshedOnce = true;
       if (s.hasGeometry) this.withGeometry.add(s);
       else this.withGeometry.delete(s);
+      // Changed while it was being meshed: mesh it again (or settle it, now empty).
+      if (s.stale) this.markDirty(s);
       WorldRenderer.chunksUpdated++;
-      if (performance.now() - t0 > this.uploadBudgetMs) break;
+      if (performance.now() - t0 > budget) break;
     }
   }
 
@@ -456,6 +453,24 @@ export class RenderGlobal implements IWorldAccess {
     // In flight (sent, or the result is waiting for upload) and not dirty again.
     for (const s of this.jobs.values()) if (!s.needsUpdate && near(s)) n++;
     return n;
+  }
+
+  /**
+   * Sections within `radius` chunks of the viewer that have never had a mesh: what the first
+   * view of a newly loaded area still lacks (re-meshes of sections already drawn don't count).
+   */
+  unmeshedNear(viewer: Entity, radius: number): number {
+    const cx = MathHelper.floor_double(viewer.posX) >> 4;
+    const cz = MathHelper.floor_double(viewer.posZ) >> 4;
+    let n = 0;
+    for (const s of this.dirty) if (!s.meshedOnce && Math.abs(s.sx - cx) <= radius && Math.abs(s.sz - cz) <= radius) n++;
+    for (const s of this.jobs.values()) if (!s.meshedOnce && !s.needsUpdate && Math.abs(s.sx - cx) <= radius && Math.abs(s.sz - cz) <= radius) n++;
+    return n;
+  }
+
+  /** Queue sizes for the performance tools (mc.dev.perf). */
+  queueStats(): { sections: number; withGeometry: number; dirty: number; inFlight: number; resultsWaiting: number; meshers: number } {
+    return { sections: this.sections.size, withGeometry: this.withGeometry.size, dirty: this.dirty.size, inFlight: this.jobs.size, resultsWaiting: this.results.length, meshers: this.workers.length };
   }
 
   clipRenderersByFrustum(fr: Frustum): void {
@@ -479,7 +494,8 @@ export class RenderGlobal implements IWorldAccess {
       this.renderersBeingClipped = 0;
       this.renderersBeingRendered = 0;
     }
-    const list: WorldRenderer[] = [];
+    const list = this.renderList;
+    list.length = 0;
     for (const s of this.withGeometry) {
       if (Math.abs(s.sx - cx) > r || Math.abs(s.sz - cz) > r) continue;
       if (pass === 0 && !s.skipRenderPass(0)) {
@@ -487,16 +503,14 @@ export class RenderGlobal implements IWorldAccess {
         else this.renderersBeingRendered++;
       }
       if (s.skipRenderPass(pass) || !s.isInFrustum) continue;
-      list.push(s);
-    }
-    if (pass === 0) this.renderersSkippingRenderPass = this.renderersLoaded - this.renderersBeingClipped - this.renderersBeingRendered;
-    const d = (s: WorldRenderer) => {
       const dx = s.posX + 8 - camX;
       const dy = s.posY + 8 - camY;
       const dz = s.posZ + 8 - camZ;
-      return dx * dx + dy * dy + dz * dz;
-    };
-    list.sort(pass === 0 ? (a, b) => d(a) - d(b) : (a, b) => d(b) - d(a));
+      s.sortDistance = dx * dx + dy * dy + dz * dz;
+      list.push(s);
+    }
+    if (pass === 0) this.renderersSkippingRenderPass = this.renderersLoaded - this.renderersBeingClipped - this.renderersBeingRendered;
+    list.sort(pass === 0 ? nearFirst : farFirst);
     this.mc.entityRenderer.enableLightmap(pt);
     for (const s of list) {
       GL.pushMatrix();
@@ -505,7 +519,9 @@ export class RenderGlobal implements IWorldAccess {
       GL.popMatrix();
     }
     this.mc.entityRenderer.disableLightmap(pt);
-    return list.length;
+    const n = list.length;
+    list.length = 0;
+    return n;
   }
 
   getDebugInfoRenders(): string {

@@ -61,6 +61,11 @@ export interface DrawFlags {
   hasBrightness: boolean;
 }
 
+/** Whether a cached Float32 vector equals the first three values of `v` as Float32. */
+function sameVec3(cached: Float32Array, v: ArrayLike<number>): boolean {
+  return cached[0] === Math.fround(v[0]) && cached[1] === Math.fround(v[1]) && cached[2] === Math.fround(v[2]);
+}
+
 class GLFacade {
   // ---- GL11 constants (same numeric values as OpenGL / WebGL) ----
   readonly ZERO = 0;
@@ -572,25 +577,55 @@ class GLFacade {
     return this.quadIndexBuffer;
   }
 
-  /** Pushes matrices, capabilities and uniforms for a draw. */
+  /**
+   * Pushes matrices, capabilities and uniforms for a draw. There is one program, so a uniform
+   * keeps its value until it is set again: values equal to the last ones sent are skipped
+   * (matrices by their stack's version), which leaves most draws with a few GL calls.
+   */
   applyState(posScale: number, hasTexture: boolean): void {
     const gl = this.gl;
     const u = this.u;
-    gl.useProgram(this.program);
+    const c = this.sent;
+    if (!c.program) {
+      gl.useProgram(this.program);
+      c.program = true;
+    }
     if (this.projection.version !== this.lastProjVersion) {
       this.f32mat.set(this.projection.top);
       gl.uniformMatrix4fv(u.proj, false, this.f32mat);
       this.lastProjVersion = this.projection.version;
     }
-    this.f32mat.set(this.modelview.top);
-    gl.uniformMatrix4fv(u.mv, false, this.f32mat);
-    this.f32mat.set(this.texture0.top);
-    gl.uniformMatrix4fv(u.texMat, false, this.f32mat);
-    gl.uniform1f(u.posScale, posScale);
-    gl.uniform1i(u.lighting, this.lighting ? 1 : 0);
+    if (this.modelview.version !== c.mvVersion) {
+      this.f32mat.set(this.modelview.top);
+      gl.uniformMatrix4fv(u.mv, false, this.f32mat);
+      c.mvVersion = this.modelview.version;
+    }
+    if (this.texture0.version !== c.texVersion) {
+      this.f32mat.set(this.texture0.top);
+      gl.uniformMatrix4fv(u.texMat, false, this.f32mat);
+      c.texVersion = this.texture0.version;
+    }
+    if (posScale !== c.posScale) {
+      gl.uniform1f(u.posScale, posScale);
+      c.posScale = posScale;
+    }
+    const lighting = this.lighting ? 1 : 0;
+    if (lighting !== c.lighting) {
+      gl.uniform1i(u.lighting, lighting);
+      c.lighting = lighting;
+    }
     if (this.lighting) {
-      gl.uniform3fv(u.light0, this.light0);
-      gl.uniform3fv(u.light1, this.light1);
+      if (!sameVec3(c.light0, this.light0)) {
+        gl.uniform3fv(u.light0, this.light0);
+        c.light0.set(this.light0);
+      }
+      if (!sameVec3(c.light1, this.light1)) {
+        gl.uniform3fv(u.light1, this.light1);
+        c.light1.set(this.light1);
+      }
+    }
+    if (this.lighting && this.modelview.version !== c.normalVersion) {
+      c.normalVersion = this.modelview.version;
       const inv = mat4Invert(this.tmpInv, this.modelview.top);
       const n = this.normalMat;
       if (inv) {
@@ -607,18 +642,60 @@ class GLFacade {
       }
       gl.uniformMatrix3fv(u.normalMat, false, n);
     }
-    gl.uniform1i(u.useTex, this.texture2D && hasTexture !== false ? 1 : 0);
+    const useTex = this.texture2D && hasTexture !== false ? 1 : 0;
+    if (useTex !== c.useTex) {
+      gl.uniform1i(u.useTex, useTex);
+      c.useTex = useTex;
+    }
     if (this.texture2D && !this.boundTex0) gl.bindTexture(gl.TEXTURE_2D, this.whiteTex);
-    gl.uniform1i(u.useLightmap, this.lightmapEnabled ? 1 : 0);
-    gl.uniform1f(u.alphaRef, this.alphaTest ? this.alphaRef : -1);
+    const useLightmap = this.lightmapEnabled ? 1 : 0;
+    if (useLightmap !== c.useLightmap) {
+      gl.uniform1i(u.useLightmap, useLightmap);
+      c.useLightmap = useLightmap;
+    }
+    const alphaRef = this.alphaTest ? this.alphaRef : -1;
+    if (alphaRef !== c.alphaRef) {
+      gl.uniform1f(u.alphaRef, alphaRef);
+      c.alphaRef = alphaRef;
+    }
+    const fogMode = this.fog ? (this.fogMode === this.EXP ? 2 : 1) : 0;
+    if (fogMode !== c.fogMode) {
+      gl.uniform1i(u.fogMode, fogMode);
+      c.fogMode = fogMode;
+    }
     if (this.fog) {
-      gl.uniform1i(u.fogMode, this.fogMode === this.EXP ? 2 : 1);
-      gl.uniform3f(u.fogParams, this.fogStart, this.fogEnd, this.fogDensity);
-      gl.uniform3fv(u.fogColor, this.fogColor);
-    } else {
-      gl.uniform1i(u.fogMode, 0);
+      if (this.fogStart !== c.fogStart || this.fogEnd !== c.fogEnd || this.fogDensity !== c.fogDensity) {
+        gl.uniform3f(u.fogParams, this.fogStart, this.fogEnd, this.fogDensity);
+        c.fogStart = this.fogStart;
+        c.fogEnd = this.fogEnd;
+        c.fogDensity = this.fogDensity;
+      }
+      if (!sameVec3(c.fogColor, this.fogColor)) {
+        gl.uniform3fv(u.fogColor, this.fogColor);
+        c.fogColor.set(this.fogColor);
+      }
     }
   }
+
+  /** The uniform values last sent to the program (see applyState). */
+  private readonly sent = {
+    program: false,
+    mvVersion: -1,
+    texVersion: -1,
+    normalVersion: -1,
+    posScale: Number.NaN,
+    lighting: -1,
+    light0: new Float32Array([Number.NaN, 0, 0]),
+    light1: new Float32Array([Number.NaN, 0, 0]),
+    useTex: -1,
+    useLightmap: -1,
+    alphaRef: Number.NaN,
+    fogMode: -1,
+    fogStart: Number.NaN,
+    fogEnd: Number.NaN,
+    fogDensity: Number.NaN,
+    fogColor: new Float32Array([Number.NaN, 0, 0]),
+  };
 
   /** Sets the constant attribute values used when an attribute array is disabled. */
   applyConstantAttribs(flags: DrawFlags): void {

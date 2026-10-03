@@ -17,7 +17,9 @@ import { ServerCommandManager } from '../command/ServerCommandManager';
 import type { EntityLiving } from '../entity/EntityLiving';
 import type { EntityPlayer } from '../entity/EntityPlayer';
 import { FontRenderer } from '../gui/FontRenderer';
-import { GuiDownloadTerrain } from '../gui/GuiDownloadTerrain';
+import { GuiDownloadTerrain, screenCoversWorld } from '../gui/GuiDownloadTerrain';
+import { FrameBudget } from './FrameBudget';
+import { IdleTasks } from './IdleTasks';
 import { GuiGameOver } from '../gui/GuiGameOver';
 import { GuiGameStopped } from '../gui/GuiGameStopped';
 import { GuiIngame } from '../gui/GuiIngame';
@@ -374,10 +376,11 @@ export class Minecraft implements SettingsListener {
     } else {
       this.timer.updateTimer();
     }
+    FrameBudget.beginFrame(performance.now(), this.loadingScreen.active || screenCoversWorld(this.currentScreen));
     prof.startSection('tick');
     for (let i = 0; i < this.timer.elapsedTicks; i++) this.runTick();
     this.tickLoading();
-    this.chunkProvider?.processIncoming(4);
+    this.chunkProvider?.processIncoming(FrameBudget.ms(4));
     prof.endStartSection('preRenderErrors');
     RenderBlocks.fancyGrass = this.gameSettings.fancyGraphics;
     RenderBlocks.anaglyphEnable = this.gameSettings.anaglyph;
@@ -409,6 +412,7 @@ export class Minecraft implements SettingsListener {
     prof.startSection('root');
     this.screenshotListener();
     for (const l of this.frameListeners) l();
+    IdleTasks.run();
     this.updateDisplaySize();
     this.fpsCounter++;
     // A game open to LAN, or one joined over the network, never pauses (IntegratedServer.getPublic).
@@ -422,6 +426,7 @@ export class Minecraft implements SettingsListener {
       this.fpsCounter = 0;
     }
     prof.endSection();
+    FrameBudget.endFrame(performance.now());
   }
 
   private backgroundTimer: ReturnType<typeof setInterval> | null = null;
@@ -439,6 +444,7 @@ export class Minecraft implements SettingsListener {
           this.timer.updateTimer();
           for (let i = 0; i < this.timer.elapsedTicks; i++) this.runTick();
           this.chunkProvider?.processIncoming(8);
+          IdleTasks.run(10);
         } catch (e) {
           console.error(e);
         }
@@ -894,7 +900,7 @@ export class Minecraft implements SettingsListener {
     const r = 2;
     pw.provider.loadRadius = r + 1;
     pw.provider.updateLoadedArea(info.spawnX, info.spawnZ);
-    pw.provider.processIncoming(12);
+    pw.provider.processIncoming(FrameBudget.ms(12));
     let have = 0;
     const cx = info.spawnX >> 4;
     const cz = info.spawnZ >> 4;

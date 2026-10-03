@@ -1730,7 +1730,7 @@ export class World implements IWorld, IBlockAccess {
 
   /** The scheduled updates inside a loaded chunk, left scheduled (getPendingBlockUpdates(chunk, false)). */
   getPendingBlockUpdates(cx: number, cz: number): NextTickListEntry[] {
-    return this.pendingTicks.entriesInChunk(cx, cz);
+    return this.pendingTicks.inChunk(cx, cz);
   }
 
   isBlockTickScheduled(x: number, y: number, z: number, id: number): boolean {

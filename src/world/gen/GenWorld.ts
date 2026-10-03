@@ -19,6 +19,8 @@ const SIDE_X = [0, 0, 0, 0, -1, 1];
 const SIDE_Y = [-1, 1, 0, 0, 0, 0];
 const SIDE_Z = [0, 0, -1, 1, 0, 0];
 const lightUpdateBlockList = new Int32Array(32768);
+/** Width of GenWorld's chunk cache grid (a power of two). */
+const GRID = 64;
 
 /**
  * The world-generation worker's world: a set of chunks being generated and populated. It
@@ -45,6 +47,17 @@ export class GenWorld implements ChunkHost {
    * loads or generates it then); returns the chunk or undefined.
    */
   missingChunk: ((cx: number, cz: number) => Chunk | undefined) | null = null;
+  /**
+   * Block changes made through setBlock / setBlockMetadataWithNotify, counted per chunk in the
+   * same direct-mapped grid as the chunk cache (chunks 64 apart share a counter, which can only
+   * make a change look bigger).
+   */
+  readonly blockWrites = new Uint32Array(GRID * GRID);
+
+  /** Block writes counted so far for chunk (cx, cz) (see blockWrites). */
+  writesIn(cx: number, cz: number): number {
+    return this.blockWrites[((cx & (GRID - 1)) * GRID) | (cz & (GRID - 1))];
+  }
 
   constructor(readonly biomeSource: BiomeSource) {}
 
@@ -61,16 +74,25 @@ export class GenWorld implements ChunkHost {
   private lastCx = 0x7fffffff;
   private lastCz = 0x7fffffff;
   private lastChunk: Chunk | undefined = undefined;
+  /**
+   * A direct-mapped cache of chunks by (cx & 63, cz & 63), checked against the chunk's
+   * coordinates; entries are cleared when their chunk leaves the working set.
+   */
+  private readonly grid: (Chunk | undefined)[] = new Array<Chunk | undefined>(GRID * GRID).fill(undefined);
 
   /** The loaded chunk (cx, cz), or undefined; never loads one. */
   loadedChunk(cx: number, cz: number): Chunk | undefined {
     if (cx === this.lastCx && cz === this.lastCz) return this.lastChunk;
-    const c = this.chunks.get(GenWorld.key(cx, cz));
-    if (c) {
-      this.lastCx = cx;
-      this.lastCz = cz;
-      this.lastChunk = c;
+    const gi = ((cx & (GRID - 1)) * GRID) | (cz & (GRID - 1));
+    let c = this.grid[gi];
+    if (c === undefined || c.xPosition !== cx || c.zPosition !== cz) {
+      c = this.chunks.get(GenWorld.key(cx, cz));
+      if (!c) return undefined;
+      this.grid[gi] = c;
     }
+    this.lastCx = cx;
+    this.lastCz = cz;
+    this.lastChunk = c;
     return c;
   }
 
@@ -79,6 +101,11 @@ export class GenWorld implements ChunkHost {
 
   /** Removes a chunk from the working set. */
   unloadChunk(k: number): void {
+    const c = this.chunks.get(k);
+    if (c) {
+      const gi = ((c.xPosition & (GRID - 1)) * GRID) | (c.zPosition & (GRID - 1));
+      if (this.grid[gi] === c) this.grid[gi] = undefined;
+    }
     this.chunks.delete(k);
     this.lastExisting.set([1, 1, 0, 0]);
     this.lastCx = this.lastCz = 0x7fffffff;
@@ -169,6 +196,7 @@ export class GenWorld implements ChunkHost {
     const c = this.chunkAt(x, z);
     if (!c) return false;
     const changed = c.setBlockIDWithMetadata(x & 15, y, z & 15, id, meta);
+    if (changed) this.countWrite(c);
     this.updateAllLightTypes(x, y, z);
     if (changed && (flags & 1) !== 0) this.notifyBlocksOfNeighborChange(x, y, z, id);
     return changed;
@@ -177,8 +205,12 @@ export class GenWorld implements ChunkHost {
     const c = this.chunkAt(x, z);
     if (!c || y < 0 || y >= 256) return false;
     const changed = c.setBlockMetadata(x & 15, y, z & 15, meta);
+    if (changed) this.countWrite(c);
     if (changed && (flags & 1) !== 0) this.notifyBlocksOfNeighborChange(x, y, z, this.getBlockId(x, y, z));
     return changed;
+  }
+  private countWrite(c: Chunk): void {
+    this.blockWrites[((c.xPosition & (GRID - 1)) * GRID) | (c.zPosition & (GRID - 1))]++;
   }
   setBlockToAir(x: number, y: number, z: number): boolean {
     return this.setBlock(x, y, z, 0, 0, 3);

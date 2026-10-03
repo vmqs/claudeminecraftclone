@@ -4,12 +4,15 @@ import { BlockGrass } from '../block/BlockGrass';
 import { BlockIds } from '../block/BlockIds';
 import type { Material } from '../block/Material';
 import { MathHelper } from '../core/MathHelper';
+import { ChunkCache } from '../world/ChunkCache';
 import type { IBlockAccess } from '../world/IBlockAccess';
 import { renderBlockAsItem as renderBlockAsItemImpl, renderItemIn3d as renderItemIn3dImpl } from './blocks/RenderBlockItem';
 import { RENDER_TYPES } from './blocks/RenderTypes';
 import { renderBlockAnvilMetadata, renderPistonBaseAllFaces, renderPistonExtensionAllFaces } from './blocks/RenderStructures';
 import { Tessellator } from './gl/Tessellator';
 import type { Icon } from './texture/Icon';
+
+const BASE_MIXED_BRIGHTNESS = Block.prototype.getMixedBrightnessForBlock;
 
 // Render-bound indices (see RenderBlocks.getRenderBound).
 const MIN_X = 0;
@@ -337,8 +340,21 @@ export class RenderBlocks {
   private readonly edgeLight = new Float64Array(4);
   private readonly edgeBrightness = new Int32Array(4);
 
+  /** computeFaceLight's four samples of one corner (corner, edge A, edge B, centre). */
+  private readonly lightSamples = [0, 0, 0, 0];
+  /** The block access when it remembers brightness per cell (a mesher snapshot). */
+  private readonly memoAccess: ChunkCache | null;
+
+  /** block.getMixedBrightnessForBlock(access, x, y, z), from the snapshot's memo when it applies. */
+  private mixedBrightness(block: Block, x: number, y: number, z: number): number {
+    const m = this.memoAccess;
+    if (m !== null && block.getMixedBrightnessForBlock === BASE_MIXED_BRIGHTNESS) return m.mixedBrightness(x, y, z);
+    return block.getMixedBrightnessForBlock(this.blockAccess!, x, y, z);
+  }
+
   constructor(access: IBlockAccess | null = null) {
     this.blockAccess = access;
+    this.memoAccess = access instanceof ChunkCache ? access : null;
   }
 
   setOverrideBlockTexture(icon: Icon | null): void {
@@ -373,6 +389,20 @@ export class RenderBlocks {
     this.renderMinZ = minZ;
     this.renderMaxZ = maxZ;
     this.updatePartialBounds();
+  }
+
+  /**
+   * What renderBlockByRenderType leaves behind for a full cube of render type 0 or 31 whose six
+   * faces are all culled, without drawing anything (the mesher skips enclosed cubes): the log's
+   * texture rotations put back, smooth lighting off again and, on the smooth-lit path, the
+   * tessellator brightness it sets. (The render bounds are set again by the next block.)
+   */
+  skipEnclosedCube(block: Block, log: boolean): void {
+    if (log) {
+      this.uvRotateSouth = this.uvRotateEast = this.uvRotateWest = this.uvRotateNorth = this.uvRotateTop = this.uvRotateBottom = 0;
+    }
+    this.enableAO = false;
+    if (RenderBlocks.aoLevel !== 0 && Block.lightValue[block.blockID] === 0) Tessellator.instance.setBrightness(0xf000f);
   }
 
   setRenderBoundsFromBlock(block: Block): void {
@@ -604,7 +634,7 @@ export class RenderBlocks {
   private renderSmoothLit(block: Block, x: number, y: number, z: number, r: number, g: number, b: number, partial: boolean): boolean {
     this.enableAO = true;
     const access = this.blockAccess!;
-    const own = block.getMixedBrightnessForBlock(access, x, y, z);
+    const own = this.mixedBrightness(block, x, y, z);
     Tessellator.instance.setBrightness(0xf000f);
     const tintSides = this.getBlockIconTop(block).getIconName() !== 'grass_top' && !this.hasOverrideBlockTexture();
     const color = this.vertexColor;
@@ -613,8 +643,14 @@ export class RenderBlocks {
       if (!this.shouldRenderFace(block, x, y, z, f)) continue;
       this.computeFaceLight(block, x, y, z, f, own, partial && f.side >= 2);
       const tinted = f.side === 1 || tintSides;
-      const base = [tinted ? r * f.shade : f.shade, tinted ? g * f.shade : f.shade, tinted ? b * f.shade : f.shade];
-      for (let i = 0; i < 12; i++) color[i] = base[i % 3] * color[i];
+      const br = tinted ? r * f.shade : f.shade;
+      const bg = tinted ? g * f.shade : f.shade;
+      const bb = tinted ? b * f.shade : f.shade;
+      for (let i = 0; i < 12; i += 3) {
+        color[i] = br * color[i];
+        color[i + 1] = bg * color[i + 1];
+        color[i + 2] = bb * color[i + 2];
+      }
       const icon = this.getBlockIcon(block, access, x, y, z, f.side);
       this.renderFace(f.side, x, y, z, icon);
       if (f.side >= 2 && this.hasGrassSideOverlay(icon)) {
@@ -639,8 +675,14 @@ export class RenderBlocks {
    */
   private computeFaceLight(block: Block, x: number, y: number, z: number, f: FaceDef, own: number, blend: boolean): void {
     const access = this.blockAccess!;
-    const [ax, ay, az] = AXES[f.axisA];
-    const [bx, by, bz] = AXES[f.axisB];
+    const axisA = AXES[f.axisA];
+    const axisB = AXES[f.axisB];
+    const ax = axisA[0];
+    const ay = axisA[1];
+    const az = axisA[2];
+    const bx = axisB[0];
+    const by = axisB[1];
+    const bz = axisB[2];
     const touching = this.faceTouchesNeighbour(f);
     const px = touching ? x + f.nx : x;
     const py = touching ? y + f.ny : y;
@@ -650,18 +692,19 @@ export class RenderBlocks {
     for (let i = 0; i < 2; i++) {
       const s = i * 2 - 1;
       edgeLight[i] = block.getAmbientOcclusionLightValue(access, px + s * ax, py + s * ay, pz + s * az);
-      edgeBright[i] = block.getMixedBrightnessForBlock(access, px + s * ax, py + s * ay, pz + s * az);
+      edgeBright[i] = this.mixedBrightness(block, px + s * ax, py + s * ay, pz + s * az);
       edgeLight[2 + i] = block.getAmbientOcclusionLightValue(access, px + s * bx, py + s * by, pz + s * bz);
-      edgeBright[2 + i] = block.getMixedBrightnessForBlock(access, px + s * bx, py + s * by, pz + s * bz);
+      edgeBright[2 + i] = this.mixedBrightness(block, px + s * bx, py + s * by, pz + s * bz);
     }
     const cx = x + f.nx;
     const cy = y + f.ny;
     const cz = z + f.nz;
-    const centreBright = touching || !access.isBlockOpaqueCube(cx, cy, cz) ? block.getMixedBrightnessForBlock(access, cx, cy, cz) : own;
+    const centreBright = touching || !access.isBlockOpaqueCube(cx, cy, cz) ? this.mixedBrightness(block, cx, cy, cz) : own;
     const centreLight = block.getAmbientOcclusionLightValue(access, cx, cy, cz);
     const light = this.cornerLight;
     const bright = this.cornerBrightness;
-    const samples = [0, 0, 0, centreLight];
+    const samples = this.lightSamples;
+    samples[3] = centreLight;
     for (let corner = 0; corner < 4; corner++) {
       const ia = corner >> 1;
       const ib = corner & 1;
@@ -677,7 +720,7 @@ export class RenderBlocks {
         const ky = py + sa * ay + sb * by;
         const kz = pz + sa * az + sb * bz;
         kLight = block.getAmbientOcclusionLightValue(access, kx, ky, kz);
-        kBright = block.getMixedBrightnessForBlock(access, kx, ky, kz);
+        kBright = this.mixedBrightness(block, kx, ky, kz);
       }
       samples[0] = kLight;
       samples[1] = edgeLight[ia];

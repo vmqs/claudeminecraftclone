@@ -1,0 +1,226 @@
+[
+ {
+  "goto": "http://localhost:5222/?dev=1&autostart=1&seed=perf&type=flat&structures=0&mobs=0&hotbar=1&time=6000&pos=8.5,4,2.5,0,25"
+ },
+ {
+  "waitFor": "mc.dev.isInGame()",
+  "timeout": 600000
+ },
+ {
+  "eval": "({ playableMsSinceNavigation: Math.round(performance.now()) })"
+ },
+ {
+  "eval": "mc.gameSettings.renderDistance = 1; mc.gameSettings.fancyGraphics = true; mc.gameSettings.ambientOcclusion = 2; mc.gameSettings.clouds = true; mc.renderGlobal.loadRenderers(); mc.dev.weather('clear'); mc.dev.setFlying(true); mc.dev.tp(8.5, 4, 2.5, 0, 25)"
+ },
+ {
+  "waitFor": "mc.dev.pendingSections(5) === 0",
+  "timeout": 600000
+ },
+ {
+  "eval": "(() => {\n  const w = mc.theWorld;\n  w.worldInfo.gameRules.doMobSpawning = false;\n  for (const e of [...w.loadedEntityList]) if (!e.isPlayerEntity) e.setDead();\n  mc.dev.sky.pin(6000);\n  const ids = [1,2,4,5,7,12,13,14,15,16,17,18,20,21,22,24,25,35,41,42,43,44,45,46,47,48,49,53,54,56,57,58,61,67,73,79,80,81,82,84,85,86,87,88,89,91,96,98,101,102,103,107,108,109,110,112,113,114,116,118,120,121,123,125,126,128,129,130,133,134,135,136,139,145,152,153,155,156];\n  let i = 0;\n  for (const id of ids) {\n    const x = -6 + (i % 13) * 2, z = 9 + Math.floor(i / 13) * 2;\n    w.setBlock(x, 4, z, id, id === 35 ? i % 16 : 0, 2);\n    i++;\n  }\n  const plants = [[31, 1], [37, 0], [38, 0], [39, 0], [40, 0], [6, 0], [59, 7], [141, 7], [142, 7], [83, 0]];\n  plants.forEach(([id, meta], k) => { const x = -5 + k * 2; w.setBlock(x, 3, 7, id === 83 ? 12 : 60, 0, 2); w.setBlock(x, 4, 7, id, meta, 2); });\n  for (let y = 4; y < 9; y++) { w.setBlock(-9, y, 12, 1, 0, 2); w.setBlock(-9, y, 14, 17, 0, 2); }\n  for (let x = -9; x <= -3; x++) w.setBlock(x, 8, 13, 5, 0, 2);\n  w.setBlock(-6, 4, 5, 64, 1, 2); w.setBlock(-6, 5, 5, 64, 8, 2);\n  return i;\n})()"
+ },
+ {
+  "wait": 500
+ },
+ {
+  "waitFor": "mc.dev.pendingSections(5) === 0",
+  "timeout": 600000
+ },
+ {
+  "eval": "mc.gameSettings.hideGUI = true; mc.dev.tp(8.5, 4, 2.5, 0, 25); mc.dev.sky.pin(6000)"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "ab_base_blocks.png"
+ },
+ {
+  "eval": "mc.dev.tp(-6.5, 7, 3.5, 330, 35); mc.dev.sky.pin(6000)"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "ab_base_shadows.png"
+ },
+ {
+  "eval": "(() => {\n  const w = mc.theWorld;\n  const names = ['Pig', 'Cow', 'Sheep', 'Chicken', 'Zombie', 'Skeleton', 'Creeper', 'Spider', 'Wolf', 'Enderman', 'Slime', 'SnowMan'];\n  let n = 0;\n  names.forEach((name, i) => {\n    const e = mc.dev.newEntity(name);\n    if (!e) return;\n    e.setLocationAndAngles(-3.5 + i * 2, 4, 6.5, 180, 0);\n    e.renderYawOffset = e.prevRenderYawOffset = 180;\n    e.rotationYawHead = e.prevRotationYawHead = 180;\n    e.motionX = e.motionY = e.motionZ = 0;\n    if (w.spawnEntityInWorld(e)) n++;\n  });\n  return n;\n})()"
+ },
+ {
+  "eval": "mc.dev.tp(2.5, 5.5, 0.5, 0, 20); mc.dev.sky.pin(6000)"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "ab_base_mobs.png"
+ },
+ {
+  "eval": "mc.gameSettings.hideGUI = false; for (const e of [...mc.theWorld.loadedEntityList]) if (!e.isPlayerEntity) e.setDead(); mc.dev.sky.unfreeze()"
+ },
+ {
+  "wait": 500
+ },
+ {
+  "key": "e"
+ },
+ {
+  "waitFor": "mc.currentScreen !== null",
+  "timeout": 60000
+ },
+ {
+  "eval": "mc.dev.sky.pin(6000)"
+ },
+ {
+  "move": [
+   300,
+   300
+  ]
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "ab_base_inventory.png"
+ },
+ {
+  "eval": "mc.displayGuiScreen(null)"
+ },
+ {
+  "goto": "?dev=1&autostart=1&seed=perf&type=flat&structures=0&mobs=0&hotbar=1&time=6000&pos=8.5,4,2.5,0,25"
+ },
+ {
+  "waitFor": "mc.dev.isInGame()",
+  "timeout": 600000
+ },
+ {
+  "eval": "({ playableMsSinceNavigation: Math.round(performance.now()) })"
+ },
+ {
+  "eval": "mc.gameSettings.renderDistance = 1; mc.gameSettings.fancyGraphics = true; mc.gameSettings.ambientOcclusion = 2; mc.gameSettings.clouds = true; mc.renderGlobal.loadRenderers(); mc.dev.weather('clear'); mc.dev.setFlying(true); mc.dev.tp(8.5, 4, 2.5, 0, 25)"
+ },
+ {
+  "waitFor": "mc.dev.pendingSections(5) === 0",
+  "timeout": 600000
+ },
+ {
+  "eval": "(() => {\n  const w = mc.theWorld;\n  w.worldInfo.gameRules.doMobSpawning = false;\n  for (const e of [...w.loadedEntityList]) if (!e.isPlayerEntity) e.setDead();\n  mc.dev.sky.pin(6000);\n  const ids = [1,2,4,5,7,12,13,14,15,16,17,18,20,21,22,24,25,35,41,42,43,44,45,46,47,48,49,53,54,56,57,58,61,67,73,79,80,81,82,84,85,86,87,88,89,91,96,98,101,102,103,107,108,109,110,112,113,114,116,118,120,121,123,125,126,128,129,130,133,134,135,136,139,145,152,153,155,156];\n  let i = 0;\n  for (const id of ids) {\n    const x = -6 + (i % 13) * 2, z = 9 + Math.floor(i / 13) * 2;\n    w.setBlock(x, 4, z, id, id === 35 ? i % 16 : 0, 2);\n    i++;\n  }\n  const plants = [[31, 1], [37, 0], [38, 0], [39, 0], [40, 0], [6, 0], [59, 7], [141, 7], [142, 7], [83, 0]];\n  plants.forEach(([id, meta], k) => { const x = -5 + k * 2; w.setBlock(x, 3, 7, id === 83 ? 12 : 60, 0, 2); w.setBlock(x, 4, 7, id, meta, 2); });\n  for (let y = 4; y < 9; y++) { w.setBlock(-9, y, 12, 1, 0, 2); w.setBlock(-9, y, 14, 17, 0, 2); }\n  for (let x = -9; x <= -3; x++) w.setBlock(x, 8, 13, 5, 0, 2);\n  w.setBlock(-6, 4, 5, 64, 1, 2); w.setBlock(-6, 5, 5, 64, 8, 2);\n  return i;\n})()"
+ },
+ {
+  "wait": 500
+ },
+ {
+  "waitFor": "mc.dev.pendingSections(5) === 0",
+  "timeout": 600000
+ },
+ {
+  "eval": "mc.gameSettings.hideGUI = true; mc.dev.tp(8.5, 4, 2.5, 0, 25); mc.dev.sky.pin(6000)"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "ab_new_blocks.png"
+ },
+ {
+  "eval": "mc.dev.tp(-6.5, 7, 3.5, 330, 35); mc.dev.sky.pin(6000)"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "ab_new_shadows.png"
+ },
+ {
+  "eval": "(() => {\n  const w = mc.theWorld;\n  const names = ['Pig', 'Cow', 'Sheep', 'Chicken', 'Zombie', 'Skeleton', 'Creeper', 'Spider', 'Wolf', 'Enderman', 'Slime', 'SnowMan'];\n  let n = 0;\n  names.forEach((name, i) => {\n    const e = mc.dev.newEntity(name);\n    if (!e) return;\n    e.setLocationAndAngles(-3.5 + i * 2, 4, 6.5, 180, 0);\n    e.renderYawOffset = e.prevRenderYawOffset = 180;\n    e.rotationYawHead = e.prevRotationYawHead = 180;\n    e.motionX = e.motionY = e.motionZ = 0;\n    if (w.spawnEntityInWorld(e)) n++;\n  });\n  return n;\n})()"
+ },
+ {
+  "eval": "mc.dev.tp(2.5, 5.5, 0.5, 0, 20); mc.dev.sky.pin(6000)"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "ab_new_mobs.png"
+ },
+ {
+  "eval": "mc.gameSettings.hideGUI = false; for (const e of [...mc.theWorld.loadedEntityList]) if (!e.isPlayerEntity) e.setDead(); mc.dev.sky.unfreeze()"
+ },
+ {
+  "wait": 500
+ },
+ {
+  "key": "e"
+ },
+ {
+  "waitFor": "mc.currentScreen !== null",
+  "timeout": 60000
+ },
+ {
+  "eval": "mc.dev.sky.pin(6000)"
+ },
+ {
+  "move": [
+   300,
+   300
+  ]
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "ab_new_inventory.png"
+ },
+ {
+  "eval": "mc.displayGuiScreen(null)"
+ },
+ {
+  "eval": "(() => { const s = mc.dev.perf.stats(); if (!(s.render.meshers >= 2)) throw new Error('perf: meshers ' + s.render.meshers); if (s.chunks.replaced !== 0) throw new Error('perf: chunks sent twice ' + s.chunks.replaced); if (mc.dev.perf.unmeshed(5) !== 0) throw new Error('perf: unmeshed sections ' + mc.dev.perf.unmeshed(5)); if (!(s.budgetMs >= 4)) throw new Error('perf: budget ' + s.budgetMs); return s; })()"
+ },
+ {
+  "eval": "mc.dev.sky.unfreeze(); mc.dev.perf.idleProbe(3)"
+ },
+ {
+  "wait": 6000
+ },
+ {
+  "eval": "(() => { const n = mc.dev.perf.idleRuns(); if (n < 3) throw new Error('perf: idle task ran ' + n + ' times'); return n; })()"
+ },
+ {
+  "eval": "mc.theWorld.setBlock(8, 4, 6, 57, 0, 3); mc.theWorld.setBlockToAir(8, 4, 6)"
+ },
+ {
+  "waitFor": "mc.dev.pendingSections(2) === 0",
+  "timeout": 120000
+ },
+ {
+  "goto": "?dev=1"
+ },
+ {
+  "eval": "(() => {\n  const B = (window.__load = { t0: performance.now(), marks: {}, longTasks: [], slow: [] });\n  try { new PerformanceObserver((l) => { for (const e of l.getEntries()) B.longTasks.push([Math.round(e.startTime - B.t0), Math.round(e.duration)]); }).observe({ type: 'longtask' }); } catch {}\n  const loop = mc.runGameLoop;\n  mc.runGameLoop = function () { const a = performance.now(); try { return loop.call(this); } finally { const d = performance.now() - a; if (d > 150) B.slow.push([Math.round(a - B.t0), Math.round(d)]); } };\n  const poll = () => {\n    const t = Math.round(performance.now() - B.t0), m = B.marks;\n    if (m.world === undefined && mc.thePlayer) m.world = t;\n    if (m.playable === undefined && mc.dev.isInGame()) m.playable = t;\n    for (const r of [2, 4, 8]) if (m['shown' + r] === undefined && m.world !== undefined && mc.dev.perf.areaShown(r)) m['shown' + r] = t;\n    if (m.shown8 === undefined) setTimeout(poll, 50);\n  };\n  mc.displayGuiScreen(null);\n  mc.launchIntegratedServer('perf', 'Perf', { seed: -1357935714n, terrainType: 'default', mapFeatures: true, gameType: 1, allowCommands: true });\n  poll();\n  return 'started';\n})()"
+ },
+ {
+  "waitFor": "window.__load.marks.playable !== undefined",
+  "timeout": 600000
+ },
+ {
+  "eval": "mc.theWorld.worldInfo.gameRules.doMobSpawning = false"
+ },
+ {
+  "waitFor": "window.__load.marks.shown8 !== undefined",
+  "timeout": 900000
+ },
+ {
+  "eval": "(() => { const B = window.__load; const s = mc.dev.perf.stats(); if (s.chunks.replaced !== 0) throw new Error('perf: chunks sent twice'); return { marks: B.marks, chunks: s.chunks, longTasks: B.longTasks.length, longestTasks: B.longTasks.sort((a, b) => b[1] - a[1]).slice(0, 6), slowFrames: B.slow.sort((a, b) => b[1] - a[1]).slice(0, 6) }; })()"
+ },
+ {
+  "eval": "mc.dev.tp(mc.thePlayer.posX, 100, mc.thePlayer.posZ, 45, 30); mc.dev.sky.pin(6000)"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "perf_default_world.png"
+ }
+]

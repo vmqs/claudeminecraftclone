@@ -148,11 +148,11 @@ the workers import them. Keep those imports one-way.
 Main thread                                   Workers
 -----------                                   -------
 Minecraft (loop: rAF -> Timer -> runTick*n -> render)
- ├─ World (client-side, authoritative)        worldgen.worker  (1 worker)
- │   chunks, entities, ticks, lighting  <──── generates terrain, populates (decorates),
- │   requests/unloads chunks ─────────────>   computes initial sky/block light; returns
- │                                            only *finalized* chunks
- ├─ RenderGlobal ──── section snapshots ────> mesher.worker (pool of 2–3)
+ ├─ World (client-side, authoritative)        worldgen.worker  (1 worker, prewarmed)
+ │   chunks, entities, ticks, lighting  <──── populates (decorates), computes initial
+ │   requests/unloads chunks ─────────────>   sky/block light; returns only *finalized*
+ │                                            chunks; terrain.worker pool (1-3) makes raw terrain
+ ├─ RenderGlobal ──── section snapshots ────> mesher.worker (pool of 1-4)
  │   VBOs per section/pass  <──── vertex data ─ RenderBlocks over ChunkCache (padded 20^3)
  ├─ EntityRenderer / GL facade / GUI
  └─ SoundManager (Web Audio)
@@ -178,14 +178,18 @@ The main thread (`world/ChunkProviderClient`) posts `{type:'request', cx, cz}`, 
 `world/gen/StructureLocator` wraps it as a promise). The worker's logic lives in
 `world/gen/WorldGenServer`; `workers/worldgen.worker.ts` routes messages and schedules work.
 
-- **Terrain worker.** `worldgen.worker.ts` starts a nested `workers/terrain.worker.ts` that makes
-  raw terrain (`ChunkProviderGenerate.provideTerrain`: noise, surface, caves, ravines, as
+- **Terrain workers.** `worldgen.worker.ts` starts a pool of nested `workers/terrain.worker.ts`
+  (one per core beyond two, 1-3) as soon as it loads; they make raw terrain
+  (`ChunkProviderGenerate.provideTerrain`: noise, surface, caves, ravines, as
   `world/gen/TerrainChunk` sections) for the chunks the next jobs need, while the world-generation
-  worker populates and lights; it makes terrain itself when the terrain worker is behind or
-  missing (Superflat never uses it). Terrain is a pure function of seed and position, and
+  worker populates and lights; it makes terrain itself when the terrain workers are behind or
+  missing (Superflat never uses them). Terrain is a pure function of seed and position, and
   prefetched terrain is only taken into the generating world (with the structure-start part,
   `recordStructures`) when generation asks for that chunk, so what is loaded, which gates light
-  updates, never depends on timing: the output is byte-identical with and without it.
+  updates, never depends on timing: the output is byte-identical with and without it
+  (`tests/worldgen-golden.test.ts`). The worker itself is started ahead of need
+  (`world/WorldGenWorkers.ts`: at boot and after leaving a world), so its modules load while the
+  menus are shown.
 
 - **Generate once, keep everything.** Like the original's region files, every chunk is generated
   and populated exactly once per world. Chunks that leave the worker's working set (the loaded
@@ -201,9 +205,18 @@ The main thread (`world/ChunkProviderClient`) posts `{type:'request', cx, cz}`, 
   rules), places the bonus chest, then loads the 25x25 spawn area in
   `MinecraftServer.initialWorldChunkLoad` order, so the spawn area is populated in the same
   order as in 1.5.2 (which matters where features of neighbouring chunks overlap). The worker
-  loads that area one chunk per step (terrain comes from the terrain worker) and answers
-  `findSpawn` when it is done. After that,
-  chunks are populated on demand, nearest to the player first.
+  answers `findSpawn` with the spawn point right after the search and then loads that area one
+  chunk per step (terrain comes from the terrain workers). The player does not wait for all of
+  it: a requested chunk is finalized while the area still loads as soon as every population
+  that writes into its 3x3 neighbourhood (populations `cx-3..cx+2`, `cz-3..cz+2`) has run
+  (`WorldGenServer.canFinalizeEarly`), with its light computed into the payload only
+  (`finalizeChunk(cx, cz, true)`), so nothing the rest of the area generates changes. The
+  spawn's 5x5 are ready at about 70% of the area. Should a later population still write into a
+  sent chunk's neighbourhood (counted by `GenWorld.blockWrites`), the chunk is sent again with
+  `replace: true` when the area is done (`ChunkProviderClient.replaceChunk`);
+  `tests/worldgen-worker.test.ts` runs the worker under Node and checks every chunk against a
+  plain spawn-area-first `WorldGenServer`, byte for byte. After that, chunks are populated on
+  demand, nearest to the player first.
 - **Light while populating.** `GenWorld` keeps light up to date during population like
   `World.setBlock` (column sky light in `Chunk.relightBlock`, plus `updateLightByType` where every
   chunk within 17 blocks is loaded), because flowers, grass, mushrooms, snow, ice and lake grass
@@ -224,12 +237,13 @@ The main thread (`world/ChunkProviderClient`) posts `{type:'request', cx, cz}`, 
   bonus chest, which uses an unseeded random like the original.
 
 `ChunkProviderClient` keeps the chunks within `RenderGlobal.renderRadius + 1` of the player
-loaded, adds arriving chunks within a per-frame time budget, unloads chunks two beyond the radius,
+loaded, adds arriving chunks within a per-frame time budget (`client/FrameBudget`), unloads chunks two beyond the radius,
 and keeps unloaded chunks in memory when they were modified or hold mobs. World creation
 (`Minecraft.launchIntegratedServer`) shows "Loading world / Building terrain" until the 5x5
 chunks around the spawn are present, places the player like `EntityPlayerMP` (random offset of up
 to 10 blocks, on `getTopSolidOrLiquidBlock`), then shows "Downloading terrain" until the area
-around the player is meshed. `Chunk` only needs a `ChunkHost` (an `IWorld` plus light and
+around the player is meshed. Its opaque background hides the world, so the world is not drawn
+behind it (`GuiDownloadTerrain.coversWorld`); only the meshers are fed. `Chunk` only needs a `ChunkHost` (an `IWorld` plus light and
 render-update hooks), which both the client `World` and the worker's `GenWorld` implement.
 
 Edits made by world simulation (block ticks, fluids, leaf decay, weather, light) run inside
@@ -248,6 +262,14 @@ at unloaded chunk edges. Changed light marks the affected sections dirty for re-
 
 ### 5.4 Meshing (worker pool)
 
+The pool has one mesher per core beyond two (at least two where there are more than two cores,
+at most four), each with up to three jobs. Dispatch settles empty sections at once without a
+mesher slot, then hands out the dirty sections in the frustum first, nearest first. Snapshots are
+copied per chunk row run (`render/SectionSnapshotFill`), and the mesher skips full cubes whose
+six neighbours are opaque cubes and remembers each cell's mixed brightness while meshing a
+section (`ChunkCache.mixedBrightness`); `tests/mesher-golden.test.ts` holds the mesh bytes to
+hashes recorded before those changes. Results are uploaded within the frame budget.
+
 When a section is dirty and all 8 horizontal neighbour chunks are loaded, `RenderGlobal` copies a
 **padded snapshot** (section ± 2 blocks: ids, meta, sky, and block light, plus biome IDs for the
 padded 20×20 columns) and posts it to a mesher worker. The worker builds a `ChunkCache`
@@ -261,7 +283,9 @@ stitching. Grass, foliage, and water colormaps are sent to workers once at init.
 `World.tick()` covers world time and moon phase, weather cycling (`World.clientWeather.tick()`: the
 server's `updateWeather`, then the client's view of it, see §6.4), mob spawning
 (`World.mobSpawner`, by default `SpawnerAnimals.findChunksForSpawning`), scheduled block updates
-(`scheduleBlockUpdate`, `tickRate`), and `tickBlocksAndAmbiance`: per active chunk the mood-sound
+(`scheduleBlockUpdate`, `tickRate`; at most 1000 per tick from `TickScheduler`, a heap with a
+position index whose chunk removal flags entries instead of rebuilding, and whose `inChunk(cx, cz)`
+lists a chunk's entries in run order for saving), and `tickBlocksAndAmbiance`: per active chunk the mood-sound
 check, the lightning roll (1 in 100000 while thundering), the ice and snow roll, and 3 random
 block ticks per non-empty section, consuming `rand` and `updateLCG` in the original order.
 `World.updateEntities()` ticks weather effects, entities (then removes dead ones) and tile
@@ -678,6 +702,7 @@ registries are imported once by `src/client/Minecraft.ts`.
 | Server connections | `registerServerConnector(scheme, { connect, ping? })` (`src/net/connect/ServerConnector.ts`): Direct Connect, Add Server and the list's ping use the connector of the address's scheme (`tcp` for a plain `host[:port]`, parsed by `ServerAddress.ts` like 1.5.2); the connection it returns carries `Packets.ts` frames into the usual guest login. See `docs/MULTIPLAYER.md`. |
 | Key bindings and options | A new `KeyBinding(desc, code)` in `GameSettings`, appended to `keyBindings`, is saved (`key_<desc>`), listed by the scrolling `GuiControls`, flagged red on clashes and covered by Reset Keys (`keyCodeDefault`); read it with `isPressed()` / `pressed` in the tick or `GameSettings.isKeyDown`. English names for keys 1.5.2's lang lacks: `client/ControlsText.ts` (`translateOr`). Hotbar keys: `gameSettings.keyBindsHotbar[i]`; the sprint key reaches the player as `MovementInput.sprint`; the zoom state is `EntityRenderer.zoom.active`. |
 | Texture packs | `ResourceManager.packs` (bundled, then imported), `selectedPack`, `selectPack(id)` (async: an imported pack's files load from IndexedDB first; `onPackChanged` listeners then reload), `addUserPack(ImportedPack)`, `removeUserPack(id)`; `readTexturePack(name, zipBytes, modernMap)` (`assets/PackImport.ts`, worker-safe) checks and converts a .zip, `importTexturePackFile/Bytes` (`assets/PackFiles.ts`) do both. Regenerate the 1.6+ name table with `node scripts/gen-pack-map.mjs`. |
+| Background work and budgets | `IdleTasks.add(name, (deadline) => moreToDo)` (`src/client/IdleTasks.ts`) runs work in slices after each frame (and each background tick of a hidden LAN game) until the frame's budget is used, round robin; `IdleTasks.flush()` finishes everything (leaving a world). This is the hook for incremental saving: serialize a few dirty chunks per slice instead of stalling a frame. `FrameBudget.ms(base)` (`src/client/FrameBudget.ts`) is the per-frame milliseconds for one kind of background work: the base on a CPU-bound frame, more when the main thread waits for the GPU, a share of the frame while a loading screen hides the world. Performance tools: `mc.dev.perf` (`src/client/PerfDevTools.ts`), `scripts/perf/`, `docs/PERFORMANCE.md`. |
 | Multiplayer | New packets: add a schema to `PACKETS` (`src/net/protocol/Packets.ts`; give it a direction for `allowedFrom` and keep fields bounded), handle it in `NetServerHandler.handle` (validate everything a guest sends) or `NetClientHandler`. World events reach guests through `World.netEvents` (`WorldNetListener`: block and tile entity changes, animations, statuses, pick-ups, explosions, block events, lightning, beds, player sounds) and the `IWorldAccess` the `LanServer` adds (sounds, particles, aux effects, crack progress); wrap client-only effects in `World.localEffectsOnly`. New entity classes: tracking range/interval, spawn data and networked metadata slots in `src/net/EntityNetData.ts` (`trackingParams`, `spawnData` / `createFromSpawn`, the metadata tables), guest-side animation state in `src/net/client/RemoteEntityVisuals.ts`. Rules that only the authoritative side may run check `world.isRemote` (blocks, tile entities, entities) or `EntityPlayer.isClientSide()` (players; true for guests and for `EntityOtherPlayerMP`). Windows: `Container.crafters` (`ICrafting`: `EntityPlayerMP` mirrors slots and progress bars); new window kinds get an id in `src/net/WindowTypes.ts` and a case in `EntityPlayerMP.displayGUI*` / `NetClientHandler`'s OpenWindow. Controllers: `mc.playerController` is a `PlayerControllerGuest` on guests; screens that change server state call `sendEnchantPacket`, `sendSlotPacket`, `sendPacketDropItem` or `mc.netHandler.addToSendQueue` (anvil names, beacon, signs). Item tags cross the network only through the whitelist in `src/net/protocol/ItemTags.ts`: a new tag key an item reads must be added there (with its type and limits) or guests lose it; stacks a creative guest may create are decided by `src/net/server/CreativeItems.ts`. A new guest action that changes the world needs its own `ActionLimit` in `NetServerHandler` and must be ignored for dead players (`DEAD_IGNORES`). Host-only commands go in `HOST_ONLY_COMMANDS` (`EntityPlayerMP`) and reach the LAN game through `CommandServer.lan()`. |
 | Block interaction hooks | `BlockGuiHooks.register(kind, handler)` (`src/block/BlockGuiHooks.ts`; chest, enderChest, workbench, furnace, dispenser, dropper, hopper, brewingStand, enchantment, anvil, beacon, sign, commandBlock; without a handler the player's `displayGUI*` runs). Survival breaking (`PlayerControllerMP`) calls `Block.harvestBlock` (drops, stats, exhaustion) after removing the block; `HarvestModifiers.silkTouch` / `fortune` are wired to `EnchantmentHelper`. Block events: `World.addBlockEvent` → `Block.onBlockEventReceived`. Mob spawners: `MobSpawnerBaseLogic.spawnHook`. |
 | HUD and GUI hooks | `GuiIngame` draws the survival bars when `PlayerControllerMP.shouldDrawHUD()` (Survival and Adventure), `GuiIngame.playerListProvider` (TAB list), `GuiIngame.scoreboardOverlay`, `GuiIngame.setRecordPlayingMessage`, `BossStatus.setBossStatus(boss, colorModifier)` for boss renderers (with `SkyHooks.hasColorModifier`), `EntityPlayer.gameTypeListener` (the controller) and `CommandGameMode.gameTypeListener` for game-mode changes, `mc.playerController.getCurrentGameType()` / `isInCreativeMode()` for mode checks, `EntityPlayer.getFoodStats()` / `canEat()` / `addExhaustion()`, `Minecraft.mcProfiler` sections (Shift+F3 chart), `getScoreboard(world)` (deaths and kills are counted by `EntityPlayer.onDeath` / `addToPlayerScore`). Overlays outside the HUD (pumpkin blur, portal swirl, first-person fire) live in `src/render/sky/ScreenOverlays.ts`. |

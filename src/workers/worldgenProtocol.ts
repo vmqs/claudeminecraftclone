@@ -52,15 +52,22 @@ export interface ChunkPayload {
   tileEntities: TagCompound[];
   /** Entities placed by world generation (EntityList names): animals, villagers, minecarts. */
   entities: EntitySpawnDescriptor[];
+  /**
+   * The chunk was sent before and changed since (a chunk served while the spawn area was still
+   * loading, see worldgen.worker.ts): it replaces the one the main thread has.
+   */
+  replace?: boolean;
 }
 
 export type WorldGenResponse =
   | { type: 'ready' }
+  /** The spawn point (answer to findSpawn); the spawn area goes on loading after it. */
   | { type: 'spawn'; x: number; y: number; z: number }
   | { type: 'structure'; id: number; pos: [number, number, number] | null }
   | ChunkPayload;
 
 /** Messages from the world-generation worker to its terrain worker (terrain.worker.ts). */
-export type TerrainRequest = { type: 'init'; seed: string; worldType: string } | { type: 'terrain'; cx: number; cz: number };
+export type TerrainRequest = { type: 'init'; seed: string; worldType: string; round?: number } | { type: 'terrain'; cx: number; cz: number; round?: number };
 
-export type TerrainResponse = { type: 'terrain'; chunk: TerrainChunk } | { type: 'failed'; cx: number; cz: number };
+/** `round` echoes the request's, so answers meant for an earlier world are told apart. */
+export type TerrainResponse = ({ type: 'terrain'; chunk: TerrainChunk } | { type: 'failed'; cx: number; cz: number }) & { round?: number };
