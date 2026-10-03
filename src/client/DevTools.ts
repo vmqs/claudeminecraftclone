@@ -194,7 +194,7 @@ export function installDevHooks(mc: Minecraft, params: URLSearchParams): void {
   // ?mode=survival|hardcore|adventure|creative (Creative when absent, like the earlier dev worlds).
   const mode = params.get('mode') ?? 'creative';
   const gameType = mode === 'creative' ? 1 : mode === 'adventure' ? 2 : 0;
-  mc.launchIntegratedServer('dev', 'New World', { seed, terrainType: type, mapFeatures: true, gameType, hardcore: mode === 'hardcore' });
+  mc.launchIntegratedServer('dev', 'New World', { seed, terrainType: type, mapFeatures: true, gameType, hardcore: mode === 'hardcore', allowCommands: mode !== 'hardcore' });
   let applied = false;
   mc.frameListeners.push(() => {
     if (applied || !mc.thePlayer || !mc.theWorld) return;

@@ -1,4 +1,4 @@
-import type { Block } from '../block/Block';
+import { Block } from '../block/Block';
 import { Material } from '../block/Material';
 import { AxisAlignedBB } from '../core/AxisAlignedBB';
 import { Vec3 } from '../core/Vec3';
@@ -684,11 +684,15 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     if (!this.capabilities.allowFlying) super.fall(dist);
   }
 
+  /** Adventure mode: only blocks that are always harvestable or that the held tool works on. */
   canCurrentToolHarvestBlock(x: number, y: number, z: number): boolean {
     if (this.capabilities.allowEdit) return true;
     const id = this.worldObj.getBlockId(x, y, z);
-    void id;
-    return false;
+    const block = id > 0 ? Block.blocksList[id] : null;
+    if (!block) return false;
+    if (block.blockMaterial.isAlwaysHarvested()) return true;
+    const held = this.getCurrentEquippedItem();
+    return !!held && (held.canHarvestBlock(block) || held.getStrVsBlock(block) > 1);
   }
 
   canPlayerEdit(_x: number, _y: number, _z: number, _side: number, _stack: ItemStack | null): boolean {
