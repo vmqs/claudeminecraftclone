@@ -1,4 +1,13 @@
 import { GuiAccountManager } from '../gui/GuiAccountManager';
+import { GuiConnecting } from '../gui/GuiConnecting';
+import { GuiDisconnected } from '../gui/GuiDisconnected';
+import { GuiMainMenu } from '../gui/GuiMainMenu';
+import { GuiMultiplayer } from '../gui/GuiMultiplayer';
+import { GuiOptions } from '../gui/GuiOptions';
+import { GuiScreenAddServer } from '../gui/GuiScreenAddServer';
+import { GuiScreenRoomCode } from '../gui/GuiScreenRoomCode';
+import { GuiScreenServerList } from '../gui/GuiScreenServerList';
+import { GuiSplashPreview } from '../gui/GuiSplashPreview';
 import { BootSplash } from './BootSplash';
 import type { Minecraft } from './Minecraft';
 import { PlayerSkins } from './skin/PlayerSkins';
@@ -74,6 +83,26 @@ export class AccountDevTools {
     return r.ok;
   }
 
+  /** The open screen among those this area touches (names stable in minified builds). */
+  screen(): string | null {
+    const s = this.mc.currentScreen;
+    if (!s) return null;
+    const names: [new (...a: never[]) => unknown, string][] = [
+      [GuiMainMenu, 'mainmenu'],
+      [GuiAccountManager, 'accountmanager'],
+      [GuiOptions, 'options'],
+      [GuiMultiplayer, 'multiplayer'],
+      [GuiScreenServerList, 'directconnect'],
+      [GuiScreenRoomCode, 'roomcode'],
+      [GuiScreenAddServer, 'addserver'],
+      [GuiConnecting, 'connecting'],
+      [GuiDisconnected, 'disconnected'],
+      [GuiSplashPreview, 'splash'],
+    ];
+    for (const [cls, name] of names) if (s instanceof cls) return name;
+    return 'other';
+  }
+
   /** The account as the game sees it. */
   state(): Record<string, unknown> {
     const local = PlayerSkins.local;
@@ -92,6 +121,18 @@ export class AccountDevTools {
       remoteSkins: PlayerSkins.remoteNames(),
       splash: BootSplash.shownIndex + 1,
     };
+  }
+
+  /** One RGBA pixel of the local skin (null for Steve). */
+  localPixel(x: number, y: number): number[] | null {
+    const s = PlayerSkins.local;
+    return s ? [...s.subarray((y * SKIN_WIDTH + x) * 4, (y * SKIN_WIDTH + x) * 4 + 4)] : null;
+  }
+
+  /** One RGBA pixel of another player's skin (null for Steve). */
+  remotePixel(name: string, x: number, y: number): number[] | null {
+    const s = PlayerSkins.getRemote(name);
+    return s ? [...s.subarray((y * SKIN_WIDTH + x) * 4, (y * SKIN_WIDTH + x) * 4 + 4)] : null;
   }
 
   /** The local skin as a data URL (null for Steve). */

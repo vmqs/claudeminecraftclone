@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Two players in one headless Chromium (two browser contexts, so nothing is shared but the
-// network): the host opens a world to LAN, the guest joins with the room code through the
-// multiplayer screens, both place blocks, chat and look at each other; screenshots of each step.
+// network): each picks a skin in the Account Manager, the host opens a world to LAN, the guest
+// joins with the room code through the multiplayer screens (Room Code), both place blocks, chat
+// and look at each other (each in the other's skin); screenshots of each step.
 //
 //   node scripts/mp-test.mjs [--out shots/mp] [--port 4400] [--relay-port 4401] [--public]
 //
@@ -145,7 +146,14 @@ try {
   });
   await host.waitForFunction(() => window.mc.dev.isInGame() && window.mc.dev.pendingSections(1) === 0, null, { timeout: 240000, polling: 500 });
   log('host in game');
-  // The pause menu's Open to LAN screen, with the name field.
+  // The host's account: its name and a skin (red shirt, as uploaded with Upload Skin...).
+  const hostSkin = await host.evaluate(async () => {
+    window.mc.username = 'Alice';
+    window.mc.thePlayer.username = 'Alice';
+    return window.mc.dev.account.uploadSkin(window.mc.dev.account.testSkinDataUrl(64, 32, 0));
+  });
+  check('host skin uploaded', hostSkin.ok, JSON.stringify(hostSkin));
+  // The pause menu's Open to LAN screen.
   await host.evaluate(() => window.mc.dev.screen('sharetolan'));
   await host.waitForTimeout(800);
   await shot(host, '01_host_open_to_lan.png');
@@ -162,18 +170,30 @@ try {
   guest = await open('guest', `?dev=1${net}`);
   await guest.evaluate(() => {
     window.mc.gameSettings.renderDistance = 3;
-    window.mc.username = 'Bob';
   });
+  // The guest's Account Manager: name Bob and a 64x64 skin (blue shirt), typed and uploaded there.
+  await guest.evaluate(() => window.mc.dev.screen('accountmanager'));
+  await guest.waitForTimeout(500);
+  await guest.keyboard.press('Control+A');
+  await guest.keyboard.type('Bob', { delay: 40 });
+  const guestSkin = await guest.evaluate(() => window.mc.dev.account.uploadSkin(window.mc.dev.account.testSkinDataUrl(64, 64, 200)));
+  check('guest skin uploaded (64x64)', guestSkin.ok, JSON.stringify(guestSkin));
+  await guest.waitForTimeout(800);
+  await shot(guest, '03a_guest_account_manager.png');
+  await guest.keyboard.press('Enter');
+  await guest.waitForTimeout(300);
+  check('guest name from the Account Manager', (await guest.evaluate(() => window.mc.username)) === 'Bob');
   await guest.evaluate(() => window.mc.dev.screen('multiplayer'));
   await guest.waitForTimeout(1000);
   await shot(guest, '03_guest_multiplayer.png');
-  // Direct Connect with the room code typed like a player would.
-  await guest.evaluate(() => window.mc.dev.screen('directconnect'));
+  // Room Code with the code typed like a player would.
+  await guest.evaluate(() => window.mc.dev.screen('roomcode'));
   await guest.waitForTimeout(500);
+  await guest.keyboard.press('Control+A');
   await guest.keyboard.type(`${code.slice(0, 4)}-${code.slice(4)}`.toLowerCase(), { delay: 40 });
   await guest.waitForTimeout(500);
-  await shot(guest, '04_guest_direct_connect.png');
-  await guest.evaluate((c) => window.mc.dev.net.join(c, 'Bob'), code);
+  await shot(guest, '04_guest_room_code.png');
+  await guest.evaluate((c) => window.mc.dev.net.join(c), code);
   await guest.waitForTimeout(200);
   await shot(guest, '05_guest_connecting.png');
   await guest.waitForFunction(() => window.mc.netHandler?.state === 'play' || window.mc.dev.net.state().screen === 'disconnected', null, { timeout: 90000, polling: 250 });
@@ -265,6 +285,24 @@ try {
   await host.waitForTimeout(1500);
   await shot(host, '07_host_sees_bob.png');
   await shot(guest, '08_guest_sees_alice.png');
+  // Skins: each side renders the other in the skin it uploaded (MC|Skin through the host).
+  const skinOf = (page, name) =>
+    page.evaluate((n) => {
+      const mc = window.mc;
+      const e = mc.theWorld.playerEntities.find((p) => p.username === n);
+      return { entity: !!e, remote: mc.dev.account.state().remoteSkins };
+    }, name);
+  const hostView = await skinOf(host, 'Bob');
+  const guestView = await skinOf(guest, 'Alice');
+  check('host has the guest skin', hostView.entity && hostView.remote.includes('Bob'), JSON.stringify(hostView.remote));
+  check('guest has the host skin', guestView.entity && guestView.remote.includes('Alice'), JSON.stringify(guestView.remote));
+  const pixels = await Promise.all([
+    host.evaluate(() => window.mc.dev.account.remotePixel('Bob', 20, 20)),
+    guest.evaluate(() => window.mc.dev.account.remotePixel('Alice', 20, 20)),
+    guest.evaluate(() => window.mc.dev.account.localPixel(20, 20)),
+    host.evaluate(() => window.mc.dev.account.localPixel(20, 20)),
+  ]);
+  check('the skins arrive unchanged', JSON.stringify(pixels[0]) === JSON.stringify(pixels[2]) && JSON.stringify(pixels[1]) === JSON.stringify(pixels[3]), JSON.stringify(pixels));
   const tags = await guest.evaluate(() => {
     const mc = window.mc;
     const alice = mc.theWorld.loadedEntityList.find((e) => e.username === 'Alice');

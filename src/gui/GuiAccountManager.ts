@@ -1,4 +1,4 @@
-import { Keyboard } from '../client/Keyboard';
+import { Keyboard, Mouse } from '../client/Keyboard';
 import { PlayerSkins } from '../client/skin/PlayerSkins';
 import { pickPngFile, readSkinFile, saveSkin } from '../client/skin/SkinFiles';
 import { I18n } from '../core/I18n';
@@ -176,8 +176,13 @@ export class GuiAccountManager extends GuiScreen {
     }
   }
 
-  protected override mouseClickMove(x: number, y: number, button: number, _held: number): void {
-    if (!this.dragging || button !== 0) return;
+  /** Dragging turns the model (polled each frame: the mouse moves without events, like GuiSlot). */
+  private followDrag(x: number, y: number): void {
+    if (!this.dragging) return;
+    if (!Mouse.isButtonDown(0)) {
+      this.dragging = false;
+      return;
+    }
     this.dragYaw += (x - this.lastDragX) * 2.5;
     this.dragPitch = Math.max(-40, Math.min(40, this.dragPitch + (y - this.lastDragY) * 1.5));
     this.lastDragX = x;
@@ -190,6 +195,7 @@ export class GuiAccountManager extends GuiScreen {
   }
 
   override drawScreen(mx: number, my: number, pt: number): void {
+    this.followDrag(mx, my);
     this.drawDefaultBackground();
     const cx = Math.trunc(this.width / 2);
     const top = this.box.y;
