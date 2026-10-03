@@ -25,8 +25,9 @@ export interface SaveHost {
  * - when the game pauses, "Saving and pausing game..." (IntegratedServer.tickIntegrated);
  * - chunks as they unload (ChunkProviderClient → SaveHandler), compressed and written a few
  *   per tick;
- * - Save and Quit: every chunk and level.dat, with WorldServer.saveAllChunks' "Saving level" /
- *   "Saving chunks" progress until the browser has stored everything.
+ * - Save and Quit: the chunks that need saving and level.dat (stopServer's saveAllWorlds), with
+ *   WorldServer.saveAllChunks' "Saving level" / "Saving chunks" progress until the browser has
+ *   stored everything.
  */
 export class WorldSaveController {
   handler: SaveHandler | null = null;

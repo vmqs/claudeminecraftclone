@@ -15,6 +15,13 @@ import { NBT, readCompressedNBT, readNBT, writeCompressedNBT, writeNBT } from '.
  * level.dat when they changed.
  */
 
+/**
+ * More per-world files for other code (WorldSavedData of its own): `load` gets the file when the
+ * world opens (if present), `save` returns new bytes when it changed (null otherwise). Keyed by
+ * the file's path in the save folder, e.g. 'data/mystuff.dat'.
+ */
+export const worldDataFiles = new Map<string, { load(w: IWorld, bytes: Uint8Array): void; save(w: IWorld): Uint8Array | null }>();
+
 /** MapData.writeToNBT. */
 export function mapDataToNBT(m: MapData): TagCompound {
   const t: TagCompound = {};
@@ -65,6 +72,11 @@ export function installWorldData(w: IWorld, files: Map<string, Uint8Array>): voi
   const s = mapStorageOf(w);
   for (const [path, bytes] of files) {
     try {
+      const hook = worldDataFiles.get(path);
+      if (hook) {
+        hook.load(w, bytes);
+        continue;
+      }
       if (path === 'data/villages.dat') {
         const villages = (w as World).villageCollectionObj;
         villages.readFromNBT(NBT.getCompoundTag(readCompressedNBT(bytes), 'data'));
@@ -132,6 +144,14 @@ export function collectWorldData(w: IWorld): Map<string, Uint8Array> {
     NBT.setCompoundTag(root, 'data', readNBT(villages));
     out.set('data/villages.dat', writeCompressedNBT(root));
     savedVillages.set(w, vKey);
+  }
+  for (const [path, hook] of worldDataFiles) {
+    try {
+      const bytes = hook.save(w);
+      if (bytes) out.set(path, bytes);
+    } catch (e) {
+      console.warn(`Could not save ${path}`, e);
+    }
   }
   const key = idsKey(s.ids);
   if (s.ids.size > 0 && savedIds.get(w) !== key) {
