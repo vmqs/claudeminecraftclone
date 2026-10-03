@@ -171,7 +171,7 @@ export class SaveHandler {
    * tick, like ThreadedFileIOBase draining the pending chunks).
    */
   pump(budgetMs: number): void {
-    if (this.queue.size === 0) return;
+    if (this.queue.size === 0 || performance.now() < this.retryAt) return;
     const t0 = performance.now();
     const batch: QueuedChunk[] = [];
     for (const q of this.queue.values()) {
@@ -220,7 +220,11 @@ export class SaveHandler {
     return this.writeChain;
   }
 
+  /** After a failed write the queue waits a while before trying again (storage full, blocked). */
+  private retryAt = 0;
+
   private reportError(e: unknown): void {
+    this.retryAt = performance.now() + 10000;
     const msg = e instanceof Error ? e.message : String(e);
     console.error('Saving failed:', e);
     if (this.error !== msg) {
