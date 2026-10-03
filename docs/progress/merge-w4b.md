@@ -9,7 +9,7 @@ account (64215f9) and controls (25aaa36) were already merged by merge-w4a; nothi
 - [x] account / controls: heads 64215f9 / 25aaa36 already merged (0 new commits)
 - [x] vite build (after restoring node_modules and public/assets, see Incident)
 - [x] wire hooks / dedupe: chunk compression+writes run as IdleTasks "save.chunks" (was pump(4) per tick); TileTicks read through perf's TickScheduler.inChunk (entriesInChunk removed); replaced early chunks marked modified; noteWorldLaunch after closing wait. Node: persistence 107, stats 76, tickscheduler 2, frame-budget 10 pass
-- [ ] smoke test
+- [x] smoke test: title, spawn, interact, persistence, stats scenarios exit 0 (shots-merge-w4b); perf.json needs a baseline build on :5222 (not run, single-port rule) so its Node goldens ran instead: worldgen-golden 4, mesher-golden 18, worldgen-worker 8 pass
 - [ ] ARCHITECTURE §13
 
 Incident: w4/persistence (43e8863) committed the worktree's `node_modules` and `public/assets`
