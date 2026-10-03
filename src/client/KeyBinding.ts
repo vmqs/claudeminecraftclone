@@ -4,11 +4,14 @@ export class KeyBinding {
   static readonly hash = new Map<number, KeyBinding>();
   pressed = false;
   pressTime = 0;
+  /** The code the binding starts with ("Reset Keys" goes back to it). */
+  readonly keyCodeDefault: number;
 
   constructor(
     readonly keyDescription: string,
     public keyCode: number,
   ) {
+    this.keyCodeDefault = keyCode;
     KeyBinding.keybindArray.push(this);
     KeyBinding.hash.set(keyCode, this);
   }

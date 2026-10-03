@@ -5,6 +5,8 @@ export class MovementInput {
   moveForward = 0;
   jump = false;
   sneak = false;
+  /** The sprint key asks to sprint (held, or toggled on). Not in 1.5.2, where only double-tapping forward sprints. */
+  sprint = false;
 
   updatePlayerMoveState(): void {}
 }
@@ -25,6 +27,14 @@ export class MovementInputFromOptions extends MovementInput {
     if (s.keyBindRight.pressed) this.moveStrafe--;
     this.jump = s.keyBindJump.pressed;
     this.sneak = s.keyBindSneak.pressed;
+    let presses = 0;
+    while (s.keyBindSprint.isPressed()) presses++;
+    if (s.toggleSprint) {
+      if (presses & 1) s.sprintToggledOn = !s.sprintToggledOn;
+      this.sprint = s.sprintToggledOn;
+    } else {
+      this.sprint = s.keyBindSprint.pressed;
+    }
     if (this.sneak) {
       this.moveStrafe = Math.fround(this.moveStrafe * 0.3);
       this.moveForward = Math.fround(this.moveForward * 0.3);

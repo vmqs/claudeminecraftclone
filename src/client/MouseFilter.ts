@@ -15,4 +15,11 @@ export class MouseFilter {
     this.applied = f(this.applied + step);
     return step;
   }
+
+  /** Forgets the eased movement (OptiFine replaced both filters when zooming ended). */
+  reset(): void {
+    this.target = 0;
+    this.applied = 0;
+    this.velocity = 0;
+  }
 }
