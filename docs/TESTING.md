@@ -25,6 +25,7 @@ URL parameters (any combination):
 | `?pos=x,y,z[,yaw,pitch]` | teleports the player (feet position) once the player exists |
 | `?fly=1` | starts flying |
 | `?mode=survival\|hardcore\|adventure\|creative` | the autostart world's game mode (Creative when absent; Hardcore without cheats) |
+| `?mobs=0` | natural mob spawning off (gamerule `doMobSpawning`) and the first ticks' mobs removed, so captures are not pushed or attacked while chunks load |
 | `?preserve=1` | creates the WebGL context with `preserveDrawingBuffer` |
 
 `mc.dev` helpers (see `src/client/DevTools.ts`): `isInGame()`, `pendingSections(radius)`,

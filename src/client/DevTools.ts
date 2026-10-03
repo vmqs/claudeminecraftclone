@@ -188,7 +188,8 @@ export class DevTools {
  * URL hooks: ?dev=1 exposes window.mc; ?autostart=1&seed=&type= creates a world directly
  * (&structures=0, &bonus=1 and &preset=<superflat string> as on the More World Options page);
  * ?hotbar=1 fills the hotbar; ?time= sets the world time; ?pos=x,y,z[,yaw,pitch] teleports
- * (feet position); ?fly=1 starts flying; ?mode=survival|hardcore|adventure picks the game mode.
+ * (feet position); ?fly=1 starts flying; ?mode=survival|hardcore|adventure picks the game mode;
+ * ?mobs=0 turns natural mob spawning off.
  */
 export function installDevHooks(mc: Minecraft, params: URLSearchParams): void {
   const dev = new DevTools(mc);
@@ -222,5 +223,12 @@ export function installDevHooks(mc: Minecraft, params: URLSearchParams): void {
       dev.tp(v[0], v[1], v[2], v[3], v[4]);
     }
     if (params.get('fly') === '1') dev.setFlying(true);
+    // ?mobs=0: no natural spawning (gamerule doMobSpawning false) and the mobs of the first
+    // ticks removed, for captures that must not be pushed or attacked while chunks load.
+    if (params.get('mobs') === '0') {
+      const w = mc.theWorld;
+      w.worldInfo.gameRules.doMobSpawning = false;
+      for (const e of w.loadedEntityList) if (e.isLivingEntity && !e.isPlayerEntity) e.setDead();
+    }
   });
 }
