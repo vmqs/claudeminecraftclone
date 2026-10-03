@@ -76,6 +76,9 @@ import { ConnectError, type GuestTransport } from '../net/transport/Transport';
 import { loadUsername } from '../net/Username';
 import { EntityCrit2FX } from '../render/particle/EntityCrit2FX';
 import type { Entity } from '../entity/Entity';
+import { installStats, noteWorldLaunch } from '../stats/StatsInstall';
+import { ClientStats } from '../stats/ClientStats';
+import { StatIds } from '../stats/StatIds';
 
 /** World creation options (WorldSettings). */
 export interface WorldSettings {
@@ -222,6 +225,7 @@ export class Minecraft implements SettingsListener {
     this.loadingScreen = new LoadingScreenRenderer(this);
     this.playerController = this.singlePlayerController = new PlayerControllerMP(this);
     this.updateDisplaySize();
+    installStats(this);
   }
 
   get mouseX(): number {
@@ -825,6 +829,7 @@ export class Minecraft implements SettingsListener {
   /** Creates a world and starts streaming its terrain (the integrated server start-up). */
   launchIntegratedServer(folder: string, name: string, ws: WorldSettings | null): void {
     this.loadWorld(null);
+    noteWorldLaunch(ws !== null);
     if (ws === null) {
       this.resumeIntegratedServer(folder);
       return;
@@ -909,6 +914,7 @@ export class Minecraft implements SettingsListener {
   }
 
   loadWorld(world: World | null): void {
+    ClientStats.sync();
     this.renderViewEntity = null;
     this.objectMouseOver = null;
     this.sndManager.playStreaming(null, 0, 0, 0);
@@ -1133,6 +1139,7 @@ export class Minecraft implements SettingsListener {
 
   /** NetClientHandler.handleLogin: the host's world (loadWorld with the network's player). */
   private startGuestWorld(world: WorldClient, player: EntityClientPlayerMP, type: EnumGameType): void {
+    ClientStats.readStat(StatIds.joinMultiplayer);
     this.renderViewEntity = null;
     this.objectMouseOver = null;
     this.sndManager.playStreaming(null, 0, 0, 0);

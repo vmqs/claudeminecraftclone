@@ -27,6 +27,7 @@ import { EntityCrit2FX } from '../render/particle/EntityCrit2FX';
 import type { EntityFX } from '../render/particle/EntityFX';
 import type { World } from '../world/World';
 import { MovementInput } from './MovementInput';
+import { ClientStats } from '../stats/ClientStats';
 
 const f = Math.fround;
 
@@ -105,6 +106,11 @@ export class EntityPlayerSP extends EntityPlayer {
     this.mc.respawnPlayer();
   }
 
+  /** EntityPlayerSP.addStat: into the client's stat file (achievements need their parent). */
+  override addStat(id: number, amount: number): void {
+    ClientStats.addStat(id, amount);
+  }
+
   /**
    * The client's copy of the player never learns where a hit came from (its attackedAtYaw stays
    * 0), so the hurt camera always rolls the same way and the body falls the same way on death.
@@ -176,6 +182,7 @@ export class EntityPlayerSP extends EntityPlayer {
       if (this.sprintingTicksLeft === 0) this.setSprinting(false);
     }
     if (this.sprintToggleTimer > 0) this.sprintToggleTimer--;
+    ClientStats.onPlayerUpdate();
     this.prevTimeInPortal = this.timeInPortal;
     if (this.inPortal) {
       this.mc.displayGuiScreen(null);

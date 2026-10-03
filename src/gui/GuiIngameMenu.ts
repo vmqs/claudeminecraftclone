@@ -5,6 +5,10 @@ import { GuiMainMenu } from './GuiMainMenu';
 import { GuiOptions } from './GuiOptions';
 import { GuiScreen } from './GuiScreen';
 import { GuiShareToLan } from './GuiShareToLan';
+import { GuiAchievements } from './GuiAchievements';
+import { GuiStats } from './GuiStats';
+import { ClientStats } from '../stats/ClientStats';
+import { StatIds } from '../stats/StatIds';
 
 /** The pause menu. */
 export class GuiIngameMenu extends GuiScreen {
@@ -21,8 +25,6 @@ export class GuiIngameMenu extends GuiScreen {
     this.buttonList.push(quit);
     this.buttonList.push(new GuiButton(4, cx - 100, h4 + 24 + off, t('menu.returnToGame')));
     this.buttonList.push(new GuiButton(0, cx - 100, h4 + 96 + off, 98, 20, t('menu.options')));
-    // Achievements and Statistics are enabled in 1.5.2 singleplayer; they are out of scope here,
-    // so they look the same but do nothing.
     const lan = new GuiButton(7, cx + 2, h4 + 96 + off, 98, 20, t('menu.shareToLan'));
     lan.enabled = this.mc.isSingleplayer() && this.mc.lanServer === null;
     this.buttonList.push(lan);
@@ -37,8 +39,15 @@ export class GuiIngameMenu extends GuiScreen {
         break;
       case 1:
         b.enabled = false;
+        ClientStats.readStat(StatIds.leaveGame);
         this.mc.loadWorld(null);
         this.mc.displayGuiScreen(new GuiMainMenu());
+        break;
+      case 5:
+        if (ClientStats.writer) this.mc.displayGuiScreen(new GuiAchievements(ClientStats.writer));
+        break;
+      case 6:
+        if (ClientStats.writer) this.mc.displayGuiScreen(new GuiStats(this, ClientStats.writer));
         break;
       case 7:
         if (b.enabled) this.mc.displayGuiScreen(new GuiShareToLan(this));

@@ -896,6 +896,18 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
 
   sendPlayerAbilities(): void {}
 
+  /** triggerAchievement: one more of an achievement (an `AchievementIds` id). */
+  triggerAchievement(id: number): void {
+    this.addStat(id, 1);
+  }
+
+  /**
+   * Counts a statistic (a `StatIds` / `AchievementIds` id, see src/stats/StatIds.ts). Nothing
+   * here: the local player (EntityPlayerSP) keeps its statistics, and a guest's player on the
+   * host (EntityPlayerMP) sends them to the guest.
+   */
+  addStat(_id: number, _amount: number): void {}
+
   /** Closes any container window (EntityPlayerSP also closes the screen). */
   closeScreen(): void {
     this.openContainer = this.inventoryContainer;
