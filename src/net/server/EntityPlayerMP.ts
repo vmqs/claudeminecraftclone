@@ -177,8 +177,13 @@ export class EntityPlayerMP extends EntityPlayer implements ICrafting {
   }
 
   override setPositionAndUpdate(x: number, y: number, z: number): void {
-    if (this.handler) this.handler.setPlayerLocation(x, y, z, this.rotationYaw, this.rotationPitch);
-    else super.setPositionAndUpdate(x, y, z);
+    this.setPlayerLocation(x, y, z, this.rotationYaw, this.rotationPitch);
+  }
+
+  /** NetServerHandler.setPlayerLocation: teleports (/tp, ender pearls, beds) reach the guest. */
+  override setPlayerLocation(x: number, y: number, z: number, yaw: number, pitch: number): void {
+    if (this.handler) this.handler.setPlayerLocation(x, y, z, yaw, pitch);
+    else super.setPlayerLocation(x, y, z, yaw, pitch);
   }
 
   override onDeath(src: DamageSource): void {

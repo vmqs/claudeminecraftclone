@@ -143,6 +143,12 @@ export class NetClientHandler {
 
   private onClosed(reason: string): void {
     if (this.state === 'closed') return;
+    // A kick arrives just before the connection closes: show its reason, not the closing.
+    const kick = this.incoming.find((p): p is PacketOf<'KickDisconnect'> => p.type === 'KickDisconnect');
+    if (kick) {
+      this.fail('disconnect.disconnected', kick.reason);
+      return;
+    }
     this.fail('disconnect.lost', reason || 'disconnect.endOfStream');
   }
 
@@ -417,6 +423,10 @@ export class NetClientHandler {
     player.ySize = 0;
     player.motionX = player.motionY = player.motionZ = 0;
     player.setPositionAndRotation(p.x, p.y + player.yOffset, p.z, p.yaw, p.pitch);
+    // The feet exactly where the host said (eye height added and taken off again can round
+    // below a block's top, and the player would sink into it).
+    const b = player.boundingBox;
+    b.setBounds(b.minX, p.y, b.minZ, b.maxX, p.y + (b.maxY - b.minY), b.maxZ);
     this.addToSendQueue({ type: 'Flying', flags: 1 | 2 | (player.onGround ? 4 : 0), x: player.posX, y: player.boundingBox.minY, stance: player.posY, z: player.posZ, yaw: player.rotationYaw, pitch: player.rotationPitch });
     this.positionReceived = true;
   }
