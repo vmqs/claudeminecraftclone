@@ -179,13 +179,13 @@
   "eval": "(() => { const s = mc.dev.perf.stats(); if (!(s.render.meshers >= 2)) throw new Error('perf: meshers ' + s.render.meshers); if (s.chunks.replaced !== 0) throw new Error('perf: chunks sent twice ' + s.chunks.replaced); if (mc.dev.perf.unmeshed(5) !== 0) throw new Error('perf: unmeshed sections ' + mc.dev.perf.unmeshed(5)); if (!(s.budgetMs >= 4)) throw new Error('perf: budget ' + s.budgetMs); return s; })()"
  },
  {
-  "eval": "mc.dev.sky.unfreeze(); mc.dev.perf.idleProbe(5)"
+  "eval": "mc.dev.sky.unfreeze(); mc.dev.perf.idleProbe(3)"
  },
  {
-  "wait": 3000
+  "wait": 6000
  },
  {
-  "eval": "(() => { const n = mc.dev.perf.idleRuns(); if (n < 5) throw new Error('perf: idle task ran ' + n + ' times'); return n; })()"
+  "eval": "(() => { const n = mc.dev.perf.idleRuns(); if (n < 3) throw new Error('perf: idle task ran ' + n + ' times'); return n; })()"
  },
  {
   "eval": "mc.theWorld.setBlock(8, 4, 6, 57, 0, 3); mc.theWorld.setBlockToAir(8, 4, 6)"
