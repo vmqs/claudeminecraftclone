@@ -4,6 +4,8 @@ import type { BlockDoor } from '../../block/BlockDoor';
 import type { World } from '../World';
 import { Village, VillageCoords } from './Village';
 import { VillageDoorInfo } from './VillageDoorInfo';
+import type { TagCompound } from '../../item/ItemStack';
+import { NBT, NBTType } from '../storage/NBT';
 
 /**
  * All villages of a world (VillageCollection). Villagers report their positions; each tick one
@@ -120,6 +122,31 @@ export class VillageCollection {
       for (let i = -5; i < 0; i++) if (w.canBlockSeeTheSky(x + i, y, z)) sky--;
       for (let i = 1; i <= 5; i++) if (w.canBlockSeeTheSky(x + i, y, z)) sky++;
       if (sky !== 0) this.newDoors.push(new VillageDoorInfo(x, y, z, sky > 0 ? -2 : 2, 0, this.tickCounter));
+    }
+  }
+
+  /** writeToNBT: villages.dat's {Tick, Villages}. */
+  writeToNBT(t: TagCompound): void {
+    NBT.setInteger(t, 'Tick', this.tickCounter);
+    NBT.setList(
+      t,
+      'Villages',
+      NBTType.Compound,
+      this.villageList.map((v) => {
+        const e: TagCompound = {};
+        v.writeVillageDataToNBT(e);
+        return e;
+      }),
+    );
+  }
+
+  /** readFromNBT (into a world that has no villages yet). */
+  readFromNBT(t: TagCompound): void {
+    this.tickCounter = NBT.getInteger(t, 'Tick');
+    for (const e of NBT.getCompoundList(t, 'Villages')) {
+      const v = new Village(this.worldObj);
+      v.readVillageDataFromNBT(e);
+      this.villageList.push(v);
     }
   }
 }

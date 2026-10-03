@@ -9,7 +9,8 @@ import { NBT, readCompressedNBT, readNBT, writeCompressedNBT, writeNBT } from '.
 /**
  * The save folder's data/ files (MapStorage): filled maps as data/map_<n>.dat (gzip NBT
  * {data: {dimension, xCenter, zCenter, scale, width, height, colors}}) and data/idcounts.dat
- * (uncompressed NBT of short counters, {map: n}), and the scoreboard as data/scoreboard.dat.
+ * (uncompressed NBT of short counters, {map: n}), the villages as data/villages.dat and the
+ * scoreboard as data/scoreboard.dat.
  * They are read when a world opens (map items look their data up synchronously) and written with
  * level.dat when they changed.
  */
@@ -51,6 +52,7 @@ export function mapDataFromNBT(name: string, t: TagCompound): MapData {
 const savedVersions = new WeakMap<MapData, number>();
 const savedIds = new WeakMap<object, string>();
 const savedBoards = new WeakMap<object, string>();
+const savedVillages = new WeakMap<object, string>();
 
 function hexOf(b: Uint8Array): string {
   let s = '';
@@ -63,6 +65,14 @@ export function installWorldData(w: IWorld, files: Map<string, Uint8Array>): voi
   const s = mapStorageOf(w);
   for (const [path, bytes] of files) {
     try {
+      if (path === 'data/villages.dat') {
+        const villages = (w as World).villageCollectionObj;
+        villages.readFromNBT(NBT.getCompoundTag(readCompressedNBT(bytes), 'data'));
+        const t: TagCompound = {};
+        villages.writeToNBT(t);
+        savedVillages.set(w, hexOf(writeNBT(t)));
+        continue;
+      }
       if (path === 'data/scoreboard.dat') {
         const board = getScoreboard(w as World);
         scoreboardFromNBT(board, NBT.getCompoundTag(readCompressedNBT(bytes), 'data'));
@@ -110,6 +120,18 @@ export function collectWorldData(w: IWorld): Map<string, Uint8Array> {
     NBT.setCompoundTag(root, 'data', readNBT(board));
     out.set('data/scoreboard.dat', writeCompressedNBT(root));
     savedBoards.set(w, boardKey);
+  }
+  // villages.dat whenever it changed (VillageCollection marks itself dirty every 400 ticks, so
+  // 1.5.2 rewrites it on most saves).
+  const vt: TagCompound = {};
+  (w as World).villageCollectionObj.writeToNBT(vt);
+  const villages = writeNBT(vt);
+  const vKey = hexOf(villages);
+  if (savedVillages.get(w) !== vKey) {
+    const root: TagCompound = {};
+    NBT.setCompoundTag(root, 'data', readNBT(villages));
+    out.set('data/villages.dat', writeCompressedNBT(root));
+    savedVillages.set(w, vKey);
   }
   const key = idsKey(s.ids);
   if (s.ids.size > 0 && savedIds.get(w) !== key) {

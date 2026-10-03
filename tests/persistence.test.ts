@@ -574,6 +574,24 @@ async function saves(): Promise<void> {
     installWorldData(w4, opened3.data);
     const b4 = getScoreboard(w4);
     const o4 = b4.getObjective('kills');
+    check('villages.dat written', opened3.data.has('data/villages.dat'));
+    const vt: TagCompound = {};
+    NBT.setInteger(vt, 'Tick', 1234);
+    const village: TagCompound = {};
+    for (const [k, v] of [['PopSize', 5], ['Radius', 32], ['Golems', 1], ['Stable', 900], ['Tick', 1200], ['MTick', 0], ['CX', 10], ['CY', 64], ['CZ', -20], ['ACX', 40], ['ACY', 256], ['ACZ', -80]] as [string, number][]) NBT.setInteger(village, k, v);
+    const door: TagCompound = {};
+    for (const [k, v] of [['X', 10], ['Y', 64], ['Z', -20], ['IDX', 1], ['IDZ', 0], ['TS', 1100]] as [string, number][]) NBT.setInteger(door, k, v);
+    NBT.setList(village, 'Doors', NBTType.Compound, [door]);
+    const rep: TagCompound = {};
+    NBT.setString(rep, 'Name', 'Steve');
+    NBT.setInteger(rep, 'S', -3);
+    NBT.setList(village, 'Players', NBTType.Compound, [rep]);
+    NBT.setList(vt, 'Villages', NBTType.Compound, [village]);
+    const vw = new World(new WorldInfo());
+    vw.villageCollectionObj.readFromNBT(readNBT(writeNBT(vt)));
+    const vt2: TagCompound = {};
+    vw.villageCollectionObj.writeToNBT(vt2);
+    check('villages round trip', hex(writeNBT(vt2)) === hex(writeNBT(vt)) && vw.villageCollectionObj.getVillageList().length === 1);
     check('scoreboard saved and read back', !!o4 && o4.getDisplayName() === 'Kills' && b4.getPlayerScore('Steve', o4).getScorePoints() === 12 && b4.getObjectiveInDisplaySlot(1) === o4 && b4.getPlayersTeam('Steve')?.getColorPrefix() === '\u00a7c');
   }
   // Deleting stops a world's saving and removes everything.
