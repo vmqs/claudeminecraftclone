@@ -21,6 +21,17 @@ export const PROTOCOL_VERSION = 1;
 /** The game version shown on mismatches ("Outdated server!"). */
 export const GAME_VERSION = '1.5.2';
 
+declare const __BUILD_ID__: string | undefined;
+/** The commit of this build (vite's define; 'dev' in tests), named on version mismatches. */
+export const BUILD_ID: string = typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev';
+
+/*
+ * Never change the layouts of Handshake (id 2) and KickDisconnect (id 255): a host and a guest of
+ * different builds must still read each other's handshake and the refusal that names the
+ * versions, or a version mismatch turns into "Protocol error" (tests/netprotocol.test.ts pins
+ * their bytes). Other packets change together with PROTOCOL_VERSION.
+ */
+
 const MAX_STR = 32767;
 const MAX_NAME = 64;
 const MAX_BYTES = 4 * 1024 * 1024;

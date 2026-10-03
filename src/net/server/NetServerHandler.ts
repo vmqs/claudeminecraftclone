@@ -4,7 +4,7 @@ import type { Entity } from '../../entity/Entity';
 import { ClickMode, OUTSIDE_WINDOW } from '../../gui/inventory/Container';
 import { ContainerBeacon } from '../../gui/inventory/ContainerBeacon';
 import { ItemStack } from '../../item/ItemStack';
-import { decodeFrame, encodeFrame, GAME_VERSION, PROTOCOL_VERSION, type Packet, type PacketOf, allowedFrom } from '../protocol/Packets';
+import { BUILD_ID, decodeFrame, encodeFrame, PROTOCOL_VERSION, type Packet, type PacketOf, allowedFrom } from '../protocol/Packets';
 import { ProtocolError } from '../protocol/PacketBuffer';
 import { ABUSE_BAN_MS, type NetConnection } from '../transport/Transport';
 import { isValidUsername } from '../Username';
@@ -352,7 +352,9 @@ export class NetServerHandler {
 
   private handleHandshake(p: PacketOf<'Handshake'>): void {
     if (p.protocolVersion !== PROTOCOL_VERSION) {
-      this.kick(p.protocolVersion > PROTOCOL_VERSION ? `Outdated server! I'm still on ${GAME_VERSION}` : `Outdated client! Please use ${GAME_VERSION}`);
+      // Both sides are "1.5.2": name the builds, and who should reload the page.
+      const host = `the host runs build ${BUILD_ID} (protocol ${PROTOCOL_VERSION}), you protocol ${p.protocolVersion}`;
+      this.kick(p.protocolVersion > PROTOCOL_VERSION ? `Outdated server! ${host}; the host should reload the game` : `Outdated client! ${host}; reload the page to update`);
       return;
     }
     if (!isValidUsername(p.username)) {

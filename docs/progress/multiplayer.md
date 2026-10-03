@@ -104,3 +104,6 @@ each (with a netsession / netprotocol check where it can be tested in Node).
   only for the sign it just placed, and the host's own editor no longer makes its signs editable.
 - [x] Minor: Leave Bed only for a sleeping player; dead guests' world actions are ignored; entity
   use needs a crosshair target (canBeCollidedWith); book pages and titles lose § and control chars.
+- [x] Minor: version refusals name the host's build (vite define __BUILD_ID__, the git commit)
+  and protocols; Handshake/KickDisconnect bytes are pinned in netprotocol. ?relay= needs ?dev=1.
+  trystero's "User-Initiated Abort" on a closed link is logged at debug level (patch script).

@@ -213,6 +213,17 @@ check('trailing bytes', throws(() => decodePacket(new Uint8Array([...encodePacke
   check('prototype keys ignored', JSON.stringify(tagged(JSON.parse('{"__proto__":{"x":1},"title":"t"}'), 387, 0)?.stackTagCompound) === '{"title":"t"}');
 }
 
+// The handshake and the kick message must read the same in every build (Packets.ts), so a
+// version mismatch shows its reason instead of "Protocol error". These bytes never change.
+{
+  const hs = [...encodePacket({ type: 'Handshake', protocolVersion: 1, gameVersion: '1.5.2', username: 'Bob' })];
+  check('handshake layout frozen', JSON.stringify(hs) === '[2,0,1,5,49,46,53,46,50,3,66,111,98]', JSON.stringify(hs));
+  const kick = [...encodePacket({ type: 'KickDisconnect', reason: 'Bye' })];
+  check('kick layout frozen', JSON.stringify(kick) === '[255,3,66,121,101]', JSON.stringify(kick));
+  const future = decodePacket(new Uint8Array([2, 0, 9, 5, 49, 46, 53, 46, 50, 3, 66, 111, 98]));
+  check('a newer protocol still reads as a handshake', future.type === 'Handshake' && future.protocolVersion === 9);
+}
+
 // Chunk data.
 {
   const blocks = new Uint8Array(4096);

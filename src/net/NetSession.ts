@@ -5,15 +5,18 @@ import { type SignallingStrategy, TrysteroGuest, TrysteroHost, type TrysteroOpti
 /**
  * Which transport the page uses, from its URL:
  * - default: WebRTC with public signalling (Nostr, then BitTorrent trackers);
- * - `?relay=ws://localhost:4401` (repeatable or comma separated): a self-hosted trystero
- *   WebSocket relay as the only signalling route (local tests, private setups);
+ * - `?dev=1&relay=ws://localhost:4401` (repeatable or comma separated): a self-hosted trystero
+ *   WebSocket relay as the only signalling route (local tests, private setups; ignored without
+ *   ?dev=1);
  * - `?signal=nostr,torrent`: choose the public routes;
  * - `?net=memory`: host and guest in the same page (dev only).
  */
 export function transportOptions(search: string = typeof location === 'undefined' ? '' : location.search): TrysteroOptions & { memory: boolean } {
   const q = new URLSearchParams(search);
-  const relayUrls = q
-    .getAll('relay')
+  // A link with ?relay= alone must not route a player's signalling through someone's server
+  // unnoticed: it only counts on development pages (?dev=1), as the tests and private setups use.
+  const dev = q.has('dev');
+  const relayUrls = (dev ? q.getAll('relay') : [])
     .flatMap((v) => v.split(','))
     .map((v) => v.trim())
     .filter((v) => /^wss?:\/\//.test(v));

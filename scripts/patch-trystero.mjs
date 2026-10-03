@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// Caps what trystero buffers for a peer before the game sees a message (run on postinstall, and
-// before dev and build; idempotent).
+// Caps what trystero buffers for a peer before the game sees a message, and quiets the error it
+// logged for every link closed on purpose (run on postinstall, and before dev and build;
+// idempotent).
 //
 // trystero 0.25.4 reassembles every message in full, with no size limit, before handing it to the
 // action's handler, and keeps messages for action types nobody registered forever. Any member of
@@ -18,17 +19,9 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const file = join(root, 'node_modules/@trystero-p2p/core/dist/action-wire.mjs');
 const MARK = '/* mc152-patch: buffer limits */';
 
-if (!existsSync(file)) {
-  console.log('patch-trystero: trystero is not installed, nothing to patch');
-  process.exit(0);
-}
-let src = readFileSync(file, 'utf8');
-if (src.includes(MARK)) process.exit(0);
-
-const edits = [
+const wireEdits = [
   {
     // Module-level helpers.
     find: 'const createActionWireManager = ({ getPeer, getPeerIds, canReceiveFromPeer, throwIfAborted }) => {',
@@ -85,15 +78,44 @@ const createActionWireManager = ({ getPeer, getPeerIds, canReceiveFromPeer, thro
   },
 ];
 
-for (const { find, replace } of edits) {
-  const at = src.indexOf(find);
-  if (at < 0 || src.indexOf(find, at + 1) >= 0) {
-    console.error(`patch-trystero: the code to patch was not found in ${file}; check the trystero version (0.25.4 expected)`);
-    process.exit(1);
+// A link closed on purpose (a guest leaving) ends with an "User-Initiated Abort" error event,
+// which trystero logged as an error; it is not one.
+const roomEdits = [
+  {
+    find: `			error: (err) => {
+				console.error(\`\${libName} peer error:\`, err);`,
+    replace: `			error: (err) => {
+				${MARK}
+				if (/User-Initiated Abort|Close called/.test(String(err?.message ?? err))) console.debug(\`\${libName} peer closed:\`, err);
+				else console.error(\`\${libName} peer error:\`, err);`,
+  },
+];
+
+let patched = 0;
+for (const [rel, edits] of [
+  ['node_modules/@trystero-p2p/core/dist/action-wire.mjs', wireEdits],
+  ['node_modules/@trystero-p2p/core/dist/room.mjs', roomEdits],
+]) {
+  const file = join(root, rel);
+  if (!existsSync(file)) {
+    console.log(`patch-trystero: ${rel} is not installed, nothing to patch`);
+    continue;
   }
-  src = src.replace(find, replace);
+  let src = readFileSync(file, 'utf8');
+  if (src.includes(MARK)) continue;
+  for (const { find, replace } of edits) {
+    const at = src.indexOf(find);
+    if (at < 0 || src.indexOf(find, at + 1) >= 0) {
+      console.error(`patch-trystero: the code to patch was not found in ${file}; check the trystero version (0.25.4 expected)`);
+      process.exit(1);
+    }
+    src = src.replace(find, replace);
+  }
+  writeFileSync(file, src);
+  patched++;
 }
-writeFileSync(file, src);
-// Vite's dependency cache may hold the unpatched module.
-rmSync(join(root, 'node_modules/.vite'), { recursive: true, force: true });
-console.log('patch-trystero: buffer limits added to trystero');
+if (patched > 0) {
+  // Vite's dependency cache may hold the unpatched modules.
+  rmSync(join(root, 'node_modules/.vite'), { recursive: true, force: true });
+  console.log(`patch-trystero: ${patched} file(s) patched (buffer limits, quiet closes)`);
+}
