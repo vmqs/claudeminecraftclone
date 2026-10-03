@@ -1,3 +1,4 @@
+import { IdleTasks } from '../../client/IdleTasks';
 import type { EntityPlayer } from '../../entity/EntityPlayer';
 import type { TagCompound } from '../../item/ItemStack';
 import type { ChunkProviderClient } from '../ChunkProviderClient';
@@ -5,6 +6,9 @@ import type { World } from '../World';
 import { SaveFormat } from './SaveFormat';
 import { collectWorldData } from './WorldData';
 import type { SaveHandler } from './SaveHandler';
+
+/** The IdleTasks name of the chunk compression and writing. */
+const SAVE_TASK = 'save.chunks';
 
 /** What the controller needs from the game (Minecraft). */
 export interface SaveHost {
@@ -24,7 +28,7 @@ export interface SaveHost {
  * - every 900 ticks, saveAllPlayerData + saveAllWorlds (MinecraftServer.tick), without a screen;
  * - when the game pauses, "Saving and pausing game..." (IntegratedServer.tickIntegrated);
  * - chunks as they unload (ChunkProviderClient → SaveHandler), compressed and written a few
- *   per tick;
+ *   at a time in the frames' idle time (IdleTasks, so catch-up ticks do not add up);
  * - Save and Quit: the chunks that need saving and level.dat (stopServer's saveAllWorlds), with
  *   WorldServer.saveAllChunks' "Saving level" / "Saving chunks" progress until the browser has
  *   stored everything.
@@ -74,7 +78,13 @@ export class WorldSaveController {
     if (paused && !this.wasPaused) void h.saveAll(world, player, false);
     this.wasPaused = paused;
     if (!paused && ++this.tickCounter % 900 === 0) void h.saveAll(world, player, false);
-    h.pump(4);
+    if (h.pendingCount > 0 && !IdleTasks.has(SAVE_TASK)) {
+      IdleTasks.add(SAVE_TASK, (deadline) => {
+        if (this.handler !== h || h.closed) return false;
+        h.pump(Math.max(1, deadline - performance.now()));
+        return h.pendingCount > 0;
+      });
+    }
   }
 
   /** The whole world on demand (save-all style), without a screen. */

@@ -8,7 +8,7 @@ account (64215f9) and controls (25aaa36) were already merged by merge-w4a; nothi
 - [x] stats (ae7e207): conflicts Minecraft.launchIntegratedServer (noteWorldLaunch after the saveController.closing wait so a deferred launch counts once), entity imports (NBT + StatIds), DevTools, ARCHITECTURE (GUI list + §13 rows), TESTING; PROTOCOL_VERSION 2 (only stats bumped); tsc ok
 - [x] account / controls: heads 64215f9 / 25aaa36 already merged (0 new commits)
 - [x] vite build (after restoring node_modules and public/assets, see Incident)
-- [ ] wire hooks / dedupe
+- [x] wire hooks / dedupe: chunk compression+writes run as IdleTasks "save.chunks" (was pump(4) per tick); TileTicks read through perf's TickScheduler.inChunk (entriesInChunk removed); replaced early chunks marked modified; noteWorldLaunch after closing wait. Node: persistence 107, stats 76, tickscheduler 2, frame-budget 10 pass
 - [ ] smoke test
 - [ ] ARCHITECTURE §13
 
