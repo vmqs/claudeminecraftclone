@@ -1,4 +1,7 @@
 import type { Minecraft } from '../client/Minecraft';
+import { GuiAccountManager } from './GuiAccountManager';
+import { GuiScreenRoomCode } from './GuiScreenRoomCode';
+import { GuiSplashPreview } from './GuiSplashPreview';
 import { GuiControls } from './GuiControls';
 import { GuiCreateWorld } from './GuiCreateWorld';
 import { GuiLanguage } from './GuiLanguage';
@@ -26,6 +29,10 @@ export const screenFactories = new Map<string, (mc: Minecraft) => GuiScreen | nu
   ['createworld', () => new GuiCreateWorld(new GuiSelectWorld(new GuiMainMenu()))],
   ['multiplayer', () => new GuiMultiplayer(new GuiMainMenu())],
   ['directconnect', () => new GuiScreenServerList(new GuiMultiplayer(new GuiMainMenu()), new ServerData('Minecraft Server', ''))],
+  ['roomcode', () => new GuiScreenRoomCode(new GuiMultiplayer(new GuiMainMenu()), new ServerData('LAN', '', 'room'))],
+  ['accountmanager', () => new GuiAccountManager(new GuiMainMenu())],
+  ['splash1', () => new GuiSplashPreview(0)],
+  ['splash2', () => new GuiSplashPreview(1)],
   ['pause', () => new GuiIngameMenu()],
   ['sharetolan', () => new GuiShareToLan(new GuiIngameMenu())],
   ['options', (mc) => new GuiOptions(new GuiMainMenu(), mc.gameSettings)],

@@ -3,6 +3,7 @@ import { I18n } from '../core/I18n';
 import { MathHelper } from '../core/MathHelper';
 import { GL } from '../render/gl/GL';
 import { Tessellator } from '../render/gl/Tessellator';
+import { GuiAccountManager } from './GuiAccountManager';
 import { GuiButton } from './GuiButton';
 import { GuiLanguage } from './GuiLanguage';
 import { GuiMultiplayer } from './GuiMultiplayer';
@@ -70,6 +71,8 @@ export class GuiMainMenu extends GuiScreen {
     const y = Math.trunc(this.height / 4) + 48;
     this.buttonList.push(new GuiButton(1, Math.trunc(this.width / 2) - 100, y, t('menu.singleplayer')));
     this.buttonList.push(new GuiButton(2, Math.trunc(this.width / 2) - 100, y + 24, t('menu.multiplayer')));
+    // Where 1.5.2 put its third row (Minecraft Realms, when offered): the Account Manager.
+    this.buttonList.push(new GuiButton(6, Math.trunc(this.width / 2) - 100, y + 48, 'Account Manager'));
     this.buttonList.push(new GuiButton(0, Math.trunc(this.width / 2) - 100, y + 72 + 12, 98, 20, t('menu.options')));
     this.buttonList.push(new GuiButton(4, Math.trunc(this.width / 2) + 2, y + 72 + 12, 98, 20, t('menu.quit')));
     this.buttonList.push(new GuiButtonLanguage(5, Math.trunc(this.width / 2) - 124, y + 72 + 12));
@@ -80,6 +83,7 @@ export class GuiMainMenu extends GuiScreen {
     if (b.id === 5) this.mc.displayGuiScreen(new GuiLanguage(this, this.mc.gameSettings));
     if (b.id === 1) this.mc.displayGuiScreen(new GuiSelectWorld(this));
     if (b.id === 2) this.mc.displayGuiScreen(new GuiMultiplayer(this));
+    if (b.id === 6) this.mc.displayGuiScreen(new GuiAccountManager(this));
     if (b.id === 4) this.mc.shutdown();
   }
 

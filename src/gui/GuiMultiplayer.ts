@@ -1,5 +1,6 @@
 import { Keyboard, Keys } from '../client/Keyboard';
 import { I18n } from '../core/I18n';
+import { savedServerKind } from '../net/connect/ServerAddress';
 import { pingServerAddress } from '../net/connect/ServerConnector';
 import { formatRoomCode, normalizeRoomCode } from '../net/RoomCode';
 import { GL } from '../render/gl/GL';
@@ -58,15 +59,6 @@ interface SavedServer {
   hideAddress?: boolean;
   /** Absent in lists saved when every entry was a room code. */
   kind?: 'server' | 'room';
-}
-
-/**
- * The kind of a saved entry. Lists saved before Direct Connect took server addresses again held
- * room codes only: an old entry that reads as a room code stays a room, anything else is a server.
- */
-export function savedServerKind(s: { ip: string; kind?: string }): 'server' | 'room' {
-  if (s.kind === 'server' || s.kind === 'room') return s.kind;
-  return normalizeRoomCode(s.ip) !== null ? 'room' : 'server';
 }
 
 /** servers.dat, kept in localStorage (ServerList). */

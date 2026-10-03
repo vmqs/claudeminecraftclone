@@ -1,3 +1,5 @@
+import { normalizeRoomCode } from '../RoomCode';
+
 /** The port a Minecraft server listens on when the address names none. */
 export const DEFAULT_PORT = 25565;
 
@@ -70,4 +72,14 @@ export function parseServerAddress(input: string): ServerAddress {
 export function formatServerAddress(a: ServerAddress): string {
   const host = a.host.includes(':') ? `[${a.host}]` : a.host;
   return `${host}:${a.port}`;
+}
+
+/**
+ * The kind of a saved server list entry. Lists saved before Direct Connect took server addresses
+ * again held room codes only (and no kind): an old entry that reads as a room code stays a room,
+ * anything else is a server.
+ */
+export function savedServerKind(s: { ip: string; kind?: string }): 'server' | 'room' {
+  if (s.kind === 'server' || s.kind === 'room') return s.kind;
+  return normalizeRoomCode(s.ip) !== null ? 'room' : 'server';
 }
