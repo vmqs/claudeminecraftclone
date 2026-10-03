@@ -3,7 +3,10 @@ import { GuiControls } from './GuiControls';
 import { GuiCreateWorld } from './GuiCreateWorld';
 import { GuiLanguage } from './GuiLanguage';
 import { GuiMainMenu } from './GuiMainMenu';
-import { GuiMultiplayer } from './GuiMultiplayer';
+import { GuiIngameMenu } from './GuiIngameMenu';
+import { GuiMultiplayer, ServerData } from './GuiMultiplayer';
+import { GuiScreenServerList } from './GuiScreenServerList';
+import { GuiShareToLan } from './GuiShareToLan';
 import { GuiOptions, GuiVideoSettings } from './GuiOptions';
 import type { GuiScreen } from './GuiScreen';
 import { GuiSelectWorld } from './GuiSelectWorld';
@@ -22,6 +25,9 @@ export const screenFactories = new Map<string, (mc: Minecraft) => GuiScreen | nu
   ['singleplayer', () => new GuiSelectWorld(new GuiMainMenu())],
   ['createworld', () => new GuiCreateWorld(new GuiSelectWorld(new GuiMainMenu()))],
   ['multiplayer', () => new GuiMultiplayer(new GuiMainMenu())],
+  ['directconnect', () => new GuiScreenServerList(new GuiMultiplayer(new GuiMainMenu()), new ServerData('Minecraft Server', ''))],
+  ['pause', () => new GuiIngameMenu()],
+  ['sharetolan', () => new GuiShareToLan(new GuiIngameMenu())],
   ['options', (mc) => new GuiOptions(new GuiMainMenu(), mc.gameSettings)],
   ['video', (mc) => new GuiVideoSettings(new GuiOptions(new GuiMainMenu(), mc.gameSettings), mc.gameSettings)],
   ['controls', (mc) => new GuiControls(new GuiOptions(new GuiMainMenu(), mc.gameSettings), mc.gameSettings)],

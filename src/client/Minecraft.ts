@@ -330,6 +330,7 @@ export class Minecraft implements SettingsListener {
   // ------------------------------------------------------------------ loop
 
   run(): void {
+    document.addEventListener('visibilitychange', () => this.updateBackgroundTicking());
     const frame = () => {
       if (!this.running) return;
       try {
@@ -401,6 +402,31 @@ export class Minecraft implements SettingsListener {
       this.fpsCounter = 0;
     }
     prof.endSection();
+  }
+
+  private backgroundTimer: ReturnType<typeof setInterval> | null = null;
+
+  /**
+   * A hidden tab gets no animation frames, but a LAN game must keep running for the others: game
+   * ticks then come from a timer (browsers slow it down, so a hidden host runs at reduced speed).
+   */
+  private updateBackgroundTicking(): void {
+    const need = typeof document !== 'undefined' && document.hidden && (this.lanServer !== null || this.netHandler !== null);
+    if (need && !this.backgroundTimer) {
+      this.backgroundTimer = setInterval(() => {
+        if (!document.hidden) return;
+        try {
+          this.timer.updateTimer();
+          for (let i = 0; i < this.timer.elapsedTicks; i++) this.runTick();
+          this.chunkProvider?.processIncoming(8);
+        } catch (e) {
+          console.error(e);
+        }
+      }, 50);
+    } else if (!need && this.backgroundTimer) {
+      clearInterval(this.backgroundTimer);
+      this.backgroundTimer = null;
+    }
   }
 
   /** Follows the canvas' CSS size at device-pixel resolution (the resize check of the loop). */
@@ -952,6 +978,7 @@ export class Minecraft implements SettingsListener {
     this.guestTransport = null;
     if (this.playerController !== this.singlePlayerController) this.setPlayerController(this.singlePlayerController);
     GuiIngame.playerListProvider = null;
+    this.updateBackgroundTicking();
   }
 
   /**
@@ -985,6 +1012,7 @@ export class Minecraft implements SettingsListener {
     }
     this.lanServer = server;
     GuiIngame.playerListProvider = () => ({ entries: server.playerList(), maxPlayers: server.settings.maxPlayers });
+    this.updateBackgroundTicking();
     return server.code;
   }
 
@@ -1012,6 +1040,7 @@ export class Minecraft implements SettingsListener {
         this.netHandler = handler;
         this.setPlayerController(new PlayerControllerGuest(this, handler));
         handler.start();
+        this.updateBackgroundTicking();
         onConnected();
       },
       (e: unknown) => {
@@ -1163,7 +1192,7 @@ export class Minecraft implements SettingsListener {
   }
 
   getWorldProviderName(): string {
-    return this.chunkProvider?.makeString() ?? '';
+    return this.chunkProvider?.makeString() ?? (this.theWorld ? `MultiplayerChunkCache: ${this.theWorld.loadedChunkCount}` : '');
   }
 }
 

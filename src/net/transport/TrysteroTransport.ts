@@ -6,8 +6,9 @@ import { COULD_NOT_CONNECT, ConnectError, type GuestTransport, type HostTranspor
  * WebRTC data channels with serverless signalling (trystero). Peers find each other through
  * public relays (Nostr, with BitTorrent trackers as a second route) in a room named after the
  * room code; after that the game's messages go straight between the browsers over STUN-assisted
- * WebRTC, end-to-end encrypted. The host joins as an active peer and guests as passive ones, so
- * guests only connect to the host (a star, like the integrated server). With `relayUrls` set
+ * WebRTC, end-to-end encrypted. The host greets every peer that joins with a "host" message; a
+ * guest takes the first peer that greets it as the host and only talks to it (a star, like the
+ * integrated server), so other guests in the room are ignored. With `relayUrls` set
  * (`?relay=ws://localhost:4401`), a self-hosted WebSocket relay is the only signalling route
  * (local tests).
  *
@@ -37,10 +38,13 @@ function strategiesOf(o: TrysteroOptions): SignallingStrategy[] {
   return ['nostr', 'torrent'];
 }
 
-function configFor(s: SignallingStrategy, code: string, o: TrysteroOptions, passive: boolean): JoinRoomConfig {
+function configFor(s: SignallingStrategy, code: string, o: TrysteroOptions): JoinRoomConfig {
   const relayConfig = s === 'relay' ? { urls: o.relayUrls ?? [], warnOnRelayFailure: false } : { warnOnRelayFailure: false };
-  return { appId: NET_APP_ID, password: code, passive, relayConfig } as JoinRoomConfig;
+  return { appId: NET_APP_ID, password: code, relayConfig } as JoinRoomConfig;
 }
+
+/** The host's greeting (protocol marker), sent to each peer that joins the room. */
+const HOST_HELLO = 'mc152-host';
 
 type Payload = ArrayBuffer | ArrayBufferView;
 
@@ -123,11 +127,13 @@ export class TrysteroHost implements HostTransport {
       try {
         const join = await loadJoinRoom(s);
         if (this.stopped) return;
-        const room = join(configFor(s, code, this.options, false), roomIdForCode(code), {
+        const room = join(configFor(s, code, this.options), roomIdForCode(code), {
           onJoinError: (d) => console.warn(`[lan] ${s}: ${d.error}`),
         });
         const action = room.makeAction<Payload>('mc');
+        const hello = room.makeAction<string>('host');
         const route: Route = { strategy: s, room, action };
+        room.onPeerJoin = (peerId) => void hello.send(HOST_HELLO, { target: peerId }).catch(() => undefined);
         // A guest's connection belongs to the route its first message came on: a guest may meet
         // the host on several routes and keeps only one.
         action.onMessage = (data, ctx) => {
@@ -198,13 +204,14 @@ export class TrysteroGuest implements GuestTransport {
         void loadJoinRoom(s)
           .then((join) => {
             if (settled) return;
-            const room = join(configFor(s, code, this.options, true), roomIdForCode(code), {
+            const room = join(configFor(s, code, this.options), roomIdForCode(code), {
               onJoinError: (d) => {
                 console.warn(`[lan] ${s}: ${d.error}`);
                 if (++failed >= strategies.length) finish(new ConnectError(`${COULD_NOT_CONNECT}: the peer-to-peer link failed (a strict NAT or firewall may need a relay server)`));
               },
             });
             const action = room.makeAction<Payload>('mc');
+            const hello = room.makeAction<string>('host');
             const route: Route = { strategy: s, room, action };
             this.routes.push(route);
             let conn: TrysteroConnection | null = null;
@@ -214,9 +221,10 @@ export class TrysteroGuest implements GuestTransport {
             room.onPeerLeave = (peerId) => {
               if (conn && peerId === conn.peerId) conn.peerLeft('The host closed the game');
             };
-            room.onPeerJoin = (peerId) => {
-              if (settled || conn) return;
-              conn = new TrysteroConnection(peerId, route, () => this.leaveAll());
+            // Other guests may join the room too; only the peer that greets as the host counts.
+            hello.onMessage = (data, ctx) => {
+              if (settled || conn || data !== HOST_HELLO) return;
+              conn = new TrysteroConnection(ctx.peerId, route, () => this.leaveAll());
               // Keep only this route.
               for (const r of this.routes) if (r !== route) void r.room.leave().catch(() => undefined);
               this.routes = [route];
