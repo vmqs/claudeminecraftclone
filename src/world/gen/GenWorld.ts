@@ -19,6 +19,8 @@ const SIDE_X = [0, 0, 0, 0, -1, 1];
 const SIDE_Y = [-1, 1, 0, 0, 0, 0];
 const SIDE_Z = [0, 0, -1, 1, 0, 0];
 const lightUpdateBlockList = new Int32Array(32768);
+/** Width of GenWorld's chunk cache grid (a power of two). */
+const GRID = 64;
 
 /**
  * The world-generation worker's world: a set of chunks being generated and populated. It
@@ -61,16 +63,25 @@ export class GenWorld implements ChunkHost {
   private lastCx = 0x7fffffff;
   private lastCz = 0x7fffffff;
   private lastChunk: Chunk | undefined = undefined;
+  /**
+   * A direct-mapped cache of chunks by (cx & 63, cz & 63), checked against the chunk's
+   * coordinates; entries are cleared when their chunk leaves the working set.
+   */
+  private readonly grid: (Chunk | undefined)[] = new Array<Chunk | undefined>(GRID * GRID).fill(undefined);
 
   /** The loaded chunk (cx, cz), or undefined; never loads one. */
   loadedChunk(cx: number, cz: number): Chunk | undefined {
     if (cx === this.lastCx && cz === this.lastCz) return this.lastChunk;
-    const c = this.chunks.get(GenWorld.key(cx, cz));
-    if (c) {
-      this.lastCx = cx;
-      this.lastCz = cz;
-      this.lastChunk = c;
+    const gi = ((cx & (GRID - 1)) * GRID) | (cz & (GRID - 1));
+    let c = this.grid[gi];
+    if (c === undefined || c.xPosition !== cx || c.zPosition !== cz) {
+      c = this.chunks.get(GenWorld.key(cx, cz));
+      if (!c) return undefined;
+      this.grid[gi] = c;
     }
+    this.lastCx = cx;
+    this.lastCz = cz;
+    this.lastChunk = c;
     return c;
   }
 
@@ -79,6 +90,11 @@ export class GenWorld implements ChunkHost {
 
   /** Removes a chunk from the working set. */
   unloadChunk(k: number): void {
+    const c = this.chunks.get(k);
+    if (c) {
+      const gi = ((c.xPosition & (GRID - 1)) * GRID) | (c.zPosition & (GRID - 1));
+      if (this.grid[gi] === c) this.grid[gi] = undefined;
+    }
     this.chunks.delete(k);
     this.lastExisting.set([1, 1, 0, 0]);
     this.lastCx = this.lastCz = 0x7fffffff;

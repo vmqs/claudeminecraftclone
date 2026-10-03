@@ -1,4 +1,5 @@
 import { Block } from '../block/Block';
+import { screenCoversWorld } from '../gui/GuiDownloadTerrain';
 import { BlockIds } from '../block/BlockIds';
 import { Material } from '../block/Material';
 import type { Minecraft } from '../client/Minecraft';
@@ -468,7 +469,12 @@ export class EntityRenderer {
     const sh = sr.getScaledHeight();
     const mx = Math.trunc((this.mc.mouseX * sw) / this.mc.displayWidth);
     const my = sh - Math.trunc((this.mc.mouseY * sh) / this.mc.displayHeight) - 1;
-    if (this.mc.theWorld) {
+    if (this.mc.theWorld && screenCoversWorld(this.mc.currentScreen)) {
+      // Nothing of the world shows through (Downloading terrain): only keep the meshers busy.
+      const view = this.mc.renderViewEntity ?? this.mc.thePlayer;
+      if (view) this.mc.renderGlobal.updateRenderers(view);
+      this.setupOverlayRendering();
+    } else if (this.mc.theWorld) {
       this.renderWorld(pt);
       if (!this.mc.gameSettings.hideGUI || this.mc.currentScreen) this.mc.ingameGUI.renderGameOverlay(pt, this.mc.currentScreen !== null, mx, my);
     } else {

@@ -1,6 +1,7 @@
 import { Block } from '../block/Block';
 import type { BlockLeaves } from '../block/BlockLeaves';
 import { Blocks } from '../block/Blocks';
+import { FrameBudget } from '../client/FrameBudget';
 import type { Minecraft } from '../client/Minecraft';
 import { AxisAlignedBB } from '../core/AxisAlignedBB';
 import { JavaRandom } from '../core/JavaRandom';
@@ -376,11 +377,23 @@ export class RenderGlobal implements IWorldAccess {
     const cx = MathHelper.floor_double(this.viewerX) >> 4;
     const cz = MathHelper.floor_double(this.viewerZ) >> 4;
     const r = this.renderRadius;
-    const best: WorldRenderer[] = [];
-    const keys: number[] = [];
-    const neighbours = new Map<number, boolean>();
+    const best = this.dispatchBest;
+    const keys = this.dispatchKeys;
+    best.length = 0;
+    keys.length = 0;
+    const neighbours = this.dispatchNeighbours;
+    neighbours.clear();
     for (const s of this.dirty) {
       if (s.inFlight || Math.abs(s.sx - cx) > r || Math.abs(s.sz - cz) > r) continue;
+      // An empty section has nothing to draw whatever its neighbours hold: settle it here
+      // instead of spending a mesher slot (most sections of a new chunk are empty).
+      const sec = w.getChunkFromChunkCoords(s.sx, s.sz).sections[s.sy];
+      if (!sec || sec.isEmpty()) {
+        this.dirty.delete(s);
+        this.disposeSection(s);
+        s.needsUpdate = false;
+        continue;
+      }
       const key = (s.isInFrustum ? 0 : 1e12) + this.sectionDistSq(s);
       if (best.length === free && key >= keys[free - 1]) continue;
       const ck = s.sx * 65536 + s.sz;
@@ -420,9 +433,13 @@ export class RenderGlobal implements IWorldAccess {
   }
 
   static readonly JOBS_PER_WORKER = 3;
+  private readonly dispatchBest: WorldRenderer[] = [];
+  private readonly dispatchKeys: number[] = [];
+  private readonly dispatchNeighbours = new Map<number, boolean>();
 
   private uploadResults(): void {
     const t0 = performance.now();
+    const budget = FrameBudget.ms(this.uploadBudgetMs);
     while (this.results.length > 0) {
       const res = this.results.shift()!;
       const s = this.jobs.get(res.id);
@@ -442,7 +459,7 @@ export class RenderGlobal implements IWorldAccess {
       if (s.hasGeometry) this.withGeometry.add(s);
       else this.withGeometry.delete(s);
       WorldRenderer.chunksUpdated++;
-      if (performance.now() - t0 > this.uploadBudgetMs) break;
+      if (performance.now() - t0 > budget) break;
     }
   }
 

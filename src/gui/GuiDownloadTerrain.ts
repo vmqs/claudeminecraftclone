@@ -6,6 +6,9 @@ import { GuiScreen } from './GuiScreen';
  * is loaded and meshed (the original waited for the server's first position packet).
  */
 export class GuiDownloadTerrain extends GuiScreen {
+  /** The opaque dirt background hides the world, so the world is not drawn behind it. */
+  readonly coversWorld = true;
+
   constructor(private readonly isTerrainReady: () => boolean) {
     super();
   }
@@ -29,4 +32,9 @@ export class GuiDownloadTerrain extends GuiScreen {
   override doesGuiPauseGame(): boolean {
     return false;
   }
+}
+
+/** Whether a screen draws an opaque background over the whole world (see `coversWorld`). */
+export function screenCoversWorld(screen: GuiScreen | null): boolean {
+  return (screen as { coversWorld?: boolean } | null)?.coversWorld === true;
 }
