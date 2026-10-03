@@ -30,7 +30,7 @@ import { type GuestClient, NetClientHandler } from '../src/net/client/NetClientH
 import { PlayerControllerGuest } from '../src/net/client/PlayerControllerGuest';
 import type { WorldClient } from '../src/net/client/WorldClient';
 import { PacketWriter } from '../src/net/protocol/PacketBuffer';
-import { encodeFrame, PACKETS, PROTOCOL_VERSION } from '../src/net/protocol/Packets';
+import { decodeFrame, encodeFrame, type Packet, PACKETS, PROTOCOL_VERSION } from '../src/net/protocol/Packets';
 import { EntityPlayerMP } from '../src/net/server/EntityPlayerMP';
 import { LanServer } from '../src/net/server/LanServer';
 import { MemoryHub } from '../src/net/transport/MemoryTransport';
@@ -209,6 +209,53 @@ function step(n = 1): void {
   }
 }
 
+/** Walks a guest's player to (x, y, z) at most 0.5 blocks per tick, as a client could. */
+function walkTo(g: Guest, x: number, y: number, z: number): void {
+  const p = g.mc.thePlayer!;
+  for (let i = 0; i < 200; i++) {
+    const dx = x - p.posX;
+    const dz = z - p.posZ;
+    const d = Math.sqrt(dx * dx + dz * dz);
+    if (d < 1e-6 && Math.abs(p.posY - p.yOffset - y) < 1e-6) break;
+    const k = d > 0.5 ? 0.5 / d : 1;
+    p.setPosition(p.posX + dx * k, y + p.yOffset, p.posZ + dz * k);
+    p.motionX = p.motionY = p.motionZ = 0;
+    step(1);
+  }
+  step(2);
+}
+
+/** A hand-driven guest (no client): what it sent and got, for hostile input. */
+interface RawGuest {
+  conn: NetConnection;
+  got: Packet[];
+  closed: boolean;
+  send(ps: Packet[]): void;
+  kick(): string | undefined;
+}
+
+async function rawJoin(name: string): Promise<RawGuest> {
+  const conn = await hub.guest().connect('ABC234', 1000);
+  const r: RawGuest = {
+    conn,
+    got: [],
+    closed: false,
+    send: (ps) => {
+      conn.send(encodeFrame(ps));
+      hub.flush();
+    },
+    kick: () => (r.got.find((p) => p.type === 'KickDisconnect') as { reason: string } | undefined)?.reason,
+  };
+  conn.onMessage = (f) => r.got.push(...decodeFrame(f, 1 << 26, 1 << 20));
+  conn.onClose = () => (r.closed = true);
+  r.send([{ type: 'Handshake', protocolVersion: PROTOCOL_VERSION, gameVersion: '1.5.2', username: name }]);
+  step(3);
+  const pl = [...r.got].reverse().find((p): p is Extract<Packet, { type: 'PlayerPosLook' }> => p.type === 'PlayerPosLook');
+  if (pl) r.send([{ type: 'Flying', flags: 7, x: pl.x, y: pl.y, stance: pl.stance, z: pl.z, yaw: 0, pitch: 0 }]);
+  step(2);
+  return r;
+}
+
 function hostPlayerOf(name: string): EntityPlayerMP | null {
   return lan.guestPlayers().find((p) => p.username === name) ?? null;
 }
@@ -239,7 +286,7 @@ check('guest is creative (LAN game mode)', bob.pc.isInCreativeMode() && bobMP!.c
 // ---------------------------------------------------------------------- movement
 {
   const p = bob.mc.thePlayer!;
-  p.setPosition(10.5, 4 + p.yOffset, 10.5);
+  walkTo(bob, 10.5, 4, 10.5);
   step(6);
   check('guest movement reaches the host', Math.abs(bobMP!.posX - 10.5) < 0.01 && Math.abs(bobMP!.posY - 4) < 0.01, `${bobMP!.posX} ${bobMP!.posY} ${bobMP!.posZ}`);
   host.setPosition(6.5, 4 + host.yOffset, 6.5);
@@ -258,6 +305,46 @@ check('guest is creative (LAN game mode)', bob.pc.isInCreativeMode() && bobMP!.c
   bob.handler.flush();
   step(3);
   check('long jump refused', Math.abs(bobMP!.posX - before) < 1, String(bobMP!.posX));
+}
+
+// ---------------------------------------------------------------------- speed limits
+{
+  const r = await rawJoin('Speedy');
+  const sp = hostPlayerOf('Speedy')!;
+  sp.setGameType(EnumGameType.SURVIVAL);
+  step(2);
+  const x0 = sp.posX;
+  const z0 = sp.posZ;
+  // Twelve moves of 3 blocks in one message: the first is already too far, and is put back.
+  r.send(Array.from({ length: 12 }, (_, i) => ({ type: 'Flying' as const, flags: 1 | 4, x: x0, y: sp.posY, stance: sp.posY + 1.62, z: z0 + 3 * (i + 1), yaw: 0, pitch: 0 })));
+  step(3);
+  check('a burst of long moves is corrected', Math.abs(sp.posZ - z0) < 0.01 && r.got.some((p) => p.type === 'PlayerPosLook'), `${sp.posZ - z0}`);
+  // Confirm the correction, then send three plausible moves per tick for 20 ticks: the host
+  // applies one per tick, so the guest cannot outrun a walking player.
+  r.send([{ type: 'Flying', flags: 7, x: x0, y: sp.posY, stance: sp.posY + 1.62, z: z0, yaw: 0, pitch: 0 }]);
+  step(1);
+  let z = z0;
+  for (let t = 0; t < 20; t++) {
+    const batch: Packet[] = [];
+    for (let k = 0; k < 3; k++) {
+      z += 0.9;
+      batch.push({ type: 'Flying', flags: 1 | 4, x: x0, y: sp.posY, stance: sp.posY + 1.62, z, yaw: 0, pitch: 0 });
+    }
+    r.send(batch);
+    step(1);
+  }
+  // One move per tick, plus a small catch-up allowance (MOVE_BURST = 5) for network jitter.
+  check('extra movement packets do not add speed', sp.posZ - z0 <= (20 + 5) * 0.9 + 0.01, `${(sp.posZ - z0).toFixed(2)} blocks in 20 ticks`);
+  step(50);
+  check('queued moves are applied later, in order', Math.abs(sp.posZ - z) < 0.01, `${sp.posZ} vs ${z}`);
+  // A knockback from the host lets the next moves go farther.
+  const zk = sp.posZ;
+  sp.handler.allowPush(0, 0, 1.5);
+  r.send([{ type: 'Flying', flags: 1 | 4, x: x0, y: sp.posY, stance: sp.posY + 1.62, z: zk + 2.2, yaw: 0, pitch: 0 }]);
+  step(2);
+  check('a push from the host allows a longer step', Math.abs(sp.posZ - (zk + 2.2)) < 0.01, `${sp.posZ - zk}`);
+  r.send([{ type: 'KickDisconnect', reason: 'Quitting' }]);
+  step(2);
 }
 
 // ---------------------------------------------------------------------- blocks
@@ -337,7 +424,7 @@ check('guest is creative (LAN game mode)', bob.pc.isInCreativeMode() && bobMP!.c
   step(2);
   check('metadata (saddle) reaches the guest', !!copy && (copy as unknown as { getSaddled(): boolean }).getSaddled());
   // The guest hits it (survival rules on the host decide; creative still hurts mobs).
-  bob.mc.thePlayer!.setPosition(9.5, 4 + bob.mc.thePlayer!.yOffset, 10.5);
+  walkTo(bob, 9.5, 4, 10.5);
   step(4);
   bob.pc.attackEntity(bob.mc.thePlayer!, copy!);
   step(2);
@@ -375,7 +462,7 @@ check('guest is creative (LAN game mode)', bob.pc.isInCreativeMode() && bobMP!.c
   gp.inventory.currentItem = 8;
   bobMP!.inventory.currentItem = 8;
   // Stand next to (10, 3, 11) and claim to finish digging it right away: refused for now.
-  gp.setPosition(10.5, 4 + gp.yOffset, 9.5);
+  walkTo(bob, 10.5, 4, 9.5);
   step(4);
   bob.handler.addToSendQueue({ type: 'BlockDig', status: 0, x: 10, y: 3, z: 11, face: 1 });
   bob.handler.addToSendQueue({ type: 'BlockDig', status: 2, x: 10, y: 3, z: 11, face: 1 });
@@ -398,7 +485,7 @@ check('guest is creative (LAN game mode)', bob.pc.isInCreativeMode() && bobMP!.c
   chest.setInventorySlotContents(0, new ItemStack(I.diamond, 5, 0));
   step(2);
   const gp = bob.mc.thePlayer!;
-  gp.setPosition(10.5, 4 + gp.yOffset, 10.5);
+  walkTo(bob, 10.5, 4, 10.5);
   step(4);
   bob.pc.onPlayerRightClick(gp, gw, gp.inventory.getCurrentItem(), 11, 4, 11, 1, new Vec3(11.5, 5, 11.5));
   step(3);

@@ -218,6 +218,8 @@ class EntityTrackerEntry {
     this.ticks++;
     if (e.velocityChanged) {
       this.sendToAssociated(velocityPacket(e), self);
+      // The guest will move farther than walking for a while (NetServerHandler's step limits).
+      self?.allowPush(e.motionX, e.motionY, e.motionZ);
       e.velocityChanged = false;
     }
   }

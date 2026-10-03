@@ -530,6 +530,7 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
       const p = h.player;
       if (h.state !== 'play' || !p || p.getDistanceSq(e.explosionX, e.explosionY, e.explosionZ) >= 4096) continue;
       const push = e.getPlayerKnockbackMap().get(p);
+      if (push) h.allowPush(push.xCoord, push.yCoord, push.zCoord);
       h.sendPacket({ type: 'Explosion', x: e.explosionX, y: e.explosionY, z: e.explosionZ, size: e.explosionSize, records, motionX: push?.xCoord ?? 0, motionY: push?.yCoord ?? 0, motionZ: push?.zCoord ?? 0 });
     }
   }

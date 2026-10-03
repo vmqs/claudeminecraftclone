@@ -22,8 +22,24 @@ const PACKET_RATE = 40;
 const PACKET_BURST = 600;
 /** Ticks without a message before the guest is dropped (NetServerHandler's 1200-tick timeout, shortened). */
 const TIMEOUT_TICKS = 600;
-/** Movement packets kept to smooth the guest's motion on the host (one is applied per tick). */
-const MOVE_QUEUE_SMOOTH = 3;
+/**
+ * Movement packets: a client sends one per tick, so the host applies them at that rate (one per
+ * host tick, or 20 a second when the host runs slow), with a little catch-up after jitter, and
+ * keeps at most MOVE_QUEUE_MAX waiting.
+ */
+const MOVE_BURST = 5;
+const MOVE_QUEUE_MAX = 40;
+/**
+ * The farthest one movement packet may go (blocks per client tick): sprint-jumping on ice stays
+ * under 1, creative flight with sprint about 1.1, a fall at terminal speed 3.92. More is
+ * corrected (setPlayerLocation), unless the host pushed the player (knockback, explosions).
+ */
+const MAX_STEP_WALK = 1.0;
+const MAX_STEP_FLY = 2.5;
+const MAX_STEP_UP = 1.5;
+const MAX_STEP_DOWN = 4.0;
+/** How long a push from the host widens those limits (ticks). */
+const PUSH_TICKS = 40;
 
 type Flying = PacketOf<'Flying'>;
 
@@ -55,6 +71,13 @@ export class NetServerHandler {
   /** False after the server moved the player until the guest confirms the new position (hasMoved). */
   private hasMoved = true;
   private ticksForFloatKick = 0;
+  /** Moves the guest may still apply now (a token bucket refilled per tick and by the clock). */
+  private moveTokens = MOVE_BURST;
+  private lastMoveRefill = 0;
+  /** A push from the host (knockback, explosion) the guest's next moves may include. */
+  private pushH = 0;
+  private pushUp = 0;
+  private pushTicks = 0;
   /** Loaded chunks on the guest (PlayerManager), by World.chunkKey. */
   readonly loadedChunks = new Set<number>();
   /** Bytes and messages sent (F3 and tests). */
@@ -310,17 +333,44 @@ export class NetServerHandler {
       return;
     }
     this.moves.push(p);
-    if (this.moves.length > 40) this.moves.splice(0, this.moves.length - 40);
+    if (this.moves.length > MOVE_QUEUE_MAX) this.moves.splice(0, this.moves.length - MOVE_QUEUE_MAX);
   }
 
-  /** One movement packet per tick (all but a few when behind), from EntityPlayerMP.onUpdate. */
+  /**
+   * The guest's movement packets for this tick, from EntityPlayerMP.onUpdate: as many as its
+   * client can have sent since the last tick (one per tick, or one per 50 ms of real time when
+   * the host runs slow), so more packets never mean more movement.
+   */
   applyQueuedMovement(): void {
-    if (this.moves.length === 0) return;
-    const n = this.moves.length > MOVE_QUEUE_SMOOTH ? this.moves.length - MOVE_QUEUE_SMOOTH + 1 : 1;
-    for (const m of this.moves.splice(0, n)) {
+    const now = performance.now();
+    const elapsed = this.lastMoveRefill > 0 ? now - this.lastMoveRefill : 50;
+    this.lastMoveRefill = now;
+    this.moveTokens = Math.min(MOVE_BURST, this.moveTokens + Math.max(1, elapsed / 50));
+    if (this.pushTicks > 0 && --this.pushTicks === 0) this.pushH = this.pushUp = 0;
+    while (this.moves.length > 0 && this.moveTokens >= 1) {
       if (this.state !== 'play') return;
-      this.handleFlying(m);
+      this.moveTokens--;
+      this.handleFlying(this.moves.shift()!);
     }
+  }
+
+  /** The host pushed the guest's player (knockback, an explosion): its next moves may go farther. */
+  allowPush(vx: number, vy: number, vz: number): void {
+    if (!finite(vx, vy, vz)) return;
+    this.pushH = Math.max(this.pushH, Math.sqrt(vx * vx + vz * vz));
+    this.pushUp = Math.max(this.pushUp, vy);
+    this.pushTicks = PUSH_TICKS;
+  }
+
+  /** Whether one move of (dx, dy, dz) is within what the player can do in a tick. */
+  private isPlausibleStep(dx: number, dy: number, dz: number): boolean {
+    const player = this.player!;
+    let speed = player.capabilities.allowFlying ? MAX_STEP_FLY : MAX_STEP_WALK;
+    const swift = player.getActivePotionEffect(1);
+    if (swift) speed *= 1 + 0.2 * (swift.getAmplifier() + 1);
+    const jump = player.getActivePotionEffect(8);
+    const up = MAX_STEP_UP + (jump ? 0.1 * (jump.getAmplifier() + 1) : 0);
+    return dx * dx + dz * dz <= (speed + this.pushH) ** 2 && dy <= up + this.pushUp && dy >= -MAX_STEP_DOWN - this.pushH;
   }
 
   /** NetServerHandler.handleFlying: the guest says where it is; the host checks it. */
@@ -402,16 +452,10 @@ export class NetServerHandler {
     let dx = x - player.posX;
     let dy = y - player.posY;
     let dz = z - player.posZ;
-    const mx = Math.min(Math.abs(dx), Math.abs(player.motionX));
-    const my = Math.min(Math.abs(dy), Math.abs(player.motionY));
-    const mz = Math.min(Math.abs(dz), Math.abs(player.motionZ));
-    // "moved too quickly": the guest can only be corrected, never trusted with a long jump.
-    if (dx * dx + dy * dy + dz * dz > 100 && mx * mx + my * my + mz * mz > 100) {
-      this.setPlayerLocation(this.lastPosX, this.lastPosY, this.lastPosZ, yaw, pitch);
-      return;
-    }
-    if (dx * dx + dy * dy + dz * dz > 1024) {
-      // More than 32 blocks in one packet (not even the original's check catches teleports this way).
+    // "moved too quickly": 1.5.2 compared the move with the server's motion, which barely ever
+    // caught anything; here each packet may only cover what a player can move in a tick.
+    if (!this.isPlausibleStep(dx, dy, dz)) {
+      console.warn(`[lan] ${player.username} moved too quickly! ${dx.toFixed(2)},${dy.toFixed(2)},${dz.toFixed(2)}`);
       this.setPlayerLocation(this.lastPosX, this.lastPosY, this.lastPosZ, yaw, pitch);
       return;
     }

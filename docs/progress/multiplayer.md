@@ -74,3 +74,7 @@ each (with a netsession / netprotocol check where it can be tested in Node).
 - [x] Major: boats could not be steered by guests; riding guests send Packet13-style steering
   (motion in x/z, y = stance = -999, moving bit set) and the host sets the rider's motion
   ("Nope!" above 1 block/tick), as 1.5.2's NetServerHandler.
+- [x] Major: speed/teleport hacks. Guest moves are applied at the client's tick rate (a token
+  bucket per host tick, or per 50 ms of real time when the host runs slow; burst 5) and each
+  packet may cover at most 1 block (2.5 with flight allowed, scaled by Speed; 1.5 up, 4 down),
+  wider for 2 s after the host pushes the player (tracker velocity, explosions). More is put back.
