@@ -11,4 +11,4 @@ Order: w2/renderblocks, w2/inventory, w2/mobshostile, w2/mobspassive, w2/dynamic
 - [x] vite build
 - [x] wire hooks / dedupe (hooks resolve by name/duck typing: spawner cage, egg pick, golems, villager cure, isIMob, merchant, portal pigmen, WorldGenRegistry glob; dedupe: renderMobHeldItem -> renderHeldItem(full3DOffset, tintPasses player-only), ModelBook one copy). Node suites: renderblocks 7320, containers 42, mobshostile 78, mobspassive 121 (1 intermittent fail seen once in 8 runs), dynamics 55, crafting/items/placement pass
 - [~] smoke test: title, spawn, interact exit 0 (shots ok); slice scenarios pending
-- [ ] ARCHITECTURE §13
+- [x] ARCHITECTURE §13 (block rendering, tile entities, entities rows + wave-2 merge paragraph)
