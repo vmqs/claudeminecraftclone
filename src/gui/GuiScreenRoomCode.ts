@@ -97,8 +97,8 @@ export class GuiScreenRoomCode extends GuiScreen {
     this.drawCenteredString(this.fontRenderer, 'Join with a Room Code', cx, Math.trunc(this.height / 4) - 60 + 20, 0xffffff);
     this.drawString(this.fontRenderer, 'Room Code', cx - 100, 100, 0xa0a0a0);
     this.codeField.drawTextBox();
-    this.drawString(this.fontRenderer, "From the host's chat, like ABCD-EFGH", cx - 100, 142, 0x808080);
-    this.drawString(this.fontRenderer, `Playing as ${this.mc.username}`, cx - 100, 154, 0x808080);
+    this.drawString(this.fontRenderer, "From the host's chat, like ABCD-EFGH", cx - 100, 141, 0x808080);
+    this.drawString(this.fontRenderer, `Playing as ${this.mc.username}`, cx - 100, 152, 0x808080);
     super.drawScreen(mx, my, pt);
   }
 }

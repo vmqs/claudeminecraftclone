@@ -25,6 +25,7 @@
   {"eval": "must(mc.currentScreen.dragYaw > 100 && !mc.currentScreen.dragging, { yaw: mc.currentScreen.dragYaw, pitch: mc.currentScreen.dragPitch })"},
   {"wait": 300},
   {"shot": "acc_05_account_dragged.png"},
+  {"click": [566, 132]},
   {"key": "Control+A"},
   {"type": "ab"},
   {"wait": 400},

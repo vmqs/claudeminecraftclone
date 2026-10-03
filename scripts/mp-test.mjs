@@ -153,6 +153,30 @@ try {
     return window.mc.dev.account.uploadSkin(window.mc.dev.account.testSkinDataUrl(64, 32, 0));
   });
   check('host skin uploaded', hostSkin.ok, JSON.stringify(hostSkin));
+  // The host's own skin everywhere its model shows: third person (front), the first-person arm
+  // and the inventory's player (Creative: the survival inventory tab).
+  await host.evaluate(() => {
+    window.mc.gameSettings.thirdPersonView = 2;
+    window.mc.dev.look(0, 10);
+  });
+  await host.waitForTimeout(1500);
+  await shot(host, '01a_host_skin_third_person.png');
+  await host.evaluate(() => {
+    window.mc.gameSettings.thirdPersonView = 0;
+    window.mc.dev.look(0, 30);
+  });
+  await host.waitForTimeout(1200);
+  await shot(host, '01b_host_skin_arm.png');
+  await host.keyboard.press('e');
+  await host.waitForFunction(() => window.mc.currentScreen !== null, null, { timeout: 10000 });
+  await host.waitForTimeout(500);
+  await host.mouse.click(598, 408);
+  await host.waitForTimeout(1200);
+  await shot(host, '01c_host_skin_inventory.png');
+  await host.evaluate(() => {
+    window.mc.displayGuiScreen(null);
+    window.mc.dev.look(0, 30);
+  });
   // The pause menu's Open to LAN screen.
   await host.evaluate(() => window.mc.dev.screen('sharetolan'));
   await host.waitForTimeout(800);
@@ -289,7 +313,7 @@ try {
   const skinOf = (page, name) =>
     page.evaluate((n) => {
       const mc = window.mc;
-      const e = mc.theWorld.playerEntities.find((p) => p.username === n);
+      const e = mc.theWorld.loadedEntityList.find((p) => p.username === n);
       return { entity: !!e, remote: mc.dev.account.state().remoteSkins };
     }, name);
   const hostView = await skinOf(host, 'Bob');
