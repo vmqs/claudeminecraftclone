@@ -122,6 +122,8 @@ interface Guest {
   pc: PlayerControllerGuest;
   chat: string[];
   disconnected: { title: string; reason: string } | null;
+  /** The guest's render distance (0 far .. 3 tiny) and chat visibility. */
+  settings: { renderDistance: number; chatVisibility: number };
   mc: { theWorld: WorldClient | null; thePlayer: EntityClientPlayerMP | null; currentScreen: unknown };
 }
 
@@ -149,7 +151,7 @@ async function join(name: string, version = PROTOCOL_VERSION): Promise<Guest> {
     gameSettings: { chatVisibility: 0 },
     respawnPlayer() {},
   };
-  const g: Guest = { name, handler: null as never, conn, pc: null as never, chat, disconnected: null, mc };
+  const g: Guest = { name, handler: null as never, conn, pc: null as never, chat, disconnected: null, settings: { renderDistance: 1, chatVisibility: 0 }, mc };
   const client: GuestClient = {
     username: name,
     playerClient: mc as never,
@@ -177,6 +179,7 @@ async function join(name: string, version = PROTOCOL_VERSION): Promise<Guest> {
     printChat: (msg) => chat.push(msg),
     setGameType: (t) => g.pc.setGameType(t),
     autocompleteResponse() {},
+    clientSettings: () => g.settings,
     rejoinToken: () => rejoinTokens.get(name.toLowerCase()) ?? null,
     storeRejoinToken: (t) => rejoinTokens.set(name.toLowerCase(), t),
   };
@@ -303,6 +306,13 @@ check('guest is creative (LAN game mode)', bob.pc.isInCreativeMode() && bobMP!.c
   p.movementInput.sneak = false;
   step(4);
   check('guest stops sneaking', !bobMP!.isSneaking());
+  // The render distance setting reaches the host, which streams that far (at most its own).
+  check('render distance at login (normal, within the host\'s 3)', bobMP!.renderDistance === 3, String(bobMP!.renderDistance));
+  bob.settings.renderDistance = 3;
+  step(3);
+  check('render distance change reaches the host (tiny: 2 chunks)', bobMP!.renderDistance === 2, String(bobMP!.renderDistance));
+  bob.settings.renderDistance = 1;
+  step(3);
   // A jump of 50 blocks in one packet is refused and the guest is put back.
   const before = bobMP!.posX;
   bob.handler.addToSendQueue({ type: 'Flying', flags: 1 | 4, x: before + 50, y: 4, stance: 5.62, z: 10.5, yaw: 0, pitch: 0 });
@@ -654,6 +664,20 @@ check('guest is creative (LAN game mode)', bob.pc.isInCreativeMode() && bobMP!.c
   const carol = await join('Carol');
   step(10);
   check('second guest joins', carol.handler.state === 'play');
+  // A torch at a chunk corner lights the neighbouring chunks; a guest joining just after (while
+  // the host still has those chunks encoded from Carol's join) gets that light too.
+  hw.setBlock(0, 4, 0, B.torchWood, 5, 3);
+  step(5);
+  const erin = await join('Erin');
+  step(10);
+  const ew = erin.mc.theWorld!;
+  const lightAt: [number, number, number][] = [[-1, 4, 0], [-2, 4, -1], [0, 4, -2], [-3, 4, -3]];
+  const hostLight = lightAt.map(([x, y, z]) => hw.getSavedLightValue(1 as never, x, y, z));
+  const lateLight = lightAt.map(([x, y, z]) => ew.getSavedLightValue(1 as never, x, y, z));
+  check('a late joiner gets the light next to a new torch', hostLight.join() === lateLight.join() && hostLight[0] > 10, `${hostLight} vs ${lateLight}`);
+  hw.setBlock(0, 4, 0, 0, 0, 3);
+  erin.handler.disconnect();
+  step(3);
   check('second guest sees the first', carol.mc.theWorld!.loadedEntityList.some((e) => e instanceof EntityOtherPlayerMP && e.username === 'Bob'));
   check('first guest sees the second', gw.loadedEntityList.some((e) => e instanceof EntityOtherPlayerMP && e.username === 'Carol'));
   const dup = await join('alice');

@@ -330,7 +330,8 @@ export class NetServerHandler {
       }
       case 'ClientInfo':
         player.chatVisibility = p.chatVisibility <= 2 ? p.chatVisibility : 0;
-        player.renderDistance = Math.max(2, Math.min(this.server.viewDistance, [16, 8, 4, 2][p.viewDistance & 3] ?? 8));
+        // The guest's own render radius for far / normal / short / tiny (RenderGlobal), within the host's.
+        player.renderDistance = Math.max(2, Math.min(this.server.viewDistance, [12, 8, 4, 2][p.viewDistance & 3] ?? 8));
         return;
       case 'CustomPayload':
         return this.handleCustomPayload(p.channel, p.data);

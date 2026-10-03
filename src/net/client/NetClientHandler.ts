@@ -64,6 +64,8 @@ export interface GuestClient {
   critParticles?(target: Entity, magic: boolean): void;
   /** The guest's controller, for the selected slot the host sets. */
   readonly guestController: PlayerControllerGuest | null;
+  /** Render distance (0 far .. 3 tiny) and chat visibility (Packet204ClientInfo); sent when they change. */
+  clientSettings?(): { renderDistance: number; chatVisibility: number };
   /** The rejoin token kept for this room and name (hex), if any. */
   rejoinToken?(): string | null;
   /** The host gave this player a rejoin token (MC|Rejoin): keep it for the room and name. */
@@ -190,6 +192,7 @@ export class NetClientHandler {
         console.error('[lan] error handling', p.type, e);
       }
     }
+    if (this.state === 'play') this.sendClientInfo();
     if (++this.ticksSinceMessage > TIMEOUT_TICKS) this.fail('disconnect.lost', 'disconnect.timeout');
   }
 
@@ -413,7 +416,20 @@ export class NetClientHandler {
     const type = EnumGameType.getByID(p.gameType);
     player.gameType = type;
     this.client.startGuestWorld(w, player, type);
-    this.addToSendQueue({ type: 'ClientInfo', viewDistance: 1, chatVisibility: 0 });
+    this.sentClientInfo = '';
+    this.sendClientInfo();
+  }
+
+  private sentClientInfo = '';
+
+  /** GameSettings.sendSettingsToServer: the render distance (the host streams that far) and chat visibility. */
+  private sendClientInfo(): void {
+    const c = this.client.clientSettings?.() ?? { renderDistance: 1, chatVisibility: 0 };
+    const info = { viewDistance: c.renderDistance & 3, chatVisibility: Math.max(0, Math.min(2, c.chatVisibility | 0)) };
+    const key = `${info.viewDistance}/${info.chatVisibility}`;
+    if (key === this.sentClientInfo) return;
+    this.sentClientInfo = key;
+    this.addToSendQueue({ type: 'ClientInfo', ...info });
   }
 
   private handleRespawn(p: PacketOf<'Respawn'>): void {

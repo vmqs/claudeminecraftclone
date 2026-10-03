@@ -1007,7 +1007,8 @@ export class Minecraft implements SettingsListener {
         if (this.chunkProvider) this.chunkProvider.extraCenters = centers;
       },
     };
-    const server = new LanServer(host, makeHostTransport(), { gameType, allowCommands, maxPlayers: 8, viewDistance: 8 });
+    // IntegratedPlayerList's view distance (10); each guest gets at most its own render radius.
+    const server = new LanServer(host, makeHostTransport(), { gameType, allowCommands, maxPlayers: 8, viewDistance: 10 });
     await server.start(generateRoomCode());
     if (this.theWorld !== w) {
       server.stop();
@@ -1086,6 +1087,7 @@ export class Minecraft implements SettingsListener {
       critParticles: (target: Entity, magic: boolean) => {
         if (this.theWorld) this.effectRenderer.addEffect(new EntityCrit2FX(this.theWorld, target, magic ? 'magicCrit' : undefined));
       },
+      clientSettings: () => ({ renderDistance: this.gameSettings.renderDistance, chatVisibility: this.gameSettings.chatVisibility }),
       rejoinToken: () => (this.guestRoomCode ? loadRejoinToken(this.guestRoomCode, this.username) : null),
       storeRejoinToken: (token) => {
         if (this.guestRoomCode) saveRejoinToken(this.guestRoomCode, this.username, token);

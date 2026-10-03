@@ -555,7 +555,8 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
   blockChanged(x: number, y: number, z: number): void {
     if (y < 0 || y >= 256) return;
     const k = World.chunkKey(x >> 4, z >> 4);
-    this.chunkCache.delete(k);
+    // The light of a change spreads up to 15 blocks, into the neighbouring chunks too.
+    if (this.chunkCache.size > 0) for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) this.chunkCache.delete(World.chunkKey((x >> 4) + dx, (z >> 4) + dz));
     let set = this.changedBlocks.get(k);
     if (!set) this.changedBlocks.set(k, (set = new Set()));
     set.add(((x & 15) << 12) | ((z & 15) << 8) | y);
