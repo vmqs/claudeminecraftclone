@@ -98,7 +98,10 @@ export class WorldSaveController {
     ls.resetProgresAndWorkingMessage('Saving chunks');
     ls.setLoadingProgress(0);
     const info = world.worldInfo;
-    provider.suspend();
+    // stopServer's saveAllWorlds: the chunks that need it, then the world goes away.
+    h.saveChunks(world);
+    provider.saveHandler = null;
+    provider.dispose();
     const run = async (): Promise<void> => {
       try {
         await h.flush((p) => ls.setLoadingProgress(p));

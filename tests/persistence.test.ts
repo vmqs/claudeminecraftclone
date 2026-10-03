@@ -481,6 +481,10 @@ async function saves(): Promise<void> {
   await h.saveAll(w, p, true);
   check('world listed after saving', format.getSaveList().length === 1 && format.getSaveList()[0].displayName === 'My World' && format.canLoadWorld('MyWorld'));
   check('all chunks saved', (await backend.chunkPositions('MyWorld')).length === 25);
+  check('unchanged chunks are not saved again', h.saveChunks(w) === 0);
+  w.setBlock(17, 9, 1, B.stone, 0, 3);
+  check('a changed chunk is saved again', h.saveChunks(w) === 1);
+  await h.flush();
   // Unload a chunk into the queue and read it back before and after the write.
   const prov = { saveHandler: h };
   void prov;

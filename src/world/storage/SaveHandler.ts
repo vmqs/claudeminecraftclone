@@ -101,10 +101,27 @@ export class SaveHandler {
     }
   }
 
+  /** World time each chunk was last saved at (Chunk.lastSaveTime). */
+  private readonly lastSaveTime = new WeakMap<Chunk, number>();
+
+  /**
+   * Chunk.needsSaving(true): never saved, changed since (blocks, light, tile entities), or
+   * holding entities (other than players) and not saved this tick.
+   */
+  needsSaving(chunk: Chunk, world: World): boolean {
+    const k = World.chunkKey(chunk.xPosition, chunk.zPosition);
+    if (chunk.isModified || (!this.saved.has(k) && !this.queue.has(k))) return true;
+    if (this.lastSaveTime.get(chunk) === world.getTotalWorldTime()) return false;
+    for (const list of chunk.entityLists) for (const e of list) if (!e.isPlayerEntity) return true;
+    return false;
+  }
+
   /** saveChunk: snapshots the chunk now and queues it for writing. */
   saveChunk(chunk: Chunk, world: World): void {
     if (this.closed) return;
     const k = World.chunkKey(chunk.xPosition, chunk.zPosition);
+    chunk.isModified = false;
+    this.lastSaveTime.set(chunk, world.getTotalWorldTime());
     let nbt: Uint8Array;
     try {
       nbt = writeNBT(writeChunkToNBT(chunk, world));
@@ -260,7 +277,7 @@ export class SaveHandler {
    * `wait`) everything is flushed before the promise resolves.
    */
   async saveAll(world: World, player: EntityPlayer | null, wait: boolean, progress?: (percent: number) => void): Promise<void> {
-    for (const c of world.getLoadedChunks()) this.saveChunk(c, world);
+    this.saveChunks(world);
     if (wait) await this.flush(progress);
     else this.pump(8);
     await this.saveLevel(world.worldInfo, player);
@@ -281,6 +298,17 @@ export class SaveHandler {
       }
     };
     this.writeChain = this.writeChain.then(run, run);
+  }
+
+  /** ChunkProviderServer.saveChunks(true): snapshots every loaded chunk that needs saving. */
+  saveChunks(world: World): number {
+    let n = 0;
+    for (const c of world.getLoadedChunks()) {
+      if (!this.needsSaving(c, world)) continue;
+      this.saveChunk(c, world);
+      n++;
+    }
+    return n;
   }
 
   /** Waits for queued writes (without compressing more). */

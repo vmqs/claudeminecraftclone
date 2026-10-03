@@ -969,9 +969,10 @@ export class Minecraft implements SettingsListener {
     );
   }
 
-  /** A save could not be written: the player sees it in chat (and the world list shows it). */
+  /** A save could not be written: in a world the player sees it in chat, in the menus on an error screen. */
   reportSaveError(message: string): void {
-    this.ingameGUI?.getChatGUI().printChatMessage('\u00a7cCould not save the world: ' + message);
+    if (this.theWorld) this.ingameGUI?.getChatGUI().printChatMessage('\u00a7cCould not save the world: ' + message);
+    else this.displayGuiScreen(new GuiErrorScreen('Failed to save the world', message, this.currentScreen));
   }
 
   /** EntityPlayerMP's spawn: a random spot within 10 blocks of the world spawn, on the ground. */
