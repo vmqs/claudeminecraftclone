@@ -500,7 +500,7 @@ through `font/glyph_XX.png` and `glyph_sizes.bin`. Screens: main menu (rotating 
 random splash, version string), select world (in-memory worlds), create world (with "More World
 Options": seed, structures, world type Default, Superflat, or Large Biomes, cheats, bonus chest),
 options, video settings, controls, sounds, language (English), texture packs (bundled Faithful vs
-Default), pause menu, loading screens, chat with commands, the creative inventory (12 tabs, search,
+Default), pause menu (with the achievement map and the Statistics screen; the achievement toast is drawn over every frame), loading screens, chat with commands, the creative inventory (12 tabs, search,
 scroll, survival-inventory tab with the destroy slot), the HUD (hotbar, crosshair, selected item
 name fade, chat lines, "Now playing"), the death screen, and the F3 debug screen with the original
 text lines.
