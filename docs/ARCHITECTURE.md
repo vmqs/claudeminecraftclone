@@ -778,6 +778,6 @@ save that already holds the early copy is rewritten. Chunk compression and write
 `IdleTasks` job `save.chunks` within the frame budget (and in the hidden LAN ticker), not 4 ms per
 tick; autosave snapshots and Save and Quit (`SaveHandler.flush`) are unchanged.
 `noteWorldLaunch` (statistics) runs after `launchIntegratedServer` waits for a Save and Quit in
-progress, so a deferred launch counts once; loading a saved world counts as `loadWorld`, not
-`createWorld`. `node_modules` and `public/assets` may be symlinks in worktrees and are ignored
+progress, so a deferred launch counts once; opening a saved world (`ws === null`) counts
+`startGame` and `joinMultiplayer` but not `createWorld`. `node_modules` and `public/assets` may be symlinks in worktrees and are ignored
 as such (`/node_modules`, `/public/assets` in `.gitignore`): never commit them.
