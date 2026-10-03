@@ -10,6 +10,15 @@ export interface PackInfo {
   name: string;
   description: string;
   files: string[];
+  /** Imported by the player (kept in IndexedDB) rather than bundled. */
+  user?: boolean;
+  /** TexturePackCustom.isCompatible: has a textures/ folder (bundled packs always do). */
+  compatible?: boolean;
+  /** Imported packs: 'modern' when converted from a 1.6+ resource pack. */
+  layout?: 'classic' | 'modern';
+  /** Imported packs: pack.png. */
+  icon?: Blob | null;
+  notes?: string[];
 }
 
 export interface Manifest {
@@ -29,6 +38,9 @@ export interface RGBAImage {
 
 const PACK_KEY = 'mc152.texturePack';
 
+/** Imported packs (IndexedDB), loaded lazily so tests and workers never touch it. */
+type UserStore = import('./UserPacks').UserPackStore;
+
 function norm(path: string): string {
   return path.startsWith('/') ? path.slice(1) : path;
 }
@@ -45,6 +57,13 @@ export class ResourceManager {
   private selected: string | null = null;
   private listeners: PackListener[] = [];
   private textCache = new Map<string, Promise<string | null>>();
+  /** Imported packs, after the bundled ones in the list. */
+  private userPacks: PackInfo[] = [];
+  private userStore: UserStore | null = null;
+  /** The selected imported pack's files and their object URLs. */
+  private userFiles: Map<string, Blob> | null = null;
+  private blobUrls = new Map<string, string>();
+  private selectTicket = 0;
 
   constructor(baseUrl?: string) {
     this.baseUrl = baseUrl ?? new URL('./assets/', document.baseURI).href;
@@ -57,14 +76,99 @@ export class ResourceManager {
     this.vanilla = new Set(this.manifest.vanilla);
     this.sounds = new Set(this.manifest.sounds);
     for (const p of this.manifest.packs) this.packFiles.set(p.id, new Set(p.files));
-    let stored: string | null | undefined;
+    await this.loadUserPacks();
+    let stored: string | null = null;
     try {
       stored = localStorage.getItem(PACK_KEY);
     } catch {
-      stored = undefined;
+      stored = null;
     }
-    if (stored === undefined || stored === null) this.selected = this.manifest.defaultPack;
-    else this.selected = stored === 'default' ? null : this.packFiles.has(stored) ? stored : this.manifest.defaultPack;
+    // ?pack=<id>|default picks a pack for this page only (screenshots against either reference set).
+    const forced = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('pack') : null;
+    const wanted = forced ?? stored;
+    // The Default pack is the default; a pack chosen earlier stays chosen while it exists.
+    let id = wanted === null || wanted === 'default' ? null : this.matchPack(wanted);
+    if (id !== null && this.isUserPack(id)) {
+      const files = await this.readUserFiles(id);
+      if (files) this.useUserFiles(id, files);
+      else id = null;
+    }
+    this.selected = id;
+  }
+
+  /** A pack id, or a bundled pack named loosely ("faithful"), or null. */
+  private matchPack(wanted: string): string | null {
+    if (this.packFiles.has(wanted)) return wanted;
+    const w = wanted.toLowerCase();
+    return this.manifest.packs.find((p) => p.id.includes(w) || p.name.toLowerCase().includes(w))?.id ?? null;
+  }
+
+  private isUserPack(id: string | null): boolean {
+    return id !== null && this.userPacks.some((p) => p.id === id);
+  }
+
+  /** Opens the imported-pack store and lists what is in it. */
+  private async loadUserPacks(): Promise<void> {
+    if (typeof indexedDB === 'undefined') return;
+    try {
+      const { UserPackStore } = await import('./UserPacks');
+      this.userStore = await UserPackStore.open();
+      for (const m of await this.userStore.list()) this.addUserPackInfo(m);
+    } catch (e) {
+      console.warn('[packs] imported packs unavailable', e);
+    }
+  }
+
+  private addUserPackInfo(m: import('./UserPacks').UserPackMeta): PackInfo {
+    const info: PackInfo = { id: m.id, name: m.name, description: m.description, files: m.paths, user: true, compatible: m.compatible, layout: m.layout, icon: m.icon, notes: m.notes };
+    this.userPacks.push(info);
+    this.packFiles.set(m.id, new Set(m.paths));
+    return info;
+  }
+
+  /** An imported pack's files, or null when they are gone. */
+  private async readUserFiles(id: string): Promise<Map<string, Blob> | null> {
+    try {
+      return (await this.userStore?.files(id)) ?? null;
+    } catch (e) {
+      console.warn('[packs] could not load', id, e);
+      return null;
+    }
+  }
+
+  private useUserFiles(id: string, files: Map<string, Blob>): void {
+    this.releaseUserFiles();
+    this.userFiles = files;
+    this.packFiles.set(id, new Set(files.keys()));
+  }
+
+  private releaseUserFiles(): void {
+    for (const url of this.blobUrls.values()) URL.revokeObjectURL(url);
+    this.blobUrls.clear();
+    this.userFiles = null;
+  }
+
+  /** Whether imported packs survive a reload (IndexedDB works). */
+  get canStorePacks(): boolean {
+    return this.userStore?.persistent ?? false;
+  }
+
+  /** Stores an imported pack and lists it; it is not selected. */
+  async addUserPack(pack: import('./PackImport').ImportedPack): Promise<PackInfo> {
+    if (!this.userStore) {
+      const { UserPackStore } = await import('./UserPacks');
+      this.userStore = await UserPackStore.open();
+    }
+    return this.addUserPackInfo(await this.userStore.add(pack));
+  }
+
+  /** Deletes an imported pack (switching to Default first if it is in use). */
+  async removeUserPack(id: string): Promise<void> {
+    if (!this.isUserPack(id)) return;
+    if (this.selected === id) await this.selectPack(null);
+    await this.userStore?.remove(id);
+    this.userPacks = this.userPacks.filter((p) => p.id !== id);
+    this.packFiles.delete(id);
   }
 
   /** The selected pack id, or null for the default (vanilla) textures. */
@@ -72,14 +176,28 @@ export class ResourceManager {
     return this.selected;
   }
 
+  /** Bundled packs, then imported ones. */
   get packs(): PackInfo[] {
-    return this.manifest.packs;
+    return [...this.manifest.packs, ...this.userPacks];
   }
 
-  /** Switches the texture pack; listeners (TextureManager, FontRenderer, ...) reload. */
-  selectPack(id: string | null): void {
+  /**
+   * Switches the texture pack; listeners (TextureManager, FontRenderer, ...) reload. An
+   * imported pack's files are read from IndexedDB first; if that fails, Default is used.
+   */
+  async selectPack(id: string | null): Promise<void> {
     if (id !== null && !this.packFiles.has(id)) id = null;
     if (id === this.selected) return;
+    const ticket = ++this.selectTicket;
+    let files: Map<string, Blob> | null = null;
+    if (id !== null && this.isUserPack(id)) {
+      files = await this.readUserFiles(id);
+      if (ticket !== this.selectTicket) return;
+      if (!files) id = null;
+    }
+    if (id === this.selected) return;
+    if (files && id !== null) this.useUserFiles(id, files);
+    else this.releaseUserFiles();
     this.selected = id;
     this.textCache.clear();
     try {
@@ -118,12 +236,25 @@ export class ResourceManager {
     const p = norm(path);
     const l = layer ?? this.layerOf(p);
     if (l === 'pack' && this.selected && this.packFiles.get(this.selected)?.has(p)) {
+      if (this.userFiles) return this.userFileUrl(p);
       return `${this.baseUrl}packs/${this.selected}/${encodePath(p)}`;
     }
     if ((l === 'vanilla' || l === undefined) && (this.vanilla.has(p) || this.sounds.has(p))) {
       return `${this.baseUrl}vanilla/${encodePath(p)}`;
     }
     return null;
+  }
+
+  /** An object URL for a file of the selected imported pack. */
+  private userFileUrl(p: string): string | null {
+    let url = this.blobUrls.get(p);
+    if (url === undefined) {
+      const blob = this.userFiles?.get(p);
+      if (!blob) return null;
+      url = URL.createObjectURL(blob);
+      this.blobUrls.set(p, url);
+    }
+    return url;
   }
 
   /** All sound files (paths like "sound3/step/grass1.ogg"). */

@@ -13,6 +13,7 @@ import type { Minecraft } from './Minecraft';
 import { openScreenByName } from '../gui/GuiDebugScreens';
 import { PlayerDevTools } from './PlayerDevTools';
 import { NetDevTools } from './NetDevTools';
+import { ControlsDevTools } from './ControlsDevTools';
 
 /** The hotbar of the reference captures: stone, grass, dirt, cobble, planks, log, glass, torch, diamond sword. */
 const DEV_HOTBAR = [1, 2, 3, 4, 5, 17, 20, 50, 276];
@@ -27,12 +28,15 @@ export class DevTools {
   readonly player: PlayerDevTools;
   /** Multiplayer helpers (host, join, state, chat). */
   readonly net: NetDevTools;
+  /** Key bindings, sprint/zoom state, the Controls screen and texture pack imports. */
+  readonly controls: ControlsDevTools;
 
   constructor(private readonly mc: Minecraft) {
     this.sky = new SkyDevTools(mc);
     this.survival = new SurvivalDevTools(mc);
     this.player = new PlayerDevTools(mc);
     this.net = new NetDevTools(mc);
+    this.controls = new ControlsDevTools(mc);
   }
 
   /** True once the player stands in a loaded, meshed area with no screen open. */
