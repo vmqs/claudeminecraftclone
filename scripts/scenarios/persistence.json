@@ -1,5 +1,11 @@
 [
  {
+  "goto": "?dev=1"
+ },
+ {
+  "eval": "mc.gameSettings.renderDistance = 2; mc.gameSettings.saveOptions(); mc.gameSettings.renderDistance"
+ },
+ {
   "goto": "?dev=1&autostart=1&seed=persist&type=flat&mode=survival&mobs=0&time=6000"
  },
  {
