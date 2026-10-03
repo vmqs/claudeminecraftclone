@@ -52,6 +52,20 @@ networks connect fine; strict NATs and firewalls (some office, school and mobile
 block direct links and would need a TURN relay, which the game does not provide. Details,
 the protocol and its limits: `docs/MULTIPLAYER.md`.
 
+## Controls and texture packs
+
+Besides 1.5.2's keys there are three more, all changeable in **Options → Controls** (the list
+scrolls): **Sprint** (I; hold it, or set **Sprint: Toggle** to switch sprinting on and off),
+**Zoom** (C; hold to zoom in like OptiFine) and **Hotbar Slot 1-9** (1-9). Double-tapping
+forward still sprints. **Reset Keys** puts every key back.
+
+The game starts with the **Default** textures; the bundled Classic Faithful 32x pack is one click
+away in **Options → Texture Packs**. **Open texture pack folder** there adds your own `.zip`
+texture packs (or drop them on the page): 1.5 packs work as they are, and 1.6+ resource packs
+are converted where 1.5.2 has a place for their textures (blocks, items, GUI, mobs,
+environment, fonts); what has none, or changed shape since, is left out. Packs are kept in the
+browser and can be deleted with their **X** button.
+
 ## Credits and legal
 
 - Textures: **Classic Faithful 32x** for 1.5.2, by Vattic, Evorp and the Faithful team,

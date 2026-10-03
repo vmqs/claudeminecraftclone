@@ -603,7 +603,6 @@ export class Minecraft implements SettingsListener {
         if (gs.thirdPersonView > 2) gs.thirdPersonView = 0;
       }
       if (key === Keys.F8) gs.smoothCamera = !gs.smoothCamera;
-      if (this.thePlayer) for (let i = 0; i < 9; i++) if (key === Keys['1'] + i) this.thePlayer.inventory.currentItem = i;
       if (gs.showDebugInfo && gs.showDebugProfilerChart) {
         if (key === Keys['0']) this.profilerChart.select(0);
         for (let i = 0; i < 9; i++) if (key === Keys['1'] + i) this.profilerChart.select(i + 1);
@@ -614,6 +613,8 @@ export class Minecraft implements SettingsListener {
   private handleKeyBindings(): void {
     const gs = this.gameSettings;
     const p = this.thePlayer!;
+    // The hotbar keys (1-9 in 1.5.2, rebindable here) only select while no screen is open.
+    for (let i = 0; i < 9; i++) while (gs.keyBindsHotbar[i].isPressed()) if (this.currentScreen === null) p.inventory.currentItem = i;
     while (gs.keyBindInventory.isPressed()) this.displayGuiScreen(new GuiInventory(p));
     while (gs.keyBindDrop.isPressed()) p.dropOneItem(GuiScreen.isCtrlKeyDown());
     const chatAllowed = gs.chatVisibility !== 2;

@@ -74,7 +74,9 @@ src/
                            PlayerControllerCreative, EntityPlayerSP, MovementInput, devtools
   core/                    JavaRandom, MathHelper, AxisAlignedBB, Vec3, MovingObjectPosition,
                            Facing, NBT-ish helpers, I18n (StringTranslate over lang/en_US.lang)
-  assets/                  ResourceManager (layered packs), manifest types, image/text/sound loading
+  assets/                  ResourceManager (layered packs), manifest types, image/text/sound loading,
+                           PackImport (texture pack .zip reader, 1.6+ conversion via ModernPackMap),
+                           UserPacks (imported packs in IndexedDB), PackFiles (import glue)
   render/gl/               GL facade (fixed-function emulation), Tessellator, MatrixStack, shaders
   render/texture/          TextureManager, TextureMap + Stitcher + Icon, animated textures,
                            compass and clock, dynamic lightmap texture
@@ -305,6 +307,16 @@ Porting is far simpler and more faithful if we emulate that API on WebGL2.
 
 `TextureManager` loads by original path (`/gui/gui.png`, `/mob/pig.png`, …) through
 `ResourceManager`, which looks up the selected texture pack first and then the vanilla layer.
+The pack list is Default (the vanilla layer, selected on first launch), the bundled packs and the
+packs the player imported; the choice is kept in `localStorage` (`mc152.texturePack`) and
+`?pack=<id|name|default>` overrides it for one page load. Imported packs are .zip files read by
+`assets/PackImport.ts` (no DOM): sizes, entry counts, paths and PNG headers are checked, files
+1.5.2 does not use are dropped, and 1.6+ resource packs (`assets/minecraft/textures/...`) are
+converted through the generated name table `assets/ModernPackMap.ts`
+(`scripts/gen-pack-map.mjs` matches texture pixels across client jars; only names are kept),
+including `.png.mcmeta` animations; textures whose layout changed (64x64 skins, 1.15+ chests)
+are left out. `assets/UserPacks.ts` keeps them in IndexedDB (memory only where it is missing)
+and the selected one is served through object URLs, so every loader works unchanged.
 Filtering is NEAREST, with no mipmaps. `TextureMap` stitches `textures/blocks/*.png` ("terrain")
 and `textures/items/*.png` ("items") into atlases and hands out `Icon`s via
 `registerIcon(name)`. The cell size is the pack's most common sprite width; every sprite is scaled
@@ -497,8 +509,10 @@ supports shadows (offset 1, colour ×0.25), `§` colour and format codes, and un
 through `font/glyph_XX.png` and `glyph_sizes.bin`. Screens: main menu (rotating panorama, logo,
 random splash, version string), select world (in-memory worlds), create world (with "More World
 Options": seed, structures, world type Default, Superflat, or Large Biomes, cheats, bonus chest),
-options, video settings, controls, sounds, language (English), texture packs (bundled Faithful vs
-Default), pause menu, loading screens, chat with commands, the creative inventory (12 tabs, search,
+options, video settings, controls (scrolling, with the sprint, zoom and hotbar keys, Sprint
+Hold/Toggle and Reset Keys), sounds, language (English), texture packs (Default, bundled Faithful,
+imported packs: "Open texture pack folder" picks .zip files, dropping them on the page works too,
+imported rows have a delete button), pause menu, loading screens, chat with commands, the creative inventory (12 tabs, search,
 scroll, survival-inventory tab with the destroy slot), the HUD (hotbar, crosshair, selected item
 name fade, chat lines, "Now playing"), the death screen, and the F3 debug screen with the original
 text lines. Added for this port: the boot splash (one of two pictures from `public/splash/`,
@@ -548,6 +562,13 @@ break — next to `effectRenderer.addBlockHitEffects`.
 `KeyboardEvent.code` maps to LWJGL key codes, so `KeyBinding` defaults and the Controls screen
 match 1.5.2 (forward W=17, left A=30, back S=31, right D=32, jump SPACE=57, sneak LSHIFT=42, drop
 Q=16, inventory E=18, chat T=20, playerlist TAB=15, command /=53, attack −100, use −99, pick −98).
+Additions to 1.5.2's bindings (all rebindable and saved like the others): **Sprint** (I; sprints
+under the double-tap-forward conditions, without needing the ground; the Controls screen's
+"Sprint: Hold/Toggle" option, `toggleSprint` in the options, decides whether it is held or
+toggled, and a toggled sprint starts again whenever it can), **Zoom** (C; OptiFine's zoom: while
+held with no screen open the world and hand FOV are a quarter and the smooth camera is on,
+restored on release, `client/Zoom.ts`) and **Hotbar Slot 1-9** (1-9; used for the HUD selection and
+the container hover-swap). Options saved before they existed load with their defaults.
 Mouse look uses Pointer Lock and the original sensitivity curve (`f = s*0.6+0.2; d = f*f*f*8;
 yaw += dx*d*0.15`, with invert-mouse support). Losing pointer lock opens the pause menu. F1, F2
 (saves a PNG download), F3, F3+H, F3+A, F5, F8 (smooth camera), and F11 work. Browser defaults
@@ -600,6 +621,8 @@ registries are imported once by `src/client/Minecraft.ts`.
 | Dev hooks | `src/client/DevTools.ts` (`?dev=1` → `window.mc.dev`), scenarios in `scripts/scenarios/`. |
 | Accounts and skins | The name is `Minecraft.username` (`src/net/Username.ts` stores it). Skins: `PlayerSkins` (`src/client/skin/PlayerSkins.ts`; `local` for the player the user controls, `setRemote(name, rgba)` for others, `skinFor(player)`); 64x32 RGBA processed by `processSkin` (`SkinImage.ts`); textures and binding in `src/render/entity/SkinTextures.ts` (`bindPlayerSkin(engine, player)` wherever a player model is drawn; RenderPlayer and ItemRenderer use it). Over the network: `MC\|Skin` (`src/net/SkinSync.ts`, host relay `src/net/server/SkinRelay.ts`). |
 | Server connections | `registerServerConnector(scheme, { connect, ping? })` (`src/net/connect/ServerConnector.ts`): Direct Connect, Add Server and the list's ping use the connector of the address's scheme (`tcp` for a plain `host[:port]`, parsed by `ServerAddress.ts` like 1.5.2); the connection it returns carries `Packets.ts` frames into the usual guest login. See `docs/MULTIPLAYER.md`. |
+| Key bindings and options | A new `KeyBinding(desc, code)` in `GameSettings`, appended to `keyBindings`, is saved (`key_<desc>`), listed by the scrolling `GuiControls`, flagged red on clashes and covered by Reset Keys (`keyCodeDefault`); read it with `isPressed()` / `pressed` in the tick or `GameSettings.isKeyDown`. English names for keys 1.5.2's lang lacks: `client/ControlsText.ts` (`translateOr`). Hotbar keys: `gameSettings.keyBindsHotbar[i]`; the sprint key reaches the player as `MovementInput.sprint`; the zoom state is `EntityRenderer.zoom.active`. |
+| Texture packs | `ResourceManager.packs` (bundled, then imported), `selectedPack`, `selectPack(id)` (async: an imported pack's files load from IndexedDB first; `onPackChanged` listeners then reload), `addUserPack(ImportedPack)`, `removeUserPack(id)`; `readTexturePack(name, zipBytes, modernMap)` (`assets/PackImport.ts`, worker-safe) checks and converts a .zip, `importTexturePackFile/Bytes` (`assets/PackFiles.ts`) do both. Regenerate the 1.6+ name table with `node scripts/gen-pack-map.mjs`. |
 | Multiplayer | New packets: add a schema to `PACKETS` (`src/net/protocol/Packets.ts`; give it a direction for `allowedFrom` and keep fields bounded), handle it in `NetServerHandler.handle` (validate everything a guest sends) or `NetClientHandler`. World events reach guests through `World.netEvents` (`WorldNetListener`: block and tile entity changes, animations, statuses, pick-ups, explosions, block events, lightning, beds, player sounds) and the `IWorldAccess` the `LanServer` adds (sounds, particles, aux effects, crack progress); wrap client-only effects in `World.localEffectsOnly`. New entity classes: tracking range/interval, spawn data and networked metadata slots in `src/net/EntityNetData.ts` (`trackingParams`, `spawnData` / `createFromSpawn`, the metadata tables), guest-side animation state in `src/net/client/RemoteEntityVisuals.ts`. Rules that only the authoritative side may run check `world.isRemote` (blocks, tile entities, entities) or `EntityPlayer.isClientSide()` (players; true for guests and for `EntityOtherPlayerMP`). Windows: `Container.crafters` (`ICrafting`: `EntityPlayerMP` mirrors slots and progress bars); new window kinds get an id in `src/net/WindowTypes.ts` and a case in `EntityPlayerMP.displayGUI*` / `NetClientHandler`'s OpenWindow. Controllers: `mc.playerController` is a `PlayerControllerGuest` on guests; screens that change server state call `sendEnchantPacket`, `sendSlotPacket`, `sendPacketDropItem` or `mc.netHandler.addToSendQueue` (anvil names, beacon, signs). Item tags cross the network only through the whitelist in `src/net/protocol/ItemTags.ts`: a new tag key an item reads must be added there (with its type and limits) or guests lose it; stacks a creative guest may create are decided by `src/net/server/CreativeItems.ts`. A new guest action that changes the world needs its own `ActionLimit` in `NetServerHandler` and must be ignored for dead players (`DEAD_IGNORES`). Host-only commands go in `HOST_ONLY_COMMANDS` (`EntityPlayerMP`) and reach the LAN game through `CommandServer.lan()`. |
 | Block interaction hooks | `BlockGuiHooks.register(kind, handler)` (`src/block/BlockGuiHooks.ts`; chest, enderChest, workbench, furnace, dispenser, dropper, hopper, brewingStand, enchantment, anvil, beacon, sign, commandBlock; without a handler the player's `displayGUI*` runs). Survival breaking (`PlayerControllerMP`) calls `Block.harvestBlock` (drops, stats, exhaustion) after removing the block; `HarvestModifiers.silkTouch` / `fortune` are wired to `EnchantmentHelper`. Block events: `World.addBlockEvent` → `Block.onBlockEventReceived`. Mob spawners: `MobSpawnerBaseLogic.spawnHook`. |
 | HUD and GUI hooks | `GuiIngame` draws the survival bars when `PlayerControllerMP.shouldDrawHUD()` (Survival and Adventure), `GuiIngame.playerListProvider` (TAB list), `GuiIngame.scoreboardOverlay`, `GuiIngame.setRecordPlayingMessage`, `BossStatus.setBossStatus(boss, colorModifier)` for boss renderers (with `SkyHooks.hasColorModifier`), `EntityPlayer.gameTypeListener` (the controller) and `CommandGameMode.gameTypeListener` for game-mode changes, `mc.playerController.getCurrentGameType()` / `isInCreativeMode()` for mode checks, `EntityPlayer.getFoodStats()` / `canEat()` / `addExhaustion()`, `Minecraft.mcProfiler` sections (Shift+F3 chart), `getScoreboard(world)` (deaths and kills are counted by `EntityPlayer.onDeath` / `addToPlayerScore`). Overlays outside the HUD (pumpkin blur, portal swirl, first-person fire) live in `src/render/sky/ScreenOverlays.ts`. |

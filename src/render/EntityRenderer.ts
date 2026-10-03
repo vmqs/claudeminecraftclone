@@ -3,6 +3,7 @@ import { BlockIds } from '../block/BlockIds';
 import { Material } from '../block/Material';
 import type { Minecraft } from '../client/Minecraft';
 import { MouseFilter } from '../client/MouseFilter';
+import { ZoomKey } from '../client/Zoom';
 import { MathHelper } from '../core/MathHelper';
 import { MovingObjectPosition } from '../core/MovingObjectPosition';
 import { Vec3 } from '../core/Vec3';
@@ -41,6 +42,8 @@ export class EntityRenderer {
   private prevCamRoll = 0;
   private readonly mouseFilterXAxis = new MouseFilter();
   private readonly mouseFilterYAxis = new MouseFilter();
+  /** OptiFine-style zoom (the zoom key, C by default). */
+  readonly zoom: ZoomKey;
   private smoothCamYaw = 0;
   private smoothCamPitch = 0;
   private smoothCamFilterX = 0;
@@ -71,6 +74,7 @@ export class EntityRenderer {
   private bossColorModifierPrev = 0;
 
   constructor(private readonly mc: Minecraft) {
+    this.zoom = new ZoomKey(mc, () => this.resetSmoothCamera());
     this.itemRenderer = new ItemRenderer(mc);
     this.rainSnow = new RenderRainSnow(mc);
     RenderManager.instance.itemRenderer = this.itemRenderer;
@@ -122,6 +126,15 @@ export class EntityRenderer {
   settleFogBrightness(): void {
     if (!this.mc.renderViewEntity || !this.mc.theWorld) return;
     this.fogColor1 = this.fogColor2 = this.fogBrightnessTarget();
+  }
+
+  /** Drops the smooth camera's eased movement (when zooming ends). */
+  private resetSmoothCamera(): void {
+    this.mouseFilterXAxis.reset();
+    this.mouseFilterYAxis.reset();
+    this.smoothCamYaw = this.smoothCamPitch = 0;
+    this.smoothCamFilterX = this.smoothCamFilterY = 0;
+    this.smoothCamPartialTicks = 0;
   }
 
   /** Jumps the eased FOV modifier to its target (for captures, as the reference harness does). */
@@ -198,6 +211,7 @@ export class EntityRenderer {
       fov = f(fov + f(this.mc.gameSettings.fovSetting * 40));
       fov = f(fov * f(this.fovModifierHandPrev + (this.fovModifierHand - this.fovModifierHandPrev) * pt));
     }
+    fov = this.zoom.apply(fov);
     if (p.getHealth() <= 0) {
       const t = f(p.deathTime + pt);
       fov = f(fov / f(f(f(1 - f(500 / f(t + 500))) * 2) + 1));
@@ -438,6 +452,7 @@ export class EntityRenderer {
   /** Called every frame: mouse look, then the world and the GUI. */
   updateCameraAndRender(pt: number): void {
     if (this.lightmapUpdateNeeded) this.updateLightmap(pt);
+    this.zoom.update();
     const active = this.mc.isDisplayActive();
     if (!active && this.mc.gameSettings.pauseOnLostFocus) {
       if (performance.now() - this.prevFrameTime > 500) this.mc.displayInGameMenu();

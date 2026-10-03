@@ -1,4 +1,5 @@
 import { I18n } from '../core/I18n';
+import { translateOr } from './ControlsText';
 import { Keyboard, Mouse } from './Keyboard';
 import { KeyBinding } from './KeyBinding';
 
@@ -45,6 +46,8 @@ export class EnumOptions {
   static readonly CHAT_WIDTH = new EnumOptions('CHAT_WIDTH', 'options.chat.width', true, false);
   static readonly CHAT_HEIGHT_FOCUSED = new EnumOptions('CHAT_HEIGHT_FOCUSED', 'options.chat.height.focused', true, false);
   static readonly CHAT_HEIGHT_UNFOCUSED = new EnumOptions('CHAT_HEIGHT_UNFOCUSED', 'options.chat.height.unfocused', true, false);
+  /** Not in 1.5.2: whether the sprint key is held or toggles (Controls screen). */
+  static readonly SPRINT_MODE = new EnumOptions('SPRINT_MODE', 'options.sprintMode', false, false);
 
   getEnumFloat(): boolean {
     return this.enumFloat;
@@ -134,6 +137,10 @@ export class GameSettings {
   readonly keyBindPlayerList = new KeyBinding('key.playerlist', 15);
   readonly keyBindPickBlock = new KeyBinding('key.pickItem', -98);
   readonly keyBindCommand = new KeyBinding('key.command', 53);
+  /** Additions to 1.5.2's set: a sprint key (I), OptiFine's zoom (C) and the hotbar slots (1-9). */
+  readonly keyBindSprint = new KeyBinding('key.sprint', 23);
+  readonly keyBindZoom = new KeyBinding('of.key.zoom', 46);
+  readonly keyBindsHotbar: readonly KeyBinding[] = Array.from({ length: 9 }, (_, i) => new KeyBinding(`key.hotbar.${i + 1}`, 2 + i));
   readonly keyBindings: KeyBinding[] = [
     this.keyBindAttack,
     this.keyBindUseItem,
@@ -149,7 +156,14 @@ export class GameSettings {
     this.keyBindPlayerList,
     this.keyBindPickBlock,
     this.keyBindCommand,
+    this.keyBindSprint,
+    this.keyBindZoom,
+    ...this.keyBindsHotbar,
   ];
+  /** Sprint key mode: false holds (sprint while down), true toggles (options.txt "toggleSprint"). */
+  toggleSprint = false;
+  /** Toggle mode: the sprint key's current on/off state (not saved). */
+  sprintToggledOn = false;
   difficulty = 2;
   hideGUI = false;
   thirdPersonView = 0;
@@ -173,7 +187,7 @@ export class GameSettings {
   }
 
   getKeyBindingDescription(i: number): string {
-    return I18n.translateToLocal(this.keyBindings[i].keyDescription);
+    return translateOr(this.keyBindings[i].keyDescription);
   }
 
   getOptionDisplayString(i: number): string {
@@ -190,6 +204,13 @@ export class GameSettings {
 
   setKeyBinding(i: number, code: number): void {
     this.keyBindings[i].keyCode = code;
+    this.saveOptions();
+  }
+
+  /** Every binding back to its default ("Reset Keys"). */
+  resetKeyBindings(): void {
+    for (const k of this.keyBindings) k.keyCode = k.keyCodeDefault;
+    KeyBinding.resetKeyBindingArrayAndHash();
     this.saveOptions();
   }
 
@@ -254,6 +275,10 @@ export class GameSettings {
       this.listener?.onFullscreenToggled?.();
     }
     if (o === EnumOptions.ENABLE_VSYNC) this.enableVsync = !this.enableVsync;
+    if (o === EnumOptions.SPRINT_MODE) {
+      this.toggleSprint = !this.toggleSprint;
+      this.sprintToggledOn = false;
+    }
     this.saveOptions();
   }
 
@@ -313,6 +338,7 @@ export class GameSettings {
 
   /** Button label for an option, e.g. "Render Distance: Far". */
   getKeyBinding(o: EnumOptions): string {
+    if (o === EnumOptions.SPRINT_MODE) return translateOr('options.sprintMode') + ': ' + translateOr(this.toggleSprint ? 'options.key.toggle' : 'options.key.hold');
     const t = (k: string) => I18n.translateToLocal(k);
     const prefix = t(o.getEnumString()) + ': ';
     if (o.getEnumFloat()) {
@@ -391,6 +417,7 @@ export class GameSettings {
       `chatHeightUnfocused:${this.chatHeightUnfocused}`,
       `chatScale:${this.chatScale}`,
       `chatWidth:${this.chatWidth}`,
+      `toggleSprint:${this.toggleSprint}`,
     ];
     for (const k of this.keyBindings) lines.push(`key_${k.keyDescription}:${k.keyCode}`);
     return lines.join('\n');
@@ -457,6 +484,7 @@ export class GameSettings {
         case 'chatHeightUnfocused': this.chatHeightUnfocused = f(v); break;
         case 'chatScale': this.chatScale = f(v); break;
         case 'chatWidth': this.chatWidth = f(v); break;
+        case 'toggleSprint': this.toggleSprint = b(v); break;
         default:
           for (const kb of this.keyBindings) if (k === `key_${kb.keyDescription}`) kb.keyCode = i(v);
       }

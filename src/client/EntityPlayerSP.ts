@@ -45,6 +45,8 @@ export class EntityPlayerSP extends EntityPlayer {
   movementInput: MovementInput = new MovementInput();
   protected sprintToggleTimer = 0;
   sprintingTicksLeft = 0;
+  /** movementInput.sprint on the previous tick: letting go of the sprint key (or toggling it off) stops sprinting. */
+  private sprintKeyWasDown = false;
   renderArmYaw = 0;
   renderArmPitch = 0;
   prevRenderArmYaw = 0;
@@ -219,6 +221,7 @@ export class EntityPlayerSP extends EntityPlayer {
       }
     }
     if (this.isSneaking()) this.sprintToggleTimer = 0;
+    this.updateSprintKey(threshold, canSprint);
     if (this.isSprinting() && (this.movementInput.moveForward < threshold || this.isCollidedHorizontally || !canSprint)) this.setSprinting(false);
     if (this.capabilities.allowFlying && !wasJumping && this.movementInput.jump) {
       if (this.flyToggleTimer === 0) {
@@ -238,6 +241,22 @@ export class EntityPlayerSP extends EntityPlayer {
       this.capabilities.isFlying = false;
       this.sendPlayerAbilities();
     }
+  }
+
+  /**
+   * The sprint key (not in 1.5.2): while it is held, or toggled on, sprinting starts whenever
+   * double-tapping forward could start it (moving forward, not sneaking, more than 3 shanks of
+   * food or able to fly, not using an item, not blind), without needing the ground, and starts
+   * again after a stop (a wall, the 30 s sprint limit). Letting go, or toggling off, stops it.
+   */
+  private updateSprintKey(threshold: number, canSprint: boolean): void {
+    const down = this.movementInput.sprint;
+    if (down && !this.isSprinting() && this.movementInput.moveForward >= threshold && !this.isSneaking() && canSprint && !this.isUsingItem() && !this.isPotionActive(PotionId.blindness)) {
+      this.setSprinting(true);
+    } else if (!down && this.sprintKeyWasDown && this.isSprinting()) {
+      this.setSprinting(false);
+    }
+    this.sprintKeyWasDown = down;
   }
 
   /** Flying widens the view by 10%, speed (sprint, potions) by half its gain; drawing a bow zooms in up to 15%. */

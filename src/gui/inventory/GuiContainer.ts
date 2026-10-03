@@ -285,6 +285,8 @@ export abstract class GuiContainer extends GuiScreen {
 
   protected override mouseClicked(x: number, y: number, button: number): void {
     super.mouseClicked(x, y, button);
+    // A hotbar key bound to an extra mouse button swaps like a number key.
+    if (button > 2 && this.checkHotbarKeys(button - 100)) return;
     const gs = this.mc.gameSettings;
     const inv = this.mc.thePlayer!.inventory;
     const isPick = button === this.pickBlockButton;
@@ -480,11 +482,12 @@ export abstract class GuiContainer extends GuiScreen {
     }
   }
 
-  /** Number keys 1-9 over a slot swap it with that hotbar slot. */
+  /** The hotbar keys (number keys 1-9 unless rebound) over a slot swap it with that hotbar slot. */
   protected checkHotbarKeys(key: number): boolean {
     if (this.mc.thePlayer!.inventory.getItemStack() !== null || !this.theSlot) return false;
+    const hotbar = this.mc.gameSettings.keyBindsHotbar;
     for (let i = 0; i < 9; i++) {
-      if (key === Keys['1'] + i) {
+      if (key === hotbar[i].keyCode) {
         this.handleMouseClick(this.theSlot, this.theSlot.slotNumber, i, ClickMode.SWAP);
         return true;
       }
