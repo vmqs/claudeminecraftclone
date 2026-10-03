@@ -14,6 +14,8 @@ import type { Entity } from './Entity';
 import { EntityMob } from './EntityMob';
 import { EntitySkeleton } from './EntitySkeleton';
 import { isEntityNamed, tagBool, tagNumber } from './HostileMobUtil';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -64,20 +66,6 @@ export class EntityCreeper extends EntityMob {
 
   getMaxHealth(): number {
     return 20;
-  }
-
-  readEntityFromNBT(tag: Record<string, unknown>): void {
-    this.powered = tagBool(tag, 'powered');
-    const fuse = tagNumber(tag, 'Fuse');
-    if (fuse !== undefined) this.fuseTime = fuse;
-    const r = tagNumber(tag, 'ExplosionRadius');
-    if (r !== undefined) this.explosionRadius = r;
-  }
-
-  writeEntityToNBT(tag: Record<string, unknown>): void {
-    if (this.powered) tag.powered = true;
-    tag.Fuse = this.fuseTime;
-    tag.ExplosionRadius = this.explosionRadius;
   }
 
   override onUpdate(): void {
@@ -141,5 +129,19 @@ export class EntityCreeper extends EntityMob {
   override onStruckByLightning(bolt: Entity): void {
     super.onStruckByLightning(bolt);
     this.powered = true;
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    if (this.powered) NBT.setBoolean(tag, 'powered', true);
+    NBT.setShort(tag, 'Fuse', this.fuseTime);
+    NBT.setByte(tag, 'ExplosionRadius', this.explosionRadius);
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    this.powered = NBT.getBoolean(tag, 'powered');
+    if (NBT.hasKey(tag, 'Fuse')) this.fuseTime = NBT.getShort(tag, 'Fuse');
+    if (NBT.hasKey(tag, 'ExplosionRadius')) this.explosionRadius = NBT.getByte(tag, 'ExplosionRadius');
   }
 }

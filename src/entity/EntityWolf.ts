@@ -26,6 +26,8 @@ import type { EntityLiving } from './EntityLiving';
 import { EntityList } from './EntityList';
 import type { EntityPlayer } from './EntityPlayer';
 import { EntityTameable } from './EntityTameable';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 const PI_F = f(Math.PI);
@@ -101,19 +103,6 @@ export class EntityWolf extends EntityTameable {
   override getTexture(): string {
     if (this.isTamed()) return '/mob/wolf_tame.png';
     return this.isAngry() ? '/mob/wolf_angry.png' : super.getTexture();
-  }
-
-  readEntityFromNBT(tag: Record<string, unknown>): void {
-    if (typeof tag.Owner === 'string' && tag.Owner.length > 0) {
-      this.setOwner(tag.Owner);
-      this.setTamed(true);
-    }
-    if (tag.Sitting !== undefined) {
-      this.aiSit.setSitting(!!tag.Sitting);
-      this.setSitting(!!tag.Sitting);
-    }
-    if (tag.Angry !== undefined) this.setAngry(!!tag.Angry);
-    if (typeof tag.CollarColor === 'number') this.setCollarColor(tag.CollarColor);
   }
 
   protected override canDespawn(): boolean {
@@ -350,5 +339,17 @@ export class EntityWolf extends EntityTameable {
     if (other === this || !this.isTamed() || !(other instanceof EntityWolf)) return false;
     if (!other.isTamed() || other.isSitting()) return false;
     return this.isInLove() && other.isInLove();
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    NBT.setBoolean(tag, 'Angry', this.isAngry());
+    NBT.setByte(tag, 'CollarColor', this.getCollarColor());
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    this.setAngry(NBT.getBoolean(tag, 'Angry'));
+    if (NBT.hasKey(tag, 'CollarColor')) this.setCollarColor(NBT.getByte(tag, 'CollarColor'));
   }
 }

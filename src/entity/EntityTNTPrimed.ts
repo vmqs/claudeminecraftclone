@@ -1,6 +1,8 @@
 import type { World } from '../world/World';
 import { Entity } from './Entity';
 import type { EntityLiving } from './EntityLiving';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -81,5 +83,13 @@ export class EntityTNTPrimed extends Entity {
 
   setTntPlacedBy(e: EntityLiving | null): void {
     this.tntPlacedBy = e;
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    NBT.setByte(tag, 'Fuse', this.fuse);
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    this.fuse = NBT.getByte(tag, 'Fuse');
   }
 }

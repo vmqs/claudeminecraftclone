@@ -2,6 +2,8 @@ import type { World } from '../world/World';
 import { EntityAISit } from './ai/EntityAISit';
 import { EntityAnimal } from './EntityAnimal';
 import type { EntityLiving } from './EntityLiving';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -69,5 +71,22 @@ export abstract class EntityTameable extends EntityAnimal {
   /** func_70907_r */
   getAISit(): EntityAISit {
     return this.aiSit;
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    NBT.setString(tag, 'Owner', this.getOwnerName() ?? '');
+    NBT.setBoolean(tag, 'Sitting', this.isSitting());
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    const owner = NBT.getString(tag, 'Owner');
+    if (owner.length > 0) {
+      this.setOwner(owner);
+      this.setTamed(true);
+    }
+    this.aiSit.setSitting(NBT.getBoolean(tag, 'Sitting'));
+    this.setSitting(NBT.getBoolean(tag, 'Sitting'));
   }
 }

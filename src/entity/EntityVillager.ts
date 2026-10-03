@@ -32,6 +32,8 @@ import type { IMerchant } from './merchant/IMerchant';
 import { MerchantRecipe } from './merchant/MerchantRecipe';
 import { MerchantRecipeList } from './merchant/MerchantRecipeList';
 import { PotionId } from './PotionEffects';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -240,11 +242,6 @@ export class EntityVillager extends EntityAgeable implements IMerchant {
 
   getMaxHealth(): number {
     return 20;
-  }
-
-  readEntityFromNBT(tag: Record<string, unknown>): void {
-    if (typeof tag.Profession === 'number') this.setProfession(tag.Profession);
-    if (typeof tag.Riches === 'number') this.wealth = tag.Riches;
   }
 
   override getTexture(): string {
@@ -512,5 +509,19 @@ export class EntityVillager extends EntityAgeable implements IMerchant {
     const baby = new EntityVillager(this.worldObj);
     baby.initCreature();
     return baby;
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    NBT.setInteger(tag, 'Profession', this.getProfession());
+    NBT.setInteger(tag, 'Riches', this.wealth);
+    if (this.buyingList) NBT.setCompoundTag(tag, 'Offers', this.buyingList.getRecipiesAsTags());
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    this.setProfession(NBT.getInteger(tag, 'Profession'));
+    this.wealth = NBT.getInteger(tag, 'Riches');
+    if (NBT.hasKey(tag, 'Offers')) this.buyingList = MerchantRecipeList.fromTags(NBT.getCompoundTag(tag, 'Offers'));
   }
 }

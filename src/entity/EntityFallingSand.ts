@@ -7,6 +7,7 @@ import type { TagCompound } from '../item/ItemStack';
 import type { World } from '../world/World';
 import { DamageSource } from './DamageSource';
 import { Entity } from './Entity';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -148,6 +149,34 @@ export class EntityFallingSand extends Entity {
 
   override canRenderOnFire(): boolean {
     return false;
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    NBT.setByte(tag, 'Tile', this.blockID);
+    NBT.setInteger(tag, 'TileID', this.blockID);
+    NBT.setByte(tag, 'Data', this.metadata);
+    NBT.setByte(tag, 'Time', this.fallTime);
+    NBT.setBoolean(tag, 'DropItem', this.shouldDropItem);
+    NBT.setBoolean(tag, 'HurtEntities', this.isAnvil);
+    NBT.setFloat(tag, 'FallHurtAmount', this.fallHurtAmount);
+    NBT.setInteger(tag, 'FallHurtMax', this.fallHurtMax);
+    if (this.fallingBlockTileEntityData) NBT.setCompoundTag(tag, 'TileEntityData', this.fallingBlockTileEntityData);
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    this.blockID = NBT.hasKey(tag, 'TileID') ? NBT.getInteger(tag, 'TileID') : NBT.getByte(tag, 'Tile') & 255;
+    this.metadata = NBT.getByte(tag, 'Data') & 255;
+    this.fallTime = NBT.getByte(tag, 'Time') & 255;
+    if (NBT.hasKey(tag, 'HurtEntities')) {
+      this.isAnvil = NBT.getBoolean(tag, 'HurtEntities');
+      this.fallHurtAmount = NBT.getFloat(tag, 'FallHurtAmount');
+      this.fallHurtMax = NBT.getInteger(tag, 'FallHurtMax');
+    } else if (this.blockID === BlockIds.anvil) {
+      this.isAnvil = true;
+    }
+    if (NBT.hasKey(tag, 'DropItem')) this.shouldDropItem = NBT.getBoolean(tag, 'DropItem');
+    if (NBT.hasKey(tag, 'TileEntityData')) this.fallingBlockTileEntityData = NBT.getCompoundTag(tag, 'TileEntityData');
+    if (this.blockID === 0) this.blockID = BlockIds.sand;
   }
 }
 

@@ -1,8 +1,9 @@
 import { MathHelper } from '../core/MathHelper';
-import type { ItemStack, TagCompound } from '../item/ItemStack';
+import { ItemStack, type TagCompound } from '../item/ItemStack';
 import type { World } from '../world/World';
 import { Entity } from './Entity';
 import { headingPitch, headingYaw, smoothRotation } from './EntityArrow';
+import { NBT } from '../world/storage/NBT';
 
 /** World.makeFireworks (func_92088_a), when the effect code provides it. */
 type FireworksWorld = World & {
@@ -102,5 +103,18 @@ export class EntityFireworkRocket extends Entity {
 
   override canAttackWithItem(): boolean {
     return false;
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    NBT.setInteger(tag, 'Life', this.fireworkAge);
+    NBT.setInteger(tag, 'LifeTime', this.lifetime);
+    if (this.fireworkItem) NBT.setCompoundTag(tag, 'FireworksItem', this.fireworkItem.writeToNBT());
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    this.fireworkAge = NBT.getInteger(tag, 'Life');
+    this.lifetime = NBT.getInteger(tag, 'LifeTime');
+    const item = ItemStack.loadItemStackFromNBT(NBT.getCompoundTag(tag, 'FireworksItem'));
+    if (item) this.fireworkItem = item;
   }
 }

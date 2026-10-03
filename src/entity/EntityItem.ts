@@ -8,6 +8,8 @@ import { World } from '../world/World';
 import { DamageSource } from './DamageSource';
 import { Entity } from './Entity';
 import type { EntityPlayer } from './EntityPlayer';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -146,6 +148,21 @@ export class EntityItem extends Entity {
 
   setEntityItemStack(stack: ItemStack): void {
     this.stack = stack;
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    NBT.setShort(tag, 'Health', (this.health << 24) >> 24);
+    NBT.setShort(tag, 'Age', this.age);
+    const s = this.getEntityItem();
+    if (s) NBT.setCompoundTag(tag, 'Item', s.writeToNBT());
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    this.health = NBT.getShort(tag, 'Health') & 255;
+    this.age = NBT.getShort(tag, 'Age');
+    const s = ItemStack.loadItemStackFromNBT(NBT.getCompoundTag(tag, 'Item'));
+    if (s) this.setEntityItemStack(s);
+    else this.setDead();
   }
 }
 

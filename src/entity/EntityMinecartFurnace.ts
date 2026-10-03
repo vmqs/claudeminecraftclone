@@ -6,6 +6,8 @@ import type { World } from '../world/World';
 import type { DamageSource } from './DamageSource';
 import { EntityMinecart } from './EntityMinecart';
 import type { EntityPlayer } from './EntityPlayer';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -104,6 +106,20 @@ export class EntityMinecartFurnace extends EntityMinecart {
 
   override getDefaultDisplayTileData(): number {
     return 2;
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    NBT.setDouble(tag, 'PushX', this.pushX);
+    NBT.setDouble(tag, 'PushZ', this.pushZ);
+    NBT.setShort(tag, 'Fuel', this.fuel);
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    this.pushX = NBT.getDouble(tag, 'PushX');
+    this.pushZ = NBT.getDouble(tag, 'PushZ');
+    this.fuel = NBT.getShort(tag, 'Fuel');
   }
 }
 

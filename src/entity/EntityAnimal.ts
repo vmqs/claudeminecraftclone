@@ -7,6 +7,8 @@ import type { DamageSource } from './DamageSource';
 import type { Entity } from './Entity';
 import { EntityAgeable } from './EntityAgeable';
 import type { EntityPlayer } from './EntityPlayer';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -179,5 +181,15 @@ export abstract class EntityAnimal extends EntityAgeable {
 
   canMateWith(other: EntityAnimal): boolean {
     return other !== this && other.constructor === this.constructor && this.isInLove() && other.isInLove();
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    NBT.setInteger(tag, 'InLove', this.inLove);
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    this.inLove = NBT.getInteger(tag, 'InLove');
   }
 }

@@ -173,6 +173,34 @@ export class EntityList {
     return e;
   }
 
+  /**
+   * createEntityFromNBT: a saved entity ("id" plus its fields), or null for unknown ids or
+   * tags that fail to load (logged and skipped instead of crashing). Old "Minecart" tags with a
+   * "Type" become the 1.5 minecart ids.
+   */
+  static createEntityFromNBT(tag: Record<string, unknown>, world: World): Entity | null {
+    let id = typeof tag.id === 'string' ? tag.id : '';
+    if (id === 'Minecart') {
+      const type = Number(tag.Type ?? 0) | 0;
+      id = type === 1 ? 'MinecartChest' : type === 2 ? 'MinecartFurnace' : 'MinecartRideable';
+      tag.id = id;
+      delete tag.Type;
+    }
+    const cls = EntityList.nameToClass.get(id);
+    if (!cls) {
+      console.warn(`Skipping Entity with id ${id}`);
+      return null;
+    }
+    try {
+      const e = new cls(world);
+      e.readFromNBT(tag);
+      return e;
+    } catch (err) {
+      console.warn(`Skipping Entity with id ${id}:`, err);
+      return null;
+    }
+  }
+
   static createEntityByID(id: number, world: World): Entity | null {
     const name = EntityList.idToName.get(id);
     return name === undefined ? null : EntityList.createEntityByName(name, world);

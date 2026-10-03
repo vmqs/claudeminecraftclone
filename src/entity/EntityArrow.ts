@@ -12,6 +12,8 @@ import { EntityList } from './EntityList';
 import type { EntityLiving } from './EntityLiving';
 import type { EntityPlayer } from './EntityPlayer';
 import type { IProjectile } from './IProjectile';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 const PI_F = f(Math.PI);
@@ -333,6 +335,31 @@ export class EntityArrow extends Entity implements IProjectile {
   /** Whether the arrow is stuck in a block (renderers and pickup). */
   isInGround(): boolean {
     return this.inGround;
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    NBT.setShort(tag, 'xTile', this.xTile);
+    NBT.setShort(tag, 'yTile', this.yTile);
+    NBT.setShort(tag, 'zTile', this.zTile);
+    NBT.setByte(tag, 'inTile', this.inTile);
+    NBT.setByte(tag, 'inData', this.inData);
+    NBT.setByte(tag, 'shake', this.arrowShake);
+    NBT.setByte(tag, 'inGround', this.inGround ? 1 : 0);
+    NBT.setByte(tag, 'pickup', this.canBePickedUp);
+    NBT.setDouble(tag, 'damage', this.damage);
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    this.xTile = NBT.getShort(tag, 'xTile');
+    this.yTile = NBT.getShort(tag, 'yTile');
+    this.zTile = NBT.getShort(tag, 'zTile');
+    this.inTile = NBT.getByte(tag, 'inTile') & 255;
+    this.inData = NBT.getByte(tag, 'inData') & 255;
+    this.arrowShake = NBT.getByte(tag, 'shake') & 255;
+    this.inGround = NBT.getByte(tag, 'inGround') === 1;
+    if (NBT.hasKey(tag, 'damage')) this.damage = NBT.getDouble(tag, 'damage');
+    if (NBT.hasKey(tag, 'pickup')) this.canBePickedUp = NBT.getByte(tag, 'pickup');
+    else if (NBT.hasKey(tag, 'player')) this.canBePickedUp = NBT.getBoolean(tag, 'player') ? 1 : 0;
   }
 }
 

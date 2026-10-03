@@ -7,6 +7,8 @@ import { EntityMinecart } from './EntityMinecart';
 import { EntityMinecartContainer } from './EntityMinecartContainer';
 import type { EntityPlayer } from './EntityPlayer';
 import { type HopperLike, HopperTransfer } from './HopperTransfer';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 /**
  * A hopper minecart (EntityMinecartHopper, "MinecartHopper"): 5 slots, every 4 ticks pulls an
@@ -102,6 +104,16 @@ export class EntityMinecartHopper extends EntityMinecartContainer implements Hop
 
   canTransfer(): boolean {
     return this.transferTicker > 0;
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    NBT.setInteger(tag, 'TransferCooldown', this.transferTicker);
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    this.transferTicker = NBT.getInteger(tag, 'TransferCooldown');
   }
 }
 

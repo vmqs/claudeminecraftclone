@@ -3,6 +3,8 @@ import type { World } from '../world/World';
 import { DamageSource } from './DamageSource';
 import { Entity } from './Entity';
 import type { EntityPlayer } from './EntityPlayer';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -145,6 +147,28 @@ export abstract class EntityHanging extends Entity {
   /** Height in pixels (func_82330_g). */
   abstract getHeightPixels(): number;
   abstract dropItemStack(): void;
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    NBT.setByte(tag, 'Direction', this.hangingDirection);
+    NBT.setInteger(tag, 'TileX', this.xPosition);
+    NBT.setInteger(tag, 'TileY', this.yPosition);
+    NBT.setInteger(tag, 'TileZ', this.zPosition);
+    // The pre-1.5 "Dir" (0 south ... 3 east, rotated).
+    const dir = [2, 1, 0, 3][this.hangingDirection];
+    if (dir !== undefined) NBT.setByte(tag, 'Dir', dir);
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    if (NBT.hasKey(tag, 'Direction')) this.hangingDirection = NBT.getByte(tag, 'Direction');
+    else {
+      const d = [2, 1, 0, 3][NBT.getByte(tag, 'Dir')];
+      if (d !== undefined) this.hangingDirection = d;
+    }
+    this.xPosition = NBT.getInteger(tag, 'TileX');
+    this.yPosition = NBT.getInteger(tag, 'TileY');
+    this.zPosition = NBT.getInteger(tag, 'TileZ');
+    this.setDirection(this.hangingDirection);
+  }
 }
 
 /** func_70517_b: 32 and 64 pixel sizes are centred on a block edge. */

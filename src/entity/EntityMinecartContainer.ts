@@ -6,6 +6,7 @@ import type { DamageSource } from './DamageSource';
 import { EntityItem } from './EntityItem';
 import { EntityMinecart } from './EntityMinecart';
 import type { EntityPlayer } from './EntityPlayer';
+import { NBT, NBTType } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -96,18 +97,6 @@ export abstract class EntityMinecartContainer extends EntityMinecart implements 
     super.setDead();
   }
 
-  /** Descriptor data (mineshaft chest carts): "Items" as [{ Slot, id, Count, Damage }]. */
-  readEntityFromNBT(tag: Record<string, unknown>): void {
-    const items = tag['Items'];
-    if (!Array.isArray(items)) return;
-    this.items.fill(null);
-    // Full stack data, tag included (enchanted books in mineshaft carts keep their enchantments).
-    for (const it of items as ({ Slot?: number } & TagCompound)[]) {
-      const slot = (it.Slot ?? -1) & 255;
-      if (slot >= 0 && slot < this.items.length) this.items[slot] = ItemStack.loadItemStackFromNBT(it);
-    }
-  }
-
   override interact(player: EntityPlayer): boolean {
     player.displayGUIChest(this);
     return true;
@@ -120,5 +109,29 @@ export abstract class EntityMinecartContainer extends EntityMinecart implements 
     this.motionX *= k;
     this.motionY *= 0;
     this.motionZ *= k;
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    const list: TagCompound[] = [];
+    for (let i = 0; i < this.getSizeInventory(); i++) {
+      const s = this.items[i];
+      if (!s) continue;
+      const t: TagCompound = {};
+      NBT.setByte(t, 'Slot', i);
+      Object.assign(t, s.writeToNBT());
+      list.push(t);
+    }
+    NBT.setList(tag, 'Items', NBTType.Compound, list);
+  }
+
+  /** Also reads world-generation descriptors ({Items} of mineshaft carts, with full stack data). */
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    this.items.fill(null);
+    for (const t of NBT.getCompoundList(tag, 'Items')) {
+      const slot = NBT.getByte(t, 'Slot') & 255;
+      if (slot < this.getSizeInventory()) this.items[slot] = ItemStack.loadItemStackFromNBT(t);
+    }
   }
 }

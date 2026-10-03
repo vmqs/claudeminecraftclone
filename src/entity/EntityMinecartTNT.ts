@@ -6,6 +6,8 @@ import type { Explosion } from '../world/Explosion';
 import type { World } from '../world/World';
 import type { DamageSource } from './DamageSource';
 import { EntityMinecart, isRailBlock, isRailBlockAt } from './EntityMinecart';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -96,6 +98,16 @@ export class EntityMinecartTNT extends EntityMinecart {
   override canExplosionDestroyBlock(e: Explosion, w: World, x: number, y: number, z: number, id: number, strength: number): boolean {
     if (this.isIgnited() && (isRailBlock(id) || isRailBlockAt(w, x, y + 1, z))) return false;
     return super.canExplosionDestroyBlock(e, w, x, y, z, id, strength);
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    NBT.setInteger(tag, 'TNTFuse', this.minecartTNTFuse);
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    if (NBT.hasKey(tag, 'TNTFuse')) this.minecartTNTFuse = NBT.getInteger(tag, 'TNTFuse');
   }
 }
 

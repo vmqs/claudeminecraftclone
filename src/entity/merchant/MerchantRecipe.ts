@@ -1,4 +1,6 @@
 import { ItemStack } from '../../item/ItemStack';
+import type { TagCompound } from '../../item/ItemStack';
+import { NBT } from '../../world/storage/NBT';
 
 /**
  * One villager trade (MerchantRecipe): one or two stacks to pay, the stack received, and how
@@ -63,5 +65,28 @@ export class MerchantRecipe {
   /** func_82785_h */
   disableRecipe(): void {
     this.toolUses = this.maxTradeUses;
+  }
+
+  /** writeToTags: {buy, buyB?, sell, uses, maxUses}. */
+  writeToTags(): TagCompound {
+    const t: TagCompound = {};
+    NBT.setCompoundTag(t, 'buy', this.itemToBuy.writeToNBT());
+    NBT.setCompoundTag(t, 'sell', this.itemToSell.writeToNBT());
+    if (this.secondItemToBuy) NBT.setCompoundTag(t, 'buyB', this.secondItemToBuy.writeToNBT());
+    NBT.setInteger(t, 'uses', this.toolUses);
+    NBT.setInteger(t, 'maxUses', this.maxTradeUses);
+    return t;
+  }
+
+  /** MerchantRecipe(NBTTagCompound); null when an item is unknown. */
+  static fromTags(t: TagCompound): MerchantRecipe | null {
+    const buy = ItemStack.loadItemStackFromNBT(NBT.getCompoundTag(t, 'buy'));
+    const sell = ItemStack.loadItemStackFromNBT(NBT.getCompoundTag(t, 'sell'));
+    if (!buy || !sell) return null;
+    const buyB = NBT.hasKey(t, 'buyB') ? ItemStack.loadItemStackFromNBT(NBT.getCompoundTag(t, 'buyB')) : null;
+    const r = new MerchantRecipe(buy, buyB, sell);
+    if (NBT.hasKey(t, 'uses')) r.toolUses = NBT.getInteger(t, 'uses');
+    r.maxTradeUses = NBT.hasKey(t, 'maxUses') ? NBT.getInteger(t, 'maxUses') : 7;
+    return r;
   }
 }

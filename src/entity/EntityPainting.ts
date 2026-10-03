@@ -2,6 +2,8 @@ import { ItemIds } from '../block/BlockIds';
 import { ItemStack } from '../item/ItemStack';
 import type { World } from '../world/World';
 import { EntityHanging } from './EntityHanging';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 /** A painting motive (EnumArt): size in pixels and its offset in /art/kz.png. */
 export interface EnumArt {
@@ -81,5 +83,16 @@ export class EntityPainting extends EntityHanging {
 
   dropItemStack(): void {
     this.entityDropItem(new ItemStack(ItemIds.painting, 1, 0), 0);
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    NBT.setString(tag, 'Motive', this.art.title);
+    super.writeEntityToNBT(tag);
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    const title = NBT.getString(tag, 'Motive');
+    this.art = EnumArt.find((a) => a.title === title) ?? EnumArt[0];
+    super.readEntityFromNBT(tag);
   }
 }

@@ -4,6 +4,8 @@ import type { DamageSource } from './DamageSource';
 import type { Entity } from './Entity';
 import { EntityAmbientCreature } from './EntityAmbientCreature';
 import { ChunkCoordinates } from './EntityLiving';
+import type { TagCompound } from '../item/ItemStack';
+import { NBT } from '../world/storage/NBT';
 
 const f = Math.fround;
 
@@ -136,10 +138,6 @@ export class EntityBat extends EntityAmbientCreature {
     return super.attackEntityFrom(src, amount);
   }
 
-  readEntityFromNBT(tag: Record<string, unknown>): void {
-    if (typeof tag.BatFlags === 'number') this.setIsBatHanging((tag.BatFlags & 1) !== 0);
-  }
-
   override getCanSpawnHere(): boolean {
     const y = MathHelper.floor_double(this.boundingBox.minY);
     if (y >= 63) return false;
@@ -154,4 +152,14 @@ export class EntityBat extends EntityAmbientCreature {
   }
 
   override initCreature(): void {}
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    super.writeEntityToNBT(tag);
+    NBT.setByte(tag, 'BatFlags', this.getIsBatHanging() ? 1 : 0);
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    super.readEntityFromNBT(tag);
+    this.setIsBatHanging((NBT.getByte(tag, 'BatFlags') & 1) !== 0);
+  }
 }

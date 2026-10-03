@@ -6,6 +6,9 @@ import type { DamageSource } from './DamageSource';
 import { Entity } from './Entity';
 import { smoothRotation } from './EntityArrow';
 import type { EntityLiving } from './EntityLiving';
+import type { TagCompound } from '../item/ItemStack';
+
+import { NBT, NBTType } from '../world/storage/NBT';
 
 const f = Math.fround;
 const PI_F = f(Math.PI);
@@ -182,5 +185,30 @@ export abstract class EntityFireball extends Entity {
 
   override getBrightnessForRender(_pt: number): number {
     return 15728880;
+  }
+
+  override writeEntityToNBT(tag: TagCompound): void {
+    NBT.setShort(tag, 'xTile', this.xTile);
+    NBT.setShort(tag, 'yTile', this.yTile);
+    NBT.setShort(tag, 'zTile', this.zTile);
+    NBT.setByte(tag, 'inTile', this.inTile);
+    NBT.setByte(tag, 'inGround', this.inGround ? 1 : 0);
+    NBT.setList(tag, 'direction', NBTType.Double, NBT.doubleList(this.motionX, this.motionY, this.motionZ));
+  }
+
+  override readEntityFromNBT(tag: TagCompound): void {
+    this.xTile = NBT.getShort(tag, 'xTile');
+    this.yTile = NBT.getShort(tag, 'yTile');
+    this.zTile = NBT.getShort(tag, 'zTile');
+    this.inTile = NBT.getByte(tag, 'inTile') & 255;
+    this.inGround = NBT.getByte(tag, 'inGround') === 1;
+    const dir = NBT.getTagList<number>(tag, 'direction');
+    if (dir.length >= 3) {
+      this.motionX = Number(dir[0]) || 0;
+      this.motionY = Number(dir[1]) || 0;
+      this.motionZ = Number(dir[2]) || 0;
+    } else {
+      this.setDead();
+    }
   }
 }
