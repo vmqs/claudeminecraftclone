@@ -17,6 +17,7 @@ import { AccountDevTools } from './AccountDevTools';
 import { ControlsDevTools } from './ControlsDevTools';
 import { SaveDevTools } from './SaveDevTools';
 import { PerfDevTools } from './PerfDevTools';
+import { StatsDevTools } from '../stats/StatsDevTools';
 
 /** The hotbar of the reference captures: stone, grass, dirt, cobble, planks, log, glass, torch, diamond sword. */
 const DEV_HOTBAR = [1, 2, 3, 4, 5, 17, 20, 50, 276];
@@ -39,6 +40,8 @@ export class DevTools {
   readonly saves: SaveDevTools;
   /** Performance helpers (frame budget, queues, first meshes, idle tasks). */
   readonly perf: PerfDevTools;
+  /** Statistics and achievements (value, add, set, state, hint, pinClock, reset). */
+  readonly stats: StatsDevTools;
 
   constructor(private readonly mc: Minecraft) {
     this.sky = new SkyDevTools(mc);
@@ -49,6 +52,7 @@ export class DevTools {
     this.controls = new ControlsDevTools(mc);
     this.saves = new SaveDevTools(mc);
     this.perf = new PerfDevTools(mc);
+    this.stats = new StatsDevTools(mc);
   }
 
   /** True once the player stands in a loaded, meshed area with no screen open. */

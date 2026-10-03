@@ -8,6 +8,7 @@ import type { EntityLiving } from '../entity/EntityLiving';
 import type { EntityPlayer } from '../entity/EntityPlayer';
 import type { IWorld } from '../world/IWorld';
 import { EnumAction, EnumRarity } from './Item';
+import { StatIds } from '../stats/StatIds';
 
 const MAP_ID = 358;
 
@@ -48,8 +49,11 @@ export class ItemStack {
     return this.getItem().getSpriteNumber();
   }
 
+  /** The item's use on a block; a use that did something counts as "Used". */
   tryPlaceItemIntoWorld(player: EntityPlayer, world: IWorld, x: number, y: number, z: number, side: number, hx: number, hy: number, hz: number): boolean {
-    return this.getItem().onItemUse(this, player, world, x, y, z, side, hx, hy, hz);
+    const used = this.getItem().onItemUse(this, player, world, x, y, z, side, hx, hy, hz);
+    if (used) player.addStat(StatIds.useItem(this.itemID), 1);
+    return used;
   }
 
   getStrVsBlock(block: Block): number {
@@ -120,14 +124,21 @@ export class ItemStack {
     if (!this.isItemStackDamageable()) return;
     if (this.attemptDamageItem(amount, entity.getRNG())) {
       entity.renderBrokenItemStack(this);
+      if (entity.isPlayerEntity) (entity as unknown as EntityPlayer).addStat(StatIds.breakItem(this.itemID), 1);
       this.stackSize--;
       if (this.stackSize < 0) this.stackSize = 0;
       this.itemDamage = 0;
     }
   }
 
+  /** A hit with this item; one the item reacts to (wear) counts as "Used". */
   hitEntity(target: EntityLiving, player: EntityPlayer): void {
-    this.getItem().hitEntity(this, target, player);
+    if (this.getItem().hitEntity(this, target, player)) player.addStat(StatIds.useItem(this.itemID), 1);
+  }
+
+  /** A block broken with this item; one the item reacts to (tool wear) counts as "Used". */
+  onBlockDestroyed(w: IWorld, blockID: number, x: number, y: number, z: number, player: EntityPlayer): void {
+    if (this.getItem().onBlockDestroyed(this, w, blockID, x, y, z, player)) player.addStat(StatIds.useItem(this.itemID), 1);
   }
 
   /** Right click on a living entity with this stack (Item.itemInteractionForEntity). */
@@ -153,7 +164,9 @@ export class ItemStack {
     return this.getItem().isItemTool(this) && !this.isItemEnchanted();
   }
 
-  onCrafting(world: IWorld, player: EntityPlayer, _amount: number): void {
+  /** Crafted or smelted `amount` times ("Crafted"), then the item's own onCreated. */
+  onCrafting(world: IWorld, player: EntityPlayer, amount: number): void {
+    player.addStat(StatIds.craftItem(this.itemID), amount);
     this.getItem().onCreated(this, world, player);
   }
 

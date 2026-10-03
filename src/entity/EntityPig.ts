@@ -17,6 +17,7 @@ import { EntityList } from './EntityList';
 import type { EntityPlayer } from './EntityPlayer';
 import type { TagCompound } from '../item/ItemStack';
 import { NBT } from '../world/storage/NBT';
+import { AchievementIds } from '../stats/StatIds';
 
 const f = Math.fround;
 
@@ -112,8 +113,12 @@ export class EntityPig extends EntityAnimal {
     this.setDead();
   }
 
-  // fall(): the original also awards the "When Pigs Fly" achievement for a 5+ block fall while
-  // ridden; achievements are not implemented.
+  /** A ridden pig falling more than 5 blocks earns its rider "When Pigs Fly". */
+  protected override fall(dist: number): void {
+    super.fall(dist);
+    const rider = this.riddenByEntity as Entity | null;
+    if (dist > 5 && rider?.isPlayerEntity) (rider as EntityPlayer).triggerAchievement(AchievementIds.flyPig);
+  }
 
   createChild(_mate: EntityAgeable): EntityAgeable {
     return new EntityPig(this.worldObj);

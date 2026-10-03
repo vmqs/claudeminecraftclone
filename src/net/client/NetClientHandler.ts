@@ -372,6 +372,8 @@ export class NetClientHandler {
         return this.handleUpdateSign(p);
       case 'TileEntityData':
         return this.handleTileEntityData(p.x, p.y, p.z, p.tag);
+      case 'Statistic':
+        return player.incrementStat(p.statisticId, p.amount);
       case 'PlayerInfo':
         if (p.connected) this.playerInfo.set(p.name, p.ping);
         else this.playerInfo.delete(p.name);

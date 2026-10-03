@@ -17,7 +17,7 @@ import { PacketReader, PacketWriter, ProtocolError } from './PacketBuffer';
  *   meta     entity metadata entries [index, value]  i32s / f32s  number lists (65536 max)
  */
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 /** The game version shown on mismatches ("Outdated server!"). */
 export const GAME_VERSION = '1.5.2';
 
@@ -222,6 +222,8 @@ export const PACKETS = {
   UpdateSign: def(130, 'both', { x: 'i32', y: 'i16', z: 'i32', line0: 'str', line1: 'str', line2: 'str', line3: 'str' }),
   /** Packet132TileEntityData: a tile entity's description (spawner mob, skull, beacon, command block). */
   TileEntityData: def(132, 's2c', { x: 'i32', y: 'i16', z: 'i32', tag: 'json' }),
+  /** Packet200Statistic: the host counted a statistic for the guest's player (amount 1-100). */
+  Statistic: def(200, 's2c', { statisticId: 'i32', amount: 'u8' }),
   /** Packet201PlayerInfo: an entry of the TAB list. */
   PlayerInfo: def(201, 's2c', { name: 'name', connected: 'bool', ping: 'i16' }),
   /** Packet202PlayerAbilities: 1 invulnerable, 2 flying, 4 may fly, 8 creative. */

@@ -8,6 +8,8 @@ import { EntityLargeFireball } from './EntityLargeFireball';
 import { tagNumber } from './HostileMobUtil';
 import type { TagCompound } from '../item/ItemStack';
 import { NBT } from '../world/storage/NBT';
+import type { EntityPlayer } from './EntityPlayer';
+import { AchievementIds } from '../stats/StatIds';
 
 const f = Math.fround;
 
@@ -46,6 +48,7 @@ export class EntityGhast extends EntityFlying {
     if (this.isEntityInvulnerable()) return false;
     if (src.getDamageType() === 'fireball' && src.getEntity()?.isPlayerEntity) {
       super.attackEntityFrom(src, 1000);
+      (src.getEntity() as EntityPlayer).triggerAchievement(AchievementIds.ghast);
       return true;
     }
     return super.attackEntityFrom(src, amount);

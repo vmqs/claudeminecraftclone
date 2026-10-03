@@ -183,7 +183,7 @@ export class ItemInWorldManager {
       const block = Block.blocksList[id];
       const canHarvest = block ? p.canHarvestBlock(block) : false;
       if (held) {
-        held.getItem().onBlockDestroyed(held, w, id, x, y, z, p);
+        held.onBlockDestroyed(w, id, x, y, z, p);
         if (held.stackSize === 0) p.destroyCurrentEquippedItem();
       }
       if (removed && canHarvest && block) block.harvestBlock(w, p, x, y, z, meta);

@@ -27,6 +27,8 @@ import { EntityCrit2FX } from '../render/particle/EntityCrit2FX';
 import type { EntityFX } from '../render/particle/EntityFX';
 import type { World } from '../world/World';
 import { MovementInput } from './MovementInput';
+import { ClientStats } from '../stats/ClientStats';
+import { StatIds } from '../stats/StatIds';
 
 const f = Math.fround;
 
@@ -108,6 +110,27 @@ export class EntityPlayerSP extends EntityPlayer {
   }
 
   /**
+   * Set while the player drops items the way 1.5.2's integrated server did (Q, death): "Items
+   * Dropped" is a client-side statistic there, so only drops out of a window count.
+   */
+  private serverSideDrop = false;
+
+  /** EntityPlayerSP.addStat: into the client's stat file (achievements need their parent). */
+  override addStat(id: number, amount: number): void {
+    if (id === StatIds.drop && this.serverSideDrop) return;
+    ClientStats.addStat(id, amount);
+  }
+
+  override dropOneItem(wholeStack: boolean): Entity | null {
+    this.serverSideDrop = true;
+    try {
+      return super.dropOneItem(wholeStack);
+    } finally {
+      this.serverSideDrop = false;
+    }
+  }
+
+  /**
    * The client's copy of the player never learns where a hit came from (its attackedAtYaw stays
    * 0), so the hurt camera always rolls the same way and the body falls the same way on death.
    */
@@ -119,7 +142,12 @@ export class EntityPlayerSP extends EntityPlayer {
 
   override onDeath(src: DamageSource): void {
     this.attackedAtYaw = 0;
-    super.onDeath(src);
+    this.serverSideDrop = true;
+    try {
+      super.onDeath(src);
+    } finally {
+      this.serverSideDrop = false;
+    }
   }
 
   override closeScreen(): void {
@@ -178,6 +206,7 @@ export class EntityPlayerSP extends EntityPlayer {
       if (this.sprintingTicksLeft === 0) this.setSprinting(false);
     }
     if (this.sprintToggleTimer > 0) this.sprintToggleTimer--;
+    ClientStats.onPlayerUpdate();
     this.prevTimeInPortal = this.timeInPortal;
     if (this.inPortal) {
       this.mc.displayGuiScreen(null);

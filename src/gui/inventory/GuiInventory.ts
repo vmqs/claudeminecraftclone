@@ -7,6 +7,7 @@ import { RenderManager } from '../../render/entity/RenderManager';
 import type { Minecraft } from '../../client/Minecraft';
 import { GuiContainerCreative } from './GuiContainerCreative';
 import { InventoryEffectRenderer } from './InventoryEffectRenderer';
+import { AchievementIds } from '../../stats/StatIds';
 
 const f = Math.fround;
 
@@ -22,6 +23,7 @@ export class GuiInventory extends InventoryEffectRenderer {
   constructor(player: EntityPlayer) {
     super(player.inventoryContainer);
     this.allowUserInput = true;
+    player.addStat(AchievementIds.openInventory, 1);
   }
 
   override updateScreen(): void {

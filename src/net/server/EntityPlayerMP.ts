@@ -27,6 +27,7 @@ import type { TileEntityFurnace } from '../../world/tileentity/TileEntityFurnace
 import { ItemInWorldManager } from './ItemInWorldManager';
 import type { NetServerHandler } from './NetServerHandler';
 import { WindowType } from '../WindowTypes';
+import { StatList } from '../../stats/StatList';
 
 const f = Math.fround;
 
@@ -98,6 +99,20 @@ export class EntityPlayerMP extends EntityPlayer implements ICrafting {
     this.openContainer.detectAndSendChanges();
     this.sendWindowProgress();
     if (this.handler) this.sendStatus();
+  }
+
+  /**
+   * The guest keeps its own statistics: the host's counts (all but the independent ones, which
+   * the guest's client counts itself) go out as Packet200Statistic, at most 100 at a time.
+   */
+  override addStat(id: number, amount: number): void {
+    const stat = StatList.resolve(id);
+    if (!stat || stat.isIndependent || !this.handler || amount <= 0) return;
+    while (amount > 100) {
+      this.handler.sendPacket({ type: 'Statistic', statisticId: stat.statId, amount: 100 });
+      amount -= 100;
+    }
+    this.handler.sendPacket({ type: 'Statistic', statisticId: stat.statId, amount });
   }
 
   /** Health, food and experience when they changed (Packet8UpdateHealth, Packet43Experience). */

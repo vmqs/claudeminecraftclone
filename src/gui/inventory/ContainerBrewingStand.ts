@@ -8,6 +8,7 @@ import { Container } from './Container';
 import type { IInventory } from './IInventory';
 import { addPlayerSlots } from './PlayerSlots';
 import { Slot } from './Slot';
+import { AchievementIds } from '../../stats/StatIds';
 
 /** A bottle slot of the brewing stand (SlotBrewingStandPotion): one potion or glass bottle. */
 export class SlotBrewingStandPotion extends Slot {
@@ -17,6 +18,12 @@ export class SlotBrewingStandPotion extends Slot {
 
   override getSlotStackLimit(): number {
     return 1;
+  }
+
+  /** Taking out a brewed potion (any but a water bottle) earns "Local Brewery". */
+  override onPickupFromSlot(player: EntityPlayer, stack: ItemStack | null): void {
+    if (stack && stack.itemID === ItemIds.potion && stack.getItemDamage() > 0) player.addStat(AchievementIds.potion, 1);
+    super.onPickupFromSlot(player, stack);
   }
 
   static canHoldPotion(stack: ItemStack | null): boolean {

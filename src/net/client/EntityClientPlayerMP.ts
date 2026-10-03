@@ -5,6 +5,7 @@ import type { Entity } from '../../entity/Entity';
 import type { IInventory } from '../../gui/inventory/IInventory';
 import type { World } from '../../world/World';
 import type { Packet } from '../protocol/Packets';
+import { ClientStats } from '../../stats/ClientStats';
 
 const f = Math.fround;
 
@@ -49,6 +50,16 @@ export class EntityClientPlayerMP extends EntityPlayerSP {
   }
 
   override heal(_n: number): void {}
+
+  /** A guest counts only its own (independent) statistics; the host sends the rest (Packet200). */
+  override addStat(id: number, amount: number): void {
+    if (ClientStats.isIndependent(id)) super.addStat(id, amount);
+  }
+
+  /** Packet200Statistic: a statistic the host counted for this player. */
+  incrementStat(id: number, amount: number): void {
+    if (!ClientStats.isIndependent(id)) super.addStat(id, amount);
+  }
 
   override onUpdate(): void {
     if (this.worldObj.blockExists(MathHelper.floor_double(this.posX), 0, MathHelper.floor_double(this.posZ))) {

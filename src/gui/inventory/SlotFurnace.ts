@@ -5,6 +5,8 @@ import { FurnaceRecipes } from '../../item/crafting/FurnaceRecipes';
 import type { ItemStack } from '../../item/ItemStack';
 import type { IInventory } from './IInventory';
 import { Slot } from './Slot';
+import { ItemIds } from '../../block/BlockIds';
+import { AchievementIds } from '../../stats/StatIds';
 
 const f = Math.fround;
 
@@ -62,5 +64,7 @@ export class SlotFurnace extends Slot {
       }
     }
     this.amountTaken = 0;
+    if (stack.itemID === ItemIds.ingotIron) p.addStat(AchievementIds.acquireIron, 1);
+    if (stack.itemID === ItemIds.fishCooked) p.addStat(AchievementIds.cookFish, 1);
   }
 }
