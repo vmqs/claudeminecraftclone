@@ -31,6 +31,9 @@ import { TileEntityRenderer } from './tileentity/TileEntityRenderer';
 
 const f = Math.fround;
 
+const nearFirst = (a: WorldRenderer, b: WorldRenderer): number => a.sortDistance - b.sortDistance;
+const farFirst = (a: WorldRenderer, b: WorldRenderer): number => b.sortDistance - a.sortDistance;
+
 /** One 16^3 render section (WorldRenderer): two passes of uploaded geometry. */
 export class WorldRenderer {
   static chunksUpdated = 0;
@@ -41,6 +44,8 @@ export class WorldRenderer {
   stale = false;
   isInFrustum = true;
   hasGeometry = false;
+  /** Squared distance from the camera to the centre, set while sorting a pass. */
+  sortDistance = 0;
   readonly posX: number;
   readonly posY: number;
   readonly posZ: number;
@@ -144,7 +149,10 @@ export class RenderGlobal implements IWorldAccess {
   uploadBudgetMs = 4;
 
   constructor(private readonly mc: Minecraft) {
-    const n = Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 4) - 2));
+    // Two cores are left for the main thread and world generation; at least two meshers
+    // where there are more than two cores, at most four.
+    const cores = navigator.hardwareConcurrency || 4;
+    const n = cores <= 2 ? 1 : Math.max(2, Math.min(4, cores - 2));
     for (let i = 0; i < n; i++) {
       const worker = new Worker(new URL('../workers/mesher.worker.ts', import.meta.url), { type: 'module' });
       const w: MesherWorker = { worker, busy: 0 };
@@ -390,6 +398,8 @@ export class RenderGlobal implements IWorldAccess {
   }
 
   static readonly JOBS_PER_WORKER = 3;
+  /** The sections drawn in a pass (reused every frame). */
+  private readonly renderList: WorldRenderer[] = [];
   private readonly dispatchBest: WorldRenderer[] = [];
   private readonly dispatchKeys: number[] = [];
   private readonly dispatchNeighbours = new Map<number, boolean>();
@@ -453,7 +463,8 @@ export class RenderGlobal implements IWorldAccess {
       this.renderersBeingClipped = 0;
       this.renderersBeingRendered = 0;
     }
-    const list: WorldRenderer[] = [];
+    const list = this.renderList;
+    list.length = 0;
     for (const s of this.withGeometry) {
       if (Math.abs(s.sx - cx) > r || Math.abs(s.sz - cz) > r) continue;
       if (pass === 0 && !s.skipRenderPass(0)) {
@@ -461,16 +472,14 @@ export class RenderGlobal implements IWorldAccess {
         else this.renderersBeingRendered++;
       }
       if (s.skipRenderPass(pass) || !s.isInFrustum) continue;
-      list.push(s);
-    }
-    if (pass === 0) this.renderersSkippingRenderPass = this.renderersLoaded - this.renderersBeingClipped - this.renderersBeingRendered;
-    const d = (s: WorldRenderer) => {
       const dx = s.posX + 8 - camX;
       const dy = s.posY + 8 - camY;
       const dz = s.posZ + 8 - camZ;
-      return dx * dx + dy * dy + dz * dz;
-    };
-    list.sort(pass === 0 ? (a, b) => d(a) - d(b) : (a, b) => d(b) - d(a));
+      s.sortDistance = dx * dx + dy * dy + dz * dz;
+      list.push(s);
+    }
+    if (pass === 0) this.renderersSkippingRenderPass = this.renderersLoaded - this.renderersBeingClipped - this.renderersBeingRendered;
+    list.sort(pass === 0 ? nearFirst : farFirst);
     this.mc.entityRenderer.enableLightmap(pt);
     for (const s of list) {
       GL.pushMatrix();
@@ -479,7 +488,9 @@ export class RenderGlobal implements IWorldAccess {
       GL.popMatrix();
     }
     this.mc.entityRenderer.disableLightmap(pt);
-    return list.length;
+    const n = list.length;
+    list.length = 0;
+    return n;
   }
 
   getDebugInfoRenders(): string {
