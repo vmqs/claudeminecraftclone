@@ -146,23 +146,23 @@ export class NetServerHandler {
     try {
       packets = decodeFrame(frame, MAX_GUEST_MESSAGE, MAX_GUEST_PACKETS);
     } catch (e) {
-      this.kick(e instanceof ProtocolError ? `Protocol error: ${e.message}` : 'Protocol error', true);
+      this.kick(e instanceof ProtocolError ? `Protocol error: ${e.message}` : 'Protocol error', ABUSE_BAN_MS);
       return;
     }
     this.lastReceived = this.currentTicks;
     for (const p of packets) {
       if (!allowedFrom(p.type, 'client')) {
-        this.kick(`Protocol error, unexpected packet ${p.type}`, true);
+        this.kick(`Protocol error, unexpected packet ${p.type}`, ABUSE_BAN_MS);
         return;
       }
     }
     this.tokens -= packets.length;
     if (this.tokens < 0) {
-      this.kick('Sending too many packets', true);
+      this.kick('Sending too many packets', ABUSE_BAN_MS);
       return;
     }
     this.incoming.push(...packets);
-    if (this.incoming.length > PACKET_BURST * 2) this.kick('Sending too many packets', true);
+    if (this.incoming.length > PACKET_BURST * 2) this.kick('Sending too many packets', ABUSE_BAN_MS);
   }
 
   /** The guest left (Packet255 "Quitting"). */
@@ -219,17 +219,18 @@ export class NetServerHandler {
   }
 
   /**
-   * Kicks the guest with a reason (Packet255) and lets everyone know it left. `abuse` (data no
-   * game client sends: malformed packets, floods) also makes the host ignore that peer for a while.
+   * Kicks the guest with a reason (Packet255) and lets everyone know it left. With `banMs` the
+   * host ignores that peer (its browser tab) for so long: ABUSE_BAN_MS for data no game client
+   * sends (malformed packets, floods), longer for /ban.
    */
-  kick(reason: string, abuse = false): void {
+  kick(reason: string, banMs = 0): void {
     if (this.state === 'closed') return;
     console.warn(`[lan] kicking ${this.username || this.conn.peerId}: ${reason}`);
     this.outgoing.length = 0;
     this.outgoing.push({ type: 'KickDisconnect', reason });
     this.flush();
     this.state = 'closed';
-    this.conn.close(abuse ? ABUSE_BAN_MS : 0);
+    this.conn.close(banMs);
     this.server.playerDisconnected(this, reason);
   }
 
@@ -266,7 +267,7 @@ export class NetServerHandler {
     if (this.state === 'handshake') {
       if (p.type === 'Handshake') this.handleHandshake(p);
       else if (p.type === 'KickDisconnect') this.quit();
-      else this.kick('Protocol error, expected a handshake', true);
+      else this.kick('Protocol error, expected a handshake', ABUSE_BAN_MS);
       return;
     }
     if (this.state === 'login') {
@@ -338,7 +339,7 @@ export class NetServerHandler {
       case 'KickDisconnect':
         return this.quit();
       default:
-        this.kick(`Protocol error, unexpected packet ${p.type}`, true);
+        this.kick(`Protocol error, unexpected packet ${p.type}`, ABUSE_BAN_MS);
     }
   }
 
@@ -383,7 +384,7 @@ export class NetServerHandler {
 
   private queueFlying(p: Flying): void {
     if (!finite(p.x, p.y, p.z, p.stance, p.yaw, p.pitch)) {
-      this.kick('Illegal position', true);
+      this.kick('Illegal position', ABUSE_BAN_MS);
       return;
     }
     this.moves.push(p);
@@ -452,7 +453,7 @@ export class NetServerHandler {
       let mz = 0;
       if (moving && p.y === -999 && p.stance === -999) {
         if (Math.abs(p.x) > 1 || Math.abs(p.z) > 1) {
-          this.kick('Nope!', true);
+          this.kick('Nope!', ABUSE_BAN_MS);
           return;
         }
         mx = p.x;
@@ -652,13 +653,13 @@ export class NetServerHandler {
       return;
     }
     if (raw.length > 100) {
-      this.kick('Chat message too long', true);
+      this.kick('Chat message too long', ABUSE_BAN_MS);
       return;
     }
     const msg = raw.trim();
     for (const ch of msg) {
       if (ch === '§' || ch < ' ' || ch === '\x7f') {
-        this.kick('Illegal characters in chat', true);
+        this.kick('Illegal characters in chat', ABUSE_BAN_MS);
         return;
       }
     }

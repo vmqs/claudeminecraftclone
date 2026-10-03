@@ -12,7 +12,7 @@ import { I18n } from '../core/I18n';
 import { JavaRandom } from '../core/JavaRandom';
 import { MathHelper } from '../core/MathHelper';
 import { EnumMovingObjectType, type MovingObjectPosition } from '../core/MovingObjectPosition';
-import { type CommandServer, getPossibleCompletions, setServer } from '../command/CommandServer';
+import { type CommandServer, getPossibleCompletions, type LanCommandHost, setServer } from '../command/CommandServer';
 import { ServerCommandManager } from '../command/ServerCommandManager';
 import type { EntityLiving } from '../entity/EntityLiving';
 import type { EntityPlayer } from '../entity/EntityPlayer';
@@ -61,7 +61,7 @@ import { DebugHooks } from '../command/CommandDebug';
 import { GuiProfilerChart } from '../gui/GuiProfilerChart';
 import { GuiSleepMP } from '../gui/GuiSleepMP';
 import { loadChunksAroundBed } from './BedRespawn';
-import type { EnumGameType } from '../world/EnumGameType';
+import { EnumGameType } from '../world/EnumGameType';
 import { GuiDisconnected } from '../gui/GuiDisconnected';
 import { GuiMultiplayer } from '../gui/GuiMultiplayer';
 import { LanServer, type LanHostClient } from '../net/server/LanServer';
@@ -70,7 +70,7 @@ import { EntityClientPlayerMP } from '../net/client/EntityClientPlayerMP';
 import { PlayerControllerGuest } from '../net/client/PlayerControllerGuest';
 import type { WorldClient } from '../net/client/WorldClient';
 import { CONNECT_TIMEOUT_MS, makeGuestTransport, makeHostTransport } from '../net/NetSession';
-import { generateRoomCode, normalizeRoomCode } from '../net/RoomCode';
+import { formatRoomCode, generateRoomCode, normalizeRoomCode } from '../net/RoomCode';
 import { loadRejoinToken, saveRejoinToken } from '../net/RejoinTokens';
 import { ConnectError, type GuestTransport } from '../net/transport/Transport';
 import { loadUsername } from '../net/Username';
@@ -137,7 +137,43 @@ export class Minecraft implements SettingsListener {
     sendChatMsg: (msg) => (this.lanServer ? this.lanServer.sendChatMsg(msg) : this.ingameGUI.getChatGUI().printChatMessage(msg)),
     isSinglePlayer: () => true,
     getCommandManager: () => this.commandManager!,
+    lan: () => (this.netHandler ? null : this.lanCommandHost),
   };
+  /** /publish and the LAN host's moderation commands. */
+  private readonly lanCommandHost: LanCommandHost = this.makeLanCommandHost();
+
+  private makeLanCommandHost(): LanCommandHost {
+    const mc = this;
+    const lan = () => {
+      if (!mc.lanServer) throw new Error('The world is not open to LAN');
+      return mc.lanServer;
+    };
+    return {
+      get isOpen() {
+        return mc.lanServer?.isOpen === true;
+      },
+      publish: async () => {
+        const code = formatRoomCode(await mc.shareToLan(EnumGameType.SURVIVAL, false));
+        GuiScreen.setClipboardString(code);
+        mc.ingameGUI.getChatGUI().printChatMessage(`Room code: §e${code}§r - share it with friends (copied to the clipboard)`);
+        return code;
+      },
+      guestNames: () => mc.lanServer?.guestNames() ?? [],
+      kickPlayer: (name, reason) => lan().kickPlayer(name, reason),
+      banPlayer: (name, reason) => lan().banPlayer(name, reason),
+      pardonPlayer: (name) => lan().pardonPlayer(name),
+      bannedPlayers: () => mc.lanServer?.bannedPlayers() ?? [],
+      get whitelistOn() {
+        return mc.lanServer?.whitelistOn === true;
+      },
+      set whitelistOn(on: boolean) {
+        lan().whitelistOn = on;
+      },
+      get whitelist() {
+        return lan().whitelist;
+      },
+    };
+  }
   /** The LAN game this client hosts (IntegratedServer.shareToLAN), if open. */
   lanServer: LanServer | null = null;
   /** The connection to a host while playing as a guest (NetClientHandler). */

@@ -97,3 +97,6 @@ each (with a netsession / netprotocol check where it can be tested in Node).
   visibility at login and when they change; the host streams min(that, 10) (IntegratedPlayerList).
 - [x] Minor: chunk compression shares a 4 ms per-tick budget across guests (rotating who goes
   first); cached chunks are free. (A worker was not needed for this.)
+- [x] Minor: /publish opens the world to LAN (Survival, no cheats) and prints the room code.
+- [x] Minor: host-only /kick, /ban (name for the session, browser tab 12 h), /pardon, /banlist,
+  /whitelist (on keeps everyone playing; closes the game to new players). Guests never get them.

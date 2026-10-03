@@ -15,6 +15,7 @@ import { setServer, type CommandServer } from '../src/command/CommandServer';
 import { CommandHandler } from '../src/command/CommandHandler';
 import { CommandServerMessage } from '../src/command/CommandChat';
 import { CommandServerTp } from '../src/command/CommandServerTp';
+import { CommandServerBan, CommandServerKick, CommandServerPardon, CommandServerWhitelist } from '../src/command/CommandServerLan';
 import { CommandTime } from '../src/command/CommandTime';
 import { Vec3 } from '../src/core/Vec3';
 import { DamageSource } from '../src/entity/DamageSource';
@@ -89,6 +90,7 @@ const commands = new CommandHandler();
 commands.registerCommand(new CommandTime());
 commands.registerCommand(new CommandServerTp());
 commands.registerCommand(new CommandServerMessage());
+for (const c of [new CommandServerKick(), new CommandServerBan(), new CommandServerPardon(), new CommandServerWhitelist()]) commands.registerCommand(c);
 let lan: LanServer;
 const commandServer: CommandServer = {
   getWorlds: () => [hw],
@@ -96,6 +98,26 @@ const commandServer: CommandServer = {
   sendChatMsg: (msg) => lan.sendChatMsg(msg),
   isSinglePlayer: () => true,
   getCommandManager: () => commands,
+  lan: () => ({
+    get isOpen() {
+      return lan.isOpen;
+    },
+    publish: () => Promise.resolve(lan.code),
+    guestNames: () => lan.guestNames(),
+    kickPlayer: (n, r) => lan.kickPlayer(n, r),
+    banPlayer: (n, r) => lan.banPlayer(n, r),
+    pardonPlayer: (n) => lan.pardonPlayer(n),
+    bannedPlayers: () => lan.bannedPlayers(),
+    get whitelistOn() {
+      return lan.whitelistOn;
+    },
+    set whitelistOn(v: boolean) {
+      lan.whitelistOn = v;
+    },
+    get whitelist() {
+      return lan.whitelist;
+    },
+  }),
 };
 setServer(commandServer);
 lan = new LanServer(
@@ -734,6 +756,38 @@ check('guest is creative (LAN game mode)', bob.pc.isInCreativeMode() && bobMP!.c
   check('leave message', hostChat.some((l) => l.includes('Carol left the game')) && bob.chat.some((l) => l.includes('Carol left the game')));
   check('other guest no longer sees the leaver', !gw.loadedEntityList.some((e) => e instanceof EntityOtherPlayerMP && e.username === 'Carol'));
   check('TAB list without the leaver', !bob.handler.playerInfo.has('Carol'));
+}
+
+// ---------------------------------------------------------------------- the host's moderation
+{
+  const zed = await join('Zed');
+  step(10);
+  bob.mc.thePlayer!.sendChatMessage('/kick Zed');
+  step(3);
+  check('guests cannot kick, even with cheats', zed.handler.state === 'play');
+  host.sendChatMessage('/kick Zed be nice');
+  step(3);
+  check('/kick disconnects a guest with the reason', zed.disconnected?.reason === 'be nice', zed.disconnected?.reason);
+  const zed2 = await join('Zed');
+  step(10);
+  check('a kicked guest may come back', zed2.handler.state === 'play');
+  host.sendChatMessage('/ban Zed griefing');
+  step(3);
+  check('/ban disconnects the guest', zed2.disconnected?.reason.includes('griefing') === true, zed2.disconnected?.reason);
+  const zed3 = await join('Zed');
+  step(5);
+  check('a banned name stays out', zed3.disconnected?.reason.includes('banned') === true, zed3.disconnected?.reason);
+  host.sendChatMessage('/pardon Zed');
+  const zed4 = await join('Zed');
+  step(10);
+  check('/pardon lets the name back in', zed4.handler.state === 'play', zed4.disconnected?.reason);
+  host.sendChatMessage('/whitelist on');
+  const yan = await join('Yan');
+  step(5);
+  check('/whitelist on closes the game to new players', yan.disconnected?.reason === 'You are not white-listed on this server!' && zed4.handler.state === 'play', yan.disconnected?.reason);
+  host.sendChatMessage('/whitelist off');
+  zed4.handler.disconnect();
+  step(3);
 }
 
 // ---------------------------------------------------------------------- names of departed guests

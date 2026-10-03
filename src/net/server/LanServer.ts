@@ -65,6 +65,8 @@ export interface PlayerListEntry {
   responseTime: number;
 }
 
+/** How long the host ignores a /banned guest's browser tab (a new name from the same tab). */
+const BAN_MS = 12 * 60 * 60 * 1000;
 /** Guests whose state is kept (the oldest is forgotten first). */
 const MAX_SAVED_PLAYERS = 64;
 /** How long a departed guest's name stays reserved for its owner (then the name is free again). */
@@ -362,6 +364,39 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
     const out: PlayerListEntry[] = [{ name: this.host.hostName, responseTime: 0 }];
     for (const h of this.handlers) if (h.state === 'play' && h.player) out.push({ name: h.player.username, responseTime: h.player.ping });
     return out;
+  }
+
+  // ------------------------------------------------------------------ moderation (/kick, /ban, /pardon, /whitelist)
+
+  private handlerNamed(name: string): NetServerHandler | null {
+    const lower = name.toLowerCase();
+    return this.handlers.find((h) => (h.state === 'play' || h.state === 'login') && h.username.toLowerCase() === lower) ?? null;
+  }
+
+  /** Names of the connected guests. */
+  guestNames(): string[] {
+    return this.handlers.filter((h) => h.state === 'play').map((h) => h.username);
+  }
+
+  kickPlayer(name: string, reason: string): boolean {
+    const h = this.handlerNamed(name);
+    if (!h) return false;
+    h.kick(reason);
+    return true;
+  }
+
+  /** Keeps the name out until the room closes; a connected guest is kicked and its tab ignored too. */
+  banPlayer(name: string, reason: string): void {
+    this.bannedNames.set(name.toLowerCase(), reason);
+    this.handlerNamed(name)?.kick(`You are banned from this game: ${reason}`, BAN_MS);
+  }
+
+  pardonPlayer(name: string): boolean {
+    return this.bannedNames.delete(name.toLowerCase());
+  }
+
+  bannedPlayers(): string[] {
+    return [...this.bannedNames.keys()];
   }
 
   /** The guests' players (for commands: @p, /tp, /tell). */

@@ -13,6 +13,27 @@ export interface CommandServer {
   sendChatMsg(msg: string): void;
   isSinglePlayer(): boolean;
   getCommandManager(): CommandHandler;
+  /** The LAN game's moderation (host only), when the world can be or is open to LAN. */
+  lan?(): LanCommandHost | null;
+}
+
+/** What /publish, /kick, /ban, /pardon, /banlist and /whitelist need from a LAN host. */
+export interface LanCommandHost {
+  /** Whether the world is open to LAN now. */
+  readonly isOpen: boolean;
+  /** /publish: opens the world to LAN (Survival, no cheats) and resolves with the room code as shown. */
+  publish(): Promise<string>;
+  /** Names of the connected guests. */
+  guestNames(): string[];
+  /** Disconnects a guest; false when no guest has that name. */
+  kickPlayer(name: string, reason: string): boolean;
+  /** Keeps a name out for the session (and kicks it, with its browser tab, when connected). */
+  banPlayer(name: string, reason: string): void;
+  /** Lifts a ban; false when the name was not banned. */
+  pardonPlayer(name: string): boolean;
+  bannedPlayers(): string[];
+  whitelistOn: boolean;
+  readonly whitelist: Set<string>;
 }
 
 let server: CommandServer | null = null;

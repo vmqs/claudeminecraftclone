@@ -30,6 +30,9 @@ import { WindowType } from '../WindowTypes';
 
 const f = Math.fround;
 
+/** Commands a guest never gets, even with "Allow Cheats". */
+const HOST_ONLY_COMMANDS = new Set(['publish', 'kick', 'ban', 'pardon', 'banlist', 'whitelist']);
+
 /** The server half of a LAN host: what EntityPlayerMP asked of MinecraftServer. */
 export interface PlayerServer {
   /** ServerConfigurationManager.sendChatMsg: one line for everyone. */
@@ -150,10 +153,14 @@ export class EntityPlayerMP extends EntityPlayer implements ICrafting {
     return this.chatVisibility;
   }
 
-  /** seed, tell, help and me always work; everything else needs "Allow Cheats" of the LAN game. */
+  /**
+   * seed, tell, help and me always work; the LAN game's moderation and /publish are the host's
+   * alone; everything else needs "Allow Cheats" of the LAN game.
+   */
   override canCommandSenderUseCommand(_level: number, command: string): boolean {
     if (command === 'seed') return true;
     if (command === 'tell' || command === 'help' || command === 'me') return true;
+    if (HOST_ONLY_COMMANDS.has(command)) return false;
     return this.server.commandsAllowedForAll;
   }
 
