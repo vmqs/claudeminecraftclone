@@ -1,5 +1,5 @@
 import type { JoinRoom, JoinRoomConfig, MessageAction, Room } from '@trystero-p2p/nostr';
-import { NET_APP_ID, roomIdForCode } from '../RoomCode';
+import { deriveRoomKeys, formatRoomCode, NET_APP_ID, type RoomKeys } from '../RoomCode';
 import { ABUSE_BAN_MS, COULD_NOT_CONNECT, ConnectError, type GuestTransport, type HostTransport, type NetConnection } from './Transport';
 
 /**
@@ -38,9 +38,9 @@ function strategiesOf(o: TrysteroOptions): SignallingStrategy[] {
   return ['nostr', 'torrent'];
 }
 
-function configFor(s: SignallingStrategy, code: string, o: TrysteroOptions): JoinRoomConfig {
+function configFor(s: SignallingStrategy, keys: RoomKeys, o: TrysteroOptions): JoinRoomConfig {
   const relayConfig = s === 'relay' ? { urls: o.relayUrls ?? [], warnOnRelayFailure: false } : { warnOnRelayFailure: false };
-  return { appId: NET_APP_ID, password: code, relayConfig } as JoinRoomConfig;
+  return { appId: NET_APP_ID, password: keys.password, relayConfig } as JoinRoomConfig;
 }
 
 /** The host's greeting (protocol marker), sent to each peer that joins the room. */
@@ -162,11 +162,12 @@ export class TrysteroHost implements HostTransport {
   async start(code: string): Promise<void> {
     globalThis.__mc152TrysteroLimits = { ...HOST_LIMITS, onViolation: (peerId) => this.dropPeer(peerId, 'buffer limits') };
     const errors: string[] = [];
+    const keys = await deriveRoomKeys(code);
     for (const s of strategiesOf(this.options)) {
       try {
         const join = await loadJoinRoom(s);
         if (this.stopped) return;
-        const room = join(configFor(s, code, this.options), roomIdForCode(code), {
+        const room = join(configFor(s, keys, this.options), keys.roomId, {
           onJoinError: (d) => console.warn(`[lan] ${s}: ${d.error}`),
         });
         const action = room.makeAction<Payload>('mc');
@@ -287,7 +288,7 @@ export class TrysteroGuest implements GuestTransport {
         this.routes = [route];
         resolve(conn);
       };
-      const twoHosts = () => `Two players claim to host room ${code} (someone may be pretending to be the host)`;
+      const twoHosts = () => `Two players claim to host room ${formatRoomCode(code)} (someone may be pretending to be the host)`;
       globalThis.__mc152TrysteroLimits = {
         ...GUEST_LIMITS,
         onViolation: (peerId) => {
@@ -297,13 +298,14 @@ export class TrysteroGuest implements GuestTransport {
           for (const r of this.routes) closePeerLink(r.room, peerId);
         },
       };
-      const timer = setTimeout(() => finish(new ConnectError(`${COULD_NOT_CONNECT} (no answer for room ${code})`)), timeoutMs);
+      const timer = setTimeout(() => finish(new ConnectError(`${COULD_NOT_CONNECT} (no answer for room ${formatRoomCode(code)})`)), timeoutMs);
       this.cancelled = () => finish(new ConnectError('Cancelled'));
+      const keys = deriveRoomKeys(code);
       for (const s of strategies) {
-        void loadJoinRoom(s)
-          .then((join) => {
+        void Promise.all([loadJoinRoom(s), keys])
+          .then(([join, k]) => {
             if (settled) return;
-            const room = join(configFor(s, code, this.options), roomIdForCode(code), {
+            const room = join(configFor(s, k, this.options), k.roomId, {
               onJoinError: (d) => {
                 console.warn(`[lan] ${s}: ${d.error}`);
                 if (++failed >= strategies.length) finish(new ConnectError(`${COULD_NOT_CONNECT}: the peer-to-peer link failed (a strict NAT or firewall may need a relay server)`));

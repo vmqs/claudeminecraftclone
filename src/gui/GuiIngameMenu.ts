@@ -1,4 +1,5 @@
 import { I18n } from '../core/I18n';
+import { formatRoomCode } from '../net/RoomCode';
 import { GuiButton } from './GuiButton';
 import { GuiMainMenu } from './GuiMainMenu';
 import { GuiOptions } from './GuiOptions';
@@ -58,7 +59,7 @@ export class GuiIngameMenu extends GuiScreen {
     this.drawDefaultBackground();
     this.drawCenteredString(this.fontRenderer, 'Game menu', Math.trunc(this.width / 2), 40, 0xffffff);
     const code = this.mc.lanServer?.code;
-    if (code) this.drawCenteredString(this.fontRenderer, `§7Room code: §f${code}`, Math.trunc(this.width / 2), 52, 0xffffff);
+    if (code) this.drawCenteredString(this.fontRenderer, `§7Room code: §f${formatRoomCode(code)}`, Math.trunc(this.width / 2), 52, 0xffffff);
     super.drawScreen(mx, my, pt);
   }
 }

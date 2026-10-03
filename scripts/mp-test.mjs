@@ -151,7 +151,7 @@ try {
   await shot(host, '01_host_open_to_lan.png');
   await host.evaluate(() => window.mc.displayGuiScreen(null));
   const code = await host.evaluate(() => window.mc.dev.net.host('Alice', 'creative', true));
-  check('host opened the world to LAN', /^[A-Z2-9]{6}$/.test(code), code);
+  check('host opened the world to LAN', /^[A-Z2-9]{8}$/.test(code), code);
   await host.waitForTimeout(800);
   await host.evaluate(() => window.mc.dev.screen('pause'));
   await host.waitForTimeout(800);
@@ -170,7 +170,7 @@ try {
   // Direct Connect with the room code typed like a player would.
   await guest.evaluate(() => window.mc.dev.screen('directconnect'));
   await guest.waitForTimeout(500);
-  await guest.keyboard.type(code.toLowerCase(), { delay: 40 });
+  await guest.keyboard.type(`${code.slice(0, 4)}-${code.slice(4)}`.toLowerCase(), { delay: 40 });
   await guest.waitForTimeout(500);
   await shot(guest, '04_guest_direct_connect.png');
   await guest.evaluate((c) => window.mc.dev.net.join(c, 'Bob'), code);

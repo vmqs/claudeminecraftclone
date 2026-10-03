@@ -1,4 +1,5 @@
 import { Keyboard, Keys, Mouse } from '../client/Keyboard';
+import { formatRoomCode, normalizeRoomCode } from '../net/RoomCode';
 import { GuiConfirmOpenLink } from './GuiConfirmOpenLink';
 import { GuiScreen } from './GuiScreen';
 import { GuiTextField } from './GuiTextField';
@@ -88,10 +89,11 @@ export class GuiChat extends GuiScreen {
 
   protected override mouseClicked(x: number, y: number, button: number): void {
     // Clicking the room code of the LAN game copies it again.
-    const code = this.mc.lanServer?.code;
-    if (button === 0 && code) {
+    const raw = this.mc.lanServer?.code;
+    if (button === 0 && raw) {
       const word = this.mc.ingameGUI.getChatGUI().getChatClickData(Mouse.getX(), Mouse.getY())?.getClickedUrl() ?? '';
-      if (word === code) {
+      if (normalizeRoomCode(word) === raw) {
+        const code = formatRoomCode(raw);
         GuiScreen.setClipboardString(code);
         this.mc.ingameGUI.getChatGUI().printChatMessage(`§7Room code ${code} copied to the clipboard`);
         return;

@@ -1,6 +1,7 @@
 import { Keyboard } from '../client/Keyboard';
 import { I18n } from '../core/I18n';
 import { isUsernameChar, isValidUsername, saveUsername } from '../net/Username';
+import { formatRoomCode } from '../net/RoomCode';
 import { EnumGameType } from '../world/EnumGameType';
 import { GuiButton } from './GuiButton';
 import { GuiScreen } from './GuiScreen';
@@ -80,7 +81,8 @@ export class GuiShareToLan extends GuiScreen {
       const chat = this.mc.ingameGUI.getChatGUI();
       this.mc.displayGuiScreen(null);
       this.mc.shareToLan(EnumGameType.getByName(this.gameMode), this.allowCommands).then(
-        (code) => {
+        (raw) => {
+          const code = formatRoomCode(raw);
           chat.printChatMessage(this.mc.thePlayer?.translateString('commands.publish.started', `room ${code}`) ?? `Local game hosted on room ${code}`);
           GuiScreen.setClipboardString(code);
           chat.printChatMessage(`Room code: §e${code}§r - share it with friends (copied to the clipboard)`);

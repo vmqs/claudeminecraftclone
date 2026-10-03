@@ -4,6 +4,7 @@ import { GuiDisconnected } from '../gui/GuiDisconnected';
 import { GuiDownloadTerrain } from '../gui/GuiDownloadTerrain';
 import { GuiMultiplayer, ServerData } from '../gui/GuiMultiplayer';
 import { GuiMainMenu } from '../gui/GuiMainMenu';
+import { formatRoomCode } from '../net/RoomCode';
 import { EnumGameType } from '../world/EnumGameType';
 import type { Minecraft } from './Minecraft';
 
@@ -27,7 +28,7 @@ export class NetDevTools {
     }
     try {
       this.lastCode = await this.mc.shareToLan(EnumGameType.getByName(mode), cheats);
-      this.mc.ingameGUI.getChatGUI().printChatMessage(`Room code: §e${this.lastCode}§r - share it with friends`);
+      this.mc.ingameGUI.getChatGUI().printChatMessage(`Room code: §e${formatRoomCode(this.lastCode)}§r - share it with friends`);
       return this.lastCode;
     } catch (e) {
       this.lastError = String(e);

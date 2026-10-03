@@ -1025,7 +1025,7 @@ export class Minecraft implements SettingsListener {
     this.loadWorld(null);
     const code = normalizeRoomCode(input);
     if (!code) {
-      onFailed(`"${input}" is not a room code (6 letters and digits)`);
+      onFailed(`"${input}" is not a room code (8 letters and digits, like ABCD-EFGH)`);
       return;
     }
     const transport = makeGuestTransport();

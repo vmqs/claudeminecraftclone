@@ -78,3 +78,7 @@ each (with a netsession / netprotocol check where it can be tested in Node).
   bucket per host tick, or per 50 ms of real time when the host runs slow; burst 5) and each
   packet may cover at most 1 block (2.5 with flight allowed, scaled by Speed; 1.5 up, 4 down),
   wider for 2 s after the host pushes the player (tracker velocity, explosions). More is put back.
+- [x] Major: room codes are 8 characters (ABCD-EFGH, about 2^39) and the signalling room id and
+  password are PBKDF2-SHA256 (200k iterations) halves of the code, so relay observers cannot
+  enumerate rooms cheaply. TODO in docs: say plainly that every peer in a room sees the others'
+  IP addresses; host moderation is /kick, /ban, /whitelist (minor fixes below).

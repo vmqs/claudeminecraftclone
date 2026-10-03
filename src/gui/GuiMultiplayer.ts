@@ -11,7 +11,7 @@ import { GuiSlot } from './GuiSlot';
 import { GuiYesNo } from './GuiYesNo';
 import { GuiTextField } from './GuiTextField';
 import { filterUsername } from './GuiShareToLan';
-import { normalizeRoomCode } from '../net/RoomCode';
+import { formatRoomCode, normalizeRoomCode } from '../net/RoomCode';
 import { isUsernameChar, isValidUsername, saveUsername } from '../net/Username';
 
 /** One saved server (ServerData). */
@@ -109,7 +109,7 @@ function pollServer(d: ServerData): void {
       const code = normalizeRoomCode(d.serverIP);
       d.isRoom = code !== null;
       d.pingToServer = -1;
-      d.serverMOTD = code ? `§7Room code ${code}` : "§4Can't reach server";
+      d.serverMOTD = code ? `§7Room code ${formatRoomCode(code)}` : "§4Can't reach server";
       threadsPending--;
     },
     400 + Math.random() * 400,
