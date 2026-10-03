@@ -184,7 +184,11 @@ same frozen Superflat scenes (a block palette, smooth-lighting shadows, a mob li
 creative inventory) from a baseline build served on port 5222 (`ab_base_*.png`) and from the
 current one (`ab_new_*.png`) for a pixel comparison (`compare -metric AE ab_base_x.png
 ab_new_x.png`), asserts the `mc.dev.perf` checks, then times a default world from the title
-screen. Numbers and how they were taken: `docs/PERFORMANCE.md`.
+screen. For the baseline, export the commit to compare with into a scratch directory
+(`git archive <commit> | tar -x -C <dir>`), link `node_modules` and `public/assets` there, run
+`npx vite build` and `npx vite preview --port 5222 --strictPort` in it, and serve the current
+build with `npx vite preview --port 4222 --strictPort`. Numbers and how they were taken:
+`docs/PERFORMANCE.md`.
 
 ## Multiplayer
 
