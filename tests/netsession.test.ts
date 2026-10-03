@@ -295,7 +295,8 @@ check('guest is creative (LAN game mode)', bob.pc.isInCreativeMode() && bobMP!.c
   const p = bob.mc.thePlayer!;
   walkTo(bob, 10.5, 4, 10.5);
   step(6);
-  check('guest movement reaches the host', Math.abs(bobMP!.posX - 10.5) < 0.01 && Math.abs(bobMP!.posY - 4) < 0.01, `${bobMP!.posX} ${bobMP!.posY} ${bobMP!.posZ}`);
+  // (Within a hair of the target: the walk may brush past the host's player, which pushes.)
+  check('guest movement reaches the host', Math.abs(bobMP!.posX - p.posX) < 0.01 && Math.abs(bobMP!.posZ - p.posZ) < 0.01 && Math.abs(bobMP!.posX - 10.5) < 0.1 && Math.abs(bobMP!.posY - 4) < 0.01, `${bobMP!.posX} ${bobMP!.posY} ${bobMP!.posZ}`);
   host.setPosition(6.5, 4 + host.yOffset, 6.5);
   step(6);
   check('host movement reaches the guest', !!alice && Math.abs(alice.posX - 6.5) < 0.05 && Math.abs(alice.posZ - 6.5) < 0.05, alice ? `${alice.posX} ${alice.posZ}` : '');

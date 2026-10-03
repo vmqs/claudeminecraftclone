@@ -95,3 +95,5 @@ each (with a netsession / netprotocol check where it can be tested in Node).
 - [x] Minor: a block change drops the host's encoded copies of the 3x3 chunks around it (light).
 - [x] Minor: guests send their render distance (far 12, normal 8, short 4, tiny 2 chunks) and chat
   visibility at login and when they change; the host streams min(that, 10) (IntegratedPlayerList).
+- [x] Minor: chunk compression shares a 4 ms per-tick budget across guests (rotating who goes
+  first); cached chunks are free. (A worker was not needed for this.)

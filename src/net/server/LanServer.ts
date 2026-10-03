@@ -71,6 +71,11 @@ const MAX_SAVED_PLAYERS = 64;
 const SAVED_NAME_RESERVED_MS = 30 * 60 * 1000;
 
 const CHUNKS_PER_TICK = 4;
+/**
+ * Main-thread time per tick for compressing chunks for all guests together (a chunk of normal
+ * terrain takes about 2 ms); chunks already compressed for someone else cost nothing and still go.
+ */
+const ENCODE_BUDGET_MS = 4;
 const MAX_PENDING_SENDS = 24;
 const PARTICLES_PER_TICK = 200;
 const SPAWN_RADIUS = 1;
@@ -102,6 +107,9 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
   private readonly chunkCache = new Map<number, { data: Uint8Array; tick: number }>();
   private readonly particles = new Map<NetServerHandler, Map<string, number[]>>();
   private ticks = 0;
+  /** Chunk compression this tick (ENCODE_BUDGET_MS). */
+  private encodeMs = 0;
+  private encodedThisTick = 0;
   private wasRaining = false;
   private open = false;
 
@@ -415,7 +423,14 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
     for (const h of [...this.handlers]) h.networkTick();
     this.processLogins();
     this.updateLoadCenters();
-    for (const h of this.handlers) if (h.state === 'play') this.updateChunks(h);
+    // Guests take turns at the front of the queue, so the compression budget is shared fairly.
+    this.encodeMs = 0;
+    this.encodedThisTick = 0;
+    const n = this.handlers.length;
+    for (let i = 0; i < n; i++) {
+      const h = this.handlers[(i + this.ticks) % n];
+      if (h.state === 'play') this.updateChunks(h);
+    }
     this.flushBlockChanges();
     this.tracker.update(this.handlers, this.settings.viewDistance * 16 - 16);
     this.flushParticles();
@@ -475,6 +490,7 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
           const kz = cz + dz;
           const k = World.chunkKey(kx, kz);
           if (h.loadedChunks.has(k) || !w.chunkExists(kx, kz)) continue;
+          if (!this.chunkCache.has(k) && this.encodedThisTick > 0 && this.encodeMs >= ENCODE_BUDGET_MS) return;
           h.sendPacket(this.mapChunkPacket(w.getChunkFromChunkCoords(kx, kz)));
           h.loadedChunks.add(k);
           sent++;
@@ -488,6 +504,7 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
     const k = World.chunkKey(c.xPosition, c.zPosition);
     let cached = this.chunkCache.get(k);
     if (!cached) {
+      const t0 = performance.now();
       const sections = [];
       for (let i = 0; i < 16; i++) {
         const s = c.sections[i];
@@ -495,6 +512,8 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
       }
       cached = { data: encodeChunkData({ sections, biomes: c.biomes }), tick: this.ticks };
       this.chunkCache.set(k, cached);
+      this.encodeMs += performance.now() - t0;
+      this.encodedThisTick++;
     }
     const tiles = [...c.chunkTileEntityMap.values()].filter((te) => !te.isInvalid()).map((te) => describeTileEntity(te.toDescriptor()));
     return { type: 'MapChunk', cx: c.xPosition, cz: c.zPosition, data: cached.data, tileEntities: tiles };
