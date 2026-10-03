@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "A browser recreation of Minecraft 1.5.2 (Creative mode) in TypeScript and WebGL2.",
+  "description": "A browser recreation of Minecraft 1.5.2 in TypeScript and WebGL2.",
   "scripts": {
     "fetch-assets": "node scripts/fetch-assets.mjs",
     "dev": "npm run fetch-assets && vite",
@@ -12,9 +12,14 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "fflate": "^0.8.3",
     "playwright-core": "^1.63.0",
     "typescript": "~5.9.3",
     "vite": "^8.3.2"
+  },
+  "dependencies": {
+    "@trystero-p2p/nostr": "^0.25.4",
+    "@trystero-p2p/torrent": "^0.25.4",
+    "@trystero-p2p/ws-relay": "^0.25.4",
+    "fflate": "^0.8.3"
   }
 }
