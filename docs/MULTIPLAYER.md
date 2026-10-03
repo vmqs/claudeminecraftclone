@@ -8,9 +8,14 @@ carry the WebRTC handshake. See **Privacy and security** below for what that exp
 
 ## Playing
 
+**Your account.** The title screen's **Account Manager** (under Multiplayer; also **Account
+Manager...** in Options) holds the player's **name** and **skin**: a field for the name, a
+turning preview of the player model wearing the skin (drag it to turn it), **Upload Skin...**
+and **Reset to Steve**. The host plays and the guests join under that name.
+
 **Hosting.** Start or load a world, press Esc and choose **Open to LAN**. The screen has the
-1.5.2 settings (**Game Mode** for other players, **Allow Cheats**) and a **Your Name** field. Press
-**Start LAN World**. The chat shows
+1.5.2 settings (**Game Mode** for other players, **Allow Cheats**). Press **Start LAN World**.
+The chat shows
 
 ```
 Local game hosted on room ABCD-EFGH
@@ -24,17 +29,37 @@ its title. While the world is open the game keeps running behind the pause menu 
 background tab (more slowly, because browsers throttle hidden tabs). **Save and Quit to Title**
 closes the room and every guest sees "Server closed".
 
-**Joining.** From the title screen choose **Multiplayer**, type your name in the **Name** field
-(top right), then **Direct Connect**, type the room code (8 letters and digits; not case
-sensitive; spaces and dashes are ignored) and press **Join Server**. **Add Server** saves a room code in the list
-under a name, like a server address. The screens are 1.5.2's: *Connecting to the server...*,
+**Joining.** From the title screen choose **Multiplayer**, then **Room Code** (beside Direct
+Connect), type the room code (8 letters and digits; not case sensitive; spaces and dashes are
+ignored) and press **Join Server**. The screens are 1.5.2's: *Connecting to the server...*,
 *Logging in...*, *Downloading terrain*. In the game, the pause menu's **Disconnect** leaves.
 
-**Names.** 3 to 16 letters, digits or underscores, remembered by the browser (the first default
-is `Player` and three digits). Two players in one room cannot share a name ("The name Bob is
-already taken"). Names show above players (hidden behind walls while they sneak, as in 1.5.2),
-in chat, in the TAB list, in death messages and in commands (`@p`, `/tell Bob hi`, `/tp Bob`).
-Everyone wears the Steve skin.
+**Servers.** **Direct Connect**, **Add server**, **Edit** and the saved list work as in 1.5.2:
+they take a server address (`host`, `host:port`, `[IPv6]:port`; the port defaults to 25565)
+and the list pings each entry ("Polling.." while it tries). Browsers cannot open the raw TCP
+connection a Minecraft server speaks, so with no connector installed (see **Server
+connections** below) every entry ends on "Can't reach server" with the red cross, and joining
+ends on *Failed to connect to the server* / "Connection refused: browsers cannot open direct
+server connections yet", the way 1.5.2 showed an unreachable server. Room codes saved in the
+list by earlier versions (when Add Server stored codes) stay in the list as rooms: they show
+"Room code ABCD-EFGH" and **Join Server** joins the room.
+
+**Names.** 3 to 16 letters, digits or underscores, set in the Account Manager and remembered
+by the browser (the first default is `Player` and three digits). In single player a new name
+applies at once; during a LAN game it applies from the next game opened or joined. Two players
+in one room cannot share a name ("The name Bob is already taken"). Names show above players
+(hidden behind walls while they sneak, as in 1.5.2), in chat, in the TAB list, in death
+messages and in commands (`@p`, `/tell Bob hi`, `/tp Bob`).
+
+**Skins.** **Upload Skin...** takes a PNG of 64x32 pixels (1.5.2's layout) or 64x64 (newer
+skins; the top half is used, which holds the same parts); other sizes are refused with a
+message. The skin is processed like a 1.5.2 downloaded skin (`ImageBufferDownload`: opaque
+head and body, the hat layer cleared when the picture has no see-through pixel there) and kept
+in `localStorage` (`mc152.skin`, a PNG data URL). It shows wherever the player model does: the
+third-person views, the first-person arm, the inventory and the Account Manager. In a room,
+each player's skin travels to the host after the login (and again when it changes) and the
+host passes it on, so everyone sees everyone's skin; a player without one wears the texture
+pack's Steve.
 
 **Cheats.** With Allow Cheats on, guests may run every command except the host's own (below);
 without it they keep `/tell`, `/me`, `/help` and `/seed`. The host can always use commands its
@@ -112,7 +137,9 @@ Minecraft (single player, unchanged)                 Minecraft
 |---|---|
 | `RoomCode.ts` | 8 characters from `ABCDEFGHJKMNPQRSTWXYZ23456789` (no 0/O, 1/I/L, U/V), drawn with `crypto.getRandomValues`, shown as `ABCD-EFGH`; `normalizeRoomCode` accepts lower case, spaces and dashes; `deriveRoomKeys` makes the trystero room id and password (app id `mc152-html-vmqs-claudeminecraftclone`) from PBKDF2 over the code. |
 | `RejoinTokens.ts` | the rejoin tokens a guest was given, in `localStorage` (`mc152.rejoin`) per room code and name (the 16 newest rooms). |
-| `Username.ts` | validation (`^[A-Za-z0-9_]{3,16}$`), the default name, `localStorage` key `mc152.username`. |
+| `Username.ts` | validation (`^[A-Za-z0-9_]{3,16}$`), the typing filter, the default name, `localStorage` key `mc152.username` (set in the Account Manager). |
+| `SkinSync.ts` | the `MC\|Skin` payloads (below). Skins themselves: `src/client/skin/` (`SkinImage` sizes and 1.5.2's processing, `PlayerSkins` registry by player, `SkinFiles` upload and storage) and `src/render/entity/SkinTextures.ts` (one texture per skin, bound by RenderPlayer and the first-person arm). |
+| `connect/ServerAddress.ts`, `connect/ServerConnector.ts` | 1.5.2's ServerAddress parsing (`host[:port]`, `[IPv6]:port`, default 25565, optional `scheme://`) and the connector registry for real server connections (below). |
 | `transport/Transport.ts` | `NetConnection` (binary messages, `pendingSends`), `HostTransport`, `GuestTransport`, `ConnectError`. |
 | `transport/TrysteroTransport.ts` | WebRTC through trystero. Host and guests join the room on every signalling route (Nostr and BitTorrent; or only `?relay=` URLs). The host greets each peer that joins (`mc152-host`); a guest confirms the first peer that greets it as the host after 1.5 s (a second greeter ends the join), leaves the other routes and talks only to it (a star). It sets the per-peer buffer limits of the patched trystero (below) and closes peers over them; the host ignores peers it closed until they leave the room (a minute after a protocol kick, 12 hours after `/ban`). The strategy modules load on demand, so single player never downloads them. A route that fails to join or a link that cannot be set up ends in "Could not connect to the host"; 30 s without a greeting too. |
 | `transport/MemoryTransport.ts` | the same interfaces in memory (Node tests; `?net=memory` for one-page experiments). |
@@ -126,6 +153,7 @@ Minecraft (single player, unchanged)                 Minecraft
 | `server/CreativeItems.ts` | which stacks a creative guest may create: what the creative inventory offers, worn tools of those, and the few survival-only stacks (maps, brewed potions, written books, rockets, huge mushrooms, the dragon egg). |
 | `server/EntityPlayerMP.ts`, `ItemInWorldManager.ts` | the guest's player on the host (server rules) and its digging/placing state. |
 | `server/EntityTracker.ts` | which guest sees which entity, and the spawn / move / look / velocity / metadata / equipment / riding packets. |
+| `server/SkinRelay.ts` | the host's side of skins: checks and reprocesses each guest's skin (at most one change per 40 ticks), gives the host's renderer the guests' skins and relays every skin, the host's own included, to the other players and to newcomers. |
 | `client/NetClientHandler.ts` | the guest's half: applies everything the host sends. |
 | `client/WorldClient.ts`, `RemoteEntityTick.ts`, `RemoteEntityVisuals.ts` | the remote world and how its entities move between updates (interpolation, limb swing, body yaw, hurt and death timers, per-class animation state). |
 | `client/EntityClientPlayerMP.ts`, `PlayerControllerGuest.ts` | the guest's own player and controller (1.5.2's client classes). |
@@ -191,8 +219,32 @@ closed. `tests/nettransport.test.ts` checks the patched layer.
 | 100–108 | OpenWindow, CloseWindow, WindowClick, SetSlot, WindowItems, UpdateProgressBar, Transaction, CreativeSetSlot, EnchantItem | mixed | 1.5.2's container sync (`ICrafting` crafters on `Container`) |
 | 130, 132 | UpdateSign, TileEntityData | both / host | |
 | 201–205 | PlayerInfo, PlayerAbilities, AutoComplete, ClientInfo, ClientCommand | mixed | TAB list, flying, Tab completion, render distance and chat visibility (sent when they change), respawn |
-| 250 | CustomPayload | both | `MC|ItemName` (anvil), `MC|Beacon`, `MC|BEdit` / `MC|BSign`, `MC|Rejoin` (the 16-byte rejoin token: host to guest after the login, guest to host right after the handshake) |
+| 250 | CustomPayload | both | `MC|ItemName` (anvil), `MC|Beacon`, `MC|BEdit` / `MC|BSign`, `MC|Rejoin` (the 16-byte rejoin token: host to guest after the login, guest to host right after the handshake), `MC|Skin` (skins, below) |
 | 255 | KickDisconnect | both | the reason on the disconnect screen |
+
+**Skins (`MC|Skin`).** A guest sends its own skin after the login and whenever it changes:
+exactly 8192 bytes of 64x32 RGBA, or nothing for Steve. The host sends one player's skin per
+message: a name length byte, the name, then 8192 bytes of RGBA or nothing (Steve). Only pixels
+travel; the PNG is decoded by its owner. Both sides check the exact size (anything else is
+dropped and counted, not kicked) and the name, re-apply 1.5.2's skin processing and use the
+result only as a 64x32 texture. The host accepts one change per guest every 40 ticks (a newer
+one waits its turn), relays it to everyone else, tells a newcomer every known skin, and sends
+"Steve" for a guest that left.
+
+### Server connections
+
+`src/net/connect/ServerConnector.ts` is the hook for joining real servers. A connector is
+registered for an address scheme with `registerServerConnector(scheme, connector)`;
+`connect(address, signal)` resolves with a `NetConnection` that carries this game's frames
+(`protocol/Packets.ts`, which keep 1.5.2's packet ids and fields), and the optional
+`ping(address, signal)` answers the server list (MOTD, players, protocol, version, ping). A plain
+`host[:port]` has the scheme `tcp`, 1.5.2's raw TCP connection, which no browser can open; an
+address such as `wss://proxy.example/mc` picks the `wss` connector. A WebSocket-to-TCP proxy
+that translates between these frames and the 1.5.2 wire format (length-free packets with
+Java's DataOutputStream encodings) would plug in here; GuiConnecting, the login
+(NetClientHandler, PlayerControllerGuest) and the disconnect screens then work as they do for
+rooms. Nothing is registered today, so Direct Connect fails with "Connection refused: browsers
+cannot open direct server connections yet" and the list shows "Can't reach server".
 
 ### Host
 
@@ -271,6 +323,8 @@ players claim to host room ...".
 node scripts/run-node-test.mjs tests/netprotocol.test.ts   # codecs, frames, limits, item tags, fuzzing, room codes and keys, names
 node scripts/run-node-test.mjs tests/nettransport.test.ts  # the patched trystero wire layer (buffer limits)
 node scripts/run-node-test.mjs tests/netsession.test.ts    # host World + guests over the in-memory transport
+node scripts/run-node-test.mjs tests/netskins.test.ts      # skins between the host and two guests
+node scripts/run-node-test.mjs tests/account.test.ts       # skin processing, MC|Skin, the relay, server addresses, connectors
 npm run build && node scripts/mp-test.mjs --out shots/mp     # two browser contexts, real WebRTC
 ```
 
@@ -284,17 +338,24 @@ packet floods, a speed hack, a creative nuker, the bed teleport, malformed packe
 version mismatch, leaving and coming back (with and without the rejoin token, a second login),
 Hardcore deaths, /kick, /ban, /pardon and /whitelist, and the host closing the room.
 
+`tests/netskins.test.ts` joins two guests with their own skin registries (as separate browsers
+have) and checks that everyone sees everyone's skin, changes and resets, a departed guest, a
+malformed skin and the room closing.
+
 `scripts/mp-test.mjs` starts `vite preview` (port 4400) and a local trystero WebSocket relay
 (port 4401), opens two contexts in headless Chromium (host `Alice`, guest `Bob`), and walks
-through Open to LAN, Multiplayer, Direct Connect, joining, block placement on both sides, chat
-typed on both sides, nameplates, the TAB list, sneaking and the host leaving, with screenshots
-of each step. `--public` signals through the public relays instead (needs a browser with
+through skins (the host's in third person, on the arm and in the inventory; the guest's name
+and 64x64 skin in the Account Manager), Open to LAN, Multiplayer, Room Code, joining, block
+placement on both sides, chat typed on both sides, nameplates and each other's skins, the TAB
+list, sneaking and the host leaving, with screenshots of each step. `--public` signals through the public relays instead (needs a browser with
 internet access). Data always goes over real WebRTC data channels.
 
 `mc.dev.net` (with `?dev=1`): `host(name?, mode?, cheats?)` resolves with the room code,
-`join(code, name?)` goes through Direct Connect, `state()` (role, code, players, chunks,
-entities, other players, bytes, the open network screen), `chat(n)`, `leave()`. The debug
-screens `multiplayer`, `directconnect`, `sharetolan` and `pause` open with `mc.dev.screen(name)`.
+`join(code, name?)` goes through Room Code's connecting screen, `connect(address)` through
+Direct Connect's, `state()` (role, code, players, chunks, entities, other players, bytes, the
+open network screen), `chat(n)`, `leave()`. `mc.dev.account` uploads skins and reads the
+account (see `docs/TESTING.md`). The debug screens `multiplayer`, `directconnect`, `roomcode`,
+`accountmanager`, `sharetolan` and `pause` open with `mc.dev.screen(name)`.
 
 ## Known gaps
 

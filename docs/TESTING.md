@@ -30,6 +30,7 @@ URL parameters (any combination):
 | `?relay=ws://host:port` | with `?dev=1` only: multiplayer signalling through a self-hosted trystero WebSocket relay instead of the public ones (repeatable or comma separated; host and guests need the same one) |
 | `?signal=nostr,torrent` | which public signalling routes multiplayer uses (default both) |
 | `?net=memory` | multiplayer over an in-memory transport inside one page (development only) |
+| `?splash=1\|2` | which boot splash picture start-up shows (otherwise a coin flip) |
 
 `mc.dev` helpers (see `src/client/DevTools.ts`): `isInGame()`, `pendingSections(radius)`,
 `tp(x, y, z, yaw?, pitch?)`, `look(yaw, pitch)`, `setTime(t)`, `select(slot)`, `fillHotbar(ids?)`,
@@ -57,6 +58,15 @@ helmet), `use(ticksLeft)` (a bow drawn n ticks: `72000 - n`), `effect(id, second
 y, z, yaw, {held, armor, color, sneak, use, bed})` (an `EntityOtherPlayerMP` posed like the
 reference harness's `otherplayer`), `clearOthers()`, `state()` (sleep timer, bed, effects, FOV).
 `mc.dev.sky.pin` also settles the eased FOV (`EntityRenderer.settleFovModifier`).
+`mc.dev.account` (`src/client/AccountDevTools.ts`): `testSkinDataUrl(w?, h?, hue?)` (a
+recognisable test skin as a PNG data URL; other sizes test the refusal), `uploadSkin(dataUrl)`
+(what Upload Skin... does with a chosen file, through the open Account Manager when there is
+one), `setRemoteSkin(name, dataUrl | null)`, `localPixel(x, y)` / `remotePixel(name, x, y)`,
+`state()` (name, skin, saved skin, other players' skins, the boot splash shown), `screen()`
+(the open screen among `mainmenu`, `accountmanager`, `options`, `multiplayer`,
+`directconnect`, `roomcode`, `addserver`, `connecting`, `disconnected`, `splash`) and
+`showBootSplash(i)` (stops the game loop and draws the boot splash as start-up does). Debug
+screens for `mc.dev.screen(name)`: `accountmanager`, `roomcode`, `splash1`, `splash2`.
 Key codes are LWJGL codes (`src/client/Keyboard.ts`, e.g. W = 17, space = 57, left shift = 42).
 A key or button must stay down for at least one tick to be seen by the player, which is what
 `press` and `click` do.
@@ -89,6 +99,12 @@ node scripts/shot.mjs worldgen               # seeds "claude"/123456789 vs the r
 node scripts/shot.mjs player                 # F5 back/front, bow and sword poses, a posed line-up of players,
                                              # the effect list, night vision, blindness, sleeping in a bed
                                              # (Leave Bed, skip to morning, bed spawn), nausea, a boat (checks)
+node scripts/shot.mjs account                # title, Account Manager (Steve, refused size, custom skin,
+                                             # drag, name checks), Options, both splashes and the real
+                                             # boot splash, Multiplayer with an old room entry and an
+                                             # unreachable server, Direct Connect failing, Room Code,
+                                             # Open to LAN, then a world: another player's skin, F5,
+                                             # the arm and the inventory in the custom skin (asserts)
 node scripts/shot.mjs path/to/scenario.json --url http://localhost:5173/ --server none
 ```
 
@@ -160,7 +176,7 @@ block's item render. Keep such scripts outside the repository unless they become
 ## Multiplayer
 
 ```sh
-node scripts/run-node-test.mjs tests/netprotocol.test.ts tests/nettransport.test.ts tests/netsession.test.ts
+node scripts/run-node-test.mjs tests/netprotocol.test.ts tests/nettransport.test.ts tests/netsession.test.ts tests/netskins.test.ts tests/account.test.ts
 npm run build && node scripts/mp-test.mjs --out shots/mp
 ```
 
@@ -186,21 +202,30 @@ moves longer than a player can make in a tick.
 
 `scripts/mp-test.mjs` is the one browser test: `vite preview` on port 4400 and a trystero
 WebSocket relay on 4401 (`--port`, `--relay-port`), then two contexts of one headless Chromium.
-The host (`Alice`) opens a Superflat world to LAN; the guest (`Bob`) goes through Multiplayer
-and Direct Connect with the room code typed in lower case; both place blocks the other sees,
-chat by typing, look at each other's nameplates, open the TAB list, sneak, and finally the host
-quits and the guest lands on the disconnect screen. It prints PASS/FAIL per check (with both
+The host (`Alice`) uploads a skin (shots of it in third person, on the arm and in the
+inventory) and opens a Superflat world to LAN; the guest types the name `Bob` and uploads a
+64x64 skin in the Account Manager, then goes through Multiplayer and Room Code with the room
+code typed in lower case; both place blocks the other sees, chat by typing, look at each
+other's nameplates and skins (checked pixel for pixel), open the TAB list, sneak, and finally
+the host quits and the guest lands on the disconnect screen. It prints PASS/FAIL per check (with both
 sides' state on a failure) and writes `01_host_open_to_lan.png` ... `11_guest_disconnected.png`.
 Signalling is local, but the game data goes over real WebRTC data channels. `--public` uses the
 public Nostr/BitTorrent relays instead, which needs a browser that can reach them (the sandbox
 used for development intercepts TLS, so only the local relay works there).
 
+`tests/account.test.ts` checks skin sizes and 1.5.2's skin processing, the skin registry, the
+`MC|Skin` payloads and the host's relay (rate limit, newcomers, leaving), 1.5.2's server address
+parsing, the connector registry (a plain address is refused), the saved list's migration of old
+room codes and the 50/50 boot splash; `tests/netskins.test.ts` runs skins through a real LAN
+game with two guests.
+
 `mc.dev.net` (`src/client/NetDevTools.ts`): `host(name?, mode?, cheats?)` opens the world to
-LAN and resolves with the room code; `join(code, name?)` opens Direct Connect's connecting
-screen; `state()` returns the role, room code, player list, guest state, loaded chunks and
+LAN and resolves with the room code; `join(code, name?)` opens Room Code's connecting screen;
+`connect(address)` Direct Connect's; `state()` returns the role, room code, player list, guest state, loaded chunks and
 entities, other players' positions, bytes and the network screen (`'connecting'`,
 `'downloading'`, `'disconnected'`); `chat(n)` the last chat lines; `leave()`. The debug screens
-`multiplayer`, `directconnect`, `sharetolan` and `pause` open with `mc.dev.screen(name)`.
+`multiplayer`, `directconnect`, `roomcode`, `accountmanager`, `sharetolan` and `pause` open
+with `mc.dev.screen(name)`.
 
 ## Audio
 
