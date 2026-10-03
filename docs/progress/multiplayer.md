@@ -87,3 +87,8 @@ each (with a netsession / netprotocol check where it can be tested in Node).
   departed guest's name is refused for 30 min; a second login with the token replaces the first
   ("You logged in from another location", also the minor relogin finding). Saved states capped at 64.
 - [x] Major: a Hardcore death keeps the name out for the session (respawn kick, or leaving dead).
+- [x] Major: per-guest action limits (dropped, not kicked; blocks resent): place 1/tick burst 8,
+  dig start 1/tick burst 10 (creative breaks 0.5/tick burst 6), entity use and swings 2/tick
+  burst 10, chat/commands with cheats on 1 per 5 ticks burst 10.
+- [x] Major: host impostor: guests wait 1.5 s after the first greeting and fail on a second
+  "host" (done with the transport commit). A signed greeting (ECDSA key in the code) is not done.

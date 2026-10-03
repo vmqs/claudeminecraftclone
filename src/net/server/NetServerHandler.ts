@@ -50,6 +50,33 @@ export const toHex = (b: Uint8Array) => [...b].map((v) => v.toString(16).padStar
 const finite = (...v: number[]) => v.every((n) => Number.isFinite(n));
 
 /**
+ * A per-guest limit on one kind of action: `rate` per tick on average, `burst` at once. What a
+ * vanilla client can do stays well inside (a right click every 4 ticks, a creative break every
+ * 5, a dig start per block); more is dropped rather than kicked, and the blocks a dropped
+ * action may have changed on the guest are sent again.
+ */
+class ActionLimit {
+  private tokens: number;
+
+  constructor(
+    private readonly rate: number,
+    private readonly burst: number,
+  ) {
+    this.tokens = burst;
+  }
+
+  tick(): void {
+    this.tokens = Math.min(this.burst, this.tokens + this.rate);
+  }
+
+  take(): boolean {
+    if (this.tokens < 1) return false;
+    this.tokens--;
+    return true;
+  }
+}
+
+/**
  * One guest's connection on the host (NetLoginHandler + NetServerHandler): the handshake, then
  * every packet the guest sends, checked like the original server did (reach, positions, slots,
  * game mode, chat) plus limits on message size and rate, so a guest can never crash the host.
@@ -90,6 +117,15 @@ export class NetServerHandler {
   token = '';
   /** Whether LanServer.canJoin ran for this login. */
   loginChecked = false;
+  private readonly placeLimit = new ActionLimit(1, 8);
+  private readonly digLimit = new ActionLimit(1, 10);
+  private readonly creativeBreakLimit = new ActionLimit(0.5, 6);
+  private readonly entityLimit = new ActionLimit(2, 10);
+  private readonly swingLimit = new ActionLimit(2, 10);
+  /** Chat and commands while "Allow Cheats" exempts the guest from the spam kick. */
+  private readonly commandLimit = new ActionLimit(0.2, 10);
+  /** Actions dropped by those limits (tests, logs). */
+  droppedActions = 0;
   /** Bytes and messages sent (F3 and tests). */
   bytesSent = 0;
   framesSent = 0;
@@ -203,6 +239,7 @@ export class NetServerHandler {
   networkTick(): void {
     this.currentTicks++;
     this.tokens = Math.min(PACKET_BURST, this.tokens + PACKET_RATE);
+    for (const l of [this.placeLimit, this.digLimit, this.creativeBreakLimit, this.entityLimit, this.swingLimit, this.commandLimit]) l.tick();
     if (this.chatSpamThresholdCount > 0) this.chatSpamThresholdCount--;
     if (this.creativeItemCreationSpamThresholdTally > 0) this.creativeItemCreationSpamThresholdTally--;
     const packets = this.incoming.splice(0);
@@ -255,11 +292,12 @@ export class NetServerHandler {
         if (p.slot >= 0 && p.slot < 9) player.inventory.currentItem = p.slot;
         return;
       case 'Animation':
-        if (p.animate === 1) player.swingItem();
+        if (p.animate === 1 && this.allow(this.swingLimit)) player.swingItem();
         return;
       case 'EntityAction':
         return this.handleEntityAction(p.state);
       case 'UseEntity':
+        if (!this.allow(this.entityLimit)) return;
         return this.handleUseEntity(p.targetEntity, p.leftClick);
       case 'ClientCommand':
         if (p.payload === 1) this.server.respawnPlayer(this);
@@ -540,6 +578,12 @@ export class NetServerHandler {
     if (dx * dx + dy * dy + dz * dz > 36 || y < 0 || y >= 256) return;
     if (!this.server.world.blockExists(x, y, z)) return;
     if (p.status === 0) {
+      const creative = player.theItemInWorldManager.isCreative();
+      if (!this.allow(this.digLimit) || (creative && !this.allow(this.creativeBreakLimit))) {
+        // Too many in a row (a nuker): the guest's predicted break is undone.
+        this.sendBlockChange(x, y, z);
+        return;
+      }
       if (this.server.isBlockProtected(x, y, z, player)) this.sendBlockChange(x, y, z);
       else player.theItemInWorldManager.onBlockClicked(x, y, z, p.face % 6);
     } else if (p.status === 2) {
@@ -558,11 +602,12 @@ export class NetServerHandler {
     let { x, y, z } = p;
     const dir = p.direction;
     let resend = false;
+    const allowed = this.allow(this.placeLimit);
     if (dir === 255) {
-      if (!held) return;
+      if (!held || !allowed) return;
       player.theItemInWorldManager.tryUseItem(player, w, held);
     } else if (dir < 6 && (y < 255 || (dir !== 1 && y < 256)) && y >= 0) {
-      if (this.hasMoved && player.getDistanceSq(x + 0.5, y + 0.5, z + 0.5) < 64 && w.blockExists(x, y, z) && !this.server.isBlockProtected(x, y, z, player)) {
+      if (allowed && this.hasMoved && player.getDistanceSq(x + 0.5, y + 0.5, z + 0.5) < 64 && w.blockExists(x, y, z) && !this.server.isBlockProtected(x, y, z, player)) {
         player.theItemInWorldManager.activateBlockOrUseItem(player, w, held, x, y, z, dir, f(p.hitX / 16), f(p.hitY / 16), f(p.hitZ / 16));
       }
       resend = true;
@@ -617,6 +662,11 @@ export class NetServerHandler {
       }
     }
     if (msg.length === 0) return;
+    // With "Allow Cheats" 1.5.2 exempted the guest from the spam kick; floods are dropped instead.
+    if (this.server.commandsAllowedForAll && !this.allow(this.commandLimit)) {
+      this.sendPacket({ type: 'Chat', message: '§cYou are sending messages too fast' });
+      return;
+    }
     if (msg.startsWith('/')) {
       this.server.executeCommand(player, msg);
     } else {
@@ -644,6 +694,13 @@ export class NetServerHandler {
       player.wakeUpPlayer(false, true, true);
       this.hasMoved = false;
     }
+  }
+
+  /** Takes one action from a limit; counts what is dropped. */
+  private allow(limit: ActionLimit): boolean {
+    if (limit.take()) return true;
+    this.droppedActions++;
+    return false;
   }
 
   private handleUseEntity(id: number, leftClick: boolean): void {

@@ -351,6 +351,35 @@ check('guest is creative (LAN game mode)', bob.pc.isInCreativeMode() && bobMP!.c
   step(2);
 }
 
+// ---------------------------------------------------------------------- action limits (a creative nuker)
+{
+  const r = await rawJoin('Nuker');
+  const np = hostPlayerOf('Nuker')!;
+  np.setGameType(EnumGameType.CREATIVE);
+  np.inventory.mainInventory[0] = new ItemStack(B.stone, 64, 0);
+  np.inventory.currentItem = 0;
+  step(2);
+  const px = Math.floor(np.posX);
+  const pz = Math.floor(np.posZ);
+  const spots: [number, number][] = [];
+  for (let dz = 2; dz <= 5; dz++) for (let dx = -4; dx <= 5; dx++) if (hw.getBlockId(px + dx, 4, pz + dz) === 0) spots.push([px + dx, pz + dz]);
+  r.send(spots.map(([x, z]) => ({ type: 'Place' as const, x, y: 3, z, direction: 1, item: new ItemStack(B.stone, 64, 0), hitX: 8, hitY: 16, hitZ: 8 })));
+  step(1);
+  const placed = spots.filter(([x, z]) => hw.getBlockId(x, 4, z) === B.stone);
+  check('placements beyond the burst are dropped', placed.length >= 4 && placed.length <= 9, `${placed.length} of ${spots.length}`);
+  check('dropped placements are undone on the guest', r.got.filter((p) => p.type === 'BlockChange').length >= (spots.length - placed.length) * 2);
+  r.send(placed.map(([x, z]) => ({ type: 'BlockDig' as const, status: 0, x, y: 4, z, face: 1 })));
+  step(1);
+  const broken = placed.filter(([x, z]) => hw.getBlockId(x, 4, z) === 0);
+  check('creative breaks beyond the burst are dropped', broken.length >= 3 && broken.length <= 6, `${broken.length} of ${placed.length}`);
+  step(40);
+  r.send(placed.map(([x, z]) => ({ type: 'BlockDig' as const, status: 0, x, y: 4, z, face: 1 })));
+  step(1);
+  for (const [x, z] of placed) hw.setBlock(x, 4, z, 0, 0, 3);
+  r.send([{ type: 'KickDisconnect', reason: 'Quitting' }]);
+  step(2);
+}
+
 // ---------------------------------------------------------------------- blocks
 {
   // The host gives the guest stone; the slot reaches the guest.
