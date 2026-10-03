@@ -3,12 +3,12 @@ import { MathHelper } from '../../core/MathHelper';
 import type { Entity } from '../../entity/Entity';
 import { ClickMode, OUTSIDE_WINDOW } from '../../gui/inventory/Container';
 import { ContainerBeacon } from '../../gui/inventory/ContainerBeacon';
-import { Item } from '../../item/Item';
 import { ItemStack } from '../../item/ItemStack';
 import { decodeFrame, encodeFrame, GAME_VERSION, PROTOCOL_VERSION, type Packet, type PacketOf, allowedFrom } from '../protocol/Packets';
 import { ProtocolError } from '../protocol/PacketBuffer';
 import type { NetConnection } from '../transport/Transport';
 import { isValidUsername } from '../Username';
+import { isAllowedCreativeStack } from './CreativeItems';
 import type { EntityPlayerMP } from './EntityPlayerMP';
 import type { LanServer } from './LanServer';
 
@@ -604,21 +604,29 @@ export class NetServerHandler {
     }
   }
 
-  /** handleCreativeSetSlot: Creative only, slots 1-44, or -1 to drop; known items, stacks of 1-64. */
+  /**
+   * handleCreativeSetSlot: Creative only, slots 1-44, or -1 to drop; stacks the creative
+   * inventory (or survival play) can make, of 1-64 (CreativeItems). Tags were sanitised when the
+   * packet was read.
+   */
   private handleCreativeSetSlot(slot: number, stack: ItemStack | null): void {
     const player = this.player!;
     if (!player.theItemInWorldManager.isCreative()) return;
     const drop = slot < 0;
     const inRange = slot >= 1 && slot < 45;
-    const known = stack === null || (stack.itemID >= 0 && stack.itemID < Item.itemsList.length && !!Item.itemsList[stack.itemID]);
-    const sized = stack === null || (stack.getItemDamage() >= 0 && stack.stackSize <= 64 && stack.stackSize > 0);
-    if (inRange && known && sized) {
+    const known = stack === null || isAllowedCreativeStack(stack);
+    if (!known) {
+      // Put the guest's copy of the slot back.
+      if (inRange) player.sendContainerToPlayer(player.inventoryContainer);
+      return;
+    }
+    if (inRange) {
       player.inventoryContainer.putStackInSlot(slot, stack);
       // The guest already shows it; remember it so it is not echoed back.
       player.playerInventoryBeingManipulated = true;
       player.inventoryContainer.detectAndSendChanges();
       player.playerInventoryBeingManipulated = false;
-    } else if (drop && known && sized && stack && this.creativeItemCreationSpamThresholdTally < 200) {
+    } else if (drop && stack && this.creativeItemCreationSpamThresholdTally < 200) {
       this.creativeItemCreationSpamThresholdTally += 20;
       const e = player.dropPlayerItem(stack) as { setAgeToCreativeDespawnTime?: () => void } | null;
       e?.setAgeToCreativeDespawnTime?.();

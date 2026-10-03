@@ -1259,7 +1259,17 @@ export class World implements IWorld, IBlockAccess {
         e.ridingEntity.riddenByEntity = null;
         e.ridingEntity = null;
       }
-      if (!e.isDead) this.updateEntity(e);
+      if (!e.isDead) {
+        if (this.netEvents) {
+          // A LAN host keeps ticking when one entity's update throws (guests' entities and
+          // items come from other browsers); the listener removes it or kicks its guest.
+          try {
+            this.updateEntity(e);
+          } catch (err) {
+            this.netEvents.entityTickFailed(e, err);
+          }
+        } else this.updateEntity(e);
+      }
       if (e.isDead) {
         if (e.addedToChunk && this.chunkExists(e.chunkCoordX, e.chunkCoordZ)) this.getChunkFromChunkCoords(e.chunkCoordX, e.chunkCoordZ).removeEntity(e);
         this.loadedEntityList.splice(i--, 1);

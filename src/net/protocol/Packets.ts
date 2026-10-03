@@ -1,5 +1,6 @@
 import { Item } from '../../item/Item';
 import { ItemStack, type TagCompound } from '../../item/ItemStack';
+import { sanitizeItemTag } from './ItemTags';
 import { PacketReader, PacketWriter, ProtocolError } from './PacketBuffer';
 
 /**
@@ -262,7 +263,7 @@ export function writeItemStack(w: PacketWriter, s: ItemStack | null): void {
   w.str(s.stackTagCompound ? JSON.stringify(s.stackTagCompound) : '');
 }
 
-/** Packet.readItemStack: unknown ids read as null; tags must be JSON objects. */
+/** Packet.readItemStack: unknown ids read as null; tags must be JSON objects and are sanitised. */
 export function readItemStack(r: PacketReader): ItemStack | null {
   const id = r.i16();
   if (id < 0) return null;
@@ -275,6 +276,7 @@ export function readItemStack(r: PacketReader): ItemStack | null {
   return s;
 }
 
+/** A tag must be a JSON object; it is rebuilt from the whitelist of known keys (ItemTags). */
 function parseTag(text: string): TagCompound {
   let v: unknown;
   try {
@@ -282,8 +284,9 @@ function parseTag(text: string): TagCompound {
   } catch {
     throw new ProtocolError('bad item tag');
   }
-  if (!v || typeof v !== 'object' || Array.isArray(v)) throw new ProtocolError('bad item tag');
-  return v as TagCompound;
+  const tag = sanitizeItemTag(v);
+  if (!tag) throw new ProtocolError('bad item tag');
+  return tag;
 }
 
 // ---------------------------------------------------------------------- metadata

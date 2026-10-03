@@ -32,4 +32,9 @@ export interface WorldNetListener {
   playerWake(p: EntityPlayer): void;
   /** A sound of the host's own player, which only the host's client played (EntityPlayerSP.playSound). */
   playerSound(p: EntityPlayer, name: string, x: number, y: number, z: number, volume: number, pitch: number): void;
+  /**
+   * An entity's tick threw while the LAN game is open (the world catches it so the rest of the
+   * tick and the guests' updates still run): the listener removes the entity or its guest.
+   */
+  entityTickFailed(e: Entity, err: unknown): void;
 }

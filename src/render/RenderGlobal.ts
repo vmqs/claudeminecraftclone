@@ -518,6 +518,27 @@ export class RenderGlobal implements IWorldAccess {
 
   // ------------------------------------------------------------------ entities
 
+  /** Entities whose renderer threw (logged once each). */
+  private readonly renderFailures = new WeakSet<Entity>();
+
+  /**
+   * One entity's renderer; if it throws (an entity from a LAN game in a state its renderer does
+   * not expect), the frame goes on with the matrix stack put back, and the error is logged once.
+   */
+  private renderEntitySafely(e: Entity, pt: number): void {
+    const depth = GL.modelview.stackDepth;
+    try {
+      RenderManager.instance.renderEntity(e, pt);
+    } catch (err) {
+      GL.modelview.restoreDepth(depth);
+      GL.color(1, 1, 1, 1);
+      if (!this.renderFailures.has(e)) {
+        this.renderFailures.add(e);
+        console.error('Rendering entity', e, err);
+      }
+    }
+  }
+
   renderEntities(camera: { xCoord: number; yCoord: number; zCoord: number }, frustum: Frustum, pt: number): void {
     const w = this.theWorld;
     if (!w) return;
@@ -537,7 +558,7 @@ export class RenderGlobal implements IWorldAccess {
     this.countEntitiesTotal = w.loadedEntityList.length;
     for (const e of w.weatherEffects) {
       this.countEntitiesRendered++;
-      if (e.isInRangeToRenderVec3D(camera as never)) RenderManager.instance.renderEntity(e, pt);
+      if (e.isInRangeToRenderVec3D(camera as never)) this.renderEntitySafely(e, pt);
     }
     for (const e of w.loadedEntityList) {
       const visible =
@@ -546,7 +567,7 @@ export class RenderGlobal implements IWorldAccess {
       const self = e === this.mc.renderViewEntity && this.mc.gameSettings.thirdPersonView === 0 && !viewer.isPlayerSleeping();
       if (visible && !self && w.blockExists(MathHelper.floor_double(e.posX), 0, MathHelper.floor_double(e.posZ))) {
         this.countEntitiesRendered++;
-        RenderManager.instance.renderEntity(e, pt);
+        this.renderEntitySafely(e, pt);
       }
     }
     // Tile entities with special renderers (chests, signs, spawners...), visible ones only.

@@ -59,3 +59,7 @@ each (with a netsession / netprotocol check where it can be tested in Node).
 
 - [x] Blocker: closing the guest's own inventory (CloseWindow 0) took it off its
   inventoryContainer's crafters; only discarded windows drop the crafter now.
+- [x] Blocker: item tags are rebuilt from a whitelist when read (`protocol/ItemTags.ts`), creative
+  set slot only takes stacks the creative inventory or survival can make (`server/CreativeItems.ts`),
+  a throwing entity tick is contained on a LAN host (`WorldNetListener.entityTickFailed`) and a
+  throwing entity renderer is skipped with the matrix stack restored (RenderGlobal).

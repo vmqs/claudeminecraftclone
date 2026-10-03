@@ -185,6 +185,32 @@ check('trailing bytes', throws(() => decodePacket(new Uint8Array([...encodePacke
   w2.i16(0);
   w2.str('[1,2]');
   check('array item tag refused', throws(() => decodePacket(w2.finish())));
+  // Item tags are rebuilt from the whitelist: unknown keys, null entries, wrong types and huge
+  // values go; a well-formed tag comes back unchanged (same key order, so equal JSON).
+  const tagged = (tag: unknown, id = 373, damage = 8193): ItemStack | null => {
+    const s = new ItemStack(id, 1, damage);
+    s.stackTagCompound = tag as never;
+    const back = decodePacket(encodePacket({ type: 'CreativeSetSlot', slot: 36, item: s }));
+    return back.type === 'CreativeSetSlot' ? back.item : null;
+  };
+  const potion = tagged({ CustomPotionEffects: [null, { Id: 1, Amplifier: 120, Duration: -5 }, { Id: 99 }, 'x'], junk: { a: 1 } });
+  check('null potion effects dropped', JSON.stringify(potion?.stackTagCompound) === '{"CustomPotionEffects":[{"Id":1,"Amplifier":9,"Duration":0}]}', JSON.stringify(potion?.stackTagCompound));
+  let effectsOk = true;
+  try {
+    potion?.hasEffect();
+    (potion?.getItem() as unknown as { getEffects(s: ItemStack): unknown }).getEffects(potion!);
+  } catch {
+    effectsOk = false;
+  }
+  check('sanitised potion is usable', effectsOk);
+  const sword = tagged({ ench: [null, { id: 16, lvl: 32767 }, { id: 200, lvl: 1 }, { id: 'x' }], display: { Name: 7, Lore: ['a', null, 'b'] } }, 276, 0);
+  check('enchantment list cleaned', JSON.stringify(sword?.stackTagCompound) === '{"ench":[{"id":16,"lvl":10}],"display":{"Lore":["a","b"]}}', JSON.stringify(sword?.stackTagCompound));
+  const fine = { display: { Name: 'Sting', color: 123 }, ench: [{ id: 16, lvl: 5 }], RepairCost: 3 };
+  const fineBack = tagged(structuredClone(fine), 276, 0);
+  check('well-formed tag unchanged', JSON.stringify(fineBack?.stackTagCompound) === JSON.stringify(fine), JSON.stringify(fineBack?.stackTagCompound));
+  const rocket = { Fireworks: { Flight: 2, Explosions: [{ Type: 1, Colors: [1, 2], Trail: true }] } };
+  check('firework tag kept', JSON.stringify(tagged(structuredClone(rocket), 401, 0)?.stackTagCompound) === JSON.stringify(rocket));
+  check('prototype keys ignored', JSON.stringify(tagged(JSON.parse('{"__proto__":{"x":1},"title":"t"}'), 387, 0)?.stackTagCompound) === '{"title":"t"}');
 }
 
 // Chunk data.

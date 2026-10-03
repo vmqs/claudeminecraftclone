@@ -557,6 +557,12 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
     this.sendNear(x, y, z, volume > 1 ? 16 * volume : 16, levelSound(name, x, y, z, volume, pitch), p);
   }
 
+  entityTickFailed(e: Entity, err: unknown): void {
+    console.error('[lan] ticking entity failed', e, err);
+    if (e instanceof EntityPlayerMP) e.handler?.kick('Internal server error');
+    else if (e !== this.host.hostPlayer()) e.setDead();
+  }
+
   // ------------------------------------------------------------------ IWorldAccess (WorldManager)
 
   markBlockForUpdate(): void {}

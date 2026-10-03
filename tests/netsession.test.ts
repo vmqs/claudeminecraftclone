@@ -438,6 +438,55 @@ check('guest is creative (LAN game mode)', bob.pc.isInCreativeMode() && bobMP!.c
   bobMP!.setGameType(EnumGameType.CREATIVE);
 }
 
+// ---------------------------------------------------------------------- creative items from a guest
+{
+  const me = hostPlayerOf('Bob')!;
+  me.setGameType(EnumGameType.CREATIVE);
+  step(2);
+  // A potion whose tag has a null effect: the tag arrives cleaned, the host keeps ticking.
+  const potion = new ItemStack(I.potion, 1, 8193);
+  potion.stackTagCompound = { CustomPotionEffects: [null], ench: [null] };
+  bob.handler.addToSendQueue({ type: 'CreativeSetSlot', slot: 38, item: potion });
+  bob.handler.addToSendQueue({ type: 'CreativeSetSlot', slot: -1, item: potion });
+  bob.handler.flush();
+  step(2);
+  const got = me.inventory.mainInventory[2];
+  let usable = true;
+  try {
+    got?.hasEffect();
+    for (const e of hw.loadedEntityList) (e as unknown as { getEntityItem?(): ItemStack }).getEntityItem?.()?.hasEffect();
+  } catch {
+    usable = false;
+  }
+  check('malformed creative tag cleaned on the host', got?.itemID === I.potion && JSON.stringify(got.stackTagCompound) === '{"CustomPotionEffects":[],"ench":[]}' && usable, JSON.stringify(got?.stackTagCompound));
+  // A technical block (a moving piston) is not an item the creative inventory has.
+  bob.handler.addToSendQueue({ type: 'CreativeSetSlot', slot: 39, item: new ItemStack(36, 1, 0) });
+  bob.handler.flush();
+  step(2);
+  check('technical block refused in creative', me.inventory.mainInventory[3] === null, String(me.inventory.mainInventory[3]));
+  // A worn tool from survival is fine.
+  bob.handler.addToSendQueue({ type: 'CreativeSetSlot', slot: 39, item: new ItemStack(I.pickaxeDiamond, 1, 100) });
+  bob.handler.flush();
+  step(2);
+  check('worn tool accepted in creative', me.inventory.mainInventory[3]?.getItemDamage() === 100);
+  // An entity whose tick throws does not stop the host or the LAN server.
+  const pig = EntityList.createEntityByName('Pig', hw)!;
+  pig.setLocationAndAngles(9.5, 4, 9.5, 0, 0);
+  hw.spawnEntityInWorld(pig);
+  pig.onUpdate = () => {
+    throw new Error('broken entity');
+  };
+  const t0 = hw.worldInfo.totalTime;
+  const errors = console.error;
+  console.error = () => undefined;
+  step(3);
+  console.error = errors;
+  check('a throwing entity is removed and the game goes on', pig.isDead && !hw.loadedEntityList.includes(pig) && hw.worldInfo.totalTime === t0 + 3 && bob.handler.state === 'play');
+  for (let i = 2; i < 4; i++) me.inventory.mainInventory[i] = null;
+  for (const e of hw.loadedEntityList) if (EntityList.getEntityString(e) === 'Item') e.setDead();
+  step(2);
+}
+
 // ---------------------------------------------------------------------- second guest and refusals
 {
   const carol = await join('Carol');

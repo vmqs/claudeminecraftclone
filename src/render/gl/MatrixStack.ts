@@ -91,6 +91,18 @@ export class MatrixStack {
     this.version++;
   }
 
+  /** The number of pushes outstanding. */
+  get stackDepth(): number {
+    return this.depth;
+  }
+
+  /** Pops back to an earlier depth (after a renderer threw between its push and pop). */
+  restoreDepth(depth: number): void {
+    if (depth < 0 || depth > this.depth) return;
+    this.depth = depth;
+    this.version++;
+  }
+
   loadIdentity(): void {
     mat4Identity(this.top);
     this.version++;
