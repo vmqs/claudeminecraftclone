@@ -1,5 +1,7 @@
 import { EntityOtherPlayerMP } from '../entity/EntityOtherPlayerMP';
 import { GuiConnecting } from '../gui/GuiConnecting';
+import { GuiDisconnected } from '../gui/GuiDisconnected';
+import { GuiDownloadTerrain } from '../gui/GuiDownloadTerrain';
 import { GuiMultiplayer, ServerData } from '../gui/GuiMultiplayer';
 import { GuiMainMenu } from '../gui/GuiMainMenu';
 import { EnumGameType } from '../world/EnumGameType';
@@ -58,9 +60,19 @@ export class NetDevTools {
       otherPlayers: others,
       bytesReceived: net?.bytesReceived ?? 0,
       guests: lan ? lan.handlers.map((h) => ({ name: h.username, state: h.state, chunks: h.loadedChunks.size, bytesSent: h.bytesSent })) : [],
-      screen: mc.currentScreen?.constructor.name ?? null,
+      screen: this.screenName(),
       lastError: this.lastError,
     };
+  }
+
+  /** The open screen: 'connecting', 'downloading', 'disconnected', 'other' or null (stable in minified builds). */
+  screenName(): string | null {
+    const s = this.mc.currentScreen;
+    if (!s) return null;
+    if (s instanceof GuiConnecting) return 'connecting';
+    if (s instanceof GuiDownloadTerrain) return 'downloading';
+    if (s instanceof GuiDisconnected) return 'disconnected';
+    return 'other';
   }
 
   /** Recent chat lines (newest last), without formatting codes. */

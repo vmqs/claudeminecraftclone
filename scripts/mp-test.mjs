@@ -79,6 +79,9 @@ const cleanup = async () => {
   preview.kill();
 };
 process.on('SIGINT', () => void cleanup().then(() => process.exit(130)));
+let host = null;
+let guest = null;
+let diag = async () => undefined;
 
 try {
   if (!(await waitForServer(base, 20000))) throw new Error('vite preview did not start');
@@ -119,9 +122,24 @@ try {
   };
   const t0 = Date.now();
   const log = (s) => console.log(`[${((Date.now() - t0) / 1000).toFixed(1)}s] ${s}`);
+  // Both sides' view of the session, printed when a step does not go as expected.
+  diag = async () => {
+    for (const [label, page] of [['host', host], ['guest', guest]]) {
+      if (!page) continue;
+      const d = await page
+        .evaluate(() => {
+          const mc = window.mc;
+          const st = mc.dev.net.state();
+          const players = mc.theWorld ? mc.theWorld.playerEntities.map((p) => ({ name: p.username, x: +p.posX.toFixed(2), y: +p.posY.toFixed(2), z: +p.posZ.toFixed(2) })) : [];
+          return { ...st, players: st.players, worldPlayers: players, chat: mc.dev.net.chat(8) };
+        })
+        .catch((e) => String(e));
+      console.log(`  [diag ${label}] ${JSON.stringify(d)}`);
+    }
+  };
 
   // ---------------------------------------------------------------- host
-  const host = await open('host', `?dev=1&autostart=1&seed=lan&type=flat&mode=creative&mobs=0&time=6000&pos=8.5,4,8.5,0,30${net}`);
+  host = await open('host', `?dev=1&autostart=1&seed=lan&type=flat&mode=creative&mobs=0&time=6000&pos=8.5,4,8.5,0,30${net}`);
   await host.evaluate(() => {
     window.mc.gameSettings.renderDistance = 3;
   });
@@ -141,7 +159,7 @@ try {
   await host.evaluate(() => window.mc.displayGuiScreen(null));
 
   // ---------------------------------------------------------------- guest: the multiplayer screens
-  const guest = await open('guest', `?dev=1${net}`);
+  guest = await open('guest', `?dev=1${net}`);
   await guest.evaluate(() => {
     window.mc.gameSettings.renderDistance = 3;
     window.mc.username = 'Bob';
@@ -158,9 +176,14 @@ try {
   await guest.evaluate((c) => window.mc.dev.net.join(c, 'Bob'), code);
   await guest.waitForTimeout(200);
   await shot(guest, '05_guest_connecting.png');
-  await guest.waitForFunction(() => window.mc.netHandler?.state === 'play' || window.mc.dev.net.state().screen === 'GuiDisconnected', null, { timeout: 90000, polling: 250 });
+  await guest.waitForFunction(() => window.mc.netHandler?.state === 'play' || window.mc.dev.net.state().screen === 'disconnected', null, { timeout: 90000, polling: 250 });
   const joined = await guest.evaluate(() => window.mc.dev.net.state());
   check('guest connected and logged in', joined.role === 'guest' && joined.guestState === 'play', JSON.stringify(joined));
+  if (joined.guestState !== 'play') {
+    // No link (e.g. --public without internet access): the guest is back on the menus with the reason.
+    await shot(guest, '06_guest_could_not_connect.png');
+    throw new Error(`the guest could not join: ${joined.screen}`);
+  }
   log('guest logged in');
   await guest.waitForTimeout(300);
   await shot(guest, '06_guest_downloading_terrain.png');
@@ -168,10 +191,16 @@ try {
   log('guest in game');
 
   // ---------------------------------------------------------------- face each other
+  // Positions are the host's call: the host moves itself and teleports the guest (like /tp Bob).
   await host.evaluate(() => window.mc.dev.tp(8.5, 4, 8.5, 0, 10));
-  await guest.evaluate(() => window.mc.dev.tp(8.5, 4, 14.5, 180, 10));
-  await host.waitForFunction(() => window.mc.dev.net.state().otherPlayers.length === 0 && window.mc.theWorld.playerEntities.some((p) => p.username === 'Bob' && Math.abs(p.posZ - 14.5) < 0.2), null, { timeout: 60000, polling: 250 });
-  await guest.waitForFunction(() => window.mc.dev.net.state().otherPlayers.some((p) => p.name === 'Alice' && Math.abs(p.z - 8.5) < 0.2), null, { timeout: 60000, polling: 250 });
+  await host.evaluate(() => window.mc.lanServer.handlers.find((h) => h.username === 'Bob').player.setPlayerLocation(8.5, 4, 14.5, 180, 10));
+  const placedOk = await host
+    .waitForFunction(() => window.mc.theWorld.playerEntities.some((p) => p.username === 'Bob' && Math.abs(p.posZ - 14.5) < 0.2), null, { timeout: 30000, polling: 250 })
+    .then(() => true, () => false);
+  const seen = await guest
+    .waitForFunction(() => window.mc.dev.net.state().otherPlayers.some((p) => p.name === 'Alice' && Math.abs(p.z - 8.5) < 0.2), null, { timeout: 30000, polling: 250 })
+    .then(() => true, () => false);
+  if (!placedOk || !seen) await diag();
   const gs = await guest.evaluate(() => window.mc.dev.net.state());
   check('guest sees the host player', gs.otherPlayers.some((p) => p.name === 'Alice'), JSON.stringify(gs.otherPlayers));
   const hs = await host.evaluate(() => window.mc.theWorld.playerEntities.map((p) => p.username));
@@ -257,14 +286,15 @@ try {
 
   // ---------------------------------------------------------------- the host leaves
   await host.evaluate(() => window.mc.dev.net.leave());
-  await guest.waitForFunction(() => window.mc.dev.net.state().screen === 'GuiDisconnected' || (window.mc.currentScreen && window.mc.currentScreen.constructor.name.includes('Disconnected')), null, { timeout: 30000, polling: 250 }).catch(() => undefined);
-  const after = await guest.evaluate(() => ({ role: window.mc.dev.net.state().role, screen: window.mc.currentScreen?.constructor.name ?? null }));
-  check('guest sees the disconnect screen when the host leaves', after.role === 'none', JSON.stringify(after));
+  await guest.waitForFunction(() => window.mc.dev.net.state().screen === 'disconnected', null, { timeout: 30000, polling: 250 }).catch(() => undefined);
+  const after = await guest.evaluate(() => ({ role: window.mc.dev.net.state().role, screen: window.mc.dev.net.state().screen }));
+  check('guest sees the disconnect screen when the host leaves', after.role === 'none' && after.screen === 'disconnected', JSON.stringify(after));
   await guest.waitForTimeout(800);
   await shot(guest, '11_guest_disconnected.png');
   log('done');
 } catch (e) {
   console.error(e);
+  await diag().catch(() => undefined);
   check('test ran to the end', false, String(e));
 } finally {
   await cleanup();
