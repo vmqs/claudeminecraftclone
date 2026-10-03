@@ -1,0 +1,6 @@
+[
+  { "goto": "?dev=1" },
+  { "waitFor": "window.mc && window.mc.currentScreen !== null" },
+  { "wait": 1500 },
+  { "shot": "title.png" }
+]
