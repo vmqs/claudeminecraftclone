@@ -178,10 +178,15 @@ export class SaveFormat {
     this.changed();
   }
 
-  /** A new world's save (nothing is written until its first save). */
+  /**
+   * A new world's save (nothing is written until its first save). Whatever an old world left in
+   * that folder goes first (the dev worlds reuse theirs; the create screen picks a new one).
+   */
   createWorld(folder: string): SaveHandler {
     this.currentFolder = folder;
-    return this.attach(new SaveHandler(this.backend, folder));
+    const h = this.attach(new SaveHandler(this.backend, folder));
+    h.runFirst(() => this.backend.deleteFolder(folder));
+    return h;
   }
 
   /**

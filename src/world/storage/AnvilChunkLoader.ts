@@ -65,14 +65,15 @@ export function writeChunkToNBT(chunk: Chunk, world: World): TagCompound {
     if (!s) continue;
     const t: TagCompound = {};
     NBT.setByte(t, 'Y', (s.yBase >> 4) & 255);
-    NBT.setByteArray(t, 'Blocks', s.blocks.slice());
+    // Serialized at once by the save handler, so the live arrays need no copy.
+    NBT.setByteArray(t, 'Blocks', s.blocks);
     NBT.setByteArray(t, 'Data', packNibbles(s.meta));
     NBT.setByteArray(t, 'BlockLight', packNibbles(s.blockLight));
     NBT.setByteArray(t, 'SkyLight', world.provider.hasNoSky ? new Uint8Array(2048) : packNibbles(s.skyLight));
     sections.push(t);
   }
   NBT.setList(level, 'Sections', NBTType.Compound, sections);
-  NBT.setByteArray(level, 'Biomes', chunk.biomes.slice());
+  NBT.setByteArray(level, 'Biomes', chunk.biomes);
   NBT.setList(level, 'Entities', NBTType.Compound, saveEntities(chunk));
   const tiles: TagCompound[] = [];
   for (const te of chunk.chunkTileEntityMap.values()) {

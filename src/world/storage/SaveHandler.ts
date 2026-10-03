@@ -267,6 +267,18 @@ export class SaveHandler {
     }
   }
 
+  /** Runs `fn` before every write of this handler (clearing a reused folder). */
+  runFirst(fn: () => Promise<void>): void {
+    const run = async (): Promise<void> => {
+      try {
+        await fn();
+      } catch (e) {
+        this.reportError(e);
+      }
+    };
+    this.writeChain = this.writeChain.then(run, run);
+  }
+
   /** Waits for queued writes (without compressing more). */
   idle(): Promise<void> {
     return this.writeChain;

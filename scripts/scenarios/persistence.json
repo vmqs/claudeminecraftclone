@@ -1,0 +1,105 @@
+[
+ {
+  "goto": "?dev=1&autostart=1&seed=persist&type=flat&mode=survival&mobs=0&time=6000"
+ },
+ {
+  "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0",
+  "timeout": 300000
+ },
+ {
+  "eval": "(() => {\n  window.must = (ok, info) => { if (!ok) throw new Error('assert failed: ' + JSON.stringify(info)); return info; };\n  const gs = mc.gameSettings; gs.renderDistance = 2; gs.saveOptions && gs.saveOptions();\n  const w = mc.theWorld, p = mc.thePlayer, L = mc.dev.lib;\n  w.worldInfo.gameRules.doMobSpawning = false;\n  for (const e of [...w.loadedEntityList]) if (e !== p) e.setDead();\n  mc.dev.ticks(1);\n  const x0 = Math.floor(p.posX), z0 = Math.floor(p.posZ);\n  // A gold and glass pillar, a chest, a sign, a furnace, a named sheep and a villager in front of the player (south).\n  for (let y = 4; y < 9; y++) w.setBlock(x0, y, z0 + 4, y % 2 ? 41 : 20, 0, 3);\n  w.setBlock(x0 - 2, 4, z0 + 4, 54, 0, 3);\n  const chest = w.getBlockTileEntity(x0 - 2, 4, z0 + 4);\n  chest.setInventorySlotContents(0, new L.ItemStack(264, 7, 0));\n  chest.setInventorySlotContents(13, new L.ItemStack(276, 1, 25));\n  w.setBlock(x0 + 2, 4, z0 + 4, 63, 8, 3);\n  const sign = w.getBlockTileEntity(x0 + 2, 4, z0 + 4); sign.signText[0] = 'Saved'; sign.signText[1] = 'in 1.5.2'; sign.signText[2] = 'Anvil'; sign.signText[3] = 'format';\n  w.setBlock(x0 + 3, 4, z0 + 6, 61, 2, 3);\n  w.getBlockTileEntity(x0 + 3, 4, z0 + 6).setInventorySlotContents(0, new L.ItemStack(15, 5, 0));\n  const sheep = mc.dev.newEntity('Sheep'); sheep.setLocationAndAngles(x0 - 1.5, 4, z0 + 7.5, 180, 0); sheep.setFleeceColor(14); sheep.setCustomNameTag('Rosie'); w.spawnEntityInWorld(sheep);\n  const vill = mc.dev.newEntity('Villager'); vill.setLocationAndAngles(x0 + 1.5, 4, z0 + 8.5, 180, 0); vill.setProfession(1); w.spawnEntityInWorld(vill);\n  // The player: inventory, health, food, xp, look.\n  mc.dev.setStack(0, 278, 1, 120); mc.dev.setStack(1, 3, 33); mc.dev.setStack(8, 364, 5); mc.dev.select(1);\n  mc.dev.survival.armor(3, 306);\n  mc.dev.survival.setHealth(13); mc.dev.survival.setFood(9, 2); mc.dev.survival.xp(5, 7);\n  mc.dev.tp(x0 + 0.5, 4, z0 + 0.5, 0, 10);\n  mc.dev.setTime(6000);\n  const expect = { x0, z0, px: mc.thePlayer.posX, py: mc.thePlayer.posY, pz: mc.thePlayer.posZ, time: w.getWorldTime(), seed: String(w.getSeed()) };\n  localStorage.setItem('persistExpect', JSON.stringify(expect));\n  mc.dev.ticks(5);\n  return expect;\n})()"
+ },
+ {
+  "wait": 2000
+ },
+ {
+  "waitFor": "mc.dev.pendingSections(2) === 0",
+  "timeout": 120000
+ },
+ {
+  "shot": "persist_1_built.png"
+ },
+ {
+  "eval": "(async () => {\n  mc.dev.screen('pause'); mc.dev.ticks(2);\n  await new Promise((r) => setTimeout(r, 500));\n  const s0 = mc.dev.saves.state();\n  await mc.dev.saves.quit();\n  const list = await mc.dev.saves.ready();\n  return must(mc.theWorld === null && list.length === 1 && list[0].fileName === 'dev' && list[0].gameType === 0, { s0, list });\n})()"
+ },
+ {
+  "waitFor": "!mc.loadingScreen.active",
+  "timeout": 60000
+ },
+ {
+  "goto": "?dev=1"
+ },
+ {
+  "waitFor": "mc.dev && mc.dev.saves.format.loaded",
+  "timeout": 60000
+ },
+ {
+  "eval": "(() => {\n  window.must = (ok, info) => { if (!ok) throw new Error('assert failed: ' + JSON.stringify(info)); return info; };\n  mc.dev.screen('singleplayer');\n  const gui = mc.currentScreen; gui.constructor.pinnedDate = new Date(2013, 4, 7, 12, 0).getTime();\n  gui.setSelected(0);\n  return must(gui.saveList.length === 1 && gui.saveList[0].displayName === 'New World', gui.saveList);\n})()"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "persist_2_worldlist.png"
+ },
+ {
+  "eval": "mc.dev.saves.open('dev')"
+ },
+ {
+  "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0",
+  "timeout": 300000
+ },
+ {
+  "eval": "(() => {\n  const E = JSON.parse(localStorage.getItem('persistExpect'));\n  const w = mc.theWorld, p = mc.thePlayer, L = mc.dev.lib;\n  const { x0, z0 } = E;\n  const pillar = [4, 5, 6, 7, 8].map((y) => w.getBlockId(x0, y, z0 + 4));\n  const chest = w.getBlockTileEntity(x0 - 2, 4, z0 + 4);\n  const sign = w.getBlockTileEntity(x0 + 2, 4, z0 + 4);\n  const furnace = w.getBlockTileEntity(x0 + 3, 4, z0 + 6);\n  const names = w.loadedEntityList.filter((e) => e !== p).map((e) => L.EntityList.getEntityString(e));\n  const sheep = w.loadedEntityList.find((e) => L.EntityList.getEntityString(e) === 'Sheep');\n  const vill = w.loadedEntityList.find((e) => L.EntityList.getEntityString(e) === 'Villager');\n  const st = mc.dev.survival.state();\n  const inv = p.inventory.mainInventory;\n  const got = {\n    pillar, chest: chest && [chest.getStackInSlot(0)?.stackSize, chest.getStackInSlot(13)?.getItemDamage()],\n    sign: sign && sign.signText.join('|'), furnace: furnace && furnace.getStackInSlot(0)?.stackSize, sheep: sheep && [sheep.getFleeceColor(), sheep.getCustomNameTag()], villager: vill && vill.getProfession(), names,\n    pos: [p.posX, p.posY, p.posZ], expectPos: [E.px, E.py, E.pz], health: st.health, food: st.food, level: p.experienceLevel, mode: st.mode,\n    inv: [inv[0]?.itemID, inv[0]?.getItemDamage(), inv[1]?.stackSize, inv[8]?.stackSize, p.inventory.armorInventory[3]?.itemID, p.inventory.currentItem],\n    time: w.getWorldTime(), seed: String(w.getSeed()), expectSeed: E.seed,\n  };\n  const ok = JSON.stringify(pillar) === '[20,41,20,41,20]' && got.chest[0] === 7 && got.chest[1] === 25 && got.sign === 'Saved|in 1.5.2|Anvil|format' && got.furnace === 5 && got.sheep[0] === 14 && got.sheep[1] === 'Rosie' && got.villager === 1 &&\n    Math.abs(p.posX - E.px) < 1e-6 && Math.abs(p.posZ - E.pz) < 1e-6 && Math.abs(p.posY - E.py) < 0.01 && st.health === 13 && st.food === 9 && p.experienceLevel === 7 && st.mode === 'survival' &&\n    got.inv[0] === 278 && got.inv[1] === 120 && got.inv[2] === 33 && got.inv[3] === 5 && got.inv[4] === 306 && got.inv[5] === 1 && got.seed === E.seed && got.time >= E.time;\n  if (!ok) throw new Error('assert failed: ' + JSON.stringify(got));\n  mc.dev.look(0, 10); mc.dev.setTime(6000);\n  for (const e of w.loadedEntityList) if (e !== p && e.isLivingEntity) { e.motionX = e.motionZ = 0; }\n  return got;\n})()"
+ },
+ {
+  "wait": 2000
+ },
+ {
+  "shot": "persist_3_reloaded.png"
+ },
+ {
+  "eval": "(async () => {\n  await mc.dev.saves.quit();\n  const zip = await mc.dev.saves.exportZip('dev');\n  const folder = await mc.dev.saves.roundTrip('dev');\n  const list = mc.dev.saves.list().map((s) => s.fileName);\n  window.IMPORTED = folder;\n  if (folder !== 'dev-' || list.length !== 2) throw new Error('assert failed: ' + JSON.stringify({ folder, list, zip: zip.length }));\n  return { folder, list, zipBytes: zip.length };\n})()"
+ },
+ {
+  "waitFor": "!mc.loadingScreen.active",
+  "timeout": 60000
+ },
+ {
+  "eval": "mc.currentScreen.constructor.pinnedDate = new Date(2013, 4, 7, 12, 0).getTime(); mc.currentScreen.saveList.map((s) => s.fileName)"
+ },
+ {
+  "wait": 1000
+ },
+ {
+  "shot": "persist_4_worldlist_imported.png"
+ },
+ {
+  "eval": "mc.dev.saves.open('dev-')"
+ },
+ {
+  "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0",
+  "timeout": 300000
+ },
+ {
+  "eval": "(() => {\n  const E = JSON.parse(localStorage.getItem('persistExpect'));\n  const w = mc.theWorld, p = mc.thePlayer, L = mc.dev.lib;\n  const { x0, z0 } = E;\n  const pillar = [4, 5, 6, 7, 8].map((y) => w.getBlockId(x0, y, z0 + 4));\n  const chest = w.getBlockTileEntity(x0 - 2, 4, z0 + 4);\n  const sign = w.getBlockTileEntity(x0 + 2, 4, z0 + 4);\n  const furnace = w.getBlockTileEntity(x0 + 3, 4, z0 + 6);\n  const names = w.loadedEntityList.filter((e) => e !== p).map((e) => L.EntityList.getEntityString(e));\n  const sheep = w.loadedEntityList.find((e) => L.EntityList.getEntityString(e) === 'Sheep');\n  const vill = w.loadedEntityList.find((e) => L.EntityList.getEntityString(e) === 'Villager');\n  const st = mc.dev.survival.state();\n  const inv = p.inventory.mainInventory;\n  const got = {\n    pillar, chest: chest && [chest.getStackInSlot(0)?.stackSize, chest.getStackInSlot(13)?.getItemDamage()],\n    sign: sign && sign.signText.join('|'), furnace: furnace && furnace.getStackInSlot(0)?.stackSize, sheep: sheep && [sheep.getFleeceColor(), sheep.getCustomNameTag()], villager: vill && vill.getProfession(), names,\n    pos: [p.posX, p.posY, p.posZ], expectPos: [E.px, E.py, E.pz], health: st.health, food: st.food, level: p.experienceLevel, mode: st.mode,\n    inv: [inv[0]?.itemID, inv[0]?.getItemDamage(), inv[1]?.stackSize, inv[8]?.stackSize, p.inventory.armorInventory[3]?.itemID, p.inventory.currentItem],\n    time: w.getWorldTime(), seed: String(w.getSeed()), expectSeed: E.seed,\n  };\n  const ok = JSON.stringify(pillar) === '[20,41,20,41,20]' && got.chest[0] === 7 && got.chest[1] === 25 && got.sign === 'Saved|in 1.5.2|Anvil|format' && got.furnace === 5 && got.sheep[0] === 14 && got.sheep[1] === 'Rosie' && got.villager === 1 &&\n    Math.abs(p.posX - E.px) < 1e-6 && Math.abs(p.posZ - E.pz) < 1e-6 && Math.abs(p.posY - E.py) < 0.01 && st.health === 13 && st.food === 9 && p.experienceLevel === 7 && st.mode === 'survival' &&\n    got.inv[0] === 278 && got.inv[1] === 120 && got.inv[2] === 33 && got.inv[3] === 5 && got.inv[4] === 306 && got.inv[5] === 1 && got.seed === E.seed && got.time >= E.time;\n  if (!ok) throw new Error('assert failed: ' + JSON.stringify(got));\n  mc.dev.look(0, 10); mc.dev.setTime(6000);\n  for (const e of w.loadedEntityList) if (e !== p && e.isLivingEntity) { e.motionX = e.motionZ = 0; }\n  return got;\n})()"
+ },
+ {
+  "wait": 2000
+ },
+ {
+  "shot": "persist_5_imported.png"
+ },
+ {
+  "eval": "(async () => {\n  await mc.dev.saves.quit();\n  mc.dev.screen('singleplayer');\n  const gui = mc.currentScreen; gui.constructor.pinnedDate = new Date(2013, 4, 7, 12, 0).getTime();\n  const i = gui.saveList.findIndex((s) => s.fileName === 'dev-');\n  gui.setSelected(i);\n  gui.actionPerformed(gui.buttonDelete);\n  return mc.currentScreen.buttonList.map((b) => b.displayString);\n})()"
+ },
+ {
+  "wait": 1000
+ },
+ {
+  "shot": "persist_6_delete_confirm.png"
+ },
+ {
+  "eval": "(async () => {\n  mc.currentScreen.actionPerformed(mc.currentScreen.buttonList[0]);\n  await new Promise((r) => setTimeout(r, 500));\n  await mc.dev.saves.format.refresh();\n  const list = mc.dev.saves.list().map((s) => s.fileName);\n  if (JSON.stringify(list) !== '[\"dev\"]') throw new Error('assert failed: ' + JSON.stringify(list));\n  return list;\n})()"
+ }
+]

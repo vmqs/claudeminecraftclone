@@ -34,7 +34,24 @@ export class WorldSaveController {
   /** The Save and Quit in progress (opening a world waits for it). */
   closing: Promise<void> | null = null;
 
-  constructor(private readonly host: SaveHost) {}
+  /** The world and player of the last tick (for saving when the page is hidden). */
+  private world: World | null = null;
+  private player: EntityPlayer | null = null;
+
+  constructor(private readonly host: SaveHost) {
+    // Leaving the tab (or closing it) saves like pausing: the browser may never come back.
+    if (typeof document !== 'undefined') {
+      // The world list is read at start-up so the Singleplayer screen has it at once.
+      void SaveFormat.instance.ensureLoaded();
+      const save = (): void => {
+        if (this.handler && this.world && !this.handler.closed) void this.handler.saveAll(this.world, this.player, true);
+      };
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') save();
+      });
+      window.addEventListener('pagehide', save);
+    }
+  }
 
   attach(handler: SaveHandler, provider: ChunkProviderClient): void {
     this.handler = handler;
@@ -47,6 +64,8 @@ export class WorldSaveController {
   /** Once per client tick while a world is open. */
   onTick(world: World | null, player: EntityPlayer | null, paused: boolean): void {
     const h = this.handler;
+    this.world = world;
+    this.player = player;
     if (!h || !world) return;
     if (paused && !this.wasPaused) void h.saveAll(world, player, false);
     this.wasPaused = paused;
@@ -68,6 +87,8 @@ export class WorldSaveController {
   close(world: World, provider: ChunkProviderClient, playerTag: TagCompound | null, afterSaved: () => void): boolean {
     const h = this.handler;
     this.handler = null;
+    this.world = null;
+    this.player = null;
     if (!h || h.closed || provider.saveHandler !== h) return false;
     const ls = this.host.loadingScreen;
     ls.resetProgressAndMessage('Saving level');
@@ -98,5 +119,7 @@ export class WorldSaveController {
   discard(): void {
     if (this.handler) this.handler.closed = true;
     this.handler = null;
+    this.world = null;
+    this.player = null;
   }
 }
