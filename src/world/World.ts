@@ -19,6 +19,7 @@ import { Chunk, EmptyChunk } from './Chunk';
 import { EnumSkyBlock, SKY_BLOCK_DEFAULT, type IBlockAccess } from './IBlockAccess';
 import type { IWorld } from './IWorld';
 import type { IWorldAccess } from './IWorldAccess';
+import type { WorldNetListener } from './WorldNetListener';
 import { BlockEventData } from './BlockEventData';
 import { Explosion } from './Explosion';
 import { SpawnerAnimals } from './SpawnerAnimals';
@@ -98,7 +99,22 @@ export class World implements IWorld, IBlockAccess {
   /** Starts a firework explosion effect (WorldClient.func_92088_a; set by the particle code). */
   static fireworksEffect: ((w: World, x: number, y: number, z: number, vx: number, vy: number, vz: number, fireworks: TagCompound | null) => void) | null = null;
 
-  readonly isRemote = false;
+  /**
+   * A guest's world (WorldClient): fed by the host, so world generation, block ticks, spawning
+   * and entity logic never run here (see src/net/client/WorldClient.ts).
+   */
+  readonly isRemote: boolean = false;
+  /** Events a LAN host forwards to its guests; null in single player (see WorldNetListener). */
+  netEvents: WorldNetListener | null = null;
+  /** The entity whose update is running (a host leaves a guest out of the particles it made). */
+  tickingEntity: Entity | null = null;
+  /** The player playSoundToNearExcept leaves out, while the listeners hear the sound. */
+  soundExcept: EntityPlayer | null = null;
+  /**
+   * True while effects run that every client makes for itself (random display ticks, the effects
+   * of an explosion): a LAN host does not forward their particles and sounds.
+   */
+  localEffectsOnly = false;
   readonly rand = new JavaRandom();
   readonly provider = new WorldProvider();
   readonly worldInfo: WorldInfo;
@@ -290,6 +306,7 @@ export class World implements IWorld, IBlockAccess {
     if (changed && this.naturalDepth === 0) c.playerModified = true;
     this.updateAllLightTypes(x, y, z);
     if (changed) {
+      this.netEvents?.blockChanged(x, y, z);
       if ((flags & 2) !== 0 && (!this.isRemote || (flags & 4) === 0)) this.markBlockForUpdate(x, y, z);
       if (!this.isRemote && (flags & 1) !== 0) this.notifyBlockChange(x, y, z, oldId);
     }
@@ -302,6 +319,7 @@ export class World implements IWorld, IBlockAccess {
     const changed = c.setBlockMetadata(x & 15, y, z & 15, meta);
     if (changed && this.naturalDepth === 0) c.playerModified = true;
     if (changed) {
+      this.netEvents?.blockChanged(x, y, z);
       const id = c.getBlockID(x & 15, y, z & 15);
       if ((flags & 2) !== 0 && (!this.isRemote || (flags & 4) === 0)) this.markBlockForUpdate(x, y, z);
       if (!this.isRemote && (flags & 1) !== 0) this.notifyBlockChange(x, y, z, id);
@@ -339,6 +357,7 @@ export class World implements IWorld, IBlockAccess {
   }
 
   markBlockForUpdate(x: number, y: number, z: number): void {
+    this.netEvents?.tileEntityChanged(x, y, z);
     for (const a of this.worldAccesses) a.markBlockForUpdate(x, y, z);
   }
 
@@ -729,6 +748,20 @@ export class World implements IWorld, IBlockAccess {
     for (const a of this.worldAccesses) a.playSound(name, e.posX, e.posY - e.yOffset, e.posZ, volume, pitch);
   }
 
+  /**
+   * World.playSoundToNearExcept: a player's own sound (EntityPlayer.playSound) for everyone
+   * else; the player's client already played it.
+   */
+  playSoundToNearExcept(p: EntityPlayer, name: string, volume: number, pitch: number): void {
+    const was = this.soundExcept;
+    this.soundExcept = p;
+    try {
+      for (const a of this.worldAccesses) a.playSound(name, p.posX, p.posY - p.yOffset, p.posZ, volume, pitch);
+    } finally {
+      this.soundExcept = was;
+    }
+  }
+
   playSoundEffect(x: number, y: number, z: number, name: string, volume: number, pitch: number): void {
     for (const a of this.worldAccesses) a.playSound(name, x, y, z, volume, pitch);
   }
@@ -856,6 +889,7 @@ export class World implements IWorld, IBlockAccess {
    * handleHealthUpdate (hurt/death sounds, hearts, smoke, eating, firework bursts...).
    */
   setEntityState(e: Entity, status: number): void {
+    this.netEvents?.entityStatus(e, status);
     e.handleHealthUpdate(status);
   }
 
@@ -870,7 +904,15 @@ export class World implements IWorld, IBlockAccess {
     e.isFlaming = flaming;
     e.isSmoking = smoking;
     e.doExplosionA();
-    e.doExplosionB(true);
+    // Guests replay the effects from the explosion packet (Packet60), so the host keeps its own.
+    const was = this.localEffectsOnly;
+    if (this.netEvents) this.localEffectsOnly = true;
+    try {
+      e.doExplosionB(true);
+    } finally {
+      this.localEffectsOnly = was;
+    }
+    this.netEvents?.explosion(e);
     return e;
   }
 
@@ -1192,6 +1234,7 @@ export class World implements IWorld, IBlockAccess {
   /** Adds a lightning bolt (ticked in updateEntities, drawn with the other entities). */
   addWeatherEffect(e: Entity): boolean {
     this.weatherEffects.push(e);
+    this.netEvents?.lightning(e);
     return true;
   }
 
@@ -1353,10 +1396,16 @@ export class World implements IWorld, IBlockAccess {
     e.prevRotationYaw = e.rotationYaw;
     e.prevRotationPitch = e.rotationPitch;
     if (force && (e.addedToChunk || (e as unknown as EntityPlayer).isPlayerEntity)) {
-      if (e.ridingEntity) e.updateRidden();
-      else {
-        e.ticksExisted++;
-        e.onUpdate();
+      const was = this.tickingEntity;
+      this.tickingEntity = e;
+      try {
+        if (e.ridingEntity) e.updateRidden();
+        else {
+          e.ticksExisted++;
+          e.onUpdate();
+        }
+      } finally {
+        this.tickingEntity = was;
       }
     }
     if (!Number.isFinite(e.posX)) e.posX = e.lastTickPosX;
@@ -1826,7 +1875,10 @@ export class World implements IWorld, IBlockAccess {
       this.blockEventCacheIndex ^= 1;
       for (const e of this.blockEventCache[i]) {
         const id = this.getBlockId(e.x, e.y, e.z);
-        if (id === e.blockID) Block.blocksList[id]?.onBlockEventReceived(this, e.x, e.y, e.z, e.eventID, e.eventParameter);
+        if (id === e.blockID) {
+          Block.blocksList[id]?.onBlockEventReceived(this, e.x, e.y, e.z, e.eventID, e.eventParameter);
+          this.netEvents?.blockEvent(e.x, e.y, e.z, id, e.eventID, e.eventParameter);
+        }
       }
       this.blockEventCache[i].length = 0;
     }
@@ -1834,6 +1886,16 @@ export class World implements IWorld, IBlockAccess {
 
   /** WorldClient.doVoidFogParticles: random display ticks around the player. */
   doVoidFogParticles(px: number, py: number, pz: number): void {
+    const was = this.localEffectsOnly;
+    this.localEffectsOnly = true;
+    try {
+      this.randomDisplayTicks(px, py, pz);
+    } finally {
+      this.localEffectsOnly = was;
+    }
+  }
+
+  private randomDisplayTicks(px: number, py: number, pz: number): void {
     const r = 16;
     const rand = new JavaRandom();
     for (let i = 0; i < 1000; i++) {

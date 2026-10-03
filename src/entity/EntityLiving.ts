@@ -1234,6 +1234,8 @@ export abstract class EntityLiving extends Entity {
     if (!this.isSwingInProgress || this.swingProgressInt >= this.getArmSwingAnimationEnd() / 2 || this.swingProgressInt < 0) {
       this.swingProgressInt = -1;
       this.isSwingInProgress = true;
+      // WorldServer: Packet18Animation 1 to everyone tracking this entity.
+      this.worldObj.netEvents?.entityAnimation(this, 1);
     }
   }
 
@@ -1334,7 +1336,10 @@ export abstract class EntityLiving extends Entity {
 
   /** Picked up an item, arrow or orb: the client shows it flying in (Packet22Collect). */
   onItemPickup(e: Entity, _count: number): void {
-    if (!e.isDead) EntityLiving.collectEffect?.(e, this);
+    if (!e.isDead) {
+      this.worldObj.netEvents?.itemCollected(e, this);
+      EntityLiving.collectEffect?.(e, this);
+    }
   }
 
   /** Breaking tool: sound plus item particles in front of the face. */

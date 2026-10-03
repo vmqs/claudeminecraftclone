@@ -316,7 +316,10 @@ export class EntityPlayerSP extends EntityPlayer {
   }
 
   override playSound(name: string, volume: number, pitch: number): void {
-    this.worldObj.playSound(this.posX, this.posY - this.yOffset, this.posZ, name, volume, pitch, false);
+    const y = this.posY - this.yOffset;
+    this.worldObj.playSound(this.posX, y, this.posZ, name, volume, pitch, false);
+    // A LAN host's own sounds reach its guests (its server-side player played them for others).
+    this.worldObj.netEvents?.playerSound(this, name, this.posX, y, this.posZ, volume, pitch);
   }
 
   /** EntityPlayerMP: seed, tell, help and me always work; the rest need "Allow Cheats". */

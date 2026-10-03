@@ -35,6 +35,14 @@ export class EntityOtherPlayerMP extends EntityPlayer {
     this.renderDistanceWeight = 10;
   }
 
+  /**
+   * Always a client's copy, also when shown in a world that is not remote (dev scenes): its
+   * hunger, item use, spawn protection and sleep are the owning side's business.
+   */
+  override isClientSide(): boolean {
+    return true;
+  }
+
   /** Packet17Sleep: the player's own side already checked the bed, so this copy just lies down. */
   override sleepInBedAt(x: number, y: number, z: number): BedSleepStatus {
     this.lieDownInBed(x, y, z);

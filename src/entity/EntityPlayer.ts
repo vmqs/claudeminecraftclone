@@ -125,34 +125,43 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     if (stack !== this.itemInUse) {
       this.itemInUse = stack;
       this.itemInUseCount = count;
-      if (!this.worldObj.isRemote) this.setEating(true);
+      if (!this.isClientSide()) this.setEating(true);
     }
   }
   clearItemInUse(): void {
     this.itemInUse = null;
     this.itemInUseCount = 0;
-    if (!this.worldObj.isRemote) this.setEating(false);
+    if (!this.isClientSide()) this.setEating(false);
   }
   stopUsingItem(): void {
     if (this.itemInUse) this.itemInUse.onPlayerStoppedUsing(this.worldObj, this, this.itemInUseCount);
     this.clearItemInUse();
   }
 
+  /**
+   * This copy of the player is a client's (a guest's world, or another player shown from the
+   * network): server rules (hunger, item use finishing, spawn protection, container checks,
+   * waking up by day) are left to the side that owns the player.
+   */
+  isClientSide(): boolean {
+    return this.worldObj.isRemote;
+  }
+
   override onUpdate(): void {
-    if (!this.worldObj.isRemote) this.initialInvulnerability--;
+    if (!this.isClientSide()) this.initialInvulnerability--;
     if (this.itemInUse) {
       const held = this.inventory.getCurrentItem();
       if (held !== this.itemInUse) {
         this.clearItemInUse();
       } else {
         if (this.itemInUseCount <= 25 && this.itemInUseCount % 4 === 0) this.updateItemUse(held, 5);
-        if (--this.itemInUseCount === 0 && !this.worldObj.isRemote) this.onItemUseFinish();
+        if (--this.itemInUseCount === 0 && !this.isClientSide()) this.onItemUseFinish();
       }
     }
     if (this.xpCooldown > 0) this.xpCooldown--;
     this.updateSleepTimer();
     super.onUpdate();
-    if (!this.worldObj.isRemote && !this.openContainer.canInteractWith(this)) {
+    if (!this.isClientSide() && !this.openContainer.canInteractWith(this)) {
       this.closeScreen();
       this.openContainer = this.inventoryContainer;
     }
@@ -171,7 +180,7 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     this.chasingPosX += dx * 0.25;
     this.chasingPosZ += dz * 0.25;
     this.chasingPosY += dy * 0.25;
-    if (!this.worldObj.isRemote) {
+    if (!this.isClientSide()) {
       // NetServerHandler.handleFlying: leaving the ground upwards costs 0.2 (also for sprint jumps).
       if (this.serverOnGround && !this.onGround && this.posY - this.serverPosY > 0) this.addExhaustion(f(0.2));
       this.serverOnGround = this.onGround;
@@ -287,7 +296,8 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     if (this.onGround || this.getHealth() <= 0) tilt = 0;
     this.cameraYaw = f(this.cameraYaw + (bob - this.cameraYaw) * f(0.4));
     this.cameraPitch = f(this.cameraPitch + (tilt - this.cameraPitch) * f(0.8));
-    if (this.getHealth() > 0) {
+    // Picking things up is the server's (EntityItem and friends check isRemote in 1.5.2).
+    if (this.getHealth() > 0 && !this.worldObj.isRemote) {
       const list = this.worldObj.getEntitiesWithinAABBExcludingEntity(this, this.boundingBox.expand(1, 0.5, 1));
       for (const e of list) if (!e.isDead) e.onCollideWithPlayer(this);
     }
@@ -337,11 +347,11 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
    */
   override attackEntityFrom(src: DamageSource, amount: number): boolean {
     if (this.isEntityInvulnerable()) return false;
-    if (this.initialInvulnerability > 0 && src !== DamageSource.outOfWorld && !this.worldObj.isRemote) return false;
+    if (this.initialInvulnerability > 0 && src !== DamageSource.outOfWorld && !this.isClientSide()) return false;
     if (this.capabilities.disableDamage && !src.canHarmInCreative()) return false;
     this.entityAge = 0;
     if (this.getHealth() <= 0) return false;
-    if (this.isPlayerSleeping() && !this.worldObj.isRemote) this.wakeUpPlayer(true, true, false);
+    if (this.isPlayerSleeping() && !this.isClientSide()) this.wakeUpPlayer(true, true, false);
     if (src.isDifficultyScaled()) {
       const diff = this.worldObj.difficultySetting;
       if (diff === 0) amount = 0;
@@ -377,7 +387,7 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     if (this.isPlayerSleeping()) {
       this.sleepTimer++;
       if (this.sleepTimer > 100) this.sleepTimer = 100;
-      if (!this.worldObj.isRemote) {
+      if (!this.isClientSide()) {
         if (!this.isInBed()) this.wakeUpPlayer(true, true, false);
         else if (this.worldObj.isDaytime()) this.wakeUpPlayer(false, true, true);
       }
@@ -404,7 +414,10 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
       if (w.getEntitiesWithinAABB((e): e is EntityMob => e instanceof EntityMob, box).length > 0) return 'NOT_SAFE';
     }
     this.lieDownInBed(x, y, z);
-    if (!w.isRemote) w.updateAllPlayersSleepingFlag();
+    if (!w.isRemote) {
+      w.updateAllPlayersSleepingFlag();
+      w.netEvents?.playerSleep(this, x, y, z);
+    }
     return 'OK';
   }
 
@@ -448,6 +461,7 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
    * world's everyone-asleep flag, `setSpawn` makes the bed this player's spawn point.
    */
   wakeUpPlayer(immediately: boolean, updateWorld: boolean, setSpawn: boolean): void {
+    if (this.sleeping && !this.worldObj.isRemote) this.worldObj.netEvents?.playerWake(this);
     this.setSize(f(0.6), f(1.8));
     this.resetHeight();
     const bed = this.playerLocation;
@@ -586,7 +600,7 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
 
   /** Food exhaustion from actions (FoodStats.addExhaustion); nothing while damage is disabled. */
   addExhaustion(amount: number): void {
-    if (this.capabilities.disableDamage || this.worldObj.isRemote) return;
+    if (this.capabilities.disableDamage || this.isClientSide()) return;
     this.foodStats.addExhaustion(amount);
   }
 
