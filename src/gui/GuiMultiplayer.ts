@@ -1,20 +1,25 @@
 import { Keyboard, Keys } from '../client/Keyboard';
 import { I18n } from '../core/I18n';
+import { savedServerKind } from '../net/connect/ServerAddress';
+import { pingServerAddress } from '../net/connect/ServerConnector';
+import { formatRoomCode, normalizeRoomCode } from '../net/RoomCode';
 import { GL } from '../render/gl/GL';
 import type { Tessellator } from '../render/gl/Tessellator';
 import { GuiButton } from './GuiButton';
 import { GuiConnecting } from './GuiConnecting';
 import { GuiScreen } from './GuiScreen';
 import { GuiScreenAddServer } from './GuiScreenAddServer';
+import { GuiScreenRoomCode } from './GuiScreenRoomCode';
 import { GuiScreenServerList } from './GuiScreenServerList';
 import { GuiSlot } from './GuiSlot';
 import { GuiYesNo } from './GuiYesNo';
-import { GuiTextField } from './GuiTextField';
-import { filterUsername } from './GuiShareToLan';
-import { formatRoomCode, normalizeRoomCode } from '../net/RoomCode';
-import { isUsernameChar, isValidUsername, saveUsername } from '../net/Username';
 
-/** One saved server (ServerData). */
+/**
+ * One saved server (ServerData). `kind` says how it is joined: a server address goes through
+ * the ServerConnector of its scheme (Direct Connect's path); a room is a LAN room code, joined
+ * peer to peer (the Room Code button's path). Rooms only come from lists saved before servers
+ * were real addresses again.
+ */
 export class ServerData {
   serverMOTD = '';
   populationInfo = '';
@@ -24,14 +29,18 @@ export class ServerData {
   gameVersion = '1.5.2';
   /** The ping was started (field_78841_f). */
   polled = false;
-  /** The address is a room code: rooms are not pinged, so no signal icon is drawn. */
-  isRoom = false;
   private hideAddress = false;
 
   constructor(
     public serverName: string,
     public serverIP: string,
+    public kind: 'server' | 'room' = 'server',
   ) {}
+
+  /** A LAN room code: rooms are not pinged, so no signal icon is drawn. */
+  get isRoom(): boolean {
+    return this.kind === 'room';
+  }
 
   isHidingAddress(): boolean {
     return this.hideAddress;
@@ -44,6 +53,14 @@ export class ServerData {
 
 const SERVERS_KEY = 'mc152.servers';
 
+interface SavedServer {
+  name: string;
+  ip: string;
+  hideAddress?: boolean;
+  /** Absent in lists saved when every entry was a room code. */
+  kind?: 'server' | 'room';
+}
+
 /** servers.dat, kept in localStorage (ServerList). */
 export class ServerList {
   private readonly servers: ServerData[] = [];
@@ -51,9 +68,11 @@ export class ServerList {
   loadServerList(): void {
     this.servers.length = 0;
     try {
-      const list = JSON.parse(localStorage.getItem(SERVERS_KEY) ?? '[]') as { name: string; ip: string; hideAddress?: boolean }[];
+      const list = JSON.parse(localStorage.getItem(SERVERS_KEY) ?? '[]') as SavedServer[];
+      if (!Array.isArray(list)) return;
       for (const s of list) {
-        const d = new ServerData(s.name, s.ip);
+        if (typeof s?.name !== 'string' || typeof s.ip !== 'string') continue;
+        const d = new ServerData(s.name, s.ip, savedServerKind(s));
         d.setHideAddress(!!s.hideAddress);
         this.servers.push(d);
       }
@@ -64,7 +83,8 @@ export class ServerList {
 
   saveServerList(): void {
     try {
-      localStorage.setItem(SERVERS_KEY, JSON.stringify(this.servers.map((s) => ({ name: s.serverName, ip: s.serverIP, hideAddress: s.isHidingAddress() }))));
+      const list: SavedServer[] = this.servers.map((s) => ({ name: s.serverName, ip: s.serverIP, hideAddress: s.isHidingAddress(), kind: s.kind }));
+      localStorage.setItem(SERVERS_KEY, JSON.stringify(list));
     } catch {
       /* storage unavailable */
     }
@@ -96,23 +116,48 @@ export class ServerList {
 
 /** Pings running at once (GuiMultiplayer.threadsPending). */
 let threadsPending = 0;
+/** How long a ping may take (1.5.2's socket timeout was 3 s). */
+const PING_TIMEOUT_MS = 3000;
 
 /**
- * ThreadPollServers. Servers here are LAN rooms, which cannot be pinged without joining them:
- * a room code shows as such, anything else ends like an unreachable server in the original.
+ * ThreadPollServers: "Polling.." until the server's connector answers. Without a connector that
+ * can ping (no browser can open the plain TCP connection), the entry ends like an unreachable
+ * server in 1.5.2: "Can't reach server" and the red cross. Rooms are not pinged.
  */
 function pollServer(d: ServerData): void {
   d.serverMOTD = '§8Polling..';
   threadsPending++;
-  setTimeout(
-    () => {
-      const code = normalizeRoomCode(d.serverIP);
-      d.isRoom = code !== null;
-      d.pingToServer = -1;
-      d.serverMOTD = code ? `§7Room code ${formatRoomCode(code)}` : "§4Can't reach server";
-      threadsPending--;
-    },
-    400 + Math.random() * 400,
+  if (d.isRoom) {
+    const code = normalizeRoomCode(d.serverIP);
+    d.pingToServer = -1;
+    d.serverMOTD = code ? `§7Room code ${formatRoomCode(code)}` : '§7Room code';
+    threadsPending--;
+    return;
+  }
+  const started = performance.now();
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), PING_TIMEOUT_MS);
+  // A refused connection still took a moment in 1.5.2: "Polling.." stays up at least that long.
+  const settle = (f: () => void) => {
+    clearTimeout(timer);
+    setTimeout(f, Math.max(0, 400 + Math.random() * 400 - (performance.now() - started)));
+  };
+  pingServerAddress(d.serverIP, ac.signal).then(
+    (ping) =>
+      settle(() => {
+        d.serverMOTD = '§7' + ping.motd;
+        d.populationInfo = ping.maxPlayers > 0 ? `§7${ping.onlinePlayers}§8/§7${ping.maxPlayers}` : '§8???';
+        d.protocolVersion = ping.protocolVersion;
+        d.gameVersion = ping.gameVersion;
+        d.pingToServer = Math.max(0, Math.round(ping.pingMs));
+        threadsPending--;
+      }),
+    () =>
+      settle(() => {
+        d.pingToServer = -1;
+        d.serverMOTD = "§4Can't reach server";
+        threadsPending--;
+      }),
   );
 }
 
@@ -128,12 +173,11 @@ export class GuiMultiplayer extends GuiScreen {
   private addClicked = false;
   private editClicked = false;
   private directClicked = false;
+  private roomClicked = false;
   lagTooltip: string | null = null;
   private theServerData: ServerData | null = null;
   ticksOpened = 0;
   private initialized = false;
-  /** The player's name (the launcher's username in 1.5.2), kept with the options. */
-  private nameField!: GuiTextField;
 
   constructor(private readonly parentScreen: GuiScreen) {
     super();
@@ -154,32 +198,27 @@ export class GuiMultiplayer extends GuiScreen {
     } else {
       this.serverSlotContainer.setDimensions(this.width, this.height, 32, this.height - 64);
     }
-    const name = this.nameField?.getText() ?? this.mc.username;
-    this.nameField = new GuiTextField(this.fontRenderer, this.width - 108, 6, 100, 20);
-    this.nameField.setMaxStringLength(16);
-    this.nameField.setText(name);
     this.initGuiControls();
   }
 
-  /** The name typed, saved when it is valid. */
-  private commitName(): boolean {
-    const name = this.nameField.getText();
-    if (!isValidUsername(name)) return false;
-    this.mc.username = name;
-    saveUsername(name);
-    return true;
-  }
-
+  /**
+   * 1.5.2's two rows, with Room Code beside Direct Connect: Join Server, Direct Connect and
+   * Room Code above; Add server moved down to the list's other entry buttons (Edit, Delete),
+   * then Refresh and Cancel.
+   */
   initGuiControls(): void {
     const t = (k: string) => I18n.translateToLocal(k);
     const cx = Math.trunc(this.width / 2);
-    this.buttonList.push((this.buttonEdit = new GuiButton(7, cx - 154, this.height - 28, 70, 20, t('selectServer.edit'))));
-    this.buttonList.push((this.buttonDelete = new GuiButton(2, cx - 74, this.height - 28, 70, 20, t('selectServer.delete'))));
-    this.buttonList.push((this.buttonSelect = new GuiButton(1, cx - 154, this.height - 52, 100, 20, t('selectServer.select'))));
-    this.buttonList.push(new GuiButton(4, cx - 50, this.height - 52, 100, 20, t('selectServer.direct')));
-    this.buttonList.push(new GuiButton(3, cx + 4 + 50, this.height - 52, 100, 20, t('selectServer.add')));
-    this.buttonList.push(new GuiButton(8, cx + 4, this.height - 28, 70, 20, t('selectServer.refresh')));
-    this.buttonList.push(new GuiButton(0, cx + 4 + 76, this.height - 28, 75, 20, t('gui.cancel')));
+    const top = this.height - 52;
+    const bottom = this.height - 28;
+    this.buttonList.push((this.buttonEdit = new GuiButton(7, cx - 80, bottom, 54, 20, t('selectServer.edit'))));
+    this.buttonList.push((this.buttonDelete = new GuiButton(2, cx - 22, bottom, 54, 20, t('selectServer.delete'))));
+    this.buttonList.push((this.buttonSelect = new GuiButton(1, cx - 154, top, 100, 20, t('selectServer.select'))));
+    this.buttonList.push(new GuiButton(4, cx - 50, top, 100, 20, t('selectServer.direct')));
+    this.buttonList.push(new GuiButton(9, cx + 54, top, 100, 20, 'Room Code'));
+    this.buttonList.push(new GuiButton(3, cx - 154, bottom, 70, 20, t('selectServer.add')));
+    this.buttonList.push(new GuiButton(8, cx + 36, bottom, 56, 20, t('selectServer.refresh')));
+    this.buttonList.push(new GuiButton(0, cx + 96, bottom, 58, 20, t('gui.cancel')));
     const ok = this.selectedServer >= 0 && this.selectedServer < this.serverSlotContainer.size();
     this.buttonSelect.enabled = ok;
     this.buttonEdit.enabled = ok;
@@ -188,12 +227,10 @@ export class GuiMultiplayer extends GuiScreen {
 
   override updateScreen(): void {
     this.ticksOpened++;
-    this.nameField.updateCursorCounter();
   }
 
   override onGuiClosed(): void {
     Keyboard.enableRepeatEvents(false);
-    this.commitName();
   }
 
   protected override actionPerformed(b: GuiButton): void {
@@ -208,13 +245,16 @@ export class GuiMultiplayer extends GuiScreen {
     } else if (b.id === 4) {
       this.directClicked = true;
       this.mc.displayGuiScreen(new GuiScreenServerList(this, (this.theServerData = new ServerData(t('selectServer.defaultName'), ''))));
+    } else if (b.id === 9) {
+      this.roomClicked = true;
+      this.mc.displayGuiScreen(new GuiScreenRoomCode(this, (this.theServerData = new ServerData('LAN', '', 'room'))));
     } else if (b.id === 3) {
       this.addClicked = true;
       this.mc.displayGuiScreen(new GuiScreenAddServer(this, (this.theServerData = new ServerData(t('selectServer.defaultName'), ''))));
     } else if (b.id === 7) {
       this.editClicked = true;
       const d = this.internetServerList.getServerData(this.selectedServer);
-      this.theServerData = new ServerData(d.serverName, d.serverIP);
+      this.theServerData = new ServerData(d.serverName, d.serverIP, d.kind);
       this.theServerData.setHideAddress(d.isHidingAddress());
       this.mc.displayGuiScreen(new GuiScreenAddServer(this, this.theServerData));
     } else if (b.id === 0) {
@@ -235,8 +275,9 @@ export class GuiMultiplayer extends GuiScreen {
         this.selectedServer = -1;
       }
       this.mc.displayGuiScreen(this);
-    } else if (this.directClicked) {
+    } else if (this.directClicked || this.roomClicked) {
       this.directClicked = false;
+      this.roomClicked = false;
       if (ok) this.connectToServer(this.theServerData!);
       else this.mc.displayGuiScreen(this);
     } else if (this.addClicked) {
@@ -251,9 +292,13 @@ export class GuiMultiplayer extends GuiScreen {
       this.editClicked = false;
       if (ok) {
         const d = this.internetServerList.getServerData(this.selectedServer);
-        d.serverName = this.theServerData!.serverName;
-        d.serverIP = this.theServerData!.serverIP;
-        d.setHideAddress(this.theServerData!.isHidingAddress());
+        const edited = this.theServerData!;
+        d.serverName = edited.serverName;
+        d.serverIP = edited.serverIP;
+        // An old room entry stays a room only while its address is still a room code.
+        d.kind = d.kind === 'room' && normalizeRoomCode(edited.serverIP) !== null ? 'room' : 'server';
+        d.polled = false;
+        d.setHideAddress(edited.isHidingAddress());
         this.internetServerList.saveServerList();
       }
       this.mc.displayGuiScreen(this);
@@ -263,15 +308,6 @@ export class GuiMultiplayer extends GuiScreen {
   protected override keyTyped(ch: string, key: number): void {
     const sel = this.selectedServer;
     const list = this.internetServerList;
-    if (this.nameField.isFocused) {
-      if (ch.length === 1 && ch >= ' ' && !isUsernameChar(ch)) return;
-      if (this.nameField.textboxKeyTyped(ch, key)) {
-        const clean = filterUsername(this.nameField.getText());
-        if (clean !== this.nameField.getText()) this.nameField.setText(clean);
-        this.commitName();
-        return;
-      }
-    }
     if (key === Keys.F1) {
       this.mc.gameSettings.hideServerAddress = !this.mc.gameSettings.hideServerAddress;
       this.mc.gameSettings.saveOptions();
@@ -288,7 +324,7 @@ export class GuiMultiplayer extends GuiScreen {
         if (sel > 0) this.serverSlotContainer.scrollBy(this.serverSlotContainer.rowHeight);
       }
     } else if (ch === '\r') {
-      this.actionPerformed(this.buttonList[2]);
+      this.actionPerformed(this.buttonSelect);
     } else {
       super.keyTyped(ch, key);
     }
@@ -299,9 +335,6 @@ export class GuiMultiplayer extends GuiScreen {
     this.drawDefaultBackground();
     this.serverSlotContainer.drawScreen(mx, my, pt);
     this.drawCenteredString(this.fontRenderer, I18n.translateToLocal('multiplayer.title'), Math.trunc(this.width / 2), 20, 0xffffff);
-    const nameOk = isValidUsername(this.nameField.getText());
-    this.drawString(this.fontRenderer, 'Name', this.width - 108 - this.fontRenderer.getStringWidth('Name') - 4, 12, nameOk ? 0xa0a0a0 : 0xff5555);
-    this.nameField.drawTextBox();
     super.drawScreen(mx, my, pt);
     if (this.lagTooltip !== null) this.drawTooltip(this.lagTooltip, mx, my);
   }
@@ -311,18 +344,8 @@ export class GuiMultiplayer extends GuiScreen {
   }
 
   private connectToServer(d: ServerData): void {
-    if (!this.commitName()) {
-      this.nameField.setFocused(true);
-      this.mc.displayGuiScreen(this);
-      return;
-    }
-    this.mc.gameSettings.lastServer = d.serverIP;
+    if (!d.isRoom) this.mc.gameSettings.lastServer = d.serverIP;
     this.mc.displayGuiScreen(new GuiConnecting(this, this.mc, d));
-  }
-
-  protected override mouseClicked(x: number, y: number, button: number): void {
-    super.mouseClicked(x, y, button);
-    this.nameField.mouseClicked(x, y, button);
   }
 
   /** func_74007_a: the ping tooltip. */

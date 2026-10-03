@@ -36,11 +36,17 @@ export class NetDevTools {
     }
   }
 
-  /** Multiplayer > Direct Connect with a room code, as a player would. */
+  /** Multiplayer > Room Code with a room code, as a player would. */
   join(code: string, name?: string): void {
     if (name) this.mc.username = name;
     const list = new GuiMultiplayer(new GuiMainMenu());
-    this.mc.displayGuiScreen(new GuiConnecting(list, this.mc, new ServerData('LAN', code)));
+    this.mc.displayGuiScreen(new GuiConnecting(list, this.mc, new ServerData('LAN', code, 'room')));
+  }
+
+  /** Multiplayer > Direct Connect with a server address (through its ServerConnector). */
+  connect(address: string): void {
+    const list = new GuiMultiplayer(new GuiMainMenu());
+    this.mc.displayGuiScreen(new GuiConnecting(list, this.mc, new ServerData('Minecraft Server', address)));
   }
 
   /** What the session looks like now. */

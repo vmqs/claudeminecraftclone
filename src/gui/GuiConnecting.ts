@@ -6,9 +6,10 @@ import type { ServerData } from './GuiMultiplayer';
 import { GuiScreen } from './GuiScreen';
 
 /**
- * "Connecting to the server..." (GuiConnecting): looks for the host of the room code, then shows
- * "Logging in..." while the handshake runs. A failure ends on the disconnect screen with the
- * reason; Cancel gives up and goes back.
+ * "Connecting to the server..." (GuiConnecting): opens the connection (a server address through
+ * its ServerConnector, as Direct Connect did in 1.5.2; a room code by finding the room's host),
+ * then shows "Logging in..." while the handshake runs. A failure ends on the disconnect screen
+ * with the reason ("Failed to connect to the server"); Cancel gives up and goes back.
  */
 export class GuiConnecting extends GuiScreen {
   private cancelled = false;
@@ -21,16 +22,15 @@ export class GuiConnecting extends GuiScreen {
   ) {
     super();
     this.mc = mc;
-    mc.connectToRoom(
-      serverData.serverIP,
-      () => {
-        if (!this.cancelled) this.connected = true;
-      },
-      (reason) => {
-        if (this.cancelled) return;
-        this.mc.displayGuiScreen(new GuiDisconnected(this.previousScreen, 'connect.failed', 'disconnect.genericReason', reason));
-      },
-    );
+    const connected = () => {
+      if (!this.cancelled) this.connected = true;
+    };
+    const failed = (reason: string) => {
+      if (this.cancelled) return;
+      this.mc.displayGuiScreen(new GuiDisconnected(this.previousScreen, 'connect.failed', 'disconnect.genericReason', reason));
+    };
+    if (serverData.isRoom) mc.connectToRoom(serverData.serverIP, connected, failed);
+    else mc.connectToServer(serverData.serverIP, connected, failed);
   }
 
   protected override keyTyped(): void {}

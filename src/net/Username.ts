@@ -16,6 +16,11 @@ export function isUsernameChar(ch: string): boolean {
   return /^[A-Za-z0-9_]$/.test(ch);
 }
 
+/** Keeps only the characters a username may have (at most 16). */
+export function filterUsername(s: string): string {
+  return [...s].filter(isUsernameChar).join('').slice(0, 16);
+}
+
 export function defaultUsername(random: () => number = Math.random): string {
   return 'Player' + String(Math.floor(random() * 1000)).padStart(3, '0');
 }

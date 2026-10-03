@@ -26,13 +26,20 @@ Play with friends the way 1.5.2's **Open to LAN** works, but over the internet: 
 browser hosts the world and the others join it with a room code. The browsers connect directly
 to each other (WebRTC); there is no game server to run.
 
-- **Host:** in your world press Esc → **Open to LAN**, pick the game mode for other players,
-  Allow Cheats and your name, then **Start LAN World** (or type `/publish`). The chat shows a
+- **Your name and skin:** title screen (or Options) → **Account Manager**. Type your name and
+  press **Upload Skin...** to wear a 64x32 or 64x64 PNG skin (a turning preview shows it);
+  **Reset to Steve** goes back to the default. Both are remembered by the browser, and the other
+  players in a room see your skin.
+- **Host:** in your world press Esc → **Open to LAN**, pick the game mode for other players and
+  Allow Cheats, then **Start LAN World** (or type `/publish`). The chat shows a
   code such as `Room code: K7XQ-2MHB` (also copied to the clipboard, and shown on the pause
   menu). Keep the tab open and visible while others play. `/kick`, `/ban`, `/pardon` and
   `/whitelist on` keep order.
-- **Join:** title screen → **Multiplayer**, type your name in the **Name** box, then
-  **Direct Connect**, enter the room code and **Join Server**. **Add Server** saves a code.
+- **Join:** title screen → **Multiplayer** → **Room Code**, enter the code and **Join Server**.
+  **Direct Connect**, **Add server** and the server list take real server addresses
+  (`host[:port]`) as in 1.5.2; a browser cannot open a direct connection to a Minecraft server
+  yet, so they end on "Failed to connect to the server" (see `docs/MULTIPLAYER.md` for the
+  connector hook a proxy could plug into).
 - **Names** are 3–16 letters, digits or underscores, are remembered by the browser and must be
   unique in a room. They show above players, in chat, in the TAB list and in commands. Coming
   back to a room from the same browser gives you your things back.

@@ -72,8 +72,12 @@ import type { WorldClient } from '../net/client/WorldClient';
 import { CONNECT_TIMEOUT_MS, makeGuestTransport, makeHostTransport } from '../net/NetSession';
 import { formatRoomCode, generateRoomCode, normalizeRoomCode } from '../net/RoomCode';
 import { loadRejoinToken, saveRejoinToken } from '../net/RejoinTokens';
-import { ConnectError, type GuestTransport } from '../net/transport/Transport';
+import { ConnectError, type GuestTransport, type NetConnection } from '../net/transport/Transport';
 import { loadUsername } from '../net/Username';
+import { connectToServerAddress } from '../net/connect/ServerConnector';
+import { BootSplash } from './BootSplash';
+import { PlayerSkins } from './skin/PlayerSkins';
+import { loadSavedSkin } from './skin/SkinFiles';
 import { EntityCrit2FX } from '../render/particle/EntityCrit2FX';
 import type { Entity } from '../entity/Entity';
 
@@ -179,6 +183,8 @@ export class Minecraft implements SettingsListener {
   /** The connection to a host while playing as a guest (NetClientHandler). */
   netHandler: NetClientHandler | null = null;
   private guestTransport: GuestTransport | null = null;
+  /** A Direct Connect / Join Server attempt in progress (its connector's abort signal). */
+  private serverConnect: AbortController | null = null;
   /** The room code this guest joined (for its rejoin token). */
   private guestRoomCode: string | null = null;
   displayWidth = 854;
@@ -190,7 +196,7 @@ export class Minecraft implements SettingsListener {
   /** "N fps, M chunk updates" for the F3 screen. */
   debug = '';
   static debugFPS = 0;
-  /** The player's name (launcher username): kept in localStorage, editable on the multiplayer screens. */
+  /** The player's name (launcher username): kept in localStorage, set in the Account Manager. */
   username = loadUsername();
   /** Called once per frame after rendering (dev hooks, screenshot harness). */
   readonly frameListeners: (() => void)[] = [];
@@ -221,6 +227,8 @@ export class Minecraft implements SettingsListener {
     installEntityClientHooks(this);
     this.loadingScreen = new LoadingScreenRenderer(this);
     this.playerController = this.singlePlayerController = new PlayerControllerMP(this);
+    // The player the user controls wears the Account Manager's skin.
+    PlayerSkins.localPlayer = () => this.thePlayer;
     this.updateDisplaySize();
   }
 
@@ -253,8 +261,9 @@ export class Minecraft implements SettingsListener {
     Tessellator.drawHandler = (mode, data, count, flags) => GL.drawDynamic(mode, data, count, flags);
     RenderBlocks.itemGL = { color: (r, g, b, a) => GL.color(r, g, b, a), rotate: (a, x, y, z) => GL.rotate(a, x, y, z), translate: (x, y, z) => GL.translate(x, y, z), enableRescaleNormal: () => GL.enable(GL.RESCALE_NORMAL) };
     this.setupGLState();
-    await this.renderEngine.preload(['/title/mojang.png']);
-    this.loadScreen();
+    const splash = new BootSplash(this.canvas, this.renderEngine);
+    await splash.show();
+    void loadSavedSkin();
 
     const rm = this.resources;
     const lang = await rm.getText('lang/en_US.lang', 'vanilla');
@@ -305,6 +314,7 @@ export class Minecraft implements SettingsListener {
     this.effectRenderer = new EffectRenderer(null, this.renderEngine);
     this.ingameGUI = new GuiIngame(this);
     this.started = true;
+    splash.dispose();
     this.displayGuiScreen(new GuiMainMenu());
   }
 
@@ -327,43 +337,6 @@ export class Minecraft implements SettingsListener {
     GL.matrixMode(GL.PROJECTION);
     GL.loadIdentity();
     GL.matrixMode(GL.MODELVIEW);
-  }
-
-  /** The white Mojang splash shown while resources load. */
-  private loadScreen(): void {
-    const sr = this.getScaledResolution();
-    GL.viewport(0, 0, this.displayWidth, this.displayHeight);
-    GL.clearColor(0, 0, 0, 0);
-    GL.clear(GL.COLOR_BUFFER_BIT | GL.DEPTH_BUFFER_BIT);
-    GL.matrixMode(GL.PROJECTION);
-    GL.loadIdentity();
-    GL.ortho(0, sr.getScaledWidth_double(), sr.getScaledHeight_double(), 0, 1000, 3000);
-    GL.matrixMode(GL.MODELVIEW);
-    GL.loadIdentity();
-    GL.translate(0, 0, -2000);
-    GL.disable(GL.LIGHTING);
-    GL.enable(GL.TEXTURE_2D);
-    GL.disable(GL.FOG);
-    this.renderEngine.bindTexture('/title/mojang.png');
-    const t = Tessellator.instance;
-    t.startDrawingQuads();
-    t.setColorOpaque_I(0xffffff);
-    t.addVertexWithUV(0, this.displayHeight, 0, 0, 0);
-    t.addVertexWithUV(this.displayWidth, this.displayHeight, 0, 0, 0);
-    t.addVertexWithUV(this.displayWidth, 0, 0, 0, 0);
-    t.addVertexWithUV(0, 0, 0, 0, 0);
-    t.draw();
-    GL.color(1, 1, 1, 1);
-    const x = Math.trunc((sr.getScaledWidth() - 256) / 2);
-    const y = Math.trunc((sr.getScaledHeight() - 256) / 2);
-    const k = 1 / 256;
-    t.startDrawingQuads();
-    t.setColorOpaque_I(0xffffff);
-    t.addVertexWithUV(x, y + 256, 0, 0, 256 * k);
-    t.addVertexWithUV(x + 256, y + 256, 0, 256 * k, 256 * k);
-    t.addVertexWithUV(x + 256, y, 0, 256 * k, 0);
-    t.addVertexWithUV(x, y, 0, 0, 0);
-    t.draw();
   }
 
   // ------------------------------------------------------------------ loop
@@ -1015,6 +988,9 @@ export class Minecraft implements SettingsListener {
     }
     this.guestTransport?.cancel();
     this.guestTransport = null;
+    this.serverConnect?.abort();
+    this.serverConnect = null;
+    PlayerSkins.clearRemote();
     if (this.playerController !== this.singlePlayerController) this.setPlayerController(this.singlePlayerController);
     GuiIngame.playerListProvider = null;
     this.updateBackgroundTicking();
@@ -1042,6 +1018,8 @@ export class Minecraft implements SettingsListener {
       setExtraLoadCenters: (centers) => {
         if (this.chunkProvider) this.chunkProvider.extraCenters = centers;
       },
+      hostSkin: () => PlayerSkins.local,
+      playerSkin: (name, rgba) => PlayerSkins.setRemote(name, rgba),
     };
     // IntegratedPlayerList's view distance (10); each guest gets at most its own render radius.
     const server = new LanServer(host, makeHostTransport(), { gameType, allowCommands, maxPlayers: 8, viewDistance: 10 });
@@ -1077,11 +1055,7 @@ export class Minecraft implements SettingsListener {
           conn.close();
           return;
         }
-        const handler = new NetClientHandler(this.guestClient, conn);
-        this.netHandler = handler;
-        this.setPlayerController(new PlayerControllerGuest(this, handler));
-        handler.start();
-        this.updateBackgroundTicking();
+        this.startGuestConnection(conn);
         onConnected();
       },
       (e: unknown) => {
@@ -1090,6 +1064,43 @@ export class Minecraft implements SettingsListener {
         onFailed(e instanceof ConnectError ? e.reason : String(e));
       },
     );
+  }
+
+  /**
+   * Direct Connect / Join Server with a server address (GuiConnecting's ThreadConnectToServer):
+   * the connection comes from the ServerConnector registered for the address's scheme
+   * (src/net/connect/ServerConnector.ts), then the login runs as in a room.
+   */
+  connectToServer(input: string, onConnected: () => void, onFailed: (reason: string) => void): void {
+    this.loadWorld(null);
+    const attempt = new AbortController();
+    this.serverConnect = attempt;
+    this.guestRoomCode = null;
+    connectToServerAddress(input, attempt.signal).then(
+      (conn) => {
+        if (this.serverConnect !== attempt) {
+          conn.close();
+          return;
+        }
+        this.serverConnect = null;
+        this.startGuestConnection(conn);
+        onConnected();
+      },
+      (e: unknown) => {
+        if (this.serverConnect !== attempt) return;
+        this.serverConnect = null;
+        onFailed(e instanceof ConnectError ? e.reason : e instanceof Error ? e.message : String(e));
+      },
+    );
+  }
+
+  /** A connection to a host or server is up: log in over it ("Logging in..."). */
+  private startGuestConnection(conn: NetConnection): void {
+    const handler = new NetClientHandler(this.guestClient, conn);
+    this.netHandler = handler;
+    this.setPlayerController(new PlayerControllerGuest(this, handler));
+    handler.start();
+    this.updateBackgroundTicking();
   }
 
   /** Cancel on the connecting screen. */
@@ -1128,6 +1139,8 @@ export class Minecraft implements SettingsListener {
       storeRejoinToken: (token) => {
         if (this.guestRoomCode) saveRejoinToken(this.guestRoomCode, this.username, token);
       },
+      localSkin: () => PlayerSkins.local,
+      playerSkin: (name, rgba) => PlayerSkins.setRemote(name, rgba),
     };
   }
 

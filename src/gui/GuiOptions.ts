@@ -1,5 +1,6 @@
 import { EnumOptions, type GameSettings } from '../client/GameSettings';
 import { I18n } from '../core/I18n';
+import { GuiAccountManager } from './GuiAccountManager';
 import { GuiButton, GuiSlider, GuiSmallButton } from './GuiButton';
 import { GuiControls } from './GuiControls';
 import { GuiLanguage } from './GuiLanguage';
@@ -49,7 +50,16 @@ export class GuiOptions extends GuiScreen {
     this.buttonList.push(new GuiButton(103, cx + 2, h6 + 120 - 6, 150, 20, t('options.multiplayer.title')));
     this.buttonList.push(new GuiButton(105, cx - 152, h6 + 144 - 6, 150, 20, t('options.texture.pack')));
     this.buttonList.push(new GuiButton(104, cx + 2, h6 + 144 - 6, 150, 20, t('options.snooper.view')));
-    this.buttonList.push(new GuiButton(200, cx - 100, h6 + 168, t('gui.done')));
+    // Account Manager...: in the free cell after the option buttons (beside Touchscreen Mode),
+    // or beside Done when the options fill their rows.
+    const n = GuiOptions.relevantOptions.length;
+    if (n % 2 === 1) {
+      this.buttonList.push(new GuiButton(106, cx - 155 + 160, h6 - 12 + 24 * (n >> 1), 150, 20, 'Account Manager...'));
+      this.buttonList.push(new GuiButton(200, cx - 100, h6 + 168, t('gui.done')));
+    } else {
+      this.buttonList.push(new GuiButton(106, cx - 152, h6 + 168, 150, 20, 'Account Manager...'));
+      this.buttonList.push(new GuiButton(200, cx + 2, h6 + 168, 150, 20, t('gui.done')));
+    }
   }
 
   protected override actionPerformed(b: GuiButton): void {
@@ -65,6 +75,7 @@ export class GuiOptions extends GuiScreen {
       103: () => new ScreenChatOptions(this, this.options),
       104: () => new GuiSnooper(this, this.options),
       105: () => new GuiTexturePacks(this, this.options),
+      106: () => new GuiAccountManager(this),
     };
     if (sub[b.id]) {
       this.mc.gameSettings.saveOptions();
