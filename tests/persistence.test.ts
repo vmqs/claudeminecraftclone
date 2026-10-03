@@ -31,6 +31,7 @@ import { levelDatRoot, worldInfoFromNBT, worldInfoToNBT } from '../src/world/sto
 import { ImportError, exportWorld, importFolderName, importWorld } from '../src/world/storage/WorldTransfer';
 import { collectWorldData, installWorldData } from '../src/world/storage/WorldData';
 import { getUniqueDataId, loadMapData, MapData, setMapData } from '../src/item/ItemMap';
+import { getScoreboard, ScoreObjectiveCriteria } from '../src/command/scoreboard/Scoreboard';
 import { InventoryEnderChest } from '../src/world/tileentity/TileEntityEnderChest';
 import { check, report } from './harness';
 
@@ -556,6 +557,24 @@ async function saves(): Promise<void> {
     check('maps saved and read back', id === 0 && id2 === 1 && back?.xCenter === 64 && back?.zCenter === -128 && back?.scale === 2 && back?.colors[129] === 34 && opened2.data.has('data/idcounts.dat'));
     check('unchanged maps are not written again', again.size === 0);
     check('map ids continue after loading', getUniqueDataId(fresh, 'map') === 2);
+    check('an unused scoreboard is not written', !opened2.data.has('data/scoreboard.dat'));
+    // The scoreboard (data/scoreboard.dat): objectives, scores, display slots, teams.
+    const board = getScoreboard(fresh);
+    const obj = board.addScoreObjective('kills', ScoreObjectiveCriteria.totalKillCount);
+    obj.setDisplayName('Kills');
+    board.getPlayerScore('Steve', obj).setScore(12);
+    board.setObjectiveInDisplaySlot(1, obj);
+    const team = board.createTeam('red');
+    team.setNamePrefix('\u00a7c');
+    board.addPlayerToTeam('Steve', team);
+    opened2.handler.worldData = () => collectWorldData(fresh);
+    await opened2.handler.saveAll(fresh, null, true);
+    const opened3 = await format2.openWorld('Maps');
+    const w4 = new World(opened3.info);
+    installWorldData(w4, opened3.data);
+    const b4 = getScoreboard(w4);
+    const o4 = b4.getObjective('kills');
+    check('scoreboard saved and read back', !!o4 && o4.getDisplayName() === 'Kills' && b4.getPlayerScore('Steve', o4).getScorePoints() === 12 && b4.getObjectiveInDisplaySlot(1) === o4 && b4.getPlayersTeam('Steve')?.getColorPrefix() === '\u00a7c');
   }
   // Deleting stops a world's saving and removes everything.
   await format2.deleteWorldDirectory('MyWorld');

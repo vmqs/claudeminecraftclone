@@ -1,13 +1,17 @@
+import { getScoreboard, Scoreboard } from '../../command/scoreboard/Scoreboard';
 import { MapData, mapStorageOf } from '../../item/ItemMap';
 import type { TagCompound } from '../../item/ItemStack';
 import type { IWorld } from '../IWorld';
+import type { World } from '../World';
+import { scoreboardFromNBT, scoreboardToNBT } from './ScoreboardData';
 import { NBT, readCompressedNBT, readNBT, writeCompressedNBT, writeNBT } from './NBT';
 
 /**
  * The save folder's data/ files (MapStorage): filled maps as data/map_<n>.dat (gzip NBT
  * {data: {dimension, xCenter, zCenter, scale, width, height, colors}}) and data/idcounts.dat
- * (uncompressed NBT of short counters, {map: n}). They are read when a world opens (map items
- * look their data up synchronously) and written with level.dat when they changed.
+ * (uncompressed NBT of short counters, {map: n}), and the scoreboard as data/scoreboard.dat.
+ * They are read when a world opens (map items look their data up synchronously) and written with
+ * level.dat when they changed.
  */
 
 /** MapData.writeToNBT. */
@@ -46,12 +50,25 @@ export function mapDataFromNBT(name: string, t: TagCompound): MapData {
 /** What was last written, so only changed maps are saved again. */
 const savedVersions = new WeakMap<MapData, number>();
 const savedIds = new WeakMap<object, string>();
+const savedBoards = new WeakMap<object, string>();
+
+function hexOf(b: Uint8Array): string {
+  let s = '';
+  for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+  return s;
+}
 
 /** Puts the saved maps and id counters into a world before it runs. */
 export function installWorldData(w: IWorld, files: Map<string, Uint8Array>): void {
   const s = mapStorageOf(w);
   for (const [path, bytes] of files) {
     try {
+      if (path === 'data/scoreboard.dat') {
+        const board = getScoreboard(w as World);
+        scoreboardFromNBT(board, NBT.getCompoundTag(readCompressedNBT(bytes), 'data'));
+        savedBoards.set(w, hexOf(writeNBT(scoreboardToNBT(board))));
+        continue;
+      }
       if (path === 'data/idcounts.dat') {
         const t = readNBT(bytes);
         for (const k of Object.keys(t)) s.ids.set(k, NBT.getShort(t, k));
@@ -83,6 +100,16 @@ export function collectWorldData(w: IWorld): Map<string, Uint8Array> {
     NBT.setCompoundTag(root, 'data', mapDataToNBT(m));
     out.set(`data/${name}.dat`, writeCompressedNBT(root));
     savedVersions.set(m, m.version);
+  }
+  const board = writeNBT(scoreboardToNBT(getScoreboard(w as World)));
+  const boardKey = hexOf(board);
+  // Like ScoreboardSaveData, nothing is written until the scoreboard changed.
+  if (!savedBoards.has(w)) savedBoards.set(w, hexOf(writeNBT(scoreboardToNBT(new Scoreboard()))));
+  if (savedBoards.get(w) !== boardKey) {
+    const root: TagCompound = {};
+    NBT.setCompoundTag(root, 'data', readNBT(board));
+    out.set('data/scoreboard.dat', writeCompressedNBT(root));
+    savedBoards.set(w, boardKey);
   }
   const key = idsKey(s.ids);
   if (s.ids.size > 0 && savedIds.get(w) !== key) {
