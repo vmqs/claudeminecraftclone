@@ -473,6 +473,7 @@ export class EntityRenderer {
       // Nothing of the world shows through (Downloading terrain): only keep the meshers busy.
       const view = this.mc.renderViewEntity ?? this.mc.thePlayer;
       if (view) this.mc.renderGlobal.updateRenderers(view);
+      GL.viewport(0, 0, this.mc.displayWidth, this.mc.displayHeight);
       this.setupOverlayRendering();
     } else if (this.mc.theWorld) {
       this.renderWorld(pt);

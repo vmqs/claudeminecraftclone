@@ -309,11 +309,11 @@ try {
       mc.dev.tp(sx, 120, sz, 0, 20);
       const names = ['Pig', 'Cow', 'Chicken', 'Zombie', 'Skeleton', 'Creeper', 'Spider', 'Wolf', 'Enderman', 'Slime'];
       names.forEach((n, i) => {
-        const e = mc.dev.spawn(n);
+        const e = mc.dev.newEntity(n);
         if (e) {
           e.setLocationAndAngles(sx - 9 + i * 2, 118, sz + 8, 180, 0);
           e.motionX = e.motionY = e.motionZ = 0;
-          e.noAI = true;
+          mc.theWorld.spawnEntityInWorld(e);
         }
       });
       mc.timer.timerSpeed = 0;
