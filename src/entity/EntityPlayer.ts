@@ -378,6 +378,14 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
       const box = AxisAlignedBB.getBoundingBox(x - 8, y - 5, z - 8, x + 8, y + 5, z + 8);
       if (w.getEntitiesWithinAABB((e): e is EntityMob => e instanceof EntityMob, box).length > 0) return 'NOT_SAFE';
     }
+    this.lieDownInBed(x, y, z);
+    if (!w.isRemote) w.updateAllPlayersSleepingFlag();
+    return 'OK';
+  }
+
+  /** The unchecked part of sleepInBedAt (what a client does on Packet17Sleep): lie down in the bed at (x, y, z). */
+  protected lieDownInBed(x: number, y: number, z: number): void {
+    const w = this.worldObj;
     this.setSize(f(0.2), f(0.2));
     this.yOffset = f(0.2);
     if (w.blockExists(x, y, z)) {
@@ -397,8 +405,6 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     this.sleepTimer = 0;
     this.playerLocation = new ChunkCoordinates(x, y, z);
     this.motionX = this.motionZ = this.motionY = 0;
-    if (!w.isRemote) w.updateAllPlayersSleepingFlag();
-    return 'OK';
   }
 
   /** func_71013_b: the body lies 1.8 blocks towards the foot of a bed facing `dir`. */

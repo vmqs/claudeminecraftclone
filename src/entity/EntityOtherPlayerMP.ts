@@ -1,3 +1,4 @@
+import type { BedSleepStatus } from '../block/BlockBed';
 import { MathHelper } from '../core/MathHelper';
 import type { ItemStack } from '../item/ItemStack';
 import type { World } from '../world/World';
@@ -32,6 +33,12 @@ export class EntityOtherPlayerMP extends EntityPlayer {
     // Until its first update a player spawned asleep lies a quarter block higher (field_71082_cx).
     this.sleepOffsetY = f(0.25);
     this.renderDistanceWeight = 10;
+  }
+
+  /** Packet17Sleep: the player's own side already checked the bed, so this copy just lies down. */
+  override sleepInBedAt(x: number, y: number, z: number): BedSleepStatus {
+    this.lieDownInBed(x, y, z);
+    return 'OK';
   }
 
   protected override resetHeight(): void {

@@ -124,6 +124,16 @@ export class EntityRenderer {
     this.fogColor1 = this.fogColor2 = this.fogBrightnessTarget();
   }
 
+  /** Jumps the eased FOV modifier to its target (for captures, as the reference harness does). */
+  settleFovModifier(): void {
+    const p = this.mc.thePlayer;
+    if (!p) return;
+    let m = p.getFOVMultiplier();
+    if (m > 1.5) m = 1.5;
+    if (m < 0.1) m = f(0.1);
+    this.fovModifierHand = this.fovModifierHandPrev = m;
+  }
+
   /** Picks the block (reach) or entity (3 blocks, 6 in creative) under the crosshair. */
   getMouseOver(pt: number): void {
     const view = this.mc.renderViewEntity;
