@@ -14,7 +14,7 @@ import { ItemIds } from '../block/BlockIds';
 import { Item } from '../item/Item';
 import type { ItemStack } from '../item/ItemStack';
 import type { MesherRequest, MesherResponse, MeshResult } from '../workers/mesherProtocol';
-import { allocSnapshot, SNAPSHOT_PAD, SNAPSHOT_SIZE, type SectionSnapshot } from '../world/ChunkCache';
+import { allocSnapshot, type SectionSnapshot } from '../world/ChunkCache';
 import { ColorizerFoliage, ColorizerGrass } from '../world/biome/Colorizer';
 import type { IWorldAccess } from '../world/IWorldAccess';
 import type { World } from '../world/World';
@@ -24,12 +24,12 @@ import { Tessellator } from './gl/Tessellator';
 import type { EntityFX } from './particle/EntityFX';
 import { createParticle, type ParticleFactory, particleFactories, unculledParticleFactories } from './particle/ParticleFactories';
 import { RenderHelper } from './RenderHelper';
+import { fillSectionSnapshot } from './SectionSnapshotFill';
 import { BlockDamageOverlay } from './BlockDamageOverlay';
 import { RenderManager } from './entity/RenderManager';
 import { TileEntityRenderer } from './tileentity/TileEntityRenderer';
 
 const f = Math.fround;
-const S = SNAPSHOT_SIZE;
 
 /** One 16^3 render section (WorldRenderer): two passes of uploaded geometry. */
 export class WorldRenderer {
@@ -301,50 +301,7 @@ export class RenderGlobal implements IWorldAccess {
   }
 
   private fillSnapshot(snap: SectionSnapshot, s: WorldRenderer): void {
-    const w = this.theWorld!;
-    const x0 = s.posX - SNAPSHOT_PAD;
-    const y0 = s.posY - SNAPSHOT_PAD;
-    const z0 = s.posZ - SNAPSHOT_PAD;
-    snap.x0 = x0;
-    snap.y0 = y0;
-    snap.z0 = z0;
-    const center = w.getChunkFromChunkCoords(s.sx, s.sz).sections[s.sy];
-    snap.empty = !center || center.isEmpty();
-    if (snap.empty) return;
-    for (let lz = 0; lz < S; lz++) {
-      const wz = z0 + lz;
-      for (let lx = 0; lx < S; lx++) {
-        const wx = x0 + lx;
-        const chunk = w.getChunkFromChunkCoords(wx >> 4, wz >> 4);
-        snap.biomes[lz * S + lx] = chunk.biomes[((wz & 15) << 4) | (wx & 15)];
-        const bx = wx & 15;
-        const bz = wz & 15;
-        for (let ly = 0; ly < S; ly++) {
-          const wy = y0 + ly;
-          const i = (ly * S + lz) * S + lx;
-          if (wy < 0 || wy >= 256) {
-            snap.ids[i] = 0;
-            snap.meta[i] = 0;
-            snap.sky[i] = 15;
-            snap.blk[i] = 0;
-            continue;
-          }
-          const sec = chunk.sections[wy >> 4];
-          if (sec) {
-            const j = ((wy & 15) << 8) | (bz << 4) | bx;
-            snap.ids[i] = sec.blocks[j];
-            snap.meta[i] = sec.meta[j];
-            snap.sky[i] = sec.skyLight[j];
-            snap.blk[i] = sec.blockLight[j];
-          } else {
-            snap.ids[i] = 0;
-            snap.meta[i] = 0;
-            snap.sky[i] = chunk.getSavedLightValue(0, bx, wy, bz);
-            snap.blk[i] = 0;
-          }
-        }
-      }
-    }
+    fillSectionSnapshot(this.theWorld!, snap, s.sx, s.sy, s.sz);
   }
 
   /** Records the viewer position and hands the most urgent dirty sections to the meshers. */

@@ -12,10 +12,47 @@ const S = SNAPSHOT_SIZE;
  * unorm16 uv, rgba8. Runs in the mesher workers.
  */
 export class SectionMesher {
+  /** Per block id: Block.isOpaqueCube() (leaves change it with the graphics setting). */
+  private readonly opaque = new Uint8Array(4096);
+  /**
+   * Per block id: a full cube drawn by render type 0 or 31 whose faces are culled only by
+   * opaque neighbours (Block.shouldSideBeRendered and setBlockBoundsBasedOnState not
+   * overridden). Such a block with six opaque-cube neighbours draws nothing.
+   */
+  private readonly enclosable = new Uint8Array(4096);
+
+  private updateTables(): void {
+    const opaque = this.opaque;
+    const enclosable = this.enclosable;
+    const base = Block.prototype;
+    for (let id = 0; id < 4096; id++) {
+      const b = Block.blocksList[id];
+      opaque[id] = b && b.isOpaqueCube() ? 1 : 0;
+      const type = b ? b.getRenderType() : -1;
+      enclosable[id] =
+        b &&
+        (type === 0 || type === 31) &&
+        b.shouldSideBeRendered === base.shouldSideBeRendered &&
+        b.setBlockBoundsBasedOnState === base.setBlockBoundsBasedOnState &&
+        b.minX === 0 &&
+        b.minY === 0 &&
+        b.minZ === 0 &&
+        b.maxX === 1 &&
+        b.maxY === 1 &&
+        b.maxZ === 1
+          ? 1
+          : 0;
+    }
+  }
+
   mesh(snap: SectionSnapshot): { passes: [ArrayBuffer | null, ArrayBuffer | null]; counts: [number, number] } {
     const passes: [ArrayBuffer | null, ArrayBuffer | null] = [null, null];
     const counts: [number, number] = [0, 0];
     if (snap.empty) return { passes, counts };
+    this.updateTables();
+    const opaque = this.opaque;
+    const enclosable = this.enclosable;
+    const ids = snap.ids;
     const cache = new ChunkCache(snap);
     const rb = new RenderBlocks(cache);
     const ox = snap.x0 + SNAPSHOT_PAD;
@@ -31,13 +68,19 @@ export class SectionMesher {
         for (let y = 0; y < 16; y++) {
           for (let z = 0; z < 16; z++) {
             for (let x = 0; x < 16; x++) {
-              const id = snap.ids[((y + SNAPSHOT_PAD) * S + z + SNAPSHOT_PAD) * S + x + SNAPSHOT_PAD];
+              const i = ((y + SNAPSHOT_PAD) * S + z + SNAPSHOT_PAD) * S + x + SNAPSHOT_PAD;
+              const id = ids[i];
               if (id === 0) continue;
               const block = Block.blocksList[id];
               if (!block) continue;
               const bp = block.getRenderBlockPass();
               if (bp !== pass) {
                 if (bp > pass) needsNext = true;
+                continue;
+              }
+              if (enclosable[id] && opaque[ids[i - 1]] && opaque[ids[i + 1]] && opaque[ids[i - S]] && opaque[ids[i + S]] && opaque[ids[i - S * S]] && opaque[ids[i + S * S]]) {
+                // Every face is culled. The smooth-lit path would still have set this brightness.
+                if (RenderBlocks.aoLevel !== 0 && Block.lightValue[id] === 0) t.setBrightness(0xf000f);
                 continue;
               }
               rb.renderBlockByRenderType(block, ox + x, oy + y, oz + z);
