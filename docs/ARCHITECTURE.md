@@ -674,3 +674,12 @@ through `RenderBiped.skullRenderer`, and sprinting needs food above 6. A new pla
 of spawn protection (`initialInvulnerability`), which Node tests that hurt a fresh player must
 clear. Dev worlds take `?mobs=0` to start without natural mobs (slimes in superflat Survival
 worlds otherwise hurt the player during a slow load).
+
+**Wave-4a merge (account, controls).** The Account Manager, skins (`PlayerSkins`, `MC|Skin`),
+the boot splash, Direct Connect / Room Code, the new key bindings (sprint, zoom, hotbar slots),
+the scrolling Controls screen and imported texture packs share one tree. Player skins are
+`TextureManager.allocateTexture` textures owned by `SkinTextures.ts`, so a pack switch
+(`onPackChanged` → `refreshTextures`) keeps them; only Steve (`/mob/char.png`) follows the
+active pack. The Default pack is now the first-launch pack: captures meant to match the Faithful
+reference shots add `&pack=faithful` to their `goto` URL. Scenarios that call `mc.dev.sky.pin`
+freeze the timer, so a real key press there is never ticked; use `mc.dev.press(code)` instead.
