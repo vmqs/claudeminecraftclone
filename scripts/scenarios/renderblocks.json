@@ -112,7 +112,7 @@
   "wait": 1500
  },
  {
-  "eval": "(() => { const w = mc.theWorld; const sp = w.getBlockTileEntity(12, 4, 68); if (sp && sp.getSpawnerLogic) sp.getSpawnerLogic().spawnDelay = 400; let n = 0; for (const e of [...w.loadedEntityList]) if (e.isLivingEntity && !e.isPlayerEntity) { e.setDead(); n++; } return { purgedMobs: n, spawnerDelay: sp && sp.getSpawnerLogic ? sp.getSpawnerLogic().spawnDelay : null }; })()"
+  "eval": "(() => { const w = mc.theWorld; const sp = w.getBlockTileEntity(12, 4, 68); if (sp && sp.getSpawnerLogic) sp.getSpawnerLogic().spawnDelay = 400; let n = 0; for (const e of [...w.loadedEntityList]) if (e.isLivingEntity && !e.isPlayerEntity) { e.setDead(); if (e.addedToChunk && w.chunkExists(e.chunkCoordX, e.chunkCoordZ)) w.getChunkFromChunkCoords(e.chunkCoordX, e.chunkCoordZ).removeEntity(e); w.loadedEntityList.splice(w.loadedEntityList.indexOf(e), 1); w.releaseEntitySkin(e); n++; } mc.effectRenderer.clearEffects(w); return { purgedMobs: n, spawnerDelay: sp && sp.getSpawnerLogic ? sp.getSpawnerLogic().spawnDelay : null, left: w.loadedEntityList.filter((e) => e.isLivingEntity && !e.isPlayerEntity).length }; })()"
  },
  {
   "wait": 500
