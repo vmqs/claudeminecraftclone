@@ -1,6 +1,7 @@
 # Architecture
 
-This is a browser recreation of **Minecraft 1.5.2 (Java Edition), Creative mode**, written in
+This is a browser recreation of **Minecraft 1.5.2 (Java Edition)** — Survival, Hardcore, Adventure
+and Creative — written in
 TypeScript on raw WebGL2 and built with Vite. The goal is to *feel and look* like the original:
 the same constants, physics, lighting, GUI layout, sounds, and textures.
 
