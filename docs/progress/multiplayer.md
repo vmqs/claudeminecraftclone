@@ -63,3 +63,9 @@ each (with a netsession / netprotocol check where it can be tested in Node).
   set slot only takes stacks the creative inventory or survival can make (`server/CreativeItems.ts`),
   a throwing entity tick is contained on a LAN host (`WorldNetListener.entityTickFailed`) and a
   throwing entity renderer is skipped with the matrix stack restored (RenderGlobal).
+- [x] Blocker: trystero buffered unlimited data per peer. `scripts/patch-trystero.mjs` (postinstall,
+  dev, build) patches its action wire layer: unknown action types dropped, per-peer limits on
+  unfinished messages (`globalThis.__mc152TrysteroLimits`, set by TrysteroHost/Guest), violators
+  reported and ignored. The host handles its own 'host' action, ignores peers it closed until
+  they leave (60 s for protocol abuse), and guests detect a second "host" (impostor) and fail.
+  `tests/nettransport.test.ts` checks the patched wire layer.

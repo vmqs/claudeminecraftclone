@@ -5,9 +5,10 @@
   "type": "module",
   "description": "A browser recreation of Minecraft 1.5.2 in TypeScript and WebGL2.",
   "scripts": {
+    "postinstall": "node scripts/patch-trystero.mjs",
     "fetch-assets": "node scripts/fetch-assets.mjs",
-    "dev": "npm run fetch-assets && vite",
-    "build": "npm run fetch-assets && tsc --noEmit && vite build",
+    "dev": "node scripts/patch-trystero.mjs && npm run fetch-assets && vite",
+    "build": "node scripts/patch-trystero.mjs && npm run fetch-assets && tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },

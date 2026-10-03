@@ -10,8 +10,11 @@ export interface NetConnection {
   /** Messages handed to the transport and not sent yet (back-pressure for chunk streaming). */
   readonly pendingSends: number;
   send(frame: Uint8Array): void;
-  /** Closes the connection; the other side sees onClose. */
-  close(): void;
+  /**
+   * Closes the connection; the other side sees onClose. With `banMs` (a guest kicked for abusing
+   * the protocol) the host ignores that peer for so long instead of greeting it again.
+   */
+  close(banMs?: number): void;
   onMessage: ((frame: Uint8Array) => void) | null;
   /** The connection ended (the peer left, the network failed or close() was called). */
   onClose: ((reason: string) => void) | null;
@@ -46,3 +49,6 @@ export class ConnectError extends Error {
 
 /** Shown when no host answered in time or the peer-to-peer link failed. */
 export const COULD_NOT_CONNECT = 'Could not connect to the host';
+
+/** How long the host ignores a peer kicked for abusing the protocol (malformed data, floods). */
+export const ABUSE_BAN_MS = 60000;

@@ -6,7 +6,7 @@ import { ContainerBeacon } from '../../gui/inventory/ContainerBeacon';
 import { ItemStack } from '../../item/ItemStack';
 import { decodeFrame, encodeFrame, GAME_VERSION, PROTOCOL_VERSION, type Packet, type PacketOf, allowedFrom } from '../protocol/Packets';
 import { ProtocolError } from '../protocol/PacketBuffer';
-import type { NetConnection } from '../transport/Transport';
+import { ABUSE_BAN_MS, type NetConnection } from '../transport/Transport';
 import { isValidUsername } from '../Username';
 import { isAllowedCreativeStack } from './CreativeItems';
 import type { EntityPlayerMP } from './EntityPlayerMP';
@@ -77,23 +77,23 @@ export class NetServerHandler {
     try {
       packets = decodeFrame(frame, MAX_GUEST_MESSAGE, MAX_GUEST_PACKETS);
     } catch (e) {
-      this.kick(e instanceof ProtocolError ? `Protocol error: ${e.message}` : 'Protocol error');
+      this.kick(e instanceof ProtocolError ? `Protocol error: ${e.message}` : 'Protocol error', true);
       return;
     }
     this.lastReceived = this.currentTicks;
     for (const p of packets) {
       if (!allowedFrom(p.type, 'client')) {
-        this.kick(`Protocol error, unexpected packet ${p.type}`);
+        this.kick(`Protocol error, unexpected packet ${p.type}`, true);
         return;
       }
     }
     this.tokens -= packets.length;
     if (this.tokens < 0) {
-      this.kick('Sending too many packets');
+      this.kick('Sending too many packets', true);
       return;
     }
     this.incoming.push(...packets);
-    if (this.incoming.length > PACKET_BURST * 2) this.kick('Sending too many packets');
+    if (this.incoming.length > PACKET_BURST * 2) this.kick('Sending too many packets', true);
   }
 
   private onConnectionLost(reason: string): void {
@@ -141,15 +141,18 @@ export class NetServerHandler {
     this.conn.send(frame);
   }
 
-  /** Kicks the guest with a reason (Packet255) and lets everyone know it left. */
-  kick(reason: string): void {
+  /**
+   * Kicks the guest with a reason (Packet255) and lets everyone know it left. `abuse` (data no
+   * game client sends: malformed packets, floods) also makes the host ignore that peer for a while.
+   */
+  kick(reason: string, abuse = false): void {
     if (this.state === 'closed') return;
     console.warn(`[lan] kicking ${this.username || this.conn.peerId}: ${reason}`);
     this.outgoing.length = 0;
     this.outgoing.push({ type: 'KickDisconnect', reason });
     this.flush();
     this.state = 'closed';
-    this.conn.close();
+    this.conn.close(abuse ? ABUSE_BAN_MS : 0);
     this.server.playerDisconnected(this, reason);
   }
 
@@ -185,7 +188,7 @@ export class NetServerHandler {
     if (this.state === 'handshake') {
       if (p.type === 'Handshake') this.handleHandshake(p);
       else if (p.type === 'KickDisconnect') this.onConnectionLost('Quitting');
-      else this.kick('Protocol error, expected a handshake');
+      else this.kick('Protocol error, expected a handshake', true);
       return;
     }
     if (this.state === 'login') return;
@@ -253,7 +256,7 @@ export class NetServerHandler {
         this.server.playerDisconnected(this, 'Quitting');
         return;
       default:
-        this.kick(`Protocol error, unexpected packet ${p.type}`);
+        this.kick(`Protocol error, unexpected packet ${p.type}`, true);
     }
   }
 
@@ -303,7 +306,7 @@ export class NetServerHandler {
 
   private queueFlying(p: Flying): void {
     if (!finite(p.x, p.y, p.z, p.stance, p.yaw, p.pitch)) {
-      this.kick('Illegal position');
+      this.kick('Illegal position', true);
       return;
     }
     this.moves.push(p);
@@ -528,13 +531,13 @@ export class NetServerHandler {
       return;
     }
     if (raw.length > 100) {
-      this.kick('Chat message too long');
+      this.kick('Chat message too long', true);
       return;
     }
     const msg = raw.trim();
     for (const ch of msg) {
       if (ch === '§' || ch < ' ' || ch === '\x7f') {
-        this.kick('Illegal characters in chat');
+        this.kick('Illegal characters in chat', true);
         return;
       }
     }
