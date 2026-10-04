@@ -263,6 +263,13 @@ the time every 20 ticks and the ping list every 100. Each guest is streamed its 
 distance (far 12, normal 8, short 4, tiny 2 chunks), at most 10 (1.5.2's integrated server). Sounds and effects reach
 guests through `World.netEvents` (`WorldNetListener`) and the `IWorldAccess` the server adds,
 with 1.5.2's exclusions (a guest does not get back the sounds of its own steps and swings).
+Every sound is heard once by each player: the guest's `WorldClient` drops world sounds
+(`playSoundEffect` / `playSoundAtEntity`) made by its own copies of blocks, tile entities and
+entities, as a 1.5.2 client did; the host never forwards client-only sounds (`World.playSound`:
+level events, display ticks, its own player, whose sounds go out once through
+`WorldNetListener.playerSound`) nor particles every client makes itself (players' and tile
+entities' updates, block events, status effects); the explosion sound travels with the explosion
+packet. `tests/sounds.test.ts` checks it.
 
 **Dimensions.** The host runs a world per loaded dimension (`DimensionManager`, ARCHITECTURE
 §5.8) and the LAN server keeps a `LanWorld` for each (`src/net/server/LanWorld.ts`: its
