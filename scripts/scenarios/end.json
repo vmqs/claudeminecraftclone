@@ -102,14 +102,14 @@
   "eval": "mc.currentScreen.lines.length"
  },
  {
-  "eval": "mc.dev.press(1, 1)"
+  "eval": "(() => { mc.dev.sky.unfreeze(); mc.dev.press(1, 1); return 'credits closed, the clock runs for the respawn'; })()"
  },
  {
   "waitFor": "mc.currentScreen === null",
   "timeout": 60000
  },
  {
-  "eval": "(() => { const p = mc.thePlayer; return must(mc.theWorld.provider.dimensionId === 0 && !p.playerConqueredTheEnd && p.inventory.mainInventory[0] && p.inventory.mainInventory[0].stackSize === 17 && p.experienceLevel === 30, { x: p.posX, y: p.posY, z: p.posZ }); })()"
+  "eval": "(() => { const p = mc.thePlayer; mc.dev.sky.pin(6000); return must(mc.theWorld.provider.dimensionId === 0 && !p.playerConqueredTheEnd && p.inventory.mainInventory[0] && p.inventory.mainInventory[0].stackSize === 17 && p.experienceLevel === 30, { x: p.posX, y: p.posY, z: p.posZ }); })()"
  },
  {
   "eval": "(() => { const w = mc.theWorld; const p = mc.thePlayer; const bx = Math.floor(p.posX) + 6, bz = Math.floor(p.posZ) + 18, by = Math.floor(p.posY) + 12; for (let x = bx - 2; x <= bx + 4; x++) for (let z = bz - 2; z <= bz + 2; z++) w.setBlock(x, by - 1, z, 121); const wi = mc.dev.end.buildWither(bx, by, bz); window.W = [bx, by, bz]; lookAt(bx + 1.5, by + 3, bz + 9, bx + 1.5, by + 1.5, bz); return must(wi && wi.getInvulTime() === 220 && wi.getHealth() === 100, mc.dev.end.state().wither); })()"

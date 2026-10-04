@@ -105,10 +105,13 @@ export class EndDevTools {
   /**
    * Walks the local player into the exit portal: BlockEndPortal's travelToDimension(1) from the
    * End (PlayerTravel: The End., the credits, then the respawn in the overworld keeping everything).
+   * One tick runs so the trip, carried out after the worlds' tick, also happens in a frozen game.
    */
   exitPortal(): void {
     const p = this.mc.thePlayer;
-    if (p && p.dimension === 1) p.travelToDimension(1);
+    if (!p || p.dimension !== 1) return;
+    p.travelToDimension(1);
+    this.mc.runTick();
   }
 
   /** Advances the open credits by `n` screen ticks (they count only while the game runs). */
