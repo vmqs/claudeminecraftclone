@@ -918,7 +918,7 @@ nea89o/Forge1.8.9Template, Forge 1.8.9-11.15.1.2318, Java 8 bytecode, Gradle 8.8
 wears the web game's `.mcpm` models in Minecraft 1.8.9: `McpmFormat` (the decoder; same checks and
 messages as `decodePlayerModel`, checked by `McpmFormatTest` against
 `src/test/resources/mcpm-reference.json`), `ModelRegistry` (built-ins copied from
-`public/models` at build time, `config/polymodels/*.mcpm`, `config/polymodels.cfg`),
+`public/models` at build time, `config/polymodels/*.mcpm`, `config/polymodels.cfg`: general `model` and `others`, `players` by name; `ModelRegistryConfigTest` loads hand-written files through Forge's `Configuration`),
 `PlayerRenderHandler` + `RenderPolyPlayer` + `ModelPolyPlayer` (cancels `RenderPlayerEvent.Pre` and
 draws the player with a `RenderPlayer` whose `ModelPlayer` poses the six parts with vanilla's
 `setRotationAngles` and skins on the CPU with the same matrices as `ModelPose.partMatrices`),

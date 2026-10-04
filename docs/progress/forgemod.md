@@ -31,7 +31,7 @@ Notes for a resume:
   under xvfb-run (LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe); kill leftovers (devlaunchinjector, Xvfb).
 
 ## Review fix round (review-forgemod findings)
-1. [ ] major: `S:*=...` breaks Forge's cfg parser → general `others` key (old quoted `"*"` still read), README/cfg comment, JUnit cfg test
+1. [x] major: `S:*=...` breaks Forge's cfg parser → general `others` key (old quoted `"*"` still read), README/cfg comment, JUnit cfg test
 2. [ ] major: deeply nested header JSON → StackOverflowError at startup → iterative JSON parse, Throwable guards in rescan/builtins/preInit
 3. [ ] minor: inflate must reach the final block; name via JS String() rules; fixture cases (deep, syncflush, name array/object/number)
 4. [ ] minor: entity-outline pass (copy renderOutlines onto the replacement renderer)

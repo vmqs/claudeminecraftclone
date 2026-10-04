@@ -36,7 +36,8 @@ import java.util.concurrent.Executors;
  * The models players can wear: the built-in ones inside the jar (the web game's three), and every
  * .mcpm file in config/polymodels/. Files are decoded on a background thread the first time a
  * model is needed. The local player's choice lives in config/polymodels.cfg ("general" → "model");
- * the "players" section names models for other players (seen by you only).
+ * the "players" section names models for other players by name and "general" → "others" the model
+ * of everyone not listed (seen by you only).
  */
 public final class ModelRegistry {
     private static final Logger LOG = LogManager.getLogger("PolyModels");
@@ -88,8 +89,8 @@ public final class ModelRegistry {
     private File folder;
     private Configuration config;
     private Property localProp;
+    private Property othersProp;
     private final Map<String, String> players = new HashMap<>();
-    private String othersDefault = STEVE;
     private List<Entry> builtins = Collections.emptyList();
 
     /** Reads the config, creates the folder (with its README) and lists the models. */
@@ -110,11 +111,22 @@ public final class ModelRegistry {
                 "The model you wear: steve (vanilla), a built-in model (john_marston, trevor, roblox_noob)\n"
                         + "or the name of a .mcpm file in config/polymodels without .mcpm. Set in game with the\n"
                         + "\"Choose Player Model\" key (M by default).");
+        othersProp = config.get(Configuration.CATEGORY_GENERAL, "others", STEVE,
+                "The model every other player wears on your screen unless the \"players\" section names one\n"
+                        + "for them (steve: their normal skin). Seen by you only: the mod is client-side.");
         ConfigCategory cat = config.getCategory("players");
-        cat.setComment("Models for other players, seen by you only (the mod is client-side; other players see\n"
-                + "their own normal skins). One line per player: S:<player name>=<model id>, e.g.\n"
+        cat.setComment("Models for other players by name, seen by you only (the mod is client-side; other players\n"
+                + "see their own normal skins). One line per player: S:<player name>=<model id>, e.g.\n"
                 + "    S:Notch=trevor\n"
-                + "The name * sets the model for everyone not listed (default: steve).");
+                + "Everyone not listed wears general -> others.");
+        // Version 1.0.0's documentation suggested a "*" entry here (Forge only reads it quoted, as
+        // S:"*"=id): move it to general -> others.
+        Property star = cat.get("*");
+        if (star != null) {
+            String v = star.getString().trim();
+            if (STEVE.equalsIgnoreCase(othersProp.getString().trim()) && !v.isEmpty()) othersProp.set(v);
+            cat.remove("*");
+        }
         readPlayers();
         if (config.hasChanged()) config.save();
         builtins = readBuiltins();
@@ -123,11 +135,8 @@ public final class ModelRegistry {
 
     private void readPlayers() {
         players.clear();
-        othersDefault = STEVE;
         for (Map.Entry<String, Property> e : config.getCategory("players").entrySet()) {
-            String value = e.getValue().getString().trim();
-            if (e.getKey().equals("*")) othersDefault = value.isEmpty() ? STEVE : value;
-            else players.put(e.getKey().toLowerCase(Locale.ROOT), value);
+            players.put(e.getKey().toLowerCase(Locale.ROOT), e.getValue().getString().trim());
         }
     }
 
@@ -264,11 +273,28 @@ public final class ModelRegistry {
         readPlayers();
     }
 
+    /** The model every player not named in "players" wears (general -> others). */
+    public String others() {
+        String v = othersProp.getString().trim();
+        return v.isEmpty() ? STEVE : v;
+    }
+
+    /** Sets general -> others and saves it. */
+    public void setOthers(String id) {
+        othersProp.set(id == null || id.trim().isEmpty() ? STEVE : id.trim());
+        config.save();
+    }
+
     /** The model id a player wears as far as this client is concerned. */
     public String idFor(EntityPlayer p) {
         if (p == Minecraft.getMinecraft().thePlayer) return local();
-        String id = players.get(p.getName().toLowerCase(Locale.ROOT));
-        return id != null ? id : othersDefault;
+        return idForOther(p.getName());
+    }
+
+    /** The model id of another player by name: their "players" entry, else general -> others. */
+    public String idForOther(String name) {
+        String id = players.get(name.toLowerCase(Locale.ROOT));
+        return id != null && !id.isEmpty() ? id : others();
     }
 
     /** The decoded model a player wears, or null for Steve (or while it loads, or when it failed). */
@@ -353,6 +379,6 @@ public final class ModelRegistry {
             "",
             "The file name (without .mcpm) is the model's id, used in config/polymodels.cfg.",
             "Other players see your normal skin unless they have this mod and name your model",
-            "for you in the \"players\" section of config/polymodels.cfg.",
+            "for you in config/polymodels.cfg (by name in \"players\", or everyone with \"others\").",
             "");
 }

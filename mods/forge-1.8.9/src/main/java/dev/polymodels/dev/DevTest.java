@@ -99,6 +99,8 @@ public final class DevTest {
             return 30;
         });
         step(() -> {
+            // What polymodels.cfg held at start (a run can pre-write one by hand to check it loads).
+            results.add("info  polymodels.cfg at start: model=" + reg().local() + ", others=" + reg().others());
             shot("01_chooser_title_screen");
             check("the chooser lists Steve and the three built-in models", reg().list().size() >= 3 && reg().find("john_marston") != null && reg().find("trevor") != null && reg().find("roblox_noob") != null, reg().list().size() + " models");
             mc.displayGuiScreen(null);
@@ -259,15 +261,19 @@ public final class DevTest {
             reg().setPlayer("TrevorTest", "trevor");
             reg().setPlayer("NoobTest", "roblox_noob");
             reg().setPlayer("JohnTest", "john_marston");
+            reg().setPlayer("SteveTest", "steve");
+            // Everyone not listed (SomeoneTest) wears general -> others.
+            reg().setOthers("roblox_noob");
             mc.gameSettings.thirdPersonView = 0;
             look(0, 8);
             double x = mc.thePlayer.posX;
             double y = mc.thePlayer.posY;
-            double z = mc.thePlayer.posZ + 4.5;
-            spawnOther(-100, "JohnTest", x - 2.4, y, z, new ItemStack(Items.iron_sword));
-            spawnOther(-101, "TrevorTest", x - 0.8, y, z, new ItemStack(Items.golden_axe));
-            spawnOther(-102, "NoobTest", x + 0.8, y, z, new ItemStack(Blocks.red_flower));
-            spawnOther(-103, "SteveTest", x + 2.4, y, z, new ItemStack(Items.stick));
+            double z = mc.thePlayer.posZ + 5.5;
+            spawnOther(-100, "JohnTest", x - 3.0, y, z, new ItemStack(Items.iron_sword));
+            spawnOther(-101, "TrevorTest", x - 1.5, y, z, new ItemStack(Items.golden_axe));
+            spawnOther(-102, "NoobTest", x, y, z, new ItemStack(Blocks.red_flower));
+            spawnOther(-103, "SteveTest", x + 1.5, y, z, new ItemStack(Items.stick));
+            spawnOther(-105, "SomeoneTest", x + 3.0, y, z, new ItemStack(Items.apple));
             reg().ready("trevor");
             reg().ready("roblox_noob");
             return 0;
@@ -277,7 +283,14 @@ public final class DevTest {
             shot("09_other_players");
             check("Trevor drawn for TrevorTest", draws(reg().find("trevor")) > 0, "");
             check("the Noob drawn for NoobTest", draws(reg().find("roblox_noob")) > 0, "");
-            for (int id = -100; id >= -103; id--) mc.theWorld.removeEntityFromWorld(id);
+            net.minecraft.entity.Entity someone = mc.theWorld.getEntityByID(-105);
+            net.minecraft.entity.Entity steve = mc.theWorld.getEntityByID(-103);
+            check("an unlisted player wears general -> others, a player listed as steve stays Steve",
+                    someone instanceof EntityPlayer && "roblox_noob".equals(reg().idFor((EntityPlayer) someone))
+                            && steve instanceof EntityPlayer && "steve".equals(reg().idFor((EntityPlayer) steve)), "");
+            for (int id = -100; id >= -105; id--) mc.theWorld.removeEntityFromWorld(id);
+            reg().setOthers("steve");
+            reg().setPlayer("SteveTest", null);
             // A bed in front of us for another player (sleeping is vanilla's transform too).
             BlockPos foot = new BlockPos(mc.thePlayer.posX - 1, mc.thePlayer.posY, mc.thePlayer.posZ + 3);
             bed = new BlockPos[]{foot, foot.east()};

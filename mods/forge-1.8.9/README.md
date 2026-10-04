@@ -42,19 +42,24 @@ The choice is saved in `config/polymodels.cfg`:
 general {
     # The model you wear: steve, john_marston, trevor, roblox_noob or a file name from config/polymodels
     S:model=john_marston
+    # The model every OTHER player wears on your screen unless "players" names one (steve: their skin)
+    S:others=roblox_noob
 }
 
 players {
-    # Models for OTHER players, seen by you only (one line per player name)
+    # Models for other players by name, seen by you only
     S:Notch=trevor
-    S:*=roblox_noob
+    S:jeb_=steve
 }
 ```
 
-The `players` section is optional: it shows other players in models **on your screen only**. The
-mod is client-side, so other players see your normal skin, and they only see you in a model if
-they have the mod too and name you in their own `players` section. `*` sets a model for everyone
-not listed.
+`others` and the `players` section are optional: they show other players in models **on your
+screen only**. The mod is client-side, so other players see your normal skin, and they only see you
+in a model if they have the mod too and name you in their own config. A `players` line wins over
+`others`; `S:<name>=steve` keeps one player vanilla. Edit the file while Minecraft is closed (the
+game rewrites it when you choose a model). Forge rejects a file with a syntax error: it renames it
+to `polymodels.cfg_<date>.errored` and starts a new one, so keep to letters, digits and `_` in
+names (as Minecraft player names are) or put the name in double quotes.
 
 ## Add your own models
 
@@ -136,7 +141,7 @@ configuration. `-PrunJvmArgs="..."` adds JVM arguments.
 (`dev/polymodels/dev/DevTest.java`; it does nothing unless that property is set): it opens the
 chooser, creates a flat survival world, wears John Marston and screenshots the F5 views (front,
 back, sneaking, swinging, blocking, drawing a bow, a pumpkin on the head), other players in Trevor
-and the Noob through the `players` section, the inventory preview, folder models (a good one, a
+and the Noob through the `players` section and `others`, the inventory preview, folder models (a good one, a
 damaged one, a truncated one), the chooser in a world, Trevor, and Steve again; it measures the
 skinning time, writes `<output dir>/devtest-results.txt` and the screenshots, and quits. The same
 property works with the release jar in a normal Forge install.
