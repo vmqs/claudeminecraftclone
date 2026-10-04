@@ -240,8 +240,9 @@ export class LanWorld implements WorldNetListener, IWorldAccess {
     if (w.localEffectsOnly || this.server.handlers.length === 0) return;
     const source = w.tickingEntity;
     // Guests make these themselves: every client runs its own copy of each player (sprinting,
-    // potion swirls, eating, a death's poof) and of each tile entity (a spawner's flames).
-    if (source?.isPlayerEntity || w.isTickingTileEntities) return;
+    // potion swirls, eating, a death's poof), of each tile entity (a spawner's flames) and of
+    // each block event (a note block's note).
+    if (source?.isPlayerEntity || w.replicatedEffects) return;
     for (const h of this.server.handlers) {
       const p = h.player;
       if (h.state !== 'play' || !p || p === source || p.worldObj !== w) continue;

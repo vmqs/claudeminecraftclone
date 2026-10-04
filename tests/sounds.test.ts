@@ -407,8 +407,10 @@ const hit = (x: number, y: number, z: number) => new Vec3(x + 0.5, y + 1, z + 0.
     tickLocal(s, 2);
   }
 
-  // Picking up an item and an orb.
+  // Picking up an item and an orb (after clearing the drops of the mobs killed above).
   {
+    for (const e of [...w.loadedEntityList]) if (e instanceof EntityItem || e instanceof EntityXPOrb) e.setDead();
+    tickLocal(s, 2);
     p.inventory.mainInventory[0] = null;
     const item = new EntityItem(w, p.posX, p.posY - p.yOffset + 0.2, p.posZ, new ItemStack(B.cobblestone, 1, 0));
     item.delayBeforeCanPickup = 0;
@@ -847,6 +849,16 @@ for (const [who, name, hurt, death] of [
   for (const e of both) check(`mp tamed hearts: ${e.label} sees 7`, e.countEffect('particle:heart') === 7, String(e.countEffect('particle:heart')));
   wolf.setDead();
   step(2);
+
+  // A note block played by the guest: its note and its particle once each.
+  hw.setBlock(4, 4, 8, B.music, 0);
+  step(3);
+  clearAll();
+  guest.pc.onPlayerRightClick(gp, gw, null, 4, 4, 8, 1, hit(4, 4, 8));
+  step(3);
+  ear1(both, /^note\./, 'mp guest note block');
+  for (const e of both) check(`mp note particle: ${e.label} sees it once`, e.countEffect('particle:note') === 1, String(e.countEffect('particle:note')));
+  hw.setBlock(4, 4, 8, 0, 0);
 
   hw.setBlock(6, 4, 8, B.mobSpawner, 0);
   step(3);

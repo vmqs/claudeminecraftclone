@@ -115,6 +115,11 @@ export class World implements IWorld, IBlockAccess {
    * of an explosion): a LAN host does not forward their particles and sounds.
    */
   localEffectsOnly = false;
+  /**
+   * True while code runs that each LAN guest also runs on its own copies (tile entity updates,
+   * block events): a host does not forward the particles it makes (their sounds still go).
+   */
+  replicatedEffects = false;
   readonly rand = new JavaRandom();
   /** The dimension's rules (WorldProviderSurface, WorldProviderHell, WorldProviderEnd). */
   readonly provider: WorldProvider;
@@ -1321,24 +1326,25 @@ export class World implements IWorld, IBlockAccess {
     this.updateTileEntities();
   }
 
-  /** True while tile entities tick (each LAN guest ticks its own copies and makes their particles). */
-  get isTickingTileEntities(): boolean {
-    return this.scanningTileEntities;
-  }
-
   /** Ticks tile entities, drops invalid ones, then applies the removals and additions queued meanwhile. */
   protected updateTileEntities(): void {
     this.scanningTileEntities = true;
+    const wasReplicated = this.replicatedEffects;
+    this.replicatedEffects = true;
     const list = this.loadedTileEntityList;
     let kept = 0;
-    for (let i = 0; i < list.length; i++) {
-      const te = list[i];
-      if (!te.isInvalid() && te.hasWorldObj() && this.blockExists(te.xCoord, te.yCoord, te.zCoord)) te.updateEntity();
-      if (te.isInvalid()) {
-        if (this.chunkExists(te.xCoord >> 4, te.zCoord >> 4)) this.getChunkFromChunkCoords(te.xCoord >> 4, te.zCoord >> 4).removeChunkBlockTileEntity(te.xCoord & 15, te.yCoord, te.zCoord & 15);
-      } else {
-        list[kept++] = te;
+    try {
+      for (let i = 0; i < list.length; i++) {
+        const te = list[i];
+        if (!te.isInvalid() && te.hasWorldObj() && this.blockExists(te.xCoord, te.yCoord, te.zCoord)) te.updateEntity();
+        if (te.isInvalid()) {
+          if (this.chunkExists(te.xCoord >> 4, te.zCoord >> 4)) this.getChunkFromChunkCoords(te.xCoord >> 4, te.zCoord >> 4).removeChunkBlockTileEntity(te.xCoord & 15, te.yCoord, te.zCoord & 15);
+        } else {
+          list[kept++] = te;
+        }
       }
+    } finally {
+      this.replicatedEffects = wasReplicated;
     }
     list.length = kept;
     this.scanningTileEntities = false;
@@ -1942,7 +1948,13 @@ export class World implements IWorld, IBlockAccess {
       for (const e of this.blockEventCache[i]) {
         const id = this.getBlockId(e.x, e.y, e.z);
         if (id === e.blockID) {
-          Block.blocksList[id]?.onBlockEventReceived(this, e.x, e.y, e.z, e.eventID, e.eventParameter);
+          const was = this.replicatedEffects;
+          this.replicatedEffects = true;
+          try {
+            Block.blocksList[id]?.onBlockEventReceived(this, e.x, e.y, e.z, e.eventID, e.eventParameter);
+          } finally {
+            this.replicatedEffects = was;
+          }
           this.netEvents?.blockEvent(e.x, e.y, e.z, id, e.eventID, e.eventParameter);
         }
       }

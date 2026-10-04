@@ -565,8 +565,9 @@ client-only sounds (`World.playSound`, EntityPlayerSP's own sounds) were heard. 
   A guest's `WorldClient` drops `playSoundEffect` / `playSoundAtEntity` (its predicted
   placements, chest lids, status echoes and explosion packets stay silent; the host's
   `LevelSound` packets play through `World.playSound`).
-- A host never forwards particles made during a player's or a tile entity's update (every
-  client runs its own copies of those) nor those of level events (`RenderGlobal.playAuxSFX`).
+- A host never forwards particles made during a player's update, a tile entity's update or a
+  block event (`World.replicatedEffects`; every client runs its own copies of those) nor those
+  of level events (`RenderGlobal.playAuxSFX`).
 `tests/sounds.test.ts` counts what each player hears and sees for every such event, in single
 player and on both sides of a LAN game. New entity code follows the same rules.
 
