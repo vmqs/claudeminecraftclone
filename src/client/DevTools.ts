@@ -14,6 +14,7 @@ import { openScreenByName } from '../gui/GuiDebugScreens';
 import { PlayerDevTools } from './PlayerDevTools';
 import { NetDevTools } from './NetDevTools';
 import { AccountDevTools } from './AccountDevTools';
+import { ModelDevTools } from './ModelDevTools';
 import { ControlsDevTools } from './ControlsDevTools';
 import { SaveDevTools } from './SaveDevTools';
 import { PerfDevTools } from './PerfDevTools';
@@ -37,6 +38,8 @@ export class DevTools {
   readonly net: NetDevTools;
   /** Account helpers (skin upload, test skins, state). */
   readonly account: AccountDevTools;
+  /** Custom player models (select, whenReady, importUrls, setRemote, state, measureFrames). */
+  readonly models: ModelDevTools;
   /** Key bindings, sprint/zoom state, the Controls screen and texture pack imports. */
   readonly controls: ControlsDevTools;
   /** World saving (src/client/SaveDevTools.ts). */
@@ -61,6 +64,7 @@ export class DevTools {
     this.player = new PlayerDevTools(mc);
     this.net = new NetDevTools(mc);
     this.account = new AccountDevTools(mc);
+    this.models = new ModelDevTools(mc);
     this.controls = new ControlsDevTools(mc);
     this.saves = new SaveDevTools(mc);
     this.perf = new PerfDevTools(mc);
