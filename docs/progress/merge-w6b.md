@@ -3,8 +3,8 @@
 Branches to merge, in order: w6/models, w6/bugfix (w6/bugfix head cea1361 already merged in merge-w6a; re-check for newer commits).
 
 - [x] w6/models merged (clean, no conflicts; tsc passes; protocol 4)
-- [ ] w6/bugfix (newer commits?)
-- [ ] build check
+- [x] w6/bugfix: no commits beyond cea1361 (already merged in merge-w6a)
+- [x] build check (vite build ok, worker chunk ModelImportWorker emitted)
 - [ ] wiring / dedupe
 - [ ] smoke: title, spawn, interact, models, bugfix
 - [ ] ARCHITECTURE §13 notes
