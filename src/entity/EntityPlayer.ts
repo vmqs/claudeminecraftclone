@@ -89,6 +89,11 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
   gameType: EnumGameType = EnumGameType.NOT_SET;
   /** Ticks of spawn protection left (EntityPlayerMP.initialInvulnerability): only the void hurts. */
   initialInvulnerability = 60;
+  /**
+   * Set when the player entered the exit portal (EntityPlayerMP.playerConqueredTheEnd): the
+   * credits roll and the next respawn keeps everything (clonePlayer(old, true)).
+   */
+  playerConqueredTheEnd = false;
   /** onGround and posY when the last tick ended: the server's view, used for jump exhaustion. */
   private serverOnGround = false;
   private serverPosY = 0;

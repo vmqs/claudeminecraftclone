@@ -76,7 +76,7 @@ export const PlayerSpawning = {
   respawn(p: EntityPlayer, old: EntityPlayer, w: World, keepEverything = false): void {
     const bed = old.getBedLocation();
     const forced = old.isSpawnForced();
-    p.clonePlayer(old, keepEverything);
+    p.clonePlayer(old, keepEverything || old.playerConqueredTheEnd);
     const enderFrom = InventoryEnderChest.forPlayer(old);
     const enderTo = InventoryEnderChest.forPlayer(p);
     for (let i = 0; i < enderFrom.getSizeInventory(); i++) enderTo.setInventorySlotContents(i, enderFrom.getStackInSlot(i));

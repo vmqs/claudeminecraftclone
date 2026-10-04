@@ -138,7 +138,16 @@ function arrow(e: Entity): void {
   if ((a.arrowShake as number) > 0) a.arrowShake = (a.arrowShake as number) - 1;
 }
 
+/** The bosses' client halves (wing beat, ring buffer, parts and beam; the Wither's heads). */
+function clientState(e: Entity): void {
+  const b = e as unknown as { updateRemote?(): void; updateClientState?(): void };
+  if (b.updateRemote) b.updateRemote();
+  else b.updateClientState?.();
+}
+
 export const remoteVisuals: Record<string, Visual> = {
+  EnderDragon: clientState,
+  WitherBoss: clientState,
   Chicken: chicken,
   Squid: squid,
   Slime: slime,

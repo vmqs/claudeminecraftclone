@@ -498,7 +498,16 @@ export class LanServer implements PlayerServer, LanWorldServer {
 
   /** An entity a guest in world `w` refers to by id (the overworld when not given). */
   getEntityById(id: number, w: World = this.world): Entity | null {
-    return this.viewOf(w)?.tracker.getEntity(id) ?? null;
+    const tracker = this.viewOf(w)?.tracker;
+    if (!tracker) return null;
+    const e = tracker.getEntity(id);
+    if (e) return e;
+    // A part of a multi-part entity (the dragon's follow its id, like WorldServer's id map).
+    for (let i = 1; i <= 8; i++) {
+      const part = tracker.getEntity(id - i)?.getParts()?.[i - 1];
+      if (part && part.entityId === id) return part;
+    }
+    return null;
   }
 
   /** func_96290_a: spawn protection does not apply to a LAN game. */

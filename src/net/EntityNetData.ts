@@ -68,6 +68,9 @@ export function trackingParams(e: Entity): TrackingParams | null {
       return { range: 160, frequency: Number.POSITIVE_INFINITY, velocity: false };
     case 'EnderCrystal':
       return { range: 256, frequency: Number.POSITIVE_INFINITY, velocity: false };
+    case 'EnderDragon':
+      // 160 blocks every 3 ticks in 1.5.2; every 2 like the other mobs here.
+      return { range: 160, frequency: 2, velocity: true };
     case 'LightningBolt':
       return null;
     default:
@@ -188,6 +191,18 @@ const field = (name: string): MetaSlot => ({
   },
 });
 
+/** One element of a numeric array field (the Wither's three head targets, DataWatcher 17-19). */
+const indexField = (name: string, i: number): MetaSlot => ({
+  get: (e) => {
+    const v = (e[name] as number[] | undefined)?.[i];
+    return typeof v === 'number' ? v : null;
+  },
+  set: (e, v) => {
+    const a = e[name] as number[] | undefined;
+    if (a && typeof v === 'number') a[i] = v;
+  },
+});
+
 const itemField = (name: string): MetaSlot => ({
   get: (e) => {
     const v = e[name];
@@ -255,6 +270,8 @@ const BY_NAME: Record<string, MetaSlot[]> = {
   Ozelot: [field('tameSkin')],
   Villager: [field('profession')],
   VillagerGolem: [field('playerCreated')],
+  EnderDragon: [field('bossHealth')],
+  WitherBoss: [field('bossHealth'), indexField('watchedTargets', 0), indexField('watchedTargets', 1), indexField('watchedTargets', 2), field('invulTime')],
 };
 
 const AGEABLE: MetaSlot[] = [call('getGrowingAge', 'setGrowingAge')];

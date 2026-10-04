@@ -32,6 +32,7 @@ URL parameters (any combination):
 | `?signal=nostr,torrent` | which public signalling routes multiplayer uses (default both) |
 | `?net=memory` | multiplayer over an in-memory transport inside one page (development only) |
 | `?splash=1\|2` | which boot splash picture start-up shows (otherwise a coin flip) |
+| `?dim=1` | development only: the autostart world generates as dimension 1 (the End: `ChunkProviderEnd`, spawn at the origin) in the single world of this build; `?mobs=0` would remove the dragon, so `scripts/scenarios/end.json` turns spawning off itself |
 
 `mc.dev` helpers (see `src/client/DevTools.ts`): `isInGame()`, `pendingSections(radius)`,
 `tp(x, y, z, yaw?, pitch?)`, `look(yaw, pitch)`, `setTime(t)`, `select(slot)`, `fillHotbar(ids?)`,
@@ -94,6 +95,14 @@ world's seed near the player), `pieces(kind?, radius?)` (pieces by 1.5.2 name: `
 `NetherStalkRoom`, `Crossing3`..., nearest first), `isInFortress(x, y, z)`, `spawnList(x, y, z)` (the
 monster list the spawner uses there).
 
+`mc.dev.end` (`src/client/EndDevTools.ts`): `state()` (dimension, the dragon with its parts,
+crystals, the Wither, the boss bar, the open screen, `conquered`), `dragon()`, `wither()`,
+`crystals()`, `poseDragon(x, y, z, yaw, animTime?)` (level and still with its parts laid out, for a
+frozen capture), `linkNearestCrystal()`, `killDragon()`, `exitPortal()` (the local player conquers
+the End: achievement and credits), `creditsTicks(n)`, `buildWither(x, y, z)` (the soul sand T and
+three skulls, the last one placed like ItemSkull), `frames(x, y, z, eyes?)` (a ring of 12 end portal
+frames) and `insertEye(x, y, z)`. `mc.dev.screen('wingame')` opens the credits.
+
 `mc.dev.perf` (`src/client/PerfDevTools.ts`): `stats()` (frame interval, idle time, the frame
 budget, draw calls, the meshing and chunk queues, chunks sent twice), `unmeshed(r)` (sections
 within r chunks never meshed yet), `areaShown(r)` (every chunk within r loaded and every section
@@ -155,6 +164,12 @@ node scripts/shot.mjs dimensions             # a portal built and lit, its swirl
 node scripts/shot.mjs nether                 # travels to the Nether (needs the dimensions slice's mc.travel), a fortress
                                              # over the lava sea, F3 (biome Hell), the blaze spawner balcony, a nether
                                              # wart room, with the spawner, spawn lists and block counts in the log
+node scripts/shot.mjs end                    # ?dim=1: the End island with spikes and crystals, the dragon posed
+                                             # with the boss bar, its crystal beam, dying (rays, dissolve), the exit
+                                             # portal with the egg, the credits (logo, poem), the respawn keeping
+                                             # everything, a Wither charging / awake / armoured; then the dragon and
+                                             # the Wither in a flat world framed like the vanilla captures in
+                                             # ref/extra/end (asserts)
 node scripts/shot.mjs path/to/scenario.json --url http://localhost:5173/ --server none
 ```
 
@@ -224,7 +239,15 @@ against an in-memory world, and the survival rules against a real `World`: game 
 times and drops, hunger, damage, eating, death and respawn). `tests/stats.test.ts` checks the statistics registry, value formats, the stat file (per user,
 saved and loaded), the achievement parent rule and the gameplay hooks against a real `World`
 (movement, falls, mining, crafting and smelting achievements, drops, kills, deaths, the
-multiplayer split between host and guest). `tests/renderblocks.test.ts` renders every render type, metadata value and item;
+multiplayer split between host and guest). `tests/end.test.ts` checks the End: the terrain of
+`ChunkProviderEnd` against SHA-256 hashes of the real 1.5.2 `generateTerrain` (24x24 chunks, two
+seeds, computed with the original classes), the spikes, crystals and the one dragon of the
+decorator through `WorldGenServer` (dimension 1), the dragon in a real `World` (part layout and
+sizes, part ids, damage rules, flight over the island, crystal healing and the 10-point loss,
+block destruction, the 200-tick death with 12000 experience and the exit portal), the exit portal
+hook (achievement, credits, the respawn keeping everything), the Wither (summoning pattern,
+charge-up, explosion, NBT, targets, skulls, armour against arrows, nether star) and end portal
+frame activation with eyes of ender. `tests/renderblocks.test.ts` renders every render type, metadata value and item;
 `tests/controls.test.ts` checks the key bindings and options (saving, loading options saved before
 the new bindings, Reset Keys), the sprint key in Hold and Toggle mode against a real `World`, the
 zoom key, and the texture pack importer (folder-wrapped 1.5 packs, pre-1.5 packs, converted 1.6+

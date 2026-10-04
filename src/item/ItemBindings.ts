@@ -39,3 +39,6 @@ TileEntityFurnace.smeltingResult = (id) => FurnaceRecipes.smelting().getSmelting
 
 // Beacons give players in range an ambient effect (fewer, paler swirls) every 80 ticks.
 TileEntityBeacon.applyEffect = (p, id, duration, amplifier, ambient) => p.addPotionEffect(new PotionEffect(id, duration, amplifier, ambient));
+
+// The exit portal in the End: the credits and the respawn that keeps everything (end slice).
+import '../client/WinGame';

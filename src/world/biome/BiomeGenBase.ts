@@ -181,6 +181,18 @@ class BiomeGenSwamp extends BiomeGenBase {
   }
 }
 
+/** The End's biome (BiomeGenEnd, "Sky"): dirt surface blocks and a black sky colour, which the fog mixes in. */
+class BiomeGenEnd extends BiomeGenBase {
+  constructor(id: number) {
+    super(id);
+    this.topBlock = 3;
+    this.fillerBlock = 3;
+  }
+  override getSkyColorByTemp(_temp: number): number {
+    return 0;
+  }
+}
+
 /** java.awt.Color.HSBtoRGB (without the alpha byte). */
 export function hsbToRgb(hue: number, sat: number, bri: number): number {
   const f = Math.fround;
@@ -282,7 +294,7 @@ export const Biomes = {
   swampland: new BiomeGenSwamp(6).setColor(522674).setBiomeName('Swampland').setSecondaryColor(9154376).setMinMaxHeight(-0.2, 0.1).setTemperatureRainfall(0.8, 0.9),
   river: B(7).setColor(255).setBiomeName('River').setMinMaxHeight(-0.5, 0.0).editSpawns(noCreatures),
   hell: B(8).setColor(16711680).setBiomeName('Hell').setDisableRain().setTemperatureRainfall(2.0, 0.0).editSpawns(hellSpawns),
-  sky: B(9).setColor(8421631).setBiomeName('Sky').setDisableRain().editSpawns(endSpawns),
+  sky: new BiomeGenEnd(9).setColor(8421631).setBiomeName('Sky').setDisableRain().editSpawns(endSpawns),
   frozenOcean: B(10).setColor(9474208).setBiomeName('FrozenOcean').setEnableSnow().setMinMaxHeight(-1.0, 0.5).setTemperatureRainfall(0.0, 0.5).editSpawns(noCreatures),
   frozenRiver: B(11).setColor(10526975).setBiomeName('FrozenRiver').setEnableSnow().setMinMaxHeight(-0.5, 0.0).setTemperatureRainfall(0.0, 0.5).editSpawns(noCreatures),
   icePlains: B(12).setColor(16777215).setBiomeName('Ice Plains').setEnableSnow().setTemperatureRainfall(0.0, 0.5),

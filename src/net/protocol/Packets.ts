@@ -201,7 +201,7 @@ export const PACKETS = {
   LevelSound: def(62, 's2c', { name: 'name', x: 'i32', y: 'i32', z: 'i32', volume: 'f32', pitch: 'u8' }),
   /** Packet63WorldParticles: one particle kind, (x, y, z, vx, vy, vz) for each. */
   WorldParticles: def(63, 's2c', { name: 'name', values: 'f32s' }),
-  /** Packet70GameEvent: 0 bed invalid, 1 rain starts, 2 rain stops, 3 game mode changed. */
+  /** Packet70GameEvent: 0 bed invalid, 1 rain starts, 2 rain stops, 3 game mode changed, 4 the credits (the End conquered). */
   GameEvent: def(70, 's2c', { reason: 'u8', value: 'u8' }),
   /** Packet71Weather: a lightning bolt. */
   Weather: def(71, 's2c', { entityId: 'i32', x: 'i32', y: 'i32', z: 'i32' }),

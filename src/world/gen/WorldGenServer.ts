@@ -11,6 +11,7 @@ import { computeChunkLight } from './GenLighting';
 import { GenStore } from './GenStore';
 import { GenWorld } from './GenWorld';
 import './nether/NetherRegistration';
+import './end/EndRegistration';
 import { chunkFromTerrain, type TerrainChunk, toTerrainChunk } from './TerrainChunk';
 import { SPAWN_BIOMES } from './WorldChunkManager';
 
@@ -285,6 +286,11 @@ export class WorldGenServer {
   /** WorldServer.createSpawnPosition and the bonus chest; the spawn area loads afterwards. */
   findSpawnPoint(): [number, number, number] {
     this.vanillaMode = true;
+    if ((this.options.dimension ?? 0) !== 0) {
+      // WorldProvider.canRespawnHere is false outside the overworld: the spawn is (0, ground, 0).
+      this.spawn = [0, this.provider.getAverageGroundLevel(), 0];
+      return this.spawn;
+    }
     const rand = new JavaRandom(this.options.seed);
     const allowed = SPAWN_BIOMES;
     const pos = this.provider.biomeSource.findBiomePosition(0, 0, 256, allowed, rand);

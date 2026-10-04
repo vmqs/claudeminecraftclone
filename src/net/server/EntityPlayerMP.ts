@@ -56,8 +56,6 @@ export class EntityPlayerMP extends EntityPlayer implements ICrafting {
   readonly theItemInWorldManager: ItemInWorldManager;
   ping = 0;
   chatVisibility = 0;
-  /** Went through the End's exit portal: the credits run until the guest asks to respawn. */
-  playerConqueredTheEnd = false;
   /** Render distance the guest asked for, in chunks. */
   renderDistance = 8;
   private lastHealth = -99999999;

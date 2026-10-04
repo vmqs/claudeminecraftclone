@@ -84,3 +84,6 @@ rm.register(EntityFishHook, new RenderFish());
 
 // Hostile and Nether mobs (mobshostile slice).
 import './HostileMobRenderers';
+
+// The Ender Dragon and the Wither (end slice).
+import './BossRenderers';
