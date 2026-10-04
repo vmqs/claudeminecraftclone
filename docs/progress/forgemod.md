@@ -29,3 +29,13 @@ Notes for a resume:
 - Headless run: LWJGL 2.9.4 needs `xrandr` (not installed): scratchpad/fakebin/xrandr prints a fake
   `xrandr -q`; put it first on PATH. Run `./gradlew runClientDirect -PrunJvmArgs="-Dpolymodels.devtest=<dir>"`
   under xvfb-run (LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe); kill leftovers (devlaunchinjector, Xvfb).
+
+## Review fix round (review-forgemod findings)
+1. [ ] major: `S:*=...` breaks Forge's cfg parser → general `others` key (old quoted `"*"` still read), README/cfg comment, JUnit cfg test
+2. [ ] major: deeply nested header JSON → StackOverflowError at startup → iterative JSON parse, Throwable guards in rescan/builtins/preInit
+3. [ ] minor: inflate must reach the final block; name via JS String() rules; fixture cases (deep, syncflush, name array/object/number)
+4. [ ] minor: entity-outline pass (copy renderOutlines onto the replacement renderer)
+5. [ ] minor: texture size read before decoding (>8192 refused, big ones subsampled)
+6. [ ] minor: "Open folder" uses vanilla's OS switch (open / cmd start / Desktop / Sys.openURL)
+7. [ ] minor: performance: per-player skin cache (only parts that moved are re-skinned), GlStateManager state instead of GL queries, README cost per player
+8. [ ] rebuild jar, copy to scratchpad, one headless prod-style run, look at screenshots
