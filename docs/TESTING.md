@@ -482,7 +482,7 @@ GLB_EXPORT_DIR=/tmp/glb node scripts/run-node-test.mjs tests/glbexport.test.ts  
 node scripts/export-glb.mjs <out dir> [model.mcpm ...]    # .mcpm -> .glb (built-ins without arguments)
 node scripts/shot.mjs export                              # Export .mcpm / .glb buttons in the browser
 node scripts/mcpm-reference.mjs                           # regenerate the mod's decoder fixture
-cd mods/forge-1.8.9 && ./gradlew build                    # mod jar + McpmFormatTest (Java vs web decoder) + ModelRegistryConfigTest (hand-written cfg)
+cd mods/forge-1.8.9 && ./gradlew build                    # mod jar + JUnit: McpmFormatTest (Java vs web decoder), ModelRegistryConfigTest (hand-written cfg), PolyModelSkinTest, PolyModelImageTest
 ```
 
 `mc.dev.models.exportModel(kind, download?)` runs Export .mcpm / Export .glb (`download` false

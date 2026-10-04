@@ -25,14 +25,21 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.nio.ShortBuffer;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 /**
  * A player model ready to draw: the vertices moved once into ModelBiped's space ("biped space":
  * blocks, +Y down, the face towards -Z, the neck at the origin, feet at y = 1.5, before
- * RenderPlayer's 0.9375 scale), skinned on the CPU every draw by the six part matrices (each
- * vertex blends up to four parts) into reused buffers, and drawn with client-side vertex arrays
- * in whatever GL state vanilla set up (lightmap, item lighting, the hurt tint, invisibility).
- * Textures are decoded off the render thread and uploaded on the first draw.
+ * RenderPlayer's 0.9375 scale), skinned on the CPU by the six part matrices (each vertex blends up
+ * to four parts) and drawn with client-side vertex arrays in whatever GL state vanilla set up
+ * (lightmap, item lighting, the hurt tint, invisibility, the outline pass).
+ *
+ * <p>Skinning cost: the vertices are sorted by the set of parts that move them, and every player
+ * drawn with the model keeps its own skinned copy ({@link SkinState}), so a draw only re-skins
+ * the vertices of parts whose matrix changed since that player's last draw (an idle player: the
+ * swaying arms; walking: arms and legs). Textures are decoded off the render thread and uploaded
+ * on the first draw.
  */
 public final class PolyModel {
     private static final Logger LOG = LogManager.getLogger("PolyModels");
@@ -52,11 +59,22 @@ public final class PolyModel {
     public final String credits;
     public final int triangles;
     private final int vc;
+    /** Vertices in skinning order (sorted by the parts that move them). */
     private final float[] bindPos;
     private final float[] bindNrm;
     /** Up to four parts per vertex with weights normalised to sum to 1. */
     private final byte[] joints;
     private final float[] weights;
+    /** For each new vertex index, the file's vertex index. */
+    final int[] fileVertex;
+    /**
+     * Runs of vertices moved by the same set of parts: bit k of rangeMask = part k. rigidPart is
+     * the one part of a run moved by a single part (weight 1), else -1.
+     */
+    private final int[] rangeMask;
+    private final int[] rangeStart;
+    private final int[] rangeEnd;
+    private final int[] rigidPart;
     private final McpmFormat.Group[] groups;
     private final McpmFormat.Material[] materials;
     /** Decoded pictures until uploaded (null entries could not be read). */
@@ -69,21 +87,35 @@ public final class PolyModel {
     public final float[] headCenter;
     public final float headSize;
 
-    private final float[] outPos;
-    private final float[] outNrm;
-    private final FloatBuffer posBuf;
-    private final FloatBuffer nrmBuf;
     private final FloatBuffer uvBuf;
     private final ShortBuffer shortIdx;
     private final IntBuffer intIdx;
     /** Row-major 3x4 per part. */
     private final float[] bones = new float[McpmFormat.PART_COUNT * 12];
-    private final FloatBuffer colorScratch = BufferUtils.createFloatBuffer(16);
+    /** Each player's skinned vertices (weak keys: entities that leave the world are dropped). */
+    private final Map<Object, SkinState> states = new WeakHashMap<>();
+    private final Object sharedKey = new Object();
+    private int drawsSinceSweep;
     private boolean disposed;
 
-    /** Time spent skinning, for the debug log. */
+    /** Time spent skinning and vertices skinned, for the debug log and the development test. */
     public long skinNanos;
+    public long skinnedVertices;
     public int draws;
+
+    /** One player's skinned copy of the model and the part matrices it was skinned with. */
+    static final class SkinState {
+        final FloatBuffer pos;
+        final FloatBuffer nrm;
+        final float[] bones = new float[McpmFormat.PART_COUNT * 12];
+        boolean valid;
+        long lastUsed;
+
+        SkinState(int vertices) {
+            pos = BufferUtils.createFloatBuffer(vertices * 3);
+            nrm = BufferUtils.createFloatBuffer(vertices * 3);
+        }
+    }
 
     private static int whiteTexture = -1;
 
@@ -93,34 +125,72 @@ public final class PolyModel {
         this.credits = d.credits;
         this.vc = d.vertexCount();
         this.triangles = d.indices.length / 3;
+        // Each vertex's parts (weights normalised; unbound vertices follow the body).
+        byte[] fileJoints = d.joints;
+        float[] fileWeights = new float[vc * 4];
+        int[] mask = new int[vc];
+        for (int i = 0; i < vc; i++) {
+            int sum = 0;
+            for (int k = 0; k < 4; k++) sum += d.weights[i * 4 + k] & 0xff;
+            if (sum == 0) {
+                fileJoints[i * 4] = McpmFormat.PART_BODY;
+                fileWeights[i * 4] = 1;
+                for (int k = 1; k < 4; k++) fileWeights[i * 4 + k] = 0;
+            } else {
+                for (int k = 0; k < 4; k++) fileWeights[i * 4 + k] = (d.weights[i * 4 + k] & 0xff) / (float) sum;
+            }
+            for (int k = 0; k < 4; k++) if (fileWeights[i * 4 + k] != 0) mask[i] |= 1 << (fileJoints[i * 4 + k] & 0xff);
+        }
+        // Sort the vertices by mask (counting sort, stable) and renumber the indices.
+        int masks = 1 << McpmFormat.PART_COUNT;
+        int[] count = new int[masks + 1];
+        for (int i = 0; i < vc; i++) count[mask[i] + 1]++;
+        for (int m = 0; m < masks; m++) count[m + 1] += count[m];
+        int[] first = count.clone();
+        this.fileVertex = new int[vc];
+        int[] newIndex = new int[vc];
+        for (int i = 0; i < vc; i++) {
+            int n = first[mask[i]]++;
+            fileVertex[n] = i;
+            newIndex[i] = n;
+        }
+        int runs = 0;
+        for (int m = 0; m < masks; m++) if (count[m + 1] > count[m]) runs++;
+        this.rangeMask = new int[runs];
+        this.rangeStart = new int[runs];
+        this.rangeEnd = new int[runs];
+        this.rigidPart = new int[runs];
+        for (int m = 0, r = 0; m < masks; m++) {
+            if (count[m + 1] == count[m]) continue;
+            rangeMask[r] = m;
+            rangeStart[r] = count[m];
+            rangeEnd[r] = count[m + 1];
+            rigidPart[r] = Integer.bitCount(m) == 1 ? Integer.numberOfTrailingZeros(m) : -1;
+            r++;
+        }
         this.bindPos = new float[vc * 3];
         this.bindNrm = new float[vc * 3];
-        for (int i = 0; i < vc; i++) {
+        this.joints = new byte[vc * 4];
+        this.weights = new float[vc * 4];
+        float[] uvs = new float[vc * 2];
+        for (int n = 0; n < vc; n++) {
+            int i = fileVertex[n];
             float[] b = toBiped(d.positions[i * 3], d.positions[i * 3 + 1], d.positions[i * 3 + 2]);
-            System.arraycopy(b, 0, bindPos, i * 3, 3);
+            System.arraycopy(b, 0, bindPos, n * 3, 3);
             // Biped space flips y and z.
             float nx = d.normals[i * 3];
             float ny = -d.normals[i * 3 + 1];
             float nz = -d.normals[i * 3 + 2];
             float len = (float) Math.sqrt(nx * nx + ny * ny + nz * nz);
             if (len > 0) {
-                bindNrm[i * 3] = nx / len;
-                bindNrm[i * 3 + 1] = ny / len;
-                bindNrm[i * 3 + 2] = nz / len;
-            } else bindNrm[i * 3 + 1] = -1;
-        }
-        this.joints = d.joints;
-        this.weights = new float[vc * 4];
-        for (int i = 0; i < vc; i++) {
-            int sum = 0;
-            for (int k = 0; k < 4; k++) sum += d.weights[i * 4 + k] & 0xff;
-            if (sum == 0) {
-                // Unbound vertices follow the body.
-                joints[i * 4] = McpmFormat.PART_BODY;
-                weights[i * 4] = 1;
-            } else {
-                for (int k = 0; k < 4; k++) weights[i * 4 + k] = (d.weights[i * 4 + k] & 0xff) / (float) sum;
-            }
+                bindNrm[n * 3] = nx / len;
+                bindNrm[n * 3 + 1] = ny / len;
+                bindNrm[n * 3 + 2] = nz / len;
+            } else bindNrm[n * 3 + 1] = -1;
+            System.arraycopy(fileJoints, i * 4, joints, n * 4, 4);
+            System.arraycopy(fileWeights, i * 4, weights, n * 4, 4);
+            uvs[n * 2] = d.uvs[i * 2];
+            uvs[n * 2 + 1] = d.uvs[i * 2 + 1];
         }
         this.groups = d.groups;
         this.materials = d.materials;
@@ -129,20 +199,17 @@ public final class PolyModel {
         this.palm = toBiped(d.hands[0][0], d.hands[0][1], d.hands[0][2]);
         this.headCenter = toBiped(d.headCenter[0], d.headCenter[1], d.headCenter[2]);
         this.headSize = d.headSize;
-        this.outPos = new float[vc * 3];
-        this.outNrm = new float[vc * 3];
-        this.posBuf = BufferUtils.createFloatBuffer(vc * 3);
-        this.nrmBuf = BufferUtils.createFloatBuffer(vc * 3);
         this.uvBuf = BufferUtils.createFloatBuffer(vc * 2);
-        uvBuf.put(d.uvs).flip();
+        uvBuf.put(uvs).flip();
         if (vc <= 65536) {
             shortIdx = BufferUtils.createShortBuffer(d.indices.length);
-            for (int v : d.indices) shortIdx.put((short) v);
+            for (int v : d.indices) shortIdx.put((short) newIndex[v]);
             shortIdx.flip();
             intIdx = null;
         } else {
             intIdx = BufferUtils.createIntBuffer(d.indices.length);
-            intIdx.put(d.indices).flip();
+            for (int v : d.indices) intIdx.put(newIndex[v]);
+            intIdx.flip();
             shortIdx = null;
         }
     }
@@ -271,15 +338,82 @@ public final class PolyModel {
         out[o + 11] = qz - (r20 * px + r21 * py + r22 * pz);
     }
 
-    /** Skins every vertex by the current part matrices into the vertex and normal buffers. */
-    private void skin() {
+    /** How long a player's skinned copy is kept after its last draw. */
+    private static final long KEEP_NANOS = 10_000_000_000L;
+
+    /**
+     * Brings one player's skinned copy up to the current part matrices (set by {@link #setPose}):
+     * only the runs of vertices moved by a part whose matrix changed since that copy was made.
+     */
+    SkinState skin(Object key) {
         long t0 = System.nanoTime();
+        SkinState st = states.get(key);
+        if (st == null) {
+            st = new SkinState(vc);
+            states.put(key, st);
+        }
+        st.lastUsed = t0;
+        int changed = 0;
+        for (int k = 0; k < McpmFormat.PART_COUNT; k++) {
+            if (!st.valid) {
+                changed = (1 << McpmFormat.PART_COUNT) - 1;
+                break;
+            }
+            for (int j = k * 12; j < k * 12 + 12; j++) {
+                if (Float.floatToRawIntBits(bones[j]) != Float.floatToRawIntBits(st.bones[j])) {
+                    changed |= 1 << k;
+                    break;
+                }
+            }
+        }
+        if (changed != 0) {
+            for (int r = 0; r < rangeMask.length; r++) {
+                if ((rangeMask[r] & changed) == 0) continue;
+                if (rigidPart[r] >= 0) skinRigid(st, rangeStart[r], rangeEnd[r], rigidPart[r] * 12);
+                else skinBlended(st, rangeStart[r], rangeEnd[r]);
+                skinnedVertices += rangeEnd[r] - rangeStart[r];
+            }
+            System.arraycopy(bones, 0, st.bones, 0, bones.length);
+            st.valid = true;
+        }
+        if (++drawsSinceSweep >= 512) {
+            drawsSinceSweep = 0;
+            states.values().removeIf(s -> t0 - s.lastUsed > KEEP_NANOS);
+        }
+        skinNanos += System.nanoTime() - t0;
+        return st;
+    }
+
+    /** Vertices moved by one part only: one matrix, rotation keeps the normals' length. */
+    private void skinRigid(SkinState st, int from, int to, int j) {
         final float[] b = bones;
         final float[] p = bindPos;
         final float[] n = bindNrm;
-        final float[] op = outPos;
-        final float[] on = outNrm;
-        for (int i = 0; i < vc; i++) {
+        final FloatBuffer op = st.pos;
+        final FloatBuffer on = st.nrm;
+        final float m0 = b[j], m1 = b[j + 1], m2 = b[j + 2], m3 = b[j + 3];
+        final float m4 = b[j + 4], m5 = b[j + 5], m6 = b[j + 6], m7 = b[j + 7];
+        final float m8 = b[j + 8], m9 = b[j + 9], m10 = b[j + 10], m11 = b[j + 11];
+        for (int i3 = from * 3, end = to * 3; i3 < end; i3 += 3) {
+            float x = p[i3], y = p[i3 + 1], z = p[i3 + 2];
+            op.put(i3, m0 * x + m1 * y + m2 * z + m3);
+            op.put(i3 + 1, m4 * x + m5 * y + m6 * z + m7);
+            op.put(i3 + 2, m8 * x + m9 * y + m10 * z + m11);
+            float nx = n[i3], ny = n[i3 + 1], nz = n[i3 + 2];
+            on.put(i3, m0 * nx + m1 * ny + m2 * nz);
+            on.put(i3 + 1, m4 * nx + m5 * ny + m6 * nz);
+            on.put(i3 + 2, m8 * nx + m9 * ny + m10 * nz);
+        }
+    }
+
+    /** Vertices blending several parts. */
+    private void skinBlended(SkinState st, int from, int to) {
+        final float[] b = bones;
+        final float[] p = bindPos;
+        final float[] n = bindNrm;
+        final FloatBuffer op = st.pos;
+        final FloatBuffer on = st.nrm;
+        for (int i = from; i < to; i++) {
             int i3 = i * 3;
             float x = p[i3], y = p[i3 + 1], z = p[i3 + 2];
             float nx = n[i3], ny = n[i3 + 1], nz = n[i3 + 2];
@@ -295,48 +429,71 @@ public final class PolyModel {
                 my += w * (b[j + 4] * nx + b[j + 5] * ny + b[j + 6] * nz);
                 mz += w * (b[j + 8] * nx + b[j + 9] * ny + b[j + 10] * nz);
             }
-            op[i3] = ox;
-            op[i3 + 1] = oy;
-            op[i3 + 2] = oz;
+            op.put(i3, ox);
+            op.put(i3 + 1, oy);
+            op.put(i3 + 2, oz);
             float len = (float) Math.sqrt(mx * mx + my * my + mz * mz);
             if (len > 1e-6f) {
-                on[i3] = mx / len;
-                on[i3 + 1] = my / len;
-                on[i3 + 2] = mz / len;
+                on.put(i3, mx / len);
+                on.put(i3 + 1, my / len);
+                on.put(i3 + 2, mz / len);
             } else {
-                on[i3] = nx;
-                on[i3 + 1] = ny;
-                on[i3 + 2] = nz;
+                on.put(i3, nx);
+                on.put(i3 + 1, ny);
+                on.put(i3 + 2, nz);
             }
         }
-        posBuf.clear();
-        posBuf.put(op).flip();
-        nrmBuf.clear();
-        nrmBuf.put(on).flip();
-        skinNanos += System.nanoTime() - t0;
+    }
+
+    /** Time for one full skin of every vertex (development test), in milliseconds. */
+    public double benchmarkFullSkin(int rounds) {
+        SkinState st = new SkinState(vc);
+        long t0 = System.nanoTime();
+        for (int i = 0; i < rounds; i++) {
+            for (int r = 0; r < rangeMask.length; r++) {
+                if (rigidPart[r] >= 0) skinRigid(st, rangeStart[r], rangeEnd[r], rigidPart[r] * 12);
+                else skinBlended(st, rangeStart[r], rangeEnd[r]);
+            }
+        }
+        return (System.nanoTime() - t0) / 1e6 / Math.max(1, rounds);
+    }
+
+    /** The (renumbered) vertex index at position {@code i} of the index list (tests). */
+    int indexAt(int i) {
+        return shortIdx != null ? shortIdx.get(i) & 0xffff : intIdx.get(i);
+    }
+
+    /** Whether the GL state comes from GlStateManager's cache (development test). */
+    public static boolean glStateCached() {
+        return GlState.usesCache();
+    }
+
+    /** Players with a skinned copy right now. */
+    public int skinStates() {
+        return states.size();
     }
 
     /**
-     * Draws the model posed by {@link #setPose} with the current matrices and GL state. Each
-     * material multiplies the current colour (vanilla's invisibility alpha); with texturing off
-     * (outlines) the plain current colour is used.
+     * Draws the model posed by {@link #setPose} with the current matrices and GL state, for one
+     * player ({@code key}: the entity; its skinned copy is reused). Each material multiplies the
+     * current colour (vanilla's invisibility alpha); with texturing off (the outline pass) the
+     * plain current colour is used.
      */
-    public void draw() {
+    public void draw(Object key) {
         if (disposed) return;
         if (images != null) uploadTextures();
-        skin();
+        SkinState st = skin(key == null ? sharedKey : key);
         draws++;
-        colorScratch.clear();
-        GL11.glGetFloat(GL11.GL_CURRENT_COLOR, colorScratch);
-        float r = colorScratch.get(0), g = colorScratch.get(1), bl = colorScratch.get(2), a = colorScratch.get(3);
-        boolean textured = GL11.glIsEnabled(GL11.GL_TEXTURE_2D);
-        boolean blendWasOn = GL11.glIsEnabled(GL11.GL_BLEND);
+        float[] c = GlState.color();
+        float r = c[0], g = c[1], bl = c[2], a = c[3];
+        boolean textured = GlState.texture2D();
+        boolean blendWasOn = GlState.blend();
         boolean blending = false;
         if (OpenGlHelper.vboSupported) OpenGlHelper.glBindBuffer(OpenGlHelper.GL_ARRAY_BUFFER, 0);
         GL11.glEnableClientState(GL11.GL_VERTEX_ARRAY);
-        GL11.glVertexPointer(3, 0, posBuf);
+        GL11.glVertexPointer(3, 0, st.pos);
         GL11.glEnableClientState(GL11.GL_NORMAL_ARRAY);
-        GL11.glNormalPointer(0, nrmBuf);
+        GL11.glNormalPointer(0, st.nrm);
         OpenGlHelper.setClientActiveTexture(OpenGlHelper.defaultTexUnit);
         GL11.glEnableClientState(GL11.GL_TEXTURE_COORD_ARRAY);
         GL11.glTexCoordPointer(2, 0, uvBuf);
@@ -434,6 +591,7 @@ public final class PolyModel {
     public void dispose() {
         if (disposed) return;
         disposed = true;
+        states.clear();
         if (textureIds != null) {
             for (int t : textureIds) if (t >= 0) GlStateManager.deleteTexture(t);
         }

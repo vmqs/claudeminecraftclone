@@ -84,7 +84,8 @@ public final class ModelPolyPlayer extends ModelPlayer {
         // ModelBiped.render lowers a sneaking body by 0.2.
         if (entity != null && entity.isSneaking()) GlStateManager.translate(0.0F, 0.2F, 0.0F);
         mesh.setPose(pose);
-        mesh.draw();
+        // Each player keeps its own skinned copy (only parts that moved are skinned again).
+        mesh.draw(entity);
         GlStateManager.popMatrix();
     }
 

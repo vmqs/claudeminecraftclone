@@ -176,4 +176,8 @@ with `ArrayIndexOutOfBoundsException` in `LinuxDisplay.getAvailableDisplayModes`
   `ModelRenderer`s are moved onto those joints, so `LayerHeldItem` puts the item at the model's palm
   and `LayerCustomHead` (through a shifted, scaled head renderer) fits head items to its head.
   `PolyModel` draws the skinned vertices with client-side vertex arrays in vanilla's GL state
-  (lightmap, item lighting, hurt tint) with mipmapped textures uploaded once.
+  (lightmap, item lighting, hurt tint, the spectator outline pass) with mipmapped textures uploaded
+  once. Its vertices are sorted by the set of parts that move them, and every player drawn with a
+  model keeps a skinned copy: a draw only re-skins the vertices of parts whose matrix changed since
+  that player's last draw. The current colour, texturing and blending come from `GlStateManager`'s
+  own cache (read by reflection; GL is asked if that fails), not from `glGet` per player.

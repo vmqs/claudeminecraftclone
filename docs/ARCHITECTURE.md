@@ -921,7 +921,7 @@ messages as `decodePlayerModel`, checked by `McpmFormatTest` against
 `public/models` at build time, `config/polymodels/*.mcpm`, `config/polymodels.cfg`: general `model` and `others`, `players` by name; `ModelRegistryConfigTest` loads hand-written files through Forge's `Configuration`),
 `PlayerRenderHandler` + `RenderPolyPlayer` + `ModelPolyPlayer` (cancels `RenderPlayerEvent.Pre` and
 draws the player with a `RenderPlayer` whose `ModelPlayer` poses the six parts with vanilla's
-`setRotationAngles` and skins on the CPU with the same matrices as `ModelPose.partMatrices`),
+`setRotationAngles` and skins on the CPU with the same matrices as `ModelPose.partMatrices`, keeping a skinned copy per player and re-skinning only the parts that moved; `PolyModelSkinTest` checks that against a plain full skin),
 `GuiChooseModel` (key M). The model files are the contract between the two: any change to the
 `.mcpm` layout must be made in both decoders and the fixture regenerated. Checks: `./gradlew build`
 (JUnit), the in-game test hook (`-Dpolymodels.devtest=<dir>`, see the mod's README), CI

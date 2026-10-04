@@ -319,13 +319,20 @@ public final class DevTest {
                 for (BlockPos pos : b) p.worldObj.setBlockToAir(pos);
             });
             // Spectator outlines: another player in John, highlighted through the outline pass.
+            groundY = mc.thePlayer.posY;
+            results.add(worldInfo("before spectator"));
             serverPlayer(p -> p.setGameType(WorldSettings.GameType.SPECTATOR));
-            spawnOther(-106, "JohnTest", mc.thePlayer.posX, mc.thePlayer.posY, mc.thePlayer.posZ + 4.5, new ItemStack(Items.iron_sword));
+            // John next to a vanilla Steve (an unlisted player: others is steve here) to compare.
+            spawnOther(-106, "JohnTest", mc.thePlayer.posX - 1, mc.thePlayer.posY, mc.thePlayer.posZ + 4.5, new ItemStack(Items.iron_sword));
+            spawnOther(-107, "OutlineSteve", mc.thePlayer.posX + 1, mc.thePlayer.posY, mc.thePlayer.posZ + 4.5, new ItemStack(Items.iron_sword));
             look(0, 8);
             return 20;
         });
         step(() -> {
-            KeyBinding.setKeyBindState(mc.gameSettings.keyBindSpectatorOutlines.getKeyCode(), true);
+            // The "Highlight Players (Spectators)" key is unbound by default: bind it for the test.
+            mc.gameSettings.keyBindSpectatorOutlines.setKeyCode(Keyboard.KEY_O);
+            KeyBinding.resetKeyBindingArrayAndHash();
+            KeyBinding.setKeyBindState(Keyboard.KEY_O, true);
             countA = RenderPolyPlayer.outlineDraws;
             return 10;
         });
@@ -333,12 +340,21 @@ public final class DevTest {
             check("spectator outlines draw the model's silhouette", mc.thePlayer.isSpectator() && RenderPolyPlayer.outlineDraws > countA,
                     "spectator " + mc.thePlayer.isSpectator() + ", " + (RenderPolyPlayer.outlineDraws - countA) + " outline draws");
             shot("09c_spectator_outlines");
-            KeyBinding.setKeyBindState(mc.gameSettings.keyBindSpectatorOutlines.getKeyCode(), false);
+            results.add(worldInfo("as a spectator"));
+            KeyBinding.setKeyBindState(Keyboard.KEY_O, false);
+            mc.gameSettings.keyBindSpectatorOutlines.setKeyCode(0);
+            KeyBinding.resetKeyBindingArrayAndHash();
             mc.theWorld.removeEntityFromWorld(-106);
-            serverPlayer(p -> p.setGameType(WorldSettings.GameType.SURVIVAL));
+            mc.theWorld.removeEntityFromWorld(-107);
+            double y = groundY;
+            serverPlayer(p -> {
+                p.setGameType(WorldSettings.GameType.SURVIVAL);
+                p.setPositionAndUpdate(0.5, y, 0.5);
+            });
             return 20;
         });
         step(() -> {
+            results.add(worldInfo("back in survival"));
             for (String n : Arrays.asList("TrevorTest", "NoobTest", "JohnTest")) reg().setPlayer(n, null);
             look(0, 0);
             mc.gameSettings.hideGUI = false;
@@ -433,17 +449,40 @@ public final class DevTest {
         step(() -> {
             shot("13_trevor_f5");
             reg().setLocal("john_marston");
+            resetCounters(john.model());
+            return 100;
+        });
+        step(() -> {
             PolyModel m = john.model();
-            m.skinNanos = 0;
-            m.draws = 0;
+            double ms = m.draws == 0 ? 0 : m.skinNanos / 1e6 / m.draws;
+            double full = m.benchmarkFullSkin(50);
+            int fps = Minecraft.getDebugFPS();
+            results.add(String.format("info  John Marston (%d triangles): skinning %.3f ms per draw over %d draws (%.0f vertices re-skinned per draw); a full skin %.3f ms; %d fps under Xvfb/llvmpipe; GL state from GlStateManager's cache: %s",
+                    m.triangles, ms, m.draws, m.draws == 0 ? 0.0 : (double) m.skinnedVertices / m.draws, full, fps, PolyModel.glStateCached()));
+            check("skinning John costs under 4 ms per draw", ms < 4.0 && full < 4.0, String.format("%.3f ms, full %.3f ms", ms, full));
+            check("GL state is read from GlStateManager's cache", PolyModel.glStateCached(), "");
+            // A crowd: eight other players, everyone in John through general -> others.
+            reg().setOthers("john_marston");
+            mc.gameSettings.thirdPersonView = 0;
+            look(0, 10);
+            for (int i = 0; i < 8; i++) {
+                spawnOther(-120 - i, "Crowd" + i, mc.thePlayer.posX - 3.5 + i, mc.thePlayer.posY, mc.thePlayer.posZ + 4 + (i % 2) * 1.5, i % 2 == 0 ? new ItemStack(Items.iron_sword) : null);
+            }
+            resetCounters(m);
             return 100;
         });
         step(() -> {
             PolyModel m = john.model();
             double ms = m.draws == 0 ? 0 : m.skinNanos / 1e6 / m.draws;
             int fps = Minecraft.getDebugFPS();
-            results.add(String.format("info  John Marston (%d triangles): skinning %.3f ms per draw over %d draws; %d fps under Xvfb/llvmpipe", m.triangles, ms, m.draws, fps));
-            check("skinning John costs under 4 ms per draw", ms < 4.0, String.format("%.3f ms", ms));
+            results.add(String.format("info  8 other players in John (first person): skinning %.3f ms per draw over %d draws (%.0f vertices re-skinned per draw, %d skinned copies); %d fps under Xvfb/llvmpipe",
+                    ms, m.draws, m.draws == 0 ? 0.0 : (double) m.skinnedVertices / m.draws, m.skinStates(), fps));
+            check("a crowd in one model: each player has its own copy", m.skinStates() >= 8, m.skinStates() + " copies");
+            shot("13b_crowd_in_john");
+            for (int i = 0; i < 8; i++) mc.theWorld.removeEntityFromWorld(-120 - i);
+            reg().setOthers("steve");
+            mc.gameSettings.thirdPersonView = 2;
+            look(0, 0);
             reg().setLocal("steve");
             countA = draws(john);
             return 40;
@@ -519,6 +558,21 @@ public final class DevTest {
         mc.thePlayer.rotationPitch = mc.thePlayer.prevRotationPitch = pitch;
         mc.thePlayer.rotationYawHead = mc.thePlayer.prevRotationYawHead = yaw;
         mc.thePlayer.renderYawOffset = mc.thePlayer.prevRenderYawOffset = yaw;
+    }
+
+    private double groundY;
+
+    /** Where the player is and how the world is lit (the screenshots depend on it). */
+    private String worldInfo(String when) {
+        return String.format("info  %s: y %.2f, time %d, rain %.2f, thunder %.2f, sky light subtracted %d, sun brightness %.2f",
+                when, mc.thePlayer.posY, mc.theWorld.getWorldTime(), mc.theWorld.getRainStrength(1), mc.theWorld.getThunderStrength(1),
+                mc.theWorld.getSkylightSubtracted(), mc.theWorld.getSunBrightness(1));
+    }
+
+    private static void resetCounters(PolyModel m) {
+        m.skinNanos = 0;
+        m.skinnedVertices = 0;
+        m.draws = 0;
     }
 
     private static long draws(ModelRegistry.Entry e) {
