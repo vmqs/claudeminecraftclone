@@ -900,3 +900,11 @@ Creative (`onCreativeTargetDropped`), and `EntityAITarget.isSuitableTarget` reje
 task. New mob or player-rendering code from later slices must use these entry points rather than
 writing a private target field. Checks: `tests/sounds.test.ts`, `tests/creativeaggro.test.ts`,
 `scripts/scenarios/bugfix.json`.
+
+**Wave 6 merge (w6/models).** Player models merged on top of the bugfix slice with no conflicts:
+protocol 4 (`MC|Model`) is the only bump. Custom models go through the normal `RenderLiving` path, so
+the bugfix rules apply unchanged: hurt/death sounds come from `handleHealthUpdate` on remote copies
+only, and another player's synced invisibility/potion swirl (`hasSyncedPotionState`) hides or tints a
+`ModelCustomPlayer` exactly like Steve. No duplicate implementations existed between the two slices.
+Checks: `tests/models.test.ts`, `tests/netmodels.test.ts`, `scripts/scenarios/models.json`,
+`scripts/mp-models.mjs`.
