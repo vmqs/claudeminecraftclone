@@ -1,4 +1,4 @@
-import { Keyboard, Mouse } from '../client/Keyboard';
+import { Keyboard } from '../client/Keyboard';
 import { PlayerSkins } from '../client/skin/PlayerSkins';
 import { pickPngFile, readSkinFile, saveSkin } from '../client/skin/SkinFiles';
 import { I18n } from '../core/I18n';
@@ -14,7 +14,7 @@ import { GuiTextField } from './GuiTextField';
 
 const f = Math.fround;
 const SCALE = f(0.0625);
-/** Degrees the preview turns per tick while nobody drags it. */
+/** Degrees the preview turns per tick. */
 const SPIN_PER_TICK = 1.5;
 
 const STATUS_INFO = 0xa0a0a0;
@@ -25,7 +25,7 @@ const STATUS_OK = 0x55ff55;
  * "Account Manager": everything about the player in one 1.5.2-style screen (the launcher's job
  * in 1.5.2). The username (3 to 16 letters, digits or _, used in single player, when hosting a
  * LAN game and when joining one) and the skin: a turning preview of the player model wearing it
- * (drag it to turn it), "Upload Skin..." for a 64x32 or 64x64 PNG, and "Reset to Steve". Opened
+ * "Upload Skin..." for a 64x32 or 64x64 PNG, and "Reset to Steve". Opened
  * from the title screen and from Options.
  */
 export class GuiAccountManager extends GuiScreen {
@@ -34,14 +34,9 @@ export class GuiAccountManager extends GuiScreen {
   private buttonUpload!: GuiButton;
   private status = '';
   private statusColor = STATUS_INFO;
-  /** The preview's turn: automatic spin plus what the mouse added. */
+  /** The preview's automatic turn; it cannot be dragged. */
   private spin = 0;
   private prevSpin = 0;
-  private dragYaw = 0;
-  private dragPitch = 0;
-  private dragging = false;
-  private lastDragX = 0;
-  private lastDragY = 0;
   private ticks = 0;
   private picking = false;
   private readonly model = new ModelBiped(0);
@@ -78,7 +73,7 @@ export class GuiAccountManager extends GuiScreen {
     this.nameField.updateCursorCounter();
     this.ticks++;
     this.prevSpin = this.spin;
-    if (!this.dragging) this.spin += SPIN_PER_TICK;
+    this.spin += SPIN_PER_TICK;
   }
 
   override onGuiClosed(): void {
@@ -161,41 +156,12 @@ export class GuiAccountManager extends GuiScreen {
     else super.keyTyped(ch, key);
   }
 
-  private inBox(x: number, y: number): boolean {
-    const b = this.box;
-    return x >= b.x && y >= b.y && x < b.x + b.w && y < b.y + b.h;
-  }
-
   protected override mouseClicked(x: number, y: number, button: number): void {
     super.mouseClicked(x, y, button);
     this.nameField.mouseClicked(x, y, button);
-    if (button === 0 && this.inBox(x, y)) {
-      this.dragging = true;
-      this.lastDragX = x;
-      this.lastDragY = y;
-    }
-  }
-
-  /** Dragging turns the model (polled each frame: the mouse moves without events, like GuiSlot). */
-  private followDrag(x: number, y: number): void {
-    if (!this.dragging) return;
-    if (!Mouse.isButtonDown(0)) {
-      this.dragging = false;
-      return;
-    }
-    this.dragYaw += (x - this.lastDragX) * 2.5;
-    this.dragPitch = Math.max(-40, Math.min(40, this.dragPitch + (y - this.lastDragY) * 1.5));
-    this.lastDragX = x;
-    this.lastDragY = y;
-  }
-
-  protected override mouseMovedOrUp(x: number, y: number, button: number): void {
-    super.mouseMovedOrUp(x, y, button);
-    if (button === 0) this.dragging = false;
   }
 
   override drawScreen(mx: number, my: number, pt: number): void {
-    this.followDrag(mx, my);
     this.drawDefaultBackground();
     const cx = Math.trunc(this.width / 2);
     const top = this.box.y;
@@ -225,7 +191,7 @@ export class GuiAccountManager extends GuiScreen {
   private drawSkinPreview(pt: number): void {
     const b = this.box;
     const scale = (b.h - 34) / 1.8;
-    const yaw = f(this.prevSpin + (this.spin - this.prevSpin) * pt + this.dragYaw);
+    const yaw = f(this.prevSpin + (this.spin - this.prevSpin) * pt);
     GL.enable(GL.COLOR_MATERIAL);
     GL.enable(GL.DEPTH_TEST);
     GL.pushMatrix();
@@ -235,7 +201,6 @@ export class GuiAccountManager extends GuiScreen {
     GL.rotate(135, 0, 1, 0);
     RenderHelper.enableStandardItemLighting();
     GL.rotate(-135, 0, 1, 0);
-    GL.rotate(f(-this.dragPitch), 1, 0, 0);
     // RenderLiving: face the body yaw, flip into model space, the player's 0.9375 scale.
     GL.rotate(f(180 - yaw), 0, 1, 0);
     GL.disable(GL.CULL_FACE);

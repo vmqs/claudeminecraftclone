@@ -10,7 +10,7 @@ carry the WebRTC handshake. See **Privacy and security** below for what that exp
 
 **Your account.** The title screen's **Account Manager** (under Multiplayer; also **Account
 Manager...** in Options) holds the player's **name** and **skin**: a field for the name, a
-turning preview of the player model wearing the skin (drag it to turn it), **Upload Skin...**
+turning preview of the player model wearing the skin, **Upload Skin...**
 and **Reset to Steve**. The host plays and the guests join under that name.
 
 **Hosting.** Start or load a world, press Esc and choose **Open to LAN**. The screen has the
