@@ -18,8 +18,10 @@ In scope:
   from the creative inventory. Survival: health, hunger, air, armour and experience, timed
   mining with tool tiers and drops, item wear, death and respawn (see §8.1). Hardcore: Survival
   on Hard, without cheats, and death deletes the world.
-- **Overworld only.** There is no Nether or End. Blocks and items from those dimensions still exist
-  in the creative inventory and can be placed.
+- **The overworld, the Nether and the End** (§5.8): one `World` per dimension the game uses,
+  nether portals (lit with fire in an obsidian frame, 80 ticks in Survival) and end portals
+  travel between them through the `Teleporter`, each dimension saves into its 1.5.2 folder
+  (`DIM-1`, `DIM1`), and LAN guests can be in any dimension.
 - **Mobs and combat.** All overworld mobs and every spawn egg in the 1.5.2 creative inventory,
   with their AI, natural spawning, drops, and the original models and animations. The player can
   hit, shoot (bow), and explode mobs. As in 1.5.2, hostile mobs do not target a Creative player
@@ -42,11 +44,11 @@ In scope:
 
 - **Achievements and statistics** as in 1.5.2 (the pause menu's Achievements map and Statistics
   screen, the "Achievement get!" toast and the open-the-inventory hint), kept per username in
-  `localStorage` like the stats file (§13). The Nether and End achievements (We Need to Go Deeper,
-  The End?, The End.) are on the map but cannot be earned without those dimensions.
+  `localStorage` like the stats file (§13). We Need to Go Deeper comes from any portal trip and
+  The End. from the End's exit portal; as in the 1.5.2 bytecode (EntityPlayerMP.travelToDimension),
+  The End? is only given for a trip from the End to the overworld, which never happens.
 
-Out of scope (render as static or decorative where a block exists): redstone logic, Nether/End
-dimensions, dedicated servers, enchanting, brewing, trading. (The container and crafting frameworks exist, so a
+Out of scope (render as static or decorative where a block exists): redstone logic, dedicated servers, enchanting, brewing, trading. (The container and crafting frameworks exist, so a
 crafting table opens and works once recipes are registered, but no recipes are required.)
 
 ## 2. Fidelity rules
@@ -348,11 +350,50 @@ browsers without IndexedDB). `navigator.storage.persist()` is requested once.
 - **World list** (`SaveFormat`, `GuiSelectWorld`): read once at start-up from every level.dat
   (level.dat_old as fallback), sorted by last played, then folder; rename edits `LevelName`;
   delete stops the world's saving and removes the folder; Hardcore deletion goes through it.
-- **Import/export** (`WorldTransfer.ts`): Export zips `<folder>/level.dat`, `region/r.X.Z.mca`,
+- **Import/export** (`WorldTransfer.ts`): Export zips `<folder>/level.dat`, `region/r.X.Z.mca`
+  (and `DIM-1/region`, `DIM1/region` for the Nether and the End),
   `players/`, `data/`; Import takes the shallowest level.dat in a .zip (with or without the top
-  folder), keeps only overworld files, checks sizes (512 MB zip, 64 MB per file, 1 GB total),
+  folder), keeps only the files of a 1.5.2 save (the three dimensions' regions), checks sizes (512 MB zip, 64 MB per file, 1 GB total),
   rejects McRegion worlds and unreadable level.dat with an `ImportError` (shown by
   `GuiErrorScreen`), stores chunks as they are (gzip chunks re-deflated) and lists the world last.
+
+### 5.8 Dimensions (`src/world/DimensionManager.ts`, `Teleporter.ts`, `WorldProvider*.ts`)
+
+- **Providers.** `getProviderForDimension(id)` (`WorldProviders.ts`) makes `WorldProvider`
+  (the overworld, 0), `WorldProviderHell` (-1: no sky and no sky light, the 0.1 light floor,
+  fog 0.2/0.03/0.03 that shows close by, celestial angle 0.5, no respawning, beds explode) and
+  `WorldProviderEnd` (1: no sky light, angle 0, the tunnel sky box `render/sky/DimensionSky.ts`,
+  its own lightmap, entrance at 100,50,0). `new World(info, provider)`; the Nether's and the
+  End's worlds share the overworld's `WorldInfo` but never move its clock or weather
+  (`World.derivedInfo`, DerivedWorldInfo); `getActualHeight()` is 128 without a sky.
+- **Worlds.** `DimensionManager` (single player and a LAN host; `mc.dimensions`) is
+  MinecraftServer's `worldServers`: the overworld's World always exists and ticks (the clock),
+  the others while a player, a LAN guest or an entity on its way is there. Every loaded
+  dimension has its own `ChunkProviderClient` and world-generation worker (`init` carries
+  `dimension`; `DimensionGenerators` picks the generator), its own `Teleporter`, and saves into
+  the one `SaveHandler`. With nothing to keep for 100 ticks a dimension is saved and unloaded
+  (its worker stops; the overworld keeps its World without chunks). `Minecraft.runTick` ticks
+  every loaded world (overworld, Nether, End) and loads chunks for all of them
+  (`tickChunkLoading`: the player, `extraCenters` per dimension from the LAN server, arrivals).
+  Maps and the scoreboard are shared with the overworld (`shareMapStorage`, `shareScoreboard`).
+- **Travel.** `Entity.onEntityUpdate`'s portal section (server side) counts the ticks in a nether
+  portal (`getMaxInPortalTime`: 0, players 80, Creative 0; cooldown `getPortalCooldown` 900, players
+  10) and calls `travelToDimension`, which goes through `Entity.dimensionTravel`
+  (`Minecraft.onEntityTravel`). The client player's trip is `PlayerTravel` (`mc.travel`): after the
+  world tick it leaves its world (`World.removePlayerEntityDangerously`), the coordinates are scaled
+  (/8 into the Nether, x8 out of it, the End's entrance; `DimensionManager.arrivalPoint`), the client
+  switches world behind "Downloading terrain", and once the chunks around the arrival point are
+  loaded (and every saved chunk within 128 blocks, the only ones that can hold a portal;
+  `arrivalReady`) `Teleporter.placeInPortal` finds the nearest portal or builds one (or the End's
+  obsidian platform). Other entities leave at once and a copy arrives the same way
+  (`transferEntity`). The client half of the player keeps its own portal flag (`clientInPortal`:
+  swirl, `portal.trigger`). Dying anywhere respawns in the overworld; the End's exit portal shows
+  `GuiWinGame` when the build has it (`PlayerTravel.winGameScreen` or `src/gui/GuiWinGame.ts`)
+  and respawns keeping everything.
+- **Saving.** A dimension's chunks are kept under `<folder>/DIM-1` and `<folder>/DIM1` in the
+  backend (`chunkFolderOf`), read by `SaveHandler.loadDimension(dim)` before its chunks are
+  requested; the player's `Dimension` tag opens the world in that dimension; export, import and
+  delete cover `DIM-1/region` and `DIM1/region`.
 
 ## 6. Rendering
 
@@ -683,7 +724,7 @@ registries are imported once by `src/client/Minecraft.ts`.
 
 | Area | How to extend |
 |---|---|
-| Blocks | Subclass `Block` (`src/block/`), construct it in `src/block/Blocks.ts`, add icons in `registerIcons`. Behaviour hooks: `updateTick`, `randomDisplayTick`, `onBlockActivated`, `onNeighborBlockChange`, `onBlockDestroyedByExplosion`, `canDropFromExplosion`, `isUpdateTickImmediate`, `fillWithRain`, `initializeBlock` (run for every block by `finishBlockRegistry`; the fire's burn tables). Schedule ticks with `World.scheduleBlockUpdate`. Features that blocks grow at run time (sapling trees, huge mushrooms) are created by 1.5.2 class name through `WorldGenRegistry.create('WorldGenTaiga2', true)` (`src/world/WorldGenRegistry.ts`), which `src/world/BlockDynamicsInstall.ts` (imported by Minecraft.ts) fills from `src/world/gen/**/WorldGen*.ts` with `import.meta.glob`. `Entity.setInPortal()` marks an entity in a nether portal (the player's swirl; nothing travels). |
+| Blocks | Subclass `Block` (`src/block/`), construct it in `src/block/Blocks.ts`, add icons in `registerIcons`. Behaviour hooks: `updateTick`, `randomDisplayTick`, `onBlockActivated`, `onNeighborBlockChange`, `onBlockDestroyedByExplosion`, `canDropFromExplosion`, `isUpdateTickImmediate`, `fillWithRain`, `initializeBlock` (run for every block by `finishBlockRegistry`; the fire's burn tables). Schedule ticks with `World.scheduleBlockUpdate`. Features that blocks grow at run time (sapling trees, huge mushrooms) are created by 1.5.2 class name through `WorldGenRegistry.create('WorldGenTaiga2', true)` (`src/world/WorldGenRegistry.ts`), which `src/world/BlockDynamicsInstall.ts` (imported by Minecraft.ts) fills from `src/world/gen/**/WorldGen*.ts` with `import.meta.glob`. `Entity.setInPortal()` marks an entity in a nether portal; `Entity.travelToDimension(dim)` moves it (§5.8). |
 | Block rendering | Add a `case` to `RenderBlocks.renderBlockByRenderType` or call `RenderBlocks.renderers.set(type, (rb, block, x, y, z) => …)` from a module that `Blocks.ts` imports. Build faces with `setRenderBounds` / `overrideBlockBounds` + `renderStandardBlock` or `renderFace(side, x, y, z, icon)`, `uvRotate*` and `flipTexture`. Every 1.5.2 render type is mapped in `RENDER_TYPES` (`src/render/blocks/RenderTypes.ts`: thin and flat shapes in `RenderShapes.ts`, box-built shapes in `RenderStructures.ts`; types 0, 1, 2, 4, 13 and 31 stay in `RenderBlocks.ts`). Items in 3D: `RenderBlocks.renderItemIn3d` and `renderBlockAsItem` (`src/render/blocks/RenderBlockItem.ts`; chest items through `ChestItemHook.render`). `RenderBlocks.anaglyphEnable` / `aoLevel` follow the settings on the main thread; the mesher gets them through `MesherSettings`. |
 | Tile entities | Subclass `TileEntity` (`src/world/tileentity/`), `TileEntity.addMapping(cls, '<1.5.2 id>')` in `TileEntities.ts`, and a `BlockContainer` whose `createNewTileEntity` returns it. Special renderers: `TileEntityRenderer.instance.register(cls, renderer)` in `src/render/tileentity/TileEntityRenderers.ts` (registered: sign, mob spawner, piston, chest, ender chest, enchanting table, end portal, beacon, skull; models in `TileEntityModels.ts`, `ModelBook` shared with `GuiEnchantment`). Worn skulls draw through `RenderBiped.skullRenderer`; the spawner cage's mob through `TileEntityMobSpawnerRenderer.renderSpawnerMob(logic, …)` (`MobSpawnerBaseLogic.getEntityForRenderer`, any EntityList mob). World generation can place them through `IWorld.setBlockTileEntity`; they travel to the client as NBT. |
 | Items | Subclass `Item` in `src/item/`, register in `Items.ts` (one line per item in 1.5.2 order; block items come from `registerBlockItems()`, the tail of Block's static block, which skips blocks that do not exist yet). Hooks: `onItemUse`, `onItemRightClick`, `onEaten` (finished by `EntityPlayer.onItemUseFinish`), `itemInteractionForEntity` (via `ItemStack.interactWith`), `getArmorInfo` / `getArmorColor` (armour), `getRecordName` / `getRecordTitle` (records), `getContainerItem`, `onCreated`, `doesContainerItemLeaveCraftingGrid`, `getEnchantKind` (what enchantments fit). Entities items create are built by calling the class bound in EntityList with the 1.5.2 constructor arguments (`new EntityPotion(world, thrower, stack)`, `new EntityPainting(world, x, y, z, dir)`, `new EntityArrow(world, shooter, velocity)`...; thrown eggs and fishing hooks through `EntityList.getClassForDebug('Egg' / 'FishHook')`), so entity classes must implement those overloads; `ItemEntityFactories` (`src/item/ItemEntitySpawning.ts`) can override one kind with an exact factory. `src/item/ItemBindings.ts` (imported by main.ts) links modules of other areas: eyes of ender use the asynchronous `StructureLocator.findClosestStructure` (`StructureSearch.locate`; `ChunkProviderClient` installs the worker-backed provider), and `src/entity/ItemHooksInstall.ts` fills the entity code's `PotionHooks`. Item frames should call `stack.setItemFrame(frame)` on the displayed copy so maps show the frame marker. Bone meal calls the block's `markOrGrowMarked` / `fertilizeMushroom` / `fertilizeStem` / `fertilize`; dye/saddle call `getSheared`/`setFleeceColor` / `getSaddled`/`setSaddled`. Held-item icons per pass: `getItemIconForEntity` (`src/item/ItemIcons.ts`). Creative lists: `CreativeTabs.displayAllReleventItems` (adds the tab's enchanted books), `getAllCreativeItems()` for the search tab. `Item.itemRand` is the shared item RNG. |
@@ -700,6 +741,7 @@ registries are imported once by `src/client/Minecraft.ts`.
 | Chat | `EntityPlayer.addChatMessage(langKey)`, `sendChatToPlayer(text)`, `Minecraft.ingameGUI.getChatGUI().printChatMessage(text)`. |
 | World generation | `ChunkGenerator` implementations in `src/world/gen/` (chosen by `WorldGenServer`), `BiomeSource` (`WorldChunkManager` over the GenLayer stack, `SingleBiomeSource` for Superflat), `WorldGenerator` features from `ChunkProviderGenerate.populate` / `BiomeDecoration`, structures as `MapGenStructure` + `StructureStart` + `StructureComponent` pieces in `src/world/gen/structure/`, chest/dispenser/spawner contents through `ChestLoot` (`putTileEntityTag`), entities through `spawnGenEntity`. Superflat presets: `FlatGeneratorInfo`, `FLAT_PRESETS` (`src/gui/FlatPresets.ts`, built from `FlatGeneratorInfo` in Java HashMap order). Raw terrain can come from the nested `terrain.worker.ts` (`ChunkGenerator.provideTerrain` / `recordStructures`, `TerrainChunk`); `WorldGenServer` owns the spawn search and the stepwise 25x25 spawn area. World options: `WorldSettings.generatorOptions` / `bonusChest` (kept on `WorldInfo` so a resumed world's worker regenerates the same spawn chunks), passed to `new ChunkProviderClient(world, seed, type, features, { generatorOptions, bonusChest })`. Generated entities arrive as descriptors through `EntityList.fromDescriptor`, tile entities as NBT through `TileEntity.createAndLoadEntity`. Stronghold queries: `StructureLocator.findClosestStructure`. Code here must stay worker-safe (`IWorld`, no DOM or GL). |
 | Players | Sleeping: `EntityPlayer.sleepInBedAt` (the 1.5.2 refusals, `lieDownInBed` for a client copy), `wakeUpPlayer(immediately, updateWorld, setSpawn)`, `getSleepTimer` / `isPlayerFullyAsleep`, the bed spawn (`getBedLocation`, `setSpawnChunk`, `EntityPlayer.verifyRespawnCoordinates`, applied on respawn by `PlayerSpawning.respawn`, after `loadChunksAroundBed` in `src/client/BedRespawn.ts` puts kept chunks back); `World.updateAllPlayersSleepingFlag` skips the night once every player slept 100 ticks. Remote players: `EntityOtherPlayerMP` (network interpolation via `setPositionAndRotation2`, item use from the eating flag, `setCurrentItemOrArmor` for equipment). Container screens that list the active effects extend `InventoryEffectRenderer` (`src/gui/inventory/`; `GuiInventory` and `GuiContainerCreative` do, as in 1.5.2; effects listed in Java HashMap order by `hashMapOrder`). FOV: `EntityPlayerSP.getFOVMultiplier` (flying, speed potions and sprint, bow draw), eased by `EntityRenderer`; `settleFovModifier` for captures. Beacons apply effects through `TileEntityBeacon.applyEffect` (installed in `ItemBindings.ts`). |
+| Dimensions | Generators: `DimensionGenerators.register(dim, (o) => generator)` (`src/world/gen/DimensionGenerators.ts`, worker-safe; call it from a module the worker imports) or, without a registration, the classes found by file name: `src/world/gen/nether/ChunkProviderHell.ts` exporting `ChunkProviderHell` and `src/world/gen/end/ChunkProviderEnd.ts` exporting `ChunkProviderEnd`, built as `new Cls(seed, { seed, worldType, mapFeatures, generatorOptions })` (any `ChunkGenerator`; until they exist placeholder generators stand in). The worker's `GenWorld.provider` and lighting follow the dimension (`providerInfoFor`: no sky light where `hasNoSky`). Rules by dimension: `world.provider` (`dimensionId`, `isHellWorld`, `hasNoSky`, `isSurfaceWorld()`, `canRespawnHere()`, `getEntrancePortalLocation()`, `doesXZShowFog`). Worlds: `mc.dimensions` (`getWorld(dim)`, `load(dim)`, `worlds()`, `teleporter(dim)`, `arrivalPoint`, `transferEntity`); travel: `entity.travelToDimension(dim)` (end portals call it with 1; from the End with 1 it is the exit portal), `mc.travel` (the client player's trips, `showWinScreen`), `PlayerTravel.winGameScreen = () => new GuiWinGame()` (else `src/gui/GuiWinGame.ts` exporting `GuiWinGame` is used; closing it respawns), `mc.respawnPlayer(keepEverything)`. `BlockEndPortal.bossDefeated` lets end portals stay outside the overworld. Compass and clock needles: `src/render/texture/TextureCompassClock.ts` (they spin outside surface worlds). Dev hooks: `mc.dev.dims`. |
 | Saving | Saved entity classes override `writeEntityToNBT` / `readEntityFromNBT` (call `super`, use the typed `NBT.set*` helpers with the 1.5.2 key types, `src/world/storage/NBT.ts`); tile entities `writeToNBT` / `readFromNBT`. Non-entity world data that must persist registers a file in `worldDataFiles` (`src/world/storage/WorldData.ts`: `'data/<name>.dat' → { load(world, bytes), save(world) → bytes | null }`, gzip NBT `{data: {...}}` like WorldSavedData): it is read when the world opens and written with level.dat when `save` returns bytes; export and import carry `players/` and `data/` along. The open world's save: `mc.saveController.handler` (`saveAll`, `saveLevel`), the list: `SaveFormat.instance` (`listeners` for changes). |
 | Statistics and achievements | Count with `player.addStat(id, amount)` / `player.triggerAchievement(id)` using the 1.5.2 ids in `src/stats/StatIds.ts` (`StatIds.jump`, `StatIds.mineBlock(id)`, `craftItem`, `useItem`, `breakItem`, `AchievementIds.*`; no imports, so block and item code the workers load may use it). `EntityPlayer.addStat` is a no-op; `EntityPlayerSP` sends to `ClientStats` (`src/stats/ClientStats.ts`: the stat file, the parent rule, the toast), `EntityClientPlayerMP` keeps only independent statistics and takes the host's through Packet200 (`incrementStat`), `EntityPlayerMP` sends its non-independent ones to its guest. `StatList` (`resolve(id)`: per-block / per-item ids through their tables, so grass counts as dirt), `AchievementList` (positions, icons, parents), `StatFileWriter` (per lower-cased username in `localStorage`, saved every few seconds after a change, on leaving a world and when the page hides; follows `mc.username`). Screens: `GuiAchievements`, `GuiStats`, the toast `GuiAchievement` (drawn by a frame listener that `installStats` adds). Client-side counters (worlds, games, joins, quits) go through `ClientStats.readStat`. |
 | Dev hooks | `src/client/DevTools.ts` (`?dev=1` → `window.mc.dev`), scenarios in `scripts/scenarios/`. |
@@ -781,3 +823,9 @@ tick; autosave snapshots and Save and Quit (`SaveHandler.flush`) are unchanged.
 progress, so a deferred launch counts once; opening a saved world (`ws === null`) counts
 `startGame` and `joinMultiplayer` but not `createWorld`. `node_modules` and `public/assets` may be symlinks in worktrees and are ignored
 as such (`/node_modules`, `/public/assets` in `.gitignore`): never commit them.
+
+**Wave 5 (dimensions).** The Nether and the End are real dimensions (§5.8): providers, one World
+per loaded dimension (`DimensionManager`), portal travel with the `Teleporter`, DIM-1/DIM1 saving
+and LAN guests in any dimension (`LanWorld` per host world, Packet9Respawn with the dimension,
+protocol 3). The Nether and End generators and the dragon plug in through `DimensionGenerators`
+and the hooks in the Dimensions row of §13.

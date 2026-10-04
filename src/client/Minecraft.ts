@@ -95,6 +95,7 @@ import { getProviderForDimension } from '../world/WorldProviders';
 import { shareMapStorage } from '../item/ItemMap';
 import { shareScoreboard } from '../command/scoreboard/Scoreboard';
 import { PlayerTravel } from './PlayerTravel';
+import { installCompassAndClock } from '../render/texture/TextureCompassClock';
 
 /** World creation options (WorldSettings). */
 export interface WorldSettings {
@@ -316,6 +317,7 @@ export class Minecraft implements SettingsListener {
       RenderManager.instance.updateItemIcons(reg);
     });
     await this.renderEngine.refreshTextureMaps();
+    installCompassAndClock(this.renderEngine.textureMapItems, this);
     RenderBlocks.missingIcon = this.renderEngine.textureMapBlocks.getMissingIcon();
     await this.renderEngine.preload([
       '/gui/gui.png',
