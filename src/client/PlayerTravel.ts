@@ -61,6 +61,7 @@ export class PlayerTravel {
   respawn: PendingRespawn | null = null;
   /** playerConqueredTheEnd: the win screen is up; the respawn follows when it closes. */
   private winScreen: GuiScreen | null = null;
+  private onWinClosed: (() => void) | null = null;
 
   constructor(private readonly mc: Minecraft) {}
 
@@ -75,6 +76,7 @@ export class PlayerTravel {
     this.arrival = null;
     this.respawn = null;
     this.winScreen = null;
+    this.onWinClosed = null;
   }
 
   /** Entity.travelToDimension of the client's own player: carried out after the worlds' tick. */
@@ -100,11 +102,32 @@ export class PlayerTravel {
     }
     if (this.winScreen && this.mc.currentScreen !== this.winScreen) {
       // The credits were closed (GuiWinGame.respawnPlayer): back to the overworld with everything.
+      const done = this.onWinClosed;
       this.winScreen = null;
-      this.mc.respawnPlayer(true);
+      this.onWinClosed = null;
+      done?.();
     }
     if (this.arrival) this.tryArrive();
     if (this.respawn) this.tryRespawn();
+  }
+
+  /**
+   * GuiWinGame (Packet70GameEvent 4 for a guest): the credits; `closed` runs when they are
+   * closed (the respawn, Packet205ClientCommand 1 for a guest), at once without a win screen.
+   */
+  showWinScreen(closed: () => void): void {
+    const make = PlayerTravel.winGameScreen ?? (() => {
+      const cls = findWinScreen();
+      return cls ? new cls() : null;
+    });
+    const screen = make();
+    if (!screen) {
+      closed();
+      return;
+    }
+    this.winScreen = screen;
+    this.onWinClosed = closed;
+    this.mc.displayGuiScreen(screen);
   }
 
   /** EntityPlayerMP.travelToDimension for the client's player. */
@@ -117,17 +140,7 @@ export class PlayerTravel {
       // The exit portal: "The End." and the credits; the player leaves the End.
       p.triggerAchievement(AchievementIds.theEnd2);
       p.worldObj.removeEntity(p);
-      const make = PlayerTravel.winGameScreen ?? (() => {
-        const cls = findWinScreen();
-        return cls ? new cls() : null;
-      });
-      const screen = make();
-      if (screen) {
-        this.winScreen = screen;
-        mc.displayGuiScreen(screen);
-      } else {
-        mc.respawnPlayer(true);
-      }
+      this.showWinScreen(() => mc.respawnPlayer(true));
       return;
     }
     // As in the 1.5.2 bytecode: "The End?" only for the End -> overworld case, every other

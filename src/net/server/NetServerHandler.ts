@@ -284,7 +284,8 @@ export class NetServerHandler {
     }
     const player = this.player!;
     // A dead guest (on its death screen) only chats, respawns, closes windows and leaves.
-    if ((player.isDead || player.getHealth() <= 0) && DEAD_IGNORES.has(p.type)) return;
+    // So does one on its way to another dimension (between two worlds).
+    if ((player.isDead || player.getHealth() <= 0 || this.server.isTravelling(player)) && DEAD_IGNORES.has(p.type)) return;
     switch (p.type) {
       case 'KeepAlive':
         if (p.id === this.keepAliveId) player.ping = Math.round((player.ping * 3 + (performance.now() - this.keepAliveSent)) / 4);
@@ -441,7 +442,7 @@ export class NetServerHandler {
   /** NetServerHandler.handleFlying: the guest says where it is; the host checks it. */
   private handleFlying(p: Flying): void {
     const player = this.player!;
-    const w = this.server.world;
+    const w = player.worldObj;
     const moving = (p.flags & 1) !== 0;
     const rotating = (p.flags & 2) !== 0;
     const onGround = (p.flags & 4) !== 0;
@@ -563,7 +564,7 @@ export class NetServerHandler {
   // ------------------------------------------------------------------ blocks
 
   sendBlockChange(x: number, y: number, z: number): void {
-    const w = this.server.world;
+    const w = this.player?.worldObj ?? this.server.world;
     if (y < 0 || y >= 256) return;
     this.sendPacket({ type: 'BlockChange', x, y, z, id: w.getBlockId(x, y, z), meta: w.getBlockMetadata(x, y, z) });
   }
@@ -588,7 +589,8 @@ export class NetServerHandler {
     const dy = player.posY - (y + 0.5) + 1.5;
     const dz = player.posZ - (z + 0.5);
     if (dx * dx + dy * dy + dz * dz > 36 || y < 0 || y >= 256) return;
-    if (!this.server.world.blockExists(x, y, z)) return;
+    const w = player.worldObj;
+    if (!w.blockExists(x, y, z)) return;
     if (p.status === 0) {
       const creative = player.theItemInWorldManager.isCreative();
       if (!this.allow(this.digLimit) || (creative && !this.allow(this.creativeBreakLimit))) {
@@ -600,16 +602,16 @@ export class NetServerHandler {
       else player.theItemInWorldManager.onBlockClicked(x, y, z, p.face % 6);
     } else if (p.status === 2) {
       player.theItemInWorldManager.uncheckedTryHarvestBlock(x, y, z);
-      if (this.server.world.getBlockId(x, y, z) !== 0) this.sendBlockChange(x, y, z);
+      if (w.getBlockId(x, y, z) !== 0) this.sendBlockChange(x, y, z);
     } else if (p.status === 1) {
       player.theItemInWorldManager.cancelDestroyingBlock(x, y, z);
-      if (this.server.world.getBlockId(x, y, z) !== 0) this.sendBlockChange(x, y, z);
+      if (w.getBlockId(x, y, z) !== 0) this.sendBlockChange(x, y, z);
     }
   }
 
   private handlePlace(p: PacketOf<'Place'>): void {
     const player = this.player!;
-    const w = this.server.world;
+    const w = player.worldObj;
     const held = player.inventory.getCurrentItem();
     let { x, y, z } = p;
     const dir = p.direction;
@@ -719,7 +721,7 @@ export class NetServerHandler {
 
   private handleUseEntity(id: number, leftClick: boolean): void {
     const player = this.player!;
-    const target = this.server.getEntityById(id);
+    const target = this.server.getEntityById(id, player.worldObj);
     if (!target || target === player || target.isDead) return;
     // What the client's crosshair can pick (mobs, players, vehicles, paintings, frames); not
     // dropped items, orbs or arrows, which a guest could otherwise destroy from afar.
@@ -787,7 +789,7 @@ export class NetServerHandler {
 
   private handleUpdateSign(p: PacketOf<'UpdateSign'>): void {
     const player = this.player!;
-    const w = this.server.world;
+    const w = player.worldObj;
     if (p.y < 0 || p.y >= 256 || !w.blockExists(p.x, p.y, p.z)) return;
     if (player.getDistanceSq(p.x + 0.5, p.y + 0.5, p.z + 0.5) > 64 * 64) return;
     const te = w.getBlockTileEntity(p.x, p.y, p.z) as unknown as { signText?: string[]; isEditable?: () => boolean; editor?: object | null; onInventoryChanged(): void } | null;

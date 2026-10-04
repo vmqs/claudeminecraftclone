@@ -1135,7 +1135,8 @@ export class Minecraft implements SettingsListener {
   private onEntityTravel(e: Entity, dim: number): void {
     if (!this.dimensions || !this.dimensions.dimensionOf(e.worldObj)) return;
     if (e === this.thePlayer) this.travel.request(dim);
-    else if (!e.isPlayerEntity) this.dimensions.transferEntity(e, dim);
+    else if (e.isPlayerEntity) this.lanServer?.requestTravel(e as EntityPlayer, dim);
+    else this.dimensions.transferEntity(e, dim);
   }
 
   /** The client switches to another dimension's world (Minecraft.loadWorld for a Respawn packet). */
@@ -1210,7 +1211,10 @@ export class Minecraft implements SettingsListener {
     if (this.thePlayer) this.thePlayer.username = this.username;
     const mc = this;
     const host: LanHostClient = {
-      world: w,
+      // The overworld (spawn, logins, respawns), even when the host is elsewhere.
+      world: this.dimensions?.getWorld(0) ?? w,
+      worlds: () => this.dimensions?.worlds() ?? [w],
+      dimensions: () => this.dimensions,
       hostPlayer: () => this.thePlayer,
       get hostName() {
         return mc.thePlayer?.username ?? mc.username;
@@ -1219,8 +1223,16 @@ export class Minecraft implements SettingsListener {
       commandManager: () => this.commandManager,
       getPossibleCompletions: (p, text) => getPossibleCompletions(p, text),
       setExtraLoadCenters: (centers) => {
-        if (this.dimensions) this.dimensions.extraCenters = new Map([[w.provider.dimensionId, centers]]);
-        else if (this.chunkProvider) this.chunkProvider.extraCenters = centers;
+        if (this.dimensions) {
+          const byDim = new Map<number, { x: number; z: number; radius: number }[]>();
+          for (const c of centers) {
+            const d = c.dim ?? 0;
+            let list = byDim.get(d);
+            if (!list) byDim.set(d, (list = []));
+            list.push({ x: c.x, z: c.z, radius: c.radius });
+          }
+          this.dimensions.extraCenters = byDim;
+        } else if (this.chunkProvider) this.chunkProvider.extraCenters = centers;
       },
       hostSkin: () => PlayerSkins.local,
       playerSkin: (name, rgba) => PlayerSkins.setRemote(name, rgba),
@@ -1327,7 +1339,8 @@ export class Minecraft implements SettingsListener {
       get guestController() {
         return mc.playerController instanceof PlayerControllerGuest ? mc.playerController : null;
       },
-      startGuestWorld: (world, player, type) => this.startGuestWorld(world, player, type),
+      startGuestWorld: (world, player, type, changedDimension) => this.startGuestWorld(world, player, type, changedDimension),
+      showWinGame: (closed) => this.travel.showWinScreen(closed),
       respawnGuestPlayer: (player, type) => this.respawnGuestPlayer(player, type),
       guestDisconnected: (title, reason) => this.guestDisconnected(title, reason),
       printChat: (msg) => this.ingameGUI.getChatGUI().printChatMessage(msg),
@@ -1349,8 +1362,8 @@ export class Minecraft implements SettingsListener {
   }
 
   /** NetClientHandler.handleLogin: the host's world (loadWorld with the network's player). */
-  private startGuestWorld(world: WorldClient, player: EntityClientPlayerMP, type: EnumGameType): void {
-    ClientStats.readStat(StatIds.joinMultiplayer);
+  private startGuestWorld(world: WorldClient, player: EntityClientPlayerMP, type: EnumGameType, changedDimension = false): void {
+    if (!changedDimension) ClientStats.readStat(StatIds.joinMultiplayer);
     this.renderViewEntity = null;
     this.objectMouseOver = null;
     this.sndManager.playStreaming(null, 0, 0, 0);

@@ -17,7 +17,7 @@ import { PacketReader, PacketWriter, ProtocolError } from './PacketBuffer';
  *   meta     entity metadata entries [index, value]  i32s / f32s  number lists (65536 max)
  */
 
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 /** The game version shown on mismatches ("Outdated server!"). */
 export const GAME_VERSION = '1.5.2';
 
@@ -81,6 +81,8 @@ export const PACKETS = {
   /** Packet1Login: the server's answer to the handshake, the guest's player and world. */
   Login: def(1, 's2c', {
     entityId: 'i32',
+    /** The dimension the player is in (0 overworld, -1 Nether, 1 End). */
+    dimension: 'i8',
     username: 'name',
     gameType: 'u8',
     hardcore: 'bool',
@@ -108,8 +110,11 @@ export const PACKETS = {
   UseEntity: def(7, 'c2s', { targetEntity: 'i32', leftClick: 'bool' }),
   /** Packet8UpdateHealth: the guest's own health, food and saturation. */
   UpdateHealth: def(8, 's2c', { health: 'i16', food: 'i16', saturation: 'f32' }),
-  /** Packet9Respawn: the guest's player was recreated (after death or a mode change). */
-  Respawn: def(9, 's2c', { gameType: 'u8', difficulty: 'u8', terrainType: 'name' }),
+  /**
+   * Packet9Respawn: the guest's player was recreated (after death or a mode change) or changed
+   * dimension (a new world for the client when `dimension` differs).
+   */
+  Respawn: def(9, 's2c', { dimension: 'i8', gameType: 'u8', difficulty: 'u8', terrainType: 'name', worldHeight: 'u16' }),
   /** Packet10Flying .. Packet13PlayerLookMove from the guest: flags 1 moving, 2 rotating, 4 on ground. */
   Flying: def(10, 'c2s', { flags: 'u8', x: 'f64', y: 'f64', stance: 'f64', z: 'f64', yaw: 'f32', pitch: 'f32' }),
   /** Packet13PlayerLookMove from the server: puts the guest's player there (spawn, teleport, correction). */

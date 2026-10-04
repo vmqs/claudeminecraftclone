@@ -17,7 +17,7 @@ import { registerBlockItems } from '../src/item/Items';
 import '../src/item/Items';
 import { ItemStack } from '../src/item/ItemStack';
 import { Chunk } from '../src/world/Chunk';
-import type { ChunkProviderClient } from '../src/world/ChunkProviderClient';
+import { fakeProvider } from './fakeDimensions';
 import { DimensionManager } from '../src/world/DimensionManager';
 import { WorldGenServer } from '../src/world/gen/WorldGenServer';
 import { MemoryBackend } from '../src/world/storage/SaveBackend';
@@ -179,45 +179,6 @@ function countBlocks(w: World, id: number, x0: number, y0: number, z0: number, x
 }
 
 // ---------------------------------------------------------------- travel
-
-/** A chunk source for Node: chunks come from a WorldGenServer at once. */
-function fakeProvider(w: World): ChunkProviderClient {
-  const gen = new WorldGenServer({ seed: w.getSeed(), worldType: 'flat', mapFeatures: false, generatorOptions: '2;7,3x1;1', dimension: w.provider.dimensionId });
-  const fake = {
-    world: w,
-    loadRadius: 2,
-    extraCenters: [] as { x: number; z: number; radius: number }[],
-    pinnedSaved: null,
-    saveHandler: null,
-    installStructureLocator() {},
-    requestSavedArea: () => true,
-    processIncoming: () => 0,
-    unloadAll() {
-      for (const c of [...w.getLoadedChunks()]) w.removeChunk(c.xPosition, c.zPosition);
-    },
-    dispose() {},
-    updateLoadedArea(x: number, z: number) {
-      const cx = Math.floor(x) >> 4;
-      const cz = Math.floor(z) >> 4;
-      const r = Math.min(2, fake.loadRadius);
-      for (let dx = -r; dx <= r; dx++) {
-        for (let dz = -r; dz <= r; dz++) {
-          if (w.chunkExists(cx + dx, cz + dz)) continue;
-          const m = gen.finalizeChunk(cx + dx, cz + dz);
-          const c = new Chunk(w, m.cx, m.cz);
-          for (const sct of m.sections) {
-            c.sections[sct.y >> 4] = null;
-            const ch = new Chunk(w, 0, 0);
-            void ch;
-          }
-          for (const sct of m.sections) for (let i = 0; i < 4096; i++) if (sct.blocks[i]) c.setBlockIDWithMetadata(i & 15, sct.y + (i >> 8), (i >> 4) & 15, sct.blocks[i], sct.meta[i]);
-          w.addChunk(c);
-        }
-      }
-    },
-  };
-  return fake as unknown as ChunkProviderClient;
-}
 
 {
   const info = new WorldInfo();
