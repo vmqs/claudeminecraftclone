@@ -11,4 +11,14 @@ Plan (commit after each):
 8. README (mod + main), docs
 
 Status:
-- [ ] 1  - [ ] 2  - [ ] 3  - [ ] 4  - [ ] 5  - [ ] 6  - [ ] 7  - [ ] 8
+- [x] 1 web export (tests/glbexport.test.ts 682 checks; scenarios export/account/models pass; Khronos validator clean)
+- [x] 2 scaffold (gg.essential.loom 0.10.0.5, Gradle 8.8 wrapper; loom's runClient fails Gradle 8 validation -> runClientDirect)
+- [x] 3 decoder  - [x] 4 rendering (compiles)  - [x] 5 selection GUI/config/key (compiles)
+- [ ] 6 CI  - [ ] 7 real test under Xvfb  - [ ] 8 README/docs
+
+Notes for a resume:
+- JDK 8 for running: scratchpad/jdk8 (Temurin 8u504), listed in ~/.gradle/gradle.properties
+  (org.gradle.java.installations.paths); Gradle itself runs on the system JDK 21.
+- Headless run: LWJGL 2.9.4 needs `xrandr` (not installed): scratchpad/fakebin/xrandr prints a fake
+  `xrandr -q`; put it first on PATH. Run `./gradlew runClientDirect -PrunJvmArgs="-Dpolymodels.devtest=<dir>"`
+  under xvfb-run (LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe); kill leftovers (devlaunchinjector, Xvfb).

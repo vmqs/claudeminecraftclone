@@ -1,0 +1,16 @@
+[
+  {
+    "modid": "${modid}",
+    "name": "Poly Player Models",
+    "description": "Wear polygon player models instead of Steve: John Marston, Trevor, the Roblox Noob, or any .mcpm model exported from the Minecraft 1.5.2 browser game's Account Manager (put them in config/polymodels). Animated by the vanilla player animations. Client-side only: other players see your normal skin. Press M to choose.",
+    "version": "${version}",
+    "mcversion": "${mcversion}",
+    "url": "",
+    "updateUrl": "",
+    "authorList": ["claudeminecraftclone"],
+    "credits": "Built-in models (user-supplied, included at the repository owner's request): John Marston (Red Dead Redemption), Rockstar Games; Trevor Philips (Grand Theft Auto V), Rockstar Games; Roblox Noob (Roblox Corporation), model by vanyabro85 on Sketchfab (CC-BY-4.0).",
+    "logoFile": "",
+    "screenshots": [],
+    "dependencies": []
+  }
+]
