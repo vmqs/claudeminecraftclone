@@ -7,6 +7,7 @@ import type { IWorld } from '../world/IWorld';
 import type { TileEntity } from '../world/tileentity/TileEntity';
 import { TileEntityEndPortal } from '../world/tileentity/TileEntityEndPortal';
 import { BlockContainer } from './BlockContainer';
+import { EndPortalHooks } from './EndPortalHooks';
 import type { Material } from './Material';
 
 const fround = Math.fround;
@@ -50,9 +51,11 @@ export class BlockEndPortal extends BlockContainer {
     return 0;
   }
 
-  override onEntityCollidedWithBlock(_w: IWorld, _x: number, _y: number, _z: number, _e: Entity): void {
-    // The original calls entity.travelToDimension(1) (the End) for unridden entities on the
-    // server; there is no End here, so nothing happens.
+  override onEntityCollidedWithBlock(w: IWorld, _x: number, _y: number, _z: number, e: Entity): void {
+    // The original calls entity.travelToDimension(1) for unridden entities on the server. In the
+    // End that is the exit portal: a player there has conquered the End (EndPortalHooks).
+    if (e.ridingEntity !== null || e.riddenByEntity !== null || w.isRemote) return;
+    if (w.provider.dimensionId === 1 && e.isPlayerEntity) EndPortalHooks.enterExitPortal?.(e);
   }
 
   override randomDisplayTick(w: IWorld, x: number, y: number, z: number, rand: JavaRandom): void {

@@ -23,6 +23,12 @@ import { DamageSource } from '../src/entity/DamageSource';
 import { MathHelper } from '../src/core/MathHelper';
 import { World, WorldInfo } from '../src/world/World';
 import { chunkFromTerrain, toTerrainChunk } from '../src/world/gen/TerrainChunk';
+import { conquerTheEnd } from '../src/client/WinGame';
+import { EndPortalHooks } from '../src/block/EndPortalHooks';
+import { Block } from '../src/block/Block';
+import { ItemStack } from '../src/item/ItemStack';
+import { PlayerSpawning } from '../src/entity/PlayerSpawning';
+import { AchievementIds } from '../src/stats/StatIds';
 import { check, report } from './harness';
 
 registerBlockItems();
@@ -236,6 +242,39 @@ const near = (a: number, b: number, eps = 1e-3) => Math.abs(a - b) < eps;
   for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++) if (w.getBlockId(px + dx, 64, pz + dz) === BlockIds.endPortal) portals++;
   check('end portal ring (20 blocks)', portals === 20, String(portals));
   check('bedrock rim and floor', w.getBlockId(px + 3, 64, pz) === BlockIds.bedrock && w.getBlockId(px + 2, 63, pz) === BlockIds.bedrock && w.getBlockId(px, 64, pz) === BlockIds.bedrock);
+}
+
+// ------------------------------------------------------------------ the exit portal
+{
+  const w = endWorld(2);
+  const screens: unknown[] = [];
+  const stats: number[] = [];
+  class LocalPlayer extends EntityPlayer {
+    readonly mc = { displayGuiScreen: (s: unknown) => screens.push(s) };
+    override triggerAchievement(id: number): void {
+      stats.push(id);
+    }
+  }
+  const p = new LocalPlayer(w);
+  p.setLocationAndAngles(0.5, 70, 0.5, 0, 0);
+  w.spawnEntityInWorld(p);
+  p.inventory.mainInventory[0] = new ItemStack(BlockIds.obsidian, 17, 0);
+  p.experienceLevel = 30;
+  check('exit portal hook installed', EndPortalHooks.enterExitPortal === conquerTheEnd);
+  w.setBlock(0, 70, 0, BlockIds.endPortal);
+  // The portal block itself would vanish in the End unless placed by the dragon's death.
+  check('end portals vanish in the End unless the boss was defeated', w.getBlockId(0, 70, 0) === 0);
+  Block.blocksList[BlockIds.endPortal]!.onEntityCollidedWithBlock(w, 0, 70, 0, p);
+  Block.blocksList[BlockIds.endPortal]!.onEntityCollidedWithBlock(w, 0, 70, 0, p);
+  check('conquered the End once', p.playerConqueredTheEnd && screens.length === 1 && (screens[0] as object).constructor.name === 'GuiWinGame', String(screens.length));
+  check('The End. achievement', stats.includes(AchievementIds.theEnd2));
+  const q = new LocalPlayer(w);
+  PlayerSpawning.respawn(q, p, w);
+  check('respawn keeps inventory and levels', q.inventory.mainInventory[0]?.stackSize === 17 && q.experienceLevel === 30 && !q.playerConqueredTheEnd);
+  const o = new LocalPlayer(w);
+  const overworld = new World(new WorldInfo());
+  Block.blocksList[BlockIds.endPortal]!.onEntityCollidedWithBlock(overworld, 0, 70, 0, o);
+  check('no credits from an overworld portal', !o.playerConqueredTheEnd);
 }
 
 report();

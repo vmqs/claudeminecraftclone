@@ -343,9 +343,9 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
   /** respawnPlayer: a dead guest comes back as a fresh EntityPlayerMP with the same id. */
   respawnPlayer(h: NetServerHandler): void {
     const old = h.player;
-    if (!old || old.getHealth() > 0) return;
+    if (!old || (old.getHealth() > 0 && !old.playerConqueredTheEnd)) return;
     const w = this.world;
-    if (w.worldInfo.hardcore) {
+    if (w.worldInfo.hardcore && !old.playerConqueredTheEnd) {
       // 1.5.2 put a "Death in Hardcore" ban entry; the name stays out for the session.
       this.hardcoreDead.add(old.username.toLowerCase());
       h.kick("You have died. Game over, man, it's game over!");
