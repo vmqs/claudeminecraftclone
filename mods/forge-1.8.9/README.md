@@ -85,7 +85,7 @@ fails later leaves you as Steve. Files over 40 MB are refused.
 - Other mods that replace the player renderer (some cosmetics mods, OptiFine's player models) were
   not tested with it.
 - Performance: the models are skinned on the CPU every frame. John Marston (17,183 triangles) costs
-  about 0.35 ms per frame for skinning; the in-game test ran at 49-56 fps in software rendering
+  about 0.35-0.4 ms per frame for skinning; the in-game test ran at 49-76 fps in software rendering
   (Mesa llvmpipe, no GPU), so a real GPU keeps 60 fps easily.
 
 ## Credits and license
