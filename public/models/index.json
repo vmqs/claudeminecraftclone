@@ -13,16 +13,16 @@
       "name": "Trevor",
       "credits": "Trevor Philips (Grand Theft Auto V), Rockstar Games. User-supplied model, included at the repo owner's request.",
       "file": "trevor/model.mcpm",
-      "bytes": 1840643,
-      "hash": "674f6aab8ef385e17118da6ab251a07e"
+      "bytes": 1840606,
+      "hash": "a46ac232d57ffd8bbbc879cfb4428adb"
     },
     {
       "id": "roblox_noob",
       "name": "Roblox Noob",
       "credits": "Roblox Noob (Roblox Corporation), model by vanyabro85 on Sketchfab (CC-BY-4.0). User-supplied model, included at the repo owner's request.",
       "file": "roblox_noob/model.mcpm",
-      "bytes": 13619,
-      "hash": "dd27da94cebaf4bb90306cd72f85cc24"
+      "bytes": 13593,
+      "hash": "8a2bffd1b477b721e3111780695440a0"
     }
   ]
 }

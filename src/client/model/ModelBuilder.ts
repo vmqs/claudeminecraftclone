@@ -1,5 +1,5 @@
 import { classifyName, type NameClass } from './BoneNames';
-import { decodeKnown, dropAlpha, hasAlpha, type RgbaImage, shrinkTo, transparentShare } from './ImageCodecs';
+import { decodeKnown, dropAlpha, hasAlpha, isJpeg, isPng, type RgbaImage, shrinkTo, transparentShare } from './ImageCodecs';
 import { IMAGE_EXT, type ModelFiles } from './ModelFiles';
 import {
   ALPHA_BLEND,
@@ -208,6 +208,109 @@ function snapAxis(v: V3): string {
   return (v[k] >= 0 ? '+' : '-') + 'xyz'[k];
 }
 
+/**
+ * The up axis of a body without a skeleton. The format's axis is kept when the body is tall
+ * along it; otherwise, of the long axes (a T-pose is as wide as it is tall), the one along which
+ * the surface is least bunched in the middle is the height (arms are thin, the torso is not),
+ * and the head is the end whose last tenth is narrower than the other's (feet stand apart).
+ */
+function detectUp(w: Work, hint: 'x' | 'y' | 'z' | null): string {
+  const b = bounds(w);
+  const ex = sub(b.max, b.min);
+  const max = Math.max(ex[0], ex[1], ex[2]);
+  const hintAxis = hint === 'x' ? 0 : hint === 'z' ? 2 : hint === 'y' ? 1 : -1;
+  const long = [0, 1, 2].filter((a) => ex[a] >= 0.75 * max);
+  if (hintAxis >= 0 && (long.includes(hintAxis) || (ex as number[])[hintAxis] >= 0.6 * max)) return '+' + 'xyz'[hintAxis];
+  let axis = long[0];
+  if (long.length > 1) {
+    let best = Infinity;
+    for (const a of long) {
+      // Share of the surface (triangle area at the centroid) in the middle 40% along the axis.
+      let mid = 0;
+      let all = 0;
+      for (let t = 0; t < w.tris.length; t += 3) {
+        const i = w.tris[t] * 3;
+        const j = w.tris[t + 1] * 3;
+        const k = w.tris[t + 2] * 3;
+        const area = len(cross([w.pos[j] - w.pos[i], w.pos[j + 1] - w.pos[i + 1], w.pos[j + 2] - w.pos[i + 2]], [w.pos[k] - w.pos[i], w.pos[k + 1] - w.pos[i + 1], w.pos[k + 2] - w.pos[i + 2]]));
+        const c = (w.pos[i + a] + w.pos[j + a] + w.pos[k + a]) / 3;
+        const u = (c - b.min[a]) / (ex[a] || 1);
+        all += area;
+        if (u > 0.3 && u < 0.7) mid += area;
+      }
+      const share = all > 0 ? mid / all : 1;
+      if (share < best) {
+        best = share;
+        axis = a;
+      }
+    }
+  }
+  // Which end is the head: the narrower last tenth.
+  const spread = (lo: number, hi: number): number => {
+    const mn = [Infinity, Infinity, Infinity];
+    const mx = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < w.vc; i++) {
+      const u = (w.pos[i * 3 + axis] - b.min[axis]) / (ex[axis] || 1);
+      if (u < lo || u > hi) continue;
+      for (let k = 0; k < 3; k++) {
+        mn[k] = Math.min(mn[k], w.pos[i * 3 + k]);
+        mx[k] = Math.max(mx[k], w.pos[i * 3 + k]);
+      }
+    }
+    let s = 0;
+    for (let k = 0; k < 3; k++) if (k !== axis && mx[k] > mn[k]) s = Math.max(s, mx[k] - mn[k]);
+    return s;
+  };
+  const low = spread(0, 0.1);
+  const high = spread(0.9, 1);
+  const sign = hintAxis === axis ? '+' : high <= low * 1.05 ? '+' : '-';
+  return sign + 'xyz'[axis];
+}
+
+/** The centre (x, z) of the surface between heights y0 and y1 (triangles clipped to the band, by area). */
+function bandCentroid(w: Work, y0: number, y1: number): V3 | null {
+  let sx = 0;
+  let sz = 0;
+  let sa = 0;
+  for (let t = 0; t < w.tris.length; t += 3) {
+    let poly: V3[] = [];
+    for (let k = 0; k < 3; k++) {
+      const i = w.tris[t + k] * 3;
+      poly.push([w.pos[i], w.pos[i + 1], w.pos[i + 2]]);
+    }
+    for (const [limit, above] of [
+      [y0, true],
+      [y1, false],
+    ] as [number, boolean][]) {
+      const out: V3[] = [];
+      for (let i = 0; i < poly.length; i++) {
+        const p = poly[i];
+        const q = poly[(i + 1) % poly.length];
+        const pin = above ? p[1] >= limit : p[1] <= limit;
+        const qin = above ? q[1] >= limit : q[1] <= limit;
+        if (pin) out.push(p);
+        if (pin !== qin) {
+          const k = (limit - p[1]) / (q[1] - p[1]);
+          out.push([p[0] + (q[0] - p[0]) * k, limit, p[2] + (q[2] - p[2]) * k]);
+        }
+      }
+      poly = out;
+      if (poly.length < 3) break;
+    }
+    if (poly.length < 3) continue;
+    for (let i = 1; i + 1 < poly.length; i++) {
+      const a = poly[0];
+      const bb = poly[i];
+      const c = poly[i + 1];
+      const area = len(cross(sub(bb, a), sub(c, a))) / 2;
+      sx += ((a[0] + bb[0] + c[0]) / 3) * area;
+      sz += ((a[2] + bb[2] + c[2]) / 3) * area;
+      sa += area;
+    }
+  }
+  return sa > 0 ? [sx / sa, 0, sz / sa] : null;
+}
+
 function median(values: number[]): number {
   if (values.length === 0) return 0;
   const s = values.slice().sort((a, b) => a - b);
@@ -344,12 +447,7 @@ export async function buildPlayerModel(scene: SourceScene, files: ModelFiles | n
       }
     }
     if (fromBones) up = fromBones;
-    else if (scene.upAxis) up = '+' + scene.upAxis;
-    else {
-      const b = bounds(w);
-      const ex = sub(b.max, b.min);
-      up = ex[2] > ex[1] * 1.4 && ex[2] >= ex[0] * 0.9 ? '+z' : '+y';
-    }
+    else up = detectUp(w, scene.upAxis);
   }
   report.up = up;
   transformAll(w, bonePos, rotBetween(AXES[up], [0, 1, 0]));
@@ -417,27 +515,14 @@ export async function buildPlayerModel(scene: SourceScene, files: ModelFiles | n
     else if (ez > ex * 1.25) facingAxis = 0;
   }
   if (!forward) {
-    // Toes stick out in front of the ankles.
+    // Toes stick out in front of the ankles: the surface's centre in the lowest band lies
+    // ahead of the centre a little higher up.
     const b = bounds(w);
     const h = b.max[1] - b.min[1];
-    const low: V3 = [0, 0, 0];
-    const ankle: V3 = [0, 0, 0];
-    let nl = 0;
-    let na = 0;
-    for (let i = 0; i < w.vc; i++) {
-      const y = w.pos[i * 3 + 1] - b.min[1];
-      if (y < h * 0.025) {
-        low[0] += w.pos[i * 3];
-        low[2] += w.pos[i * 3 + 2];
-        nl++;
-      } else if (y > h * 0.05 && y < h * 0.09) {
-        ankle[0] += w.pos[i * 3];
-        ankle[2] += w.pos[i * 3 + 2];
-        na++;
-      }
-    }
-    if (nl > 4 && na > 4) {
-      const d: V3 = [low[0] / nl - ankle[0] / na, 0, low[2] / nl - ankle[2] / na];
+    const low = bandCentroid(w, b.min[1], b.min[1] + h * 0.025);
+    const ankle = bandCentroid(w, b.min[1] + h * 0.05, b.min[1] + h * 0.09);
+    if (low && ankle) {
+      const d: V3 = [low[0] - ankle[0], 0, low[2] - ankle[2]];
       if (facingAxis === 0) d[2] = 0;
       else if (facingAxis === 2) d[0] = 0;
       if (len(d) > h * 0.012) {
@@ -471,17 +556,21 @@ export async function buildPlayerModel(scene: SourceScene, files: ModelFiles | n
     const h = b.max[1] - b.min[1];
     if (!(h > 1e-9)) throw new ModelImportError('The model is flat (no height).');
     const s = MODEL_HEIGHT / h;
-    const xs: number[] = [];
+    // Across: the middle of the chest band (arms and shoulders are symmetric); front to back:
+    // the median of the body. (Rigging centres again on the joints.)
     const zs: number[] = [];
+    let x0 = Infinity;
+    let x1 = -Infinity;
     const step = Math.max(1, Math.floor(w.vc / 20000));
-    for (let i = 0; i < w.vc; i += step) {
+    for (let i = 0; i < w.vc; i++) {
       const y = (w.pos[i * 3 + 1] - b.min[1]) / h;
-      if (y > 0.1 && y < 0.85) {
-        xs.push(w.pos[i * 3]);
-        zs.push(w.pos[i * 3 + 2]);
+      if (y > 0.4 && y < 0.75) {
+        x0 = Math.min(x0, w.pos[i * 3]);
+        x1 = Math.max(x1, w.pos[i * 3]);
       }
+      if (i % step === 0 && y > 0.1 && y < 0.85) zs.push(w.pos[i * 3 + 2]);
     }
-    const cx = median(xs.length ? xs : [0]);
+    const cx = Number.isFinite(x0) ? (x0 + x1) / 2 : (b.min[0] + b.max[0]) / 2;
     const cz = median(zs.length ? zs : [0]);
     transformAll(w, bonePos, [1, 0, 0, 0, 1, 0, 0, 0, 1], s, [-cx * s, -b.min[1] * s, -cz * s]);
   };
@@ -1018,7 +1107,17 @@ function limbEnds(w: Work, partW: Float32Array, part: number, kind: 'arm' | 'leg
     const d = sub(p, c);
     for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) cov[a * 3 + b] += d[a] * d[b];
   }
-  let axis: V3 = [0, -1, 0];
+  // Start from the farthest point (a start orthogonal to the long axis would never leave it).
+  let far: V3 = [0, -1, 0];
+  let farD = -1;
+  for (const p of pts) {
+    const d = len(sub(p, c));
+    if (d > farD) {
+      farD = d;
+      far = sub(p, c);
+    }
+  }
+  let axis: V3 = norm(far);
   for (let it = 0; it < 32; it++) axis = norm(rotApply(cov, axis));
   // The root end is the one nearer the body's centre line and higher up.
   let lo = Infinity;
@@ -1250,6 +1349,10 @@ function fillMissingNormals(w: Work): void {
 
 // ------------------------------------------------------------------ materials
 
+function isWebp(b: Uint8Array): boolean {
+  return b.length > 12 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50;
+}
+
 /** Finds image files for a texture name: the same file, the same stem with any image type. */
 function findImage(files: ModelFiles | null, name: string): string | null {
   if (!files || !name) return null;
@@ -1345,10 +1448,15 @@ async function packMaterials(
     if (path) tex = await loadTexture(path, files!.get(path), path);
     if (tex < 0 && m.texture >= 0) {
       const st = scene.textures[m.texture];
-      // A file next to the model (prefer PNG/JPEG over an embedded DDS), else the embedded bytes.
-      const file = findImage(files, st.name);
-      if (file) tex = await loadTexture(file, files!.get(file), file);
-      if (tex < 0 && st.bytes) tex = await loadTexture(`embedded:${m.texture}`, st.bytes, st.name);
+      // The picture the model refers to; but a DDS/TGA (embedded in FBX files, or named by an
+      // OBJ) gives way to a PNG or JPEG of the same name next to the model.
+      const native = st.bytes && (isPng(st.bytes) || isJpeg(st.bytes) || isWebp(st.bytes));
+      if (native) tex = await loadTexture(`embedded:${m.texture}`, st.bytes, st.name);
+      if (tex < 0) {
+        const file = findImage(files, st.name);
+        if (file) tex = await loadTexture(file, files!.get(file), file);
+      }
+      if (tex < 0 && st.bytes && !native) tex = await loadTexture(`embedded:${m.texture}`, st.bytes, st.name);
     }
     if (tex < 0) {
       const guess = guessImage(files, names);

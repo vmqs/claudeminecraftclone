@@ -17,6 +17,7 @@ import { LanWorld, type LanWorldServer } from './LanWorld';
 import { NetServerHandler, REJOIN_TOKEN_BYTES, toHex } from './NetServerHandler';
 import { SkinRelay } from './SkinRelay';
 import { ModelRelay } from './ModelRelay';
+import type { PlayerModelRegistry } from '../../client/model/PlayerModels';
 
 /** What the LAN server needs from the host's game client. */
 export interface LanHostClient {
@@ -39,6 +40,8 @@ export interface LanHostClient {
   hostSkin?(): Uint8Array | null;
   /** A guest's skin for the host's renderer (null: Steve again). */
   playerSkin?(name: string, rgba: Uint8Array | null): void;
+  /** The host's player-model registry (MC|Model; absent: the game's shared one). */
+  readonly models?: PlayerModelRegistry;
 }
 
 export interface LanSettings {
