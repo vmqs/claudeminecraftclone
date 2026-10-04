@@ -14,6 +14,9 @@ import { Material } from './Material';
 export type BedSleepStatus = 'OK' | 'NOT_POSSIBLE_HERE' | 'NOT_POSSIBLE_NOW' | 'TOO_FAR_AWAY' | 'OTHER_PROBLEM' | 'NOT_SAFE';
 
 /** What a player offers for sleeping (EntityPlayer.sleepInBedAt / playerLocation); provided by the entity code. */
+/** BiomeGenBase.hell's id. */
+const HELL_BIOME_ID = 8;
+
 interface SleepingPlayer {
   sleepInBedAt?(x: number, y: number, z: number): BedSleepStatus;
   isPlayerSleeping?(): boolean;
@@ -53,7 +56,20 @@ export class BlockBed extends BlockDirectional {
       if (w.getBlockId(x, y, z) !== this.blockID) return true;
       meta = w.getBlockMetadata(x, y, z);
     }
-    // The overworld can always be slept in (beds explode only in the Nether and the End).
+    // Beds explode where the provider cannot respawn (the Nether, the End) and in the Hell biome.
+    const canRespawn = (w.provider as { canRespawnHere?(): boolean }).canRespawnHere?.() ?? w.provider.dimensionId === 0;
+    if (!canRespawn || w.getBiomeGenForCoords(x, z).biomeID === HELL_BIOME_ID) {
+      w.setBlockToAir(x, y, z);
+      // As in the original, the second half is looked for one block beyond the head, so the
+      // explosion is centred there.
+      const d = BlockDirectional.getDirection(meta);
+      x += BlockBed.footBlockToHeadBlockMap[d][0];
+      z += BlockBed.footBlockToHeadBlockMap[d][1];
+      if (w.getBlockId(x, y, z) === this.blockID) w.setBlockToAir(x, y, z);
+      const f = Math.fround;
+      (w as IWorld & { newExplosion?(e: null, x: number, y: number, z: number, size: number, flaming: boolean, smoking: boolean): unknown }).newExplosion?.(null, f(x + 0.5), f(y + 0.5), f(z + 0.5), 5, true, true);
+      return true;
+    }
     if (BlockBed.isBedOccupied(meta)) {
       const sleeper = (w.playerEntities ?? []).find((o) => {
         const s = o as unknown as SleepingPlayer;
