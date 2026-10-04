@@ -17,7 +17,7 @@ import { PacketReader, PacketWriter, ProtocolError } from './PacketBuffer';
  *   meta     entity metadata entries [index, value]  i32s / f32s  number lists (65536 max)
  */
 
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 /** The game version shown on mismatches ("Outdated server!"). */
 export const GAME_VERSION = '1.5.2';
 

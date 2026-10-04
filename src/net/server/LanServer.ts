@@ -16,6 +16,7 @@ import { EntityPlayerMP, type PlayerServer } from './EntityPlayerMP';
 import { LanWorld, type LanWorldServer } from './LanWorld';
 import { NetServerHandler, REJOIN_TOKEN_BYTES, toHex } from './NetServerHandler';
 import { SkinRelay } from './SkinRelay';
+import { ModelRelay } from './ModelRelay';
 
 /** What the LAN server needs from the host's game client. */
 export interface LanHostClient {
@@ -124,6 +125,8 @@ export class LanServer implements PlayerServer, LanWorldServer {
   readonly views = new Map<World, LanWorld>();
   /** Everyone's skins (MC|Skin). */
   readonly skins = new SkinRelay(this);
+  /** Everyone's player models (MC|Model). */
+  readonly models = new ModelRelay(this);
   code = '';
   private readonly pendingLogins: { h: NetServerHandler; since: number }[] = [];
   private readonly saved = new Map<string, SavedPlayer>();
@@ -364,6 +367,7 @@ export class LanServer implements PlayerServer, LanWorldServer {
     for (const entry of this.playerList()) h.sendPacket({ type: 'PlayerInfo', name: entry.name, connected: true, ping: entry.responseTime });
     this.broadcast({ type: 'PlayerInfo', name: p.username, connected: true, ping: 0 }, h);
     this.skins.joined(h);
+    this.models.joined(h);
     this.sendChatMsg(`§e${p.username} joined the game.`);
   }
 
@@ -384,6 +388,7 @@ export class LanServer implements PlayerServer, LanWorldServer {
       }
     }
     this.skins.left(h);
+    this.models.left(h);
     const p = h.player;
     if (!p) return;
     console.info(`[lan] ${p.username} lost connection: ${reason}`);
@@ -680,6 +685,7 @@ export class LanServer implements PlayerServer, LanWorldServer {
     if (this.ticks % 100 === 0) for (const entry of this.playerList()) this.broadcast({ type: 'PlayerInfo', name: entry.name, connected: true, ping: entry.responseTime });
     if (this.ticks % 200 === 0) for (const v of this.views.values()) v.pruneCache(this.ticks);
     this.skins.tick(this.ticks);
+    this.models.tick(this.ticks);
     for (const h of this.handlers) h.flush();
   }
 

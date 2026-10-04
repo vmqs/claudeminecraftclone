@@ -12,6 +12,7 @@ import { isAllowedCreativeStack } from './CreativeItems';
 import type { EntityPlayerMP } from './EntityPlayerMP';
 import type { LanServer } from './LanServer';
 import { SKIN_CHANNEL } from '../SkinSync';
+import { MODEL_CHANNEL } from '../ModelSync';
 
 const f = Math.fround;
 
@@ -276,6 +277,7 @@ export class NetServerHandler {
     }
     // The guest's skin (after the login, and whenever it changes; dead or alive).
     if (p.type === 'CustomPayload' && p.channel === SKIN_CHANNEL) return this.server.skins.received(this, p.data);
+    if (p.type === 'CustomPayload' && p.channel === MODEL_CHANNEL) return this.server.models.received(this, p.data);
     if (this.state === 'login') {
       // The rejoin token comes right after the handshake (LanServer checks it before the login).
       if (p.type === 'CustomPayload' && p.channel === 'MC|Rejoin' && p.data.length === REJOIN_TOKEN_BYTES) this.presentedToken = toHex(p.data);
