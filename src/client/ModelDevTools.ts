@@ -71,6 +71,91 @@ export class ModelDevTools {
     return { ...r };
   }
 
+  /**
+   * Imports files given as bytes, text or base64 (automation has no file picker), through the
+   * open Account Manager when there is one. Resolves with the outcome.
+   */
+  async importFiles(files: { name: string; bytes?: Uint8Array; text?: string; base64?: string }[]): Promise<Record<string, unknown>> {
+    const list = files.map((f) => {
+      let bytes = f.bytes;
+      if (!bytes && f.text !== undefined) bytes = new TextEncoder().encode(f.text);
+      if (!bytes && f.base64 !== undefined) bytes = Uint8Array.from(atob(f.base64), (c) => c.charCodeAt(0));
+      return { name: f.name, bytes: bytes ?? new Uint8Array(0) };
+    });
+    const screen = this.mc.currentScreen;
+    if (screen instanceof GuiAccountManager) {
+      const ok = await screen.useModelFiles(list);
+      return { ok, key: PlayerModels.local, status: (screen as unknown as { status: string }).status };
+    }
+    const r = await importModelFiles(list);
+    if (r.ok && r.key) PlayerModels.setLocal(r.key);
+    return { ...r };
+  }
+
+  /**
+   * A test model as files: an OBJ person of boxes (T-pose arms, toes forward, lying in Z-up and
+   * facing -X like a careless export), its MTL and a PNG texture with a skin-coloured head, a
+   * `color` shirt and blue trousers.
+   */
+  async testModelFiles(color = '#d02020'): Promise<{ name: string; bytes: Uint8Array }[]> {
+    const boxes: [number[], number[], string][] = [
+      [[-22, 0, -7], [-3, 88, 7], 'legs'],
+      [[3, 0, -7], [22, 88, 7], 'legs'],
+      [[-22, 0, 7], [-3, 8, 26], 'shoes'],
+      [[3, 0, 7], [22, 8, 26], 'shoes'],
+      [[-22, 88, -11], [22, 148, 11], 'shirt'],
+      [[-6, 148, -6], [6, 154, 6], 'skin'],
+      [[-11, 154, -12], [11, 180, 12], 'skin'],
+      [[-90, 136, -6], [-24, 148, 6], 'shirt'],
+      [[24, 136, -6], [90, 148, 6], 'shirt'],
+    ];
+    // Texture cells (u0, v0) in a 4x1 strip: skin, shirt, legs, shoes.
+    const cell: Record<string, number> = { skin: 0, shirt: 1, legs: 2, shoes: 3 };
+    const canvas = new OffscreenCanvas(64, 16);
+    const ctx = canvas.getContext('2d')!;
+    const fills = ['#e0b090', color, '#2040a0', '#302010'];
+    fills.forEach((c, i) => {
+      ctx.fillStyle = c;
+      ctx.fillRect(i * 16, 0, 16, 16);
+    });
+    // Eyes on the face cell's upper half.
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(4, 5, 2, 2);
+    ctx.fillRect(10, 5, 2, 2);
+    const png = new Uint8Array(await (await canvas.convertToBlob({ type: 'image/png' })).arrayBuffer());
+    const lines = ['mtllib person.mtl', 'usemtl body'];
+    let base = 1;
+    let vt = 1;
+    boxes.forEach(([mn, mx, kind], i) => {
+      lines.push(`g part${i}`);
+      for (let k = 0; k < 8; k++) {
+        const p = [k & 1 ? mx[0] : mn[0], k & 2 ? mx[1] : mn[1], k & 4 ? mx[2] : mn[2]];
+        // Facing -X with Z up (a proper rotation of the +Z-facing, Y-up person).
+        lines.push(`v ${-p[2]} ${-p[0]} ${p[1]}`);
+      }
+      const u0 = cell[kind] / 4 + 0.01;
+      const u1 = (cell[kind] + 1) / 4 - 0.01;
+      lines.push(`vt ${u0} 0.05`, `vt ${u1} 0.05`, `vt ${u1} 0.95`, `vt ${u0} 0.95`);
+      for (const f of [
+        [0, 2, 3, 1],
+        [4, 5, 7, 6],
+        [0, 1, 5, 4],
+        [2, 6, 7, 3],
+        [0, 4, 6, 2],
+        [1, 3, 7, 5],
+      ])
+        lines.push(`f ${f.map((v, j) => `${v + base}/${vt + j}`).join(' ')}`);
+      base += 8;
+      vt += 4;
+    });
+    const enc = new TextEncoder();
+    return [
+      { name: 'Test Person.obj', bytes: enc.encode(lines.join('\n')) },
+      { name: 'person.mtl', bytes: enc.encode('newmtl body\nKd 1 1 1\nmap_Kd person.png\n') },
+      { name: 'person.png', bytes: png },
+    ];
+  }
+
   /** What is chosen, loaded and drawn. */
   state(): Record<string, unknown> {
     const remote: Record<string, string> = {};
