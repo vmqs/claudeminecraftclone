@@ -57,7 +57,7 @@ export class EndDevTools {
       crystals: this.crystals().length,
       wither: wi && { x: wi.posX, y: wi.posY, z: wi.posZ, health: wi.getHealth(), invul: wi.getInvulTime(), armored: wi.isArmored(), targets: [...wi.watchedTargets], texture: wi.getTexture() },
       bossBar: { name: BossStatus.bossName, scale: BossStatus.healthScale, length: BossStatus.statusBarLength },
-      screen: scr ? scr.constructor.name : null,
+      screen: scr instanceof GuiWinGame ? 'wingame' : scr ? 'other' : null,
       conquered: this.mc.thePlayer?.playerConqueredTheEnd ?? false,
     };
   }
