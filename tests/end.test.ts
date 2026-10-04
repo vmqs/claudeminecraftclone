@@ -37,6 +37,7 @@ import type { BlockSkull } from '../src/block/BlockSkull';
 import { TileEntitySkull } from '../src/world/tileentity/TileEntitySkull';
 import { Chunk } from '../src/world/Chunk';
 import { ItemIds } from '../src/block/BlockIds';
+import { Item } from '../src/item/Item';
 import { check, report } from './harness';
 
 registerBlockItems();
@@ -373,6 +374,48 @@ function skull(w: World, x: number, y: number, z: number): TileEntitySkull {
   wi.attackEntityFrom(DamageSource.causePlayerDamage(p), 1000);
   const star = w.loadedEntityList.some((e) => e instanceof EntityItem && e.getEntityItem().itemID === ItemIds.netherStar);
   check('drops a nether star', star);
+}
+
+// ------------------------------------------------------------------ end portal frames
+{
+  const w = flatWorld();
+  const y = 4;
+  // A stronghold portal room's ring: rows at z=0 (facing south, 0) and z=4 (north, 2), columns
+  // at x=0 (east, 3) and x=4 (west, 1) around the 3x3 inside (1..3, 1..3).
+  const frames: [number, number, number][] = [];
+  for (let i = 1; i <= 3; i++) {
+    frames.push([i, 0, 0], [i, 4, 2], [0, i, 3], [4, i, 1]);
+  }
+  for (const [x, z, dir] of frames) w.setBlock(x, y, z, BlockIds.endPortalFrame, dir);
+  const p = new TestPlayer(w);
+  p.capabilities.allowEdit = true;
+  p.setLocationAndAngles(2, 5, 2, 0, 0);
+  w.spawnEntityInWorld(p);
+  const eye = Item.itemsList[ItemIds.eyeOfEnder]!;
+  const stack = new ItemStack(ItemIds.eyeOfEnder, 16, 0);
+  const portals = () => {
+    let n = 0;
+    for (let x = 1; x <= 3; x++) for (let z = 1; z <= 3; z++) if (w.getBlockId(x, y, z) === BlockIds.endPortal) n++;
+    return n;
+  };
+  frames.forEach(([x, z], i) => {
+    const used = eye.onItemUse(stack, p, w, x, y, z, 1, 0.5, 1, 0.5);
+    check(`eye inserted ${i}`, used && (w.getBlockMetadata(x, y, z) & 4) !== 0);
+    if (i < frames.length - 1) check(`no portal after ${i + 1} eyes`, portals() === 0);
+  });
+  check('the 12th eye opens the 3x3 portal', portals() === 9, String(portals()));
+  check('12 eyes used', stack.stackSize === 4);
+  check('a filled frame takes no second eye', !eye.onItemUse(stack, p, w, 1, y, 0, 1, 0.5, 1, 0.5) && stack.stackSize === 4);
+  // A frame facing the wrong way does not complete the ring.
+  const w2 = flatWorld();
+  for (const [x, z, dir] of frames) w2.setBlock(x, y, z, BlockIds.endPortalFrame, (x === 2 && z === 4 ? 0 : dir) | 4);
+  w2.setBlockMetadataWithNotify(1, y, 0, 0, 2);
+  const p2 = new TestPlayer(w2);
+  p2.capabilities.allowEdit = true;
+  eye.onItemUse(new ItemStack(ItemIds.eyeOfEnder, 1, 0), p2, w2, 1, y, 0, 1, 0.5, 1, 0.5);
+  let n2 = 0;
+  for (let x = 1; x <= 3; x++) for (let z = 1; z <= 3; z++) if (w2.getBlockId(x, y, z) === BlockIds.endPortal) n2++;
+  check('facings do not matter once filled (1.5.2 only checks the eyes)', n2 === 9, String(n2));
 }
 
 report();
