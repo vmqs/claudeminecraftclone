@@ -35,6 +35,10 @@ public class GuiChooseModel extends GuiScreen {
     private List<String> ids = new ArrayList<>();
     private String status = "";
     private int statusColor = 0xa0a0a0;
+    private int listTop;
+    private int listBottom;
+    private int lastClickedRow = -1;
+    private long lastClickTime;
 
     public GuiChooseModel(GuiScreen parent) {
         this.parent = parent;
@@ -56,7 +60,9 @@ public class GuiChooseModel extends GuiScreen {
         refreshIds();
         int listRight = width / 2 + 20;
         int listLeft = Math.max(4, width / 2 - 160);
-        list = new ModelList(mc, listRight - listLeft, height, 32, height - 58, 26);
+        listTop = 32;
+        listBottom = height - 58;
+        list = new ModelList(mc, listRight - listLeft, height, listTop, listBottom, 26);
         list.setSlotXBoundsFromLeft(listLeft);
         buttonList.clear();
         buttonList.add(new GuiButton(BUTTON_FOLDER, width / 2 - 154, height - 28, 100, 20, "Open folder"));
@@ -67,7 +73,23 @@ public class GuiChooseModel extends GuiScreen {
     @Override
     public void handleMouseInput() throws IOException {
         super.handleMouseInput();
+        // Scrolling and the scroll bar. Its own click test assumes the list starts at x = 0, so
+        // clicks on rows are handled in mouseClicked instead (see ModelList.elementClicked).
         list.handleMouseInput();
+    }
+
+    @Override
+    protected void mouseClicked(int mouseX, int mouseY, int mouseButton) throws IOException {
+        super.mouseClicked(mouseX, mouseY, mouseButton);
+        if (mouseButton != 0 || mouseY < listTop || mouseY > listBottom) return;
+        int row = list.getSlotIndexFromScreenCoords(mouseX, mouseY);
+        if (row < 0) return;
+        long now = Minecraft.getSystemTime();
+        boolean doubleClick = row == lastClickedRow && now - lastClickTime < 250L;
+        lastClickedRow = row;
+        lastClickTime = now;
+        choose(row);
+        if (doubleClick) mc.displayGuiScreen(parent);
     }
 
     @Override
@@ -194,10 +216,13 @@ public class GuiChooseModel extends GuiScreen {
             return ids.size();
         }
 
+        /**
+         * Unused: vanilla's GuiSlot.handleMouseInput tests clicks against (width - listWidth) / 2
+         * without the list's left edge, which is wrong for a list moved with
+         * setSlotXBoundsFromLeft. GuiChooseModel.mouseClicked uses getSlotIndexFromScreenCoords.
+         */
         @Override
         protected void elementClicked(int index, boolean doubleClick, int mouseX, int mouseY) {
-            choose(index);
-            if (doubleClick) mc.displayGuiScreen(parent);
         }
 
         @Override
