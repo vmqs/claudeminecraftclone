@@ -159,6 +159,8 @@ export class EntityDragon extends EntityLiving implements IEntityMultiPart {
   updateRemote(): void {
     this.updateClientState();
     if (this.getHealth() <= 0) {
+      // The dragon's own death never advances deathTime (no tipping over, no red death tint).
+      this.deathTime = 0;
       this.deathTicks++;
       if (this.deathTicks >= 180 && this.deathTicks <= 200) this.deathParticle('hugeexplosion');
     }
