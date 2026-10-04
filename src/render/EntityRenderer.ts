@@ -415,6 +415,12 @@ export class EntityRenderer {
         g = f(f(g * f(1 - boss)) + f(f(g * f(0.6)) * boss));
         b = f(f(b * f(1 - boss)) + f(f(b * f(0.6)) * boss));
       }
+      if (w.provider.dimensionId === 1) {
+        // The End: a fixed purple-grey ambient plus the block light.
+        r = f(f(0.22) + f(blk * f(0.75)));
+        g = f(f(0.28) + f(blkG * f(0.75)));
+        b = f(f(0.25) + f(blkB * f(0.75)));
+      }
       if (nightVision >= 0) {
         let k = f(1 / r);
         if (k > f(1 / g)) k = f(1 / g);
@@ -759,6 +765,11 @@ export class EntityRenderer {
       } else {
         GL.setFogStart(f(far * f(0.25)));
         GL.setFogEnd(far);
+      }
+      // The Nether and the End: thick fog close by (WorldProvider.doesXZShowFog).
+      if (this.mc.theWorld!.provider.doesXZShowFog(Math.trunc(view.posX), Math.trunc(view.posZ))) {
+        GL.setFogStart(f(far * f(0.05)));
+        GL.setFogEnd(f(Math.min(far, 192) * f(0.5)));
       }
     }
   }

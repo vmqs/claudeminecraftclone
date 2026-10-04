@@ -24,6 +24,7 @@ import { Tessellator } from './gl/Tessellator';
 import type { EntityFX } from './particle/EntityFX';
 import { createParticle, type ParticleFactory, particleFactories, unculledParticleFactories } from './particle/ParticleFactories';
 import { RenderHelper } from './RenderHelper';
+import { renderEndSky } from './sky/DimensionSky';
 import { fillSectionSnapshot } from './SectionSnapshotFill';
 import { BlockDamageOverlay } from './BlockDamageOverlay';
 import { RenderManager } from './entity/RenderManager';
@@ -685,6 +686,12 @@ export class RenderGlobal implements IWorldAccess {
 
   renderSky(pt: number): void {
     const w = this.theWorld!;
+    if (w.provider.dimensionId === 1) {
+      renderEndSky(this.mc.renderEngine);
+      return;
+    }
+    // Only surface worlds have a sky dome; the Nether shows the clear (fog) colour.
+    if (!w.provider.isSurfaceWorld()) return;
     const viewer = this.mc.renderViewEntity!;
     GL.disable(GL.TEXTURE_2D);
     const sky = w.getSkyColor(viewer, pt);
