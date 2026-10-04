@@ -2,6 +2,7 @@
 import '../block/Blocks';
 import { type ChunkGenerator, ChunkProviderGenerate } from '../world/gen/ChunkProviderGenerate';
 import { DimensionGenerators } from '../world/gen/DimensionGenerators';
+import '../world/gen/nether/NetherRegistration';
 import { terrainTransferables, toTerrainChunk } from '../world/gen/TerrainChunk';
 import type { TerrainRequest, TerrainResponse } from './worldgenProtocol';
 

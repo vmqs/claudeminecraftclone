@@ -10,6 +10,7 @@ import { WorldGeneratorBonusChest } from './feature/WorldGeneratorBonusChest';
 import { computeChunkLight } from './GenLighting';
 import { GenStore } from './GenStore';
 import { GenWorld } from './GenWorld';
+import './nether/NetherRegistration';
 import { chunkFromTerrain, type TerrainChunk, toTerrainChunk } from './TerrainChunk';
 import { SPAWN_BIOMES } from './WorldChunkManager';
 

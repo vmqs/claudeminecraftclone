@@ -12,7 +12,7 @@ export class WorldGenMinable extends WorldGenerator {
   constructor(
     private readonly minableBlockId: number,
     private readonly numberOfBlocks: number,
-    private readonly targetId = BlockIds.stone,
+    private readonly targetId: number = BlockIds.stone,
   ) {
     super();
   }
