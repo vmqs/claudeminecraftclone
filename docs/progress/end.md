@@ -28,4 +28,8 @@ Owner: End generation, Ender Dragon, ender crystals, end portal activation, GuiW
 - After the credits, `mc.respawnPlayer()` runs with `old.playerConqueredTheEnd` set: the
   dimension-aware respawn must put the player in dimension 0 (End.canRespawnHere is false).
 - BlockEndPortal.onEntityCollidedWithBlock: dimension 1 + player -> EndPortalHooks.enterExitPortal;
-  everything else is travelToDimension(1) (dimensions slice).
+  everything else is travelToDimension(1) (dimensions slice). The dimensions slice already does
+  the win in its travelToDimension (1 -> 1) and opens `new GuiWinGame()` itself: at the merge keep
+  their travelToDimension call and drop the EndPortalHooks call (src/client/WinGame.ts and
+  EndPortalHooks then go, or stay unused). GuiWinGame only respawns through its optional
+  `onClosed` callback, so their "screen closed -> respawn" watcher does not respawn twice.

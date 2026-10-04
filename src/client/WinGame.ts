@@ -20,7 +20,7 @@ export function conquerTheEnd(e: Entity): void {
   const guest = p as unknown as { handler?: { sendPacket(pk: { type: 'GameEvent'; reason: number; value: number }): void } };
   const local = p as unknown as { mc?: PlayerClient };
   if (guest.handler) guest.handler.sendPacket({ type: 'GameEvent', reason: 4, value: 0 });
-  else if (local.mc) local.mc.displayGuiScreen(new GuiWinGame());
+  else if (local.mc) local.mc.displayGuiScreen(new GuiWinGame(() => p.respawnPlayer()));
 }
 
 EndPortalHooks.enterExitPortal = conquerTheEnd;

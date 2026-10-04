@@ -346,7 +346,7 @@ export class NetClientHandler {
         else if (p.reason === 1) w.clientWeather.onRainEvent(true);
         else if (p.reason === 2) w.clientWeather.onRainEvent(false);
         else if (p.reason === 3) this.client.setGameType(EnumGameType.getByID(p.value));
-        else if (p.reason === 4) this.client.playerClient.displayGuiScreen(new GuiWinGame());
+        else if (p.reason === 4) this.client.playerClient.displayGuiScreen(new GuiWinGame(() => this.player?.respawnPlayer()));
         return;
       case 'Weather': {
         const bolt = World.lightningBoltFactory?.(w, p.x / 32, p.y / 32, p.z / 32);

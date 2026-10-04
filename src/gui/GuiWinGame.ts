@@ -16,7 +16,7 @@ let texts: Promise<[string, string]> | null = null;
  * The end poem and the credits after the exit portal (GuiWinGame): the logo, then win.txt
  * (PLAYERNAME replaced, the marked words scrambled as obfuscated text) and credits.txt rolling
  * up over a darkened, slowly scrolling background under the vignette, the last line stopping in
- * the middle. Escape or the end of the text respawns the player (Packet205ClientCommand 1).
+ * the middle. Escape or the end of the text closes it and asks for the respawn (`onClosed`).
  */
 export class GuiWinGame extends GuiScreen {
   /** Opaque: nothing of the world shows through, so the world is not drawn behind it. */
@@ -27,6 +27,14 @@ export class GuiWinGame extends GuiScreen {
   private textHeight = 0;
   private readonly scrollSpeed = f(0.5);
   private loading = false;
+
+  /**
+   * `onClosed` asks for the respawn once the credits are closed (Packet205ClientCommand 1, or
+   * the local respawn); without it the screen only closes and whoever opened it watches for that.
+   */
+  constructor(private readonly onClosed: (() => void) | null = null) {
+    super();
+  }
 
   override updateScreen(): void {
     if (!this.lines) return;
@@ -40,8 +48,9 @@ export class GuiWinGame extends GuiScreen {
   }
 
   private respawnPlayer(): void {
+    if (this.mc.currentScreen !== this) return;
     this.mc.displayGuiScreen(null);
-    this.mc.thePlayer?.respawnPlayer();
+    this.onClosed?.();
   }
 
   override doesGuiPauseGame(): boolean {
