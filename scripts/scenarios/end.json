@@ -3,7 +3,7 @@
   "goto": "?dev=1&autostart=1&seed=123456789&dim=1&time=6000&pos=70,95,70,135,25&fly=1&pack=faithful"
  },
  {
-  "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0",
+  "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0 && mc.dev.end.dragon() !== null",
   "timeout": 600000
  },
  {
@@ -105,7 +105,7 @@
   "eval": "(() => { mc.dev.sky.unfreeze(); mc.dev.press(1, 1); return 'credits closed, the clock runs for the respawn'; })()"
  },
  {
-  "waitFor": "mc.currentScreen === null",
+  "waitFor": "mc.dev.dims.arrived() && mc.theWorld.provider.dimensionId === 0 && mc.dev.pendingSections(2) === 0",
   "timeout": 60000
  },
  {
