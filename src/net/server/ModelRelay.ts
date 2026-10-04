@@ -72,6 +72,8 @@ export class ModelRelay {
       return;
     }
     const a = this.uploads.get(g);
+    // Pieces of a file the host already has (another player sent it first) are not needed.
+    if (!a && this.models.has(`data:${m.hash}`)) return;
     if (!a || a.hash !== m.hash || !a.add(m.offset, m.bytes)) {
       this.uploads.delete(g);
       this.rejected++;
