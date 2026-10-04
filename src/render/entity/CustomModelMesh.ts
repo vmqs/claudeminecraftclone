@@ -36,6 +36,11 @@ export class CustomModelMesh {
 
   private disposed = false;
 
+  /** Whether any triangles belong to the right arm (the first-person hand). */
+  get hasArm(): boolean {
+    return this.armGroups.length > 0;
+  }
+
   /** Uploads a model; resolves once its textures are decoded. */
   static async create(data: PlayerModelData): Promise<CustomModelMesh> {
     const textures = await Promise.all(data.textures.map((t) => decodeTexture(t.bytes, t.mime)));

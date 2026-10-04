@@ -58,9 +58,7 @@ export function customModelFor(player: { readonly username: string }): ModelCust
 export function renderCustomFirstPersonArm(player: { readonly username: string } | null): boolean {
   if (!player) return false;
   const m = customModelFor(player);
-  if (!m) return false;
-  m.renderFirstPersonArm(player as never);
-  return true;
+  return m ? m.renderFirstPersonArm(player as never) : false;
 }
 
 /** How many models are on the GPU and their triangles (debugging). */

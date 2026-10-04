@@ -201,11 +201,7 @@ export class RenderPlayer extends RenderLiving {
 
   /** The right arm alone, for the first-person view. */
   renderFirstPersonArm(p: EntityPlayer): void {
-    const custom = customModelFor(p);
-    if (custom) {
-      custom.renderFirstPersonArm(p);
-      return;
-    }
+    if (customModelFor(p)?.renderFirstPersonArm(p)) return;
     GL.color(1, 1, 1);
     this.modelBipedMain.onGround = 0;
     this.modelBipedMain.setRotationAngles(0, 0, 0, 0, 0, SCALE, p);

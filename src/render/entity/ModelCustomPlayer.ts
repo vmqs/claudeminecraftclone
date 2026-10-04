@@ -94,9 +94,12 @@ export class ModelCustomPlayer extends ModelBiped {
 
   /**
    * The first-person hand: the model's right arm posed like Steve's (idle sway), with its
-   * shoulder where Steve's would be, in the frame ItemRenderer set up for Steve's arm.
+   * shoulder where Steve's would be, in the frame ItemRenderer set up for Steve's arm. False when
+   * the model has no right arm to show.
    */
-  renderFirstPersonArm(e: Entity | null): void {
+  renderFirstPersonArm(e: Entity | null): boolean {
+    // No triangles bound to the right arm: Steve's arm (with the skin) stands in.
+    if (!this.mesh.hasArm) return false;
     GL.color(1, 1, 1);
     this.onGround = 0;
     this.setRotationAngles(0, 0, 0, 0, 0, f(0.0625), e);
@@ -105,6 +108,7 @@ export class ModelCustomPlayer extends ModelBiped {
     writeMatrix(this.bones, 0, p.rotationPointX / 16, p.rotationPointY / 16, p.rotationPointZ / 16, p.rotateAngleX, p.rotateAngleY, p.rotateAngleZ, pv[0], pv[1], pv[2]);
     for (let k = 1; k < MAX_BONES; k++) this.bones.copyWithin(k * 16, 0, 16);
     this.mesh.draw(this.bones, true);
+    return true;
   }
 }
 
