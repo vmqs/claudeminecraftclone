@@ -18,7 +18,6 @@ import { encodeData, encodeWear, MODEL_CHANNEL } from '../src/net/ModelSync';
 import { MODEL_CHANGE_TICKS } from '../src/net/server/ModelRelay';
 import { MovementInput } from '../src/client/MovementInput';
 import { PlayerSkinRegistry } from '../src/client/skin/PlayerSkins';
-import { SKIN_BYTES } from '../src/client/skin/SkinImage';
 import { setServer } from '../src/command/CommandServer';
 import { CommandHandler } from '../src/command/CommandHandler';
 import { EntityOtherPlayerMP } from '../src/entity/EntityOtherPlayerMP';
@@ -30,8 +29,6 @@ import { PlayerControllerGuest } from '../src/net/client/PlayerControllerGuest';
 import type { WorldClient } from '../src/net/client/WorldClient';
 import { encodeFrame } from '../src/net/protocol/Packets';
 import { LanServer } from '../src/net/server/LanServer';
-import { SKIN_CHANGE_TICKS } from '../src/net/server/SkinRelay';
-import { SKIN_CHANNEL } from '../src/net/SkinSync';
 import { MemoryHub } from '../src/net/transport/MemoryTransport';
 import { Chunk } from '../src/world/Chunk';
 import { EnumGameType } from '../src/world/EnumGameType';
@@ -40,13 +37,6 @@ import { check, report } from './harness';
 
 registerBlockItems();
 
-/** A 64x32 skin whose first pixel is (r, g, b); the hat area keeps one see-through pixel. */
-function skin(r: number, g: number, b: number): Uint8Array {
-  const s = new Uint8Array(SKIN_BYTES);
-  for (let i = 0; i < s.length; i += 4) s.set([r, g, b, 255], i);
-  s[(2 * 64 + 40) * 4 + 3] = 0;
-  return s;
-}
 
 const info = new WorldInfo();
 info.worldName = 'Models';

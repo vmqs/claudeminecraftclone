@@ -79,6 +79,8 @@ src/
   main.ts                  boot: create canvas, load assets, start Minecraft
   client/                  Minecraft (main loop), Timer, GameSettings, KeyBinding, input,
                            PlayerControllerCreative, EntityPlayerSP, MovementInput, devtools
+  client/model/            custom player models: FBX/glTF/OBJ parsers, ModelBuilder (normalise,
+                           rig), the .mcpm format, PlayerModels registry, IndexedDB store, import worker
   core/                    JavaRandom, MathHelper, AxisAlignedBB, Vec3, MovingObjectPosition,
                            Facing, NBT-ish helpers, I18n (StringTranslate over lang/en_US.lang)
   assets/                  ResourceManager (layered packs), manifest types, image/text/sound loading,

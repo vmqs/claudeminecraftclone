@@ -15,4 +15,6 @@ Status (commit after each):
 - [x] 5 rendering (GL.drawSkinned, ModelCustomPlayer, RenderPlayer/ItemRenderer hooks)
 - [x] 6 Account Manager + import worker + IndexedDB  - [x] 7 MC|Model sync (protocol 4)
 - [x] tests/models.test.ts (145 checks)
-- [ ] tests/netmodels.test.ts, scripts/scenarios/models.json + browser run, docs (ARCHITECTURE §13, TESTING, README credits)
+- [x] tests/netmodels.test.ts (20), scripts/scenarios/models.json (3 browser runs done: models x2, mp-models x1), docs
+- Done. Possible follow-ups: per-vertex colours (glTF COLOR_0) are ignored; no "turn around" button for
+  imported models whose front/back cannot be told apart (blocky bodies without toes); no LOD.
