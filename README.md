@@ -35,7 +35,8 @@ to each other (WebRTC); there is no game server to run.
   **Import Model...** (a `.glb`, `.gltf`, `.fbx` or `.obj` file with its textures, or a `.zip`
   of them). Imported models are scaled to a player's 1.8 blocks, turned to face forward, rigged
   from their skeleton (or by their shape when they have none) and animated like Steve; they are
-  kept in the browser (**Delete Model** removes one). Other players in a room see your model
+  kept in the browser (**Delete Model** removes one, **Turn Around** turns one that faces
+  backwards). Other players in a room see your model
   (imported ones up to 3 MB).
 - **Host:** in your world press Esc → **Open to LAN**, pick the game mode for other players and
   Allow Cheats, then **Start LAN World** (or type `/publish`). The chat shows a

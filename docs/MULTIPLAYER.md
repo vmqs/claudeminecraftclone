@@ -12,7 +12,7 @@ carry the WebRTC handshake. See **Privacy and security** below for what that exp
 Manager...** in Options) holds the player's **name** and **skin**: a field for the name, a
 turning preview of the player model wearing the skin, **Upload Skin...**
 and **Reset to Steve**, and the **player model** (**Model:** Steve / the built-in models / imported
-ones, **Import Model...**, **Delete Model**). The host plays and the guests join under that name.
+ones, **Import Model...**, **Delete Model**, **Turn Around**). The host plays and the guests join under that name.
 
 **Hosting.** Start or load a world, press Esc and choose **Open to LAN**. The screen has the
 1.5.2 settings (**Game Mode** for other players, **Allow Cheats**). Press **Start LAN World**.

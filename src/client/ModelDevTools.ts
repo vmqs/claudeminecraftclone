@@ -1,7 +1,7 @@
 import { GuiAccountManager } from '../gui/GuiAccountManager';
 import { customModelForKey, customModelStats } from '../render/entity/CustomPlayerModels';
 import type { Minecraft } from './Minecraft';
-import { importModelFiles } from './model/ModelImport';
+import { importModelFiles, turnUserModel } from './model/ModelImport';
 import { PlayerModels, STEVE_KEY, type ModelKey } from './model/PlayerModels';
 
 /**
@@ -154,6 +154,12 @@ export class ModelDevTools {
       { name: 'person.mtl', bytes: enc.encode('newmtl body\nKd 1 1 1\nmap_Kd person.png\n') },
       { name: 'person.png', bytes: png },
     ];
+  }
+
+  /** Turn Around for the worn imported model; resolves with its new key (null: not imported). */
+  async turnAround(): Promise<string | null> {
+    const key = PlayerModels.local;
+    return key.startsWith('data:') ? turnUserModel(key.slice(5)) : null;
   }
 
   /** What is chosen, loaded and drawn. */

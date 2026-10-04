@@ -1,6 +1,6 @@
 import type { BuildReport } from './ModelBuilder';
 import { ModelStore } from './ModelStore';
-import { modelHash } from './PlayerModelFormat';
+import { decodePlayerModel, encodePlayerModel, modelHash, turnAround } from './PlayerModelFormat';
 import { PlayerModels } from './PlayerModels';
 import { refreshUserModels } from './PlayerModelsInstall';
 
@@ -99,4 +99,29 @@ export async function readFiles(files: File[]): Promise<{ files: { name: string;
     out.push({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) });
   }
   return { files: out };
+}
+
+/**
+ * Turns an imported model round (Turn Around): the turned file replaces the old one in storage
+ * and is worn instead. Resolves with the new key, or null when the model is gone.
+ */
+export async function turnUserModel(hash: string): Promise<string | null> {
+  const store = await ModelStore.open();
+  const bytes = (await store.get(hash)) ?? PlayerModels.bytesFor(`data:${hash}`);
+  if (!bytes) return null;
+  const meta = PlayerModels.user.find((u) => u.hash === hash);
+  const turned = encodePlayerModel(turnAround(decodePlayerModel(bytes)));
+  const newHash = modelHash(turned);
+  const key = PlayerModels.putData(turned);
+  try {
+    await store.put({ hash: newHash, name: meta?.name ?? 'Model', credits: meta?.credits ?? '', size: turned.length, added: meta?.added ?? Date.now() }, turned);
+    await store.remove(hash);
+  } catch (e) {
+    console.warn('[models] could not save the turned model', e);
+  }
+  await refreshUserModels();
+  if (!PlayerModels.user.some((u) => u.hash === newHash)) PlayerModels.user.push({ hash: newHash, name: meta?.name ?? 'Model', credits: meta?.credits ?? '', size: turned.length, added: Date.now() });
+  PlayerModels.setLocal(key);
+  PlayerModels.forgetUser(hash);
+  return key;
 }

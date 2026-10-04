@@ -83,7 +83,8 @@ Manager's Model button; `'steve'`, `'john_marston'`, `'Trevor'`, `'data:<hash>'`
 (another player's model), `testModelFiles(color?)` (an OBJ + MTL + PNG person of boxes lying in
 Z-up, facing -X, arms in a T-pose: what Import Model... must straighten out),
 `importFiles([{name, bytes | text | base64}])` and `importUrls(urls)` (Import Model... without a
-file picker, through the open Account Manager when there is one), `state()` (local key and
+file picker, through the open Account Manager when there is one), `turnAround()` (Turn Around
+for the worn imported model), `state()` (local key and
 name, built-ins, imported models, other players' keys, models on the GPU) and
 `measureFrames(ms)` (average and worst frame time).
 `mc.dev.controls` (`src/client/ControlsDevTools.ts`): `bindings()`, `bind(name, code)` (by

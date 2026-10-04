@@ -33,6 +33,7 @@ import {
   PART_RIGHT_ARM,
   PART_RIGHT_LEG,
   type PlayerModelData,
+  turnAround,
 } from '../src/client/model/PlayerModelFormat';
 import { MAX_NET_MODEL_BYTES, PlayerModelRegistry } from '../src/client/model/PlayerModels';
 import { ModelBiped } from '../src/render/entity/ModelBiped';
@@ -668,6 +669,26 @@ for (const [n, region, side] of names) {
     }
   }
   check('format: bit flips fail cleanly', odd === 0, `${odd}`);
+}
+
+// ------------------------------------------------------------------ Turn Around
+
+{
+  const t = turnAround(noob);
+  checkRig('noob turned around', t);
+  const back = turnAround(t);
+  let same = back.positions.every((v, i) => Math.abs(v - noob.positions[i]) < 1e-6) && back.joints.every((j, i) => j === noob.joints[i]);
+  same &&= JSON.stringify(back.rig.pivots) === JSON.stringify(noob.rig.pivots.map((p) => p.map((v) => (v === 0 ? 0 : v))));
+  check('turn around twice: the same model', same);
+  // The noob's face (front) is on -Z after turning: the head's front vertices moved behind.
+  const zMax = (m: PlayerModelData) => {
+    let z = -Infinity;
+    for (let i = 0; i < m.positions.length; i += 3) if (m.positions[i + 1] > 1.5) z = Math.max(z, m.positions[i + 2]);
+    return z;
+  };
+  check('turn around: front and back swap', Math.abs(zMax(t) - -Math.min(...[...noob.positions].filter((_, i) => i % 3 === 2 && noob.positions[i - 1] > 1.5))) < 1e-5);
+  const bytes = encodePlayerModel(t);
+  check('turn around: still a valid file', decodePlayerModel(bytes).indices.length === noob.indices.length);
 }
 
 // ------------------------------------------------------------------ registry

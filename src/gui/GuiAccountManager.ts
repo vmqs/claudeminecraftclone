@@ -1,5 +1,5 @@
 import { Keyboard } from '../client/Keyboard';
-import { deleteUserModel, importModelFiles, pickModelFiles, readFiles } from '../client/model/ModelImport';
+import { deleteUserModel, importModelFiles, pickModelFiles, readFiles, turnUserModel } from '../client/model/ModelImport';
 import { MAX_NET_MODEL_BYTES, PlayerModels, STEVE_KEY, type ModelKey } from '../client/model/PlayerModels';
 import { PlayerSkins } from '../client/skin/PlayerSkins';
 import { pickPngFile, readSkinFile, saveSkin } from '../client/skin/SkinFiles';
@@ -27,13 +27,15 @@ const STATUS_OK = 0x55ff55;
 const BUTTON_MODEL = 3;
 const BUTTON_IMPORT = 4;
 const BUTTON_DELETE = 5;
+const BUTTON_TURN = 6;
 
 /**
  * "Account Manager": everything about the player in one 1.5.2-style screen (the launcher's job
  * in 1.5.2). The username (3 to 16 letters, digits or _, used in single player, when hosting a
  * LAN game and when joining one), the player model ("Model: Steve" cycles through Steve, the
  * built-in models and imported ones; "Import Model..." reads GLB, glTF, FBX or OBJ files, a .zip
- * of them, or a .mcpm; "Delete Model" removes an imported one) and Steve's skin ("Upload
+ * of them, or a .mcpm; "Delete Model" removes an imported one, "Turn Around" turns one whose
+ * front and back were mixed up) and Steve's skin ("Upload
  * Skin..." for a 64x32 or 64x64 PNG, "Reset to Steve"). The preview shows the chosen model
  * turning slowly. Opened from the title screen and from Options.
  */
@@ -44,6 +46,7 @@ export class GuiAccountManager extends GuiScreen {
   private buttonModel!: GuiButton;
   private buttonImport!: GuiButton;
   private buttonDelete!: GuiButton;
+  private buttonTurn!: GuiButton;
   private status = '';
   private statusColor = STATUS_INFO;
   /** The preview's automatic turn; it cannot be dragged. */
@@ -77,6 +80,8 @@ export class GuiAccountManager extends GuiScreen {
     this.buttonList.push((this.buttonDelete = new GuiButton(BUTTON_DELETE, rx + 86, top + 76, 84, 20, 'Delete Model')));
     this.buttonList.push((this.buttonUpload = new GuiButton(1, rx, top + 110, 84, 20, 'Upload Skin...')));
     this.buttonList.push(new GuiButton(2, rx + 86, top + 110, 84, 20, 'Reset to Steve'));
+    // Under the preview, for imported models whose front and back were mixed up.
+    this.buttonList.push((this.buttonTurn = new GuiButton(BUTTON_TURN, this.box.x, top + 146, this.box.w, 20, 'Turn Around')));
     this.buttonList.push((this.buttonDone = new GuiButton(200, cx - 100, top + 168, I18n.translateToLocal('gui.done'))));
     void PlayerModels.loadBuiltins().then(() => {
       if (this.mc?.currentScreen === this) this.updateButtons();
@@ -92,7 +97,10 @@ export class GuiAccountManager extends GuiScreen {
     this.buttonModel.displayString = this.fontRenderer.getStringWidth(label) > 160 ? this.fontRenderer.trimStringToWidth(label, 150) + '...' : label;
     this.buttonModel.enabled = !this.importing;
     this.buttonImport.enabled = !this.picking && !this.importing;
-    this.buttonDelete.enabled = !this.importing && key.startsWith('data:') && PlayerModels.user.some((u) => `data:${u.hash}` === key);
+    const imported = key.startsWith('data:') && PlayerModels.user.some((u) => `data:${u.hash}` === key);
+    this.buttonDelete.enabled = !this.importing && imported;
+    this.buttonTurn.drawButton = imported;
+    this.buttonTurn.enabled = !this.importing && imported;
     this.pinPreview(key);
   }
 
@@ -185,6 +193,23 @@ export class GuiAccountManager extends GuiScreen {
         this.setStatus(`Deleted ${name}`, STATUS_OK);
         this.updateButtons();
       });
+    } else if (b.id === BUTTON_TURN) {
+      const key = PlayerModels.local;
+      if (!key.startsWith('data:')) return;
+      this.importing = true;
+      this.updateButtons();
+      void turnUserModel(key.slice(5)).then(
+        (k) => {
+          this.importing = false;
+          this.setStatus(k ? 'Turned the model around' : 'The model is gone', k ? STATUS_OK : STATUS_ERROR);
+          this.updateButtons();
+        },
+        () => {
+          this.importing = false;
+          this.setStatus('The model could not be turned', STATUS_ERROR);
+          this.updateButtons();
+        },
+      );
     } else if (b.id === 200) {
       if (!this.commitName()) return;
       this.mc.displayGuiScreen(this.parentScreen);

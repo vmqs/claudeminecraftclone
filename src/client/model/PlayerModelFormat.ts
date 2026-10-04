@@ -345,3 +345,35 @@ export function modelHash(bytes: Uint8Array): string {
   const hex = (n: number) => (n >>> 0).toString(16).padStart(8, '0');
   return hex(h1) + hex(h2) + hex(h3) + hex(h4);
 }
+
+/**
+ * The model turned half a circle about its up axis (for imports whose front and back could not
+ * be told apart): x and z change sign, and the left and right arms and legs swap parts.
+ */
+export function turnAround(m: PlayerModelData): PlayerModelData {
+  const positions = m.positions.slice();
+  const normals = m.normals.slice();
+  for (let i = 0; i < positions.length; i += 3) {
+    positions[i] = -positions[i];
+    positions[i + 2] = -positions[i + 2];
+    normals[i] = -normals[i];
+    normals[i + 2] = -normals[i + 2];
+  }
+  const swap = [0, 1, 3, 2, 5, 4];
+  const joints = m.joints.map((j) => swap[j] ?? j);
+  const turn = (p: readonly number[]): [number, number, number] => [-p[0], p[1], -p[2]];
+  const r = m.rig;
+  return {
+    ...m,
+    positions,
+    normals,
+    joints,
+    rig: {
+      pivots: swap.map((k) => turn(r.pivots[k])),
+      hands: [turn(r.hands[1]), turn(r.hands[0])],
+      headCenter: turn(r.headCenter),
+      headSize: r.headSize,
+      source: r.source,
+    },
+  };
+}
