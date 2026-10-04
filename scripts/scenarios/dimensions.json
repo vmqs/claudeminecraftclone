@@ -109,7 +109,14 @@
   "shot": "dim_6_end_platform.png"
  },
  {
-  "eval": "(() => { mc.dev.look(90, -30); mc.dev.ticks(1); return mc.dev.dims.state(); })()"
+  "eval": "(() => { mc.gameSettings.renderDistance = 1; mc.renderGlobal.loadRenderers(); mc.dev.look(90, -30); mc.dev.ticks(1); return mc.dev.dims.state(); })()"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "waitFor": "mc.dev.pendingSections(3) === 0",
+  "timeout": 240000
  },
  {
   "wait": 1500
