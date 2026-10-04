@@ -77,6 +77,15 @@ one), `setRemoteSkin(name, dataUrl | null)`, `localPixel(x, y)` / `remotePixel(n
 `directconnect`, `roomcode`, `addserver`, `connecting`, `disconnected`, `splash`) and
 `showBootSplash(i)` (stops the game loop and draws the boot splash as start-up does). Debug
 screens for `mc.dev.screen(name)`: `accountmanager`, `roomcode`, `splash1`, `splash2`.
+`mc.dev.models` (`src/client/ModelDevTools.ts`): `select(idOrNameOrKey)` (as the Account
+Manager's Model button; `'steve'`, `'john_marston'`, `'Trevor'`, `'data:<hash>'`),
+`whenReady(key?)` (resolves true once the model is on the GPU), `setRemote(name, key | null)`
+(another player's model), `testModelFiles(color?)` (an OBJ + MTL + PNG person of boxes lying in
+Z-up, facing -X, arms in a T-pose: what Import Model... must straighten out),
+`importFiles([{name, bytes | text | base64}])` and `importUrls(urls)` (Import Model... without a
+file picker, through the open Account Manager when there is one), `state()` (local key and
+name, built-ins, imported models, other players' keys, models on the GPU) and
+`measureFrames(ms)` (average and worst frame time).
 `mc.dev.controls` (`src/client/ControlsDevTools.ts`): `bindings()`, `bind(name, code)` (by
 description such as `'Zoom'` or `'Hotbar Slot 1'`), `state()` (zoom, smooth camera, sprinting,
 sprint mode and toggle, current item, the Controls screen's scroll row), `scrollControls(row)`,
@@ -171,6 +180,14 @@ node scripts/shot.mjs end                    # ?dim=1 (travels to the End on ope
                                              # awake / armoured there; then the dragon and
                                              # the Wither in a flat world framed like the vanilla captures in
                                              # ref/extra/end (asserts)
+node scripts/shot.mjs models                 # Account Manager: Steve, John Marston, Trevor, the Noob, an imported
+                                             # OBJ (Z up, T-pose), a refused file; after a reload (kept in IndexedDB)
+                                             # the models in the world: F5 back/front with a sword, walking,
+                                             # sneaking, swinging, the first-person hand, the inventory, a line-up of
+                                             # other players (sword, sneaking, bow, blocking, in bed), hurt and
+                                             # invisible, and frame times with four custom models (asserts)
+node scripts/mp-models.mjs --out shots/mp-models   # two players: John Marston and an imported model (sent by
+                                                   # hash through the host), then the Noob (asserts)
 node scripts/shot.mjs path/to/scenario.json --url http://localhost:5173/ --server none
 ```
 
@@ -420,3 +437,29 @@ repository), and checks that terrain made ahead and the order chunks are generat
 nothing. `nether-spawning` runs the mob spawner in a generated Nether area around a fortress
 (blazes and wither skeletons with stone swords in the fortress, ghasts outside, no overworld
 monsters); `nether-blocks` the Nether's lava, water buckets, ice and nether wart.
+
+## Player models
+
+```sh
+node scripts/run-node-test.mjs tests/models.test.ts tests/netmodels.test.ts
+node scripts/shot.mjs models
+npx vite build && node scripts/mp-models.mjs --out shots/mp-models
+```
+
+`tests/models.test.ts` checks the three built-in models (`public/models/`: 1.8 blocks tall, feet
+on y = 0, centred, every ModelBiped part present, pivots in order, hands hanging, John Marston
+rigged from its skeleton, the Noob by its shape, at most 3 MiB), the import pipeline on
+synthetic models (an OBJ person lying in Z-up and facing -X with T-pose arms, which must come out
+upright, facing +Z with its arms down; a skinned glTF with Mixamo bone names and the same as a
+.glb; a binary FBX written by the test; an ASCII FBX; a .zip with an OBJ, its MTL and a texture
+named by a Windows path), bone and mesh names of the common rigs, ModelBiped posing (rest =
+identity, the hip stays put while the leg swings) and `decodePlayerModel` against damaged and
+hostile files (counts, ranges, indices, a deflate bomb, 300 bit flips: only `ModelFormatError`).
+With `MODEL_PREVIEW_DIR=<dir>` it writes software-rendered previews of each built-in model
+(front, side, walking, sneaking, swinging; `tests/modelPreview.ts`), so poses can be looked at
+without a browser. `tests/netmodels.test.ts` runs a LAN game with three guests (see
+docs/MULTIPLAYER.md, `MC|Model`).
+
+The built-in models are made with `node scripts/convert-models.mjs <downloads dir>` (the user's
+three downloads unpacked; Trevor's RAR needs `node-unrar-js`, see the script); it prints each
+model's size, rig, up axis and facing and the parts' vertex counts.
