@@ -1,6 +1,7 @@
 /// <reference lib="webworker" />
 import '../block/Blocks';
-import { ChunkProviderGenerate } from '../world/gen/ChunkProviderGenerate';
+import { type ChunkGenerator, ChunkProviderGenerate } from '../world/gen/ChunkProviderGenerate';
+import { DimensionGenerators } from '../world/gen/DimensionGenerators';
 import { terrainTransferables, toTerrainChunk } from '../world/gen/TerrainChunk';
 import type { TerrainRequest, TerrainResponse } from './worldgenProtocol';
 
@@ -12,13 +13,17 @@ declare const self: DedicatedWorkerGlobalScope;
  * population, in parallel with it. Terrain is a pure function of seed and position, so the
  * result is the same as making it in the world-generation worker.
  */
-let gen: ChunkProviderGenerate | null = null;
+let gen: ChunkGenerator | null = null;
 let round: number | undefined;
 
 self.onmessage = (e: MessageEvent<TerrainRequest>) => {
   const m = e.data;
   if (m.type === 'init') {
-    gen = new ChunkProviderGenerate(BigInt(m.seed), false, m.worldType);
+    const dimension = m.dimension ?? 0;
+    gen =
+      dimension === 0
+        ? new ChunkProviderGenerate(BigInt(m.seed), false, m.worldType)
+        : DimensionGenerators.create(dimension, { seed: BigInt(m.seed), worldType: m.worldType, mapFeatures: m.mapFeatures ?? true, generatorOptions: m.generatorOptions ?? null });
     round = m.round;
     return;
   }
@@ -28,6 +33,7 @@ self.onmessage = (e: MessageEvent<TerrainRequest>) => {
     reply = { type: 'failed', cx: m.cx, cz: m.cz, round: m.round };
   } else {
     try {
+      if (!gen.provideTerrain) throw new Error('this generator makes no separate terrain');
       reply = { type: 'terrain', chunk: toTerrainChunk(m.cx, m.cz, gen.provideTerrain(m.cx, m.cz)), round };
     } catch (err) {
       console.error(`[terrain] chunk ${m.cx},${m.cz} failed`, err);

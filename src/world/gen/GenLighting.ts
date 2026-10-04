@@ -70,7 +70,7 @@ function spread(light: Uint8Array, head0: number, tail0: number, topY: number): 
  * center chunk's sections, or into the arrays `out` gives for each existing section (the chunk's own
  * light is then left as it is).
  */
-export function computeChunkLight(around: Chunk[], center: Chunk, out?: (sy: number) => { skyLight: Uint8Array; blockLight: Uint8Array } | null): void {
+export function computeChunkLight(around: Chunk[], center: Chunk, out?: (sy: number) => { skyLight: Uint8Array; blockLight: Uint8Array } | null, noSky = false): void {
   let topY = 0;
   for (const c of around) topY = Math.max(topY, c.getTopFilledSegment() + 16);
   topY = Math.min(256, Math.max(topY, 16));
@@ -113,8 +113,9 @@ export function computeChunkLight(around: Chunk[], center: Chunk, out?: (sy: num
   }
   spread(blk, 0, tail, topY);
 
-  // Sky: full light down to the height map of each column, then spread sideways and down.
-  for (let lz = 0; lz < W; lz++) {
+  // Sky: full light down to the height map of each column, then spread sideways and down
+  // (none at all in a world without a sky: the Nether and the End).
+  for (let lz = 0; lz < W && !noSky; lz++) {
     for (let lx = 0; lx < W; lx++) {
       let y = topY;
       while (y > 0 && opacity[((y - 1) * W + lz) * W + lx] === 0) y--;
@@ -123,7 +124,7 @@ export function computeChunkLight(around: Chunk[], center: Chunk, out?: (sy: num
     }
   }
   tail = 0;
-  for (let lz = 0; lz < W; lz++) {
+  for (let lz = 0; lz < W && !noSky; lz++) {
     for (let lx = 0; lx < W; lx++) {
       const h = heights[lz * W + lx];
       let maxN = h;
@@ -140,14 +141,14 @@ export function computeChunkLight(around: Chunk[], center: Chunk, out?: (sy: num
       }
     }
   }
-  spread(sky, 0, tail, topY);
+  if (!noSky) spread(sky, 0, tail, topY);
 
   for (let sy = 0; sy < 16; sy++) {
     const s = out ? (center.sections[sy] ? out(sy) : null) : center.sections[sy];
     if (!s) continue;
     const yBase = sy << 4;
     if (yBase >= topY) {
-      s.skyLight.fill(15);
+      s.skyLight.fill(noSky ? 0 : 15);
       s.blockLight.fill(0);
       continue;
     }
