@@ -1,0 +1,200 @@
+[
+ {
+  "goto": "?dev=1&autostart=1&seed=-1357935714&type=flat&time=6000"
+ },
+ {
+  "waitFor": "mc.dev.isInGame()",
+  "timeout": 600000
+ },
+ {
+  "eval": "(() => { const p = mc.thePlayer, w = mc.theWorld; const ox = Math.floor(p.posX) + 0.5, oz = Math.floor(p.posZ) + 0.5; const pose = (e, yaw) => { e.rotationYaw = e.prevRotationYaw = yaw; e.renderYawOffset = e.prevRenderYawOffset = yaw; e.rotationYawHead = e.prevRotationYawHead = yaw; e.rotationPitch = e.prevRotationPitch = 0; e.lastTickPosX = e.posX; e.lastTickPosY = e.posY; e.lastTickPosZ = e.posZ; e.prevPosX = e.posX; e.prevPosY = e.posY; e.prevPosZ = e.posZ; return e; }; const clear = () => { for (const e of [...w.loadedEntityList]) if (e !== p && e.isLivingEntity) e.setDead(); mc.dev.ticks(1); }; const put = (name, x, y, z, yaw, ...args) => { const e = mc.dev.newEntity(name, ...args); e.setLocationAndAngles(x, y, z, yaw, 0); w.spawnEntityInWorld(e); return pose(e, yaw); }; window.MP = { ox, oz, pose, clear, put, single(name, pitch, dz, yaw, setup) { mc.dev.sky.unfreeze(); clear(); mc.dev.tp(ox, 4, oz, 0, pitch); const e = put(name, ox, 4, oz + dz, yaw); if (setup) setup(e); mc.dev.sky.pin(6000); pose(e, yaw); return { name, cls: e.constructor.name, texture: e.getTexture(), x: e.posX, z: e.posZ }; } }; mc.gameSettings.renderDistance = 1; mc.gameSettings.fancyGraphics = true; mc.gameSettings.clouds = true; mc.gameSettings.particleSetting = 0; mc.dev.weather('clear'); w.worldInfo.gameRules.doMobSpawning = false; mc.dev.tp(ox, 4, oz, 0, 25); return { ox, oz }; })()"
+ },
+ {
+  "wait": 1000
+ },
+ {
+  "waitFor": "mc.dev.pendingSections(4) === 0",
+  "timeout": 600000
+ },
+ {
+  "wait": 500
+ },
+ {
+  "eval": "MP.single('Pig', 25, 2.5, 180, null)"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "mp_pig.png"
+ },
+ {
+  "eval": "MP.single('Pig', 25, 2.5, 225, null)"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "mp_pig_34.png"
+ },
+ {
+  "eval": "MP.single('Cow', 18, 3, 180, null)"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "mp_cow.png"
+ },
+ {
+  "eval": "MP.single('Cow', 18, 3, 225, null)"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "mp_cow_34.png"
+ },
+ {
+  "eval": "MP.single('Sheep', 18, 3, 180, e => e.setFleeceColor(0))"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "mp_sheep.png"
+ },
+ {
+  "eval": "MP.single('Sheep', 18, 3, 225, e => e.setFleeceColor(0))"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "mp_sheep_34.png"
+ },
+ {
+  "eval": "MP.single('Chicken', 32, 2, 180, null)"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "mp_chicken.png"
+ },
+ {
+  "eval": "MP.single('Chicken', 32, 2, 225, null)"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "mp_chicken_34.png"
+ },
+ {
+  "eval": "MP.single('Wolf', 15, 2.5, 225, null)"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "mp_wolf_34.png"
+ },
+ {
+  "eval": "MP.single('Villager', 5, 3, 225, e => e.setProfession(0))"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "mp_villager_34.png"
+ },
+ {
+  "eval": "MP.single('MushroomCow', 20, 3, 225, null)"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "mp_mooshroom_34.png"
+ },
+ {
+  "eval": "MP.single('Ozelot', 20, 2.5, 225, null)"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "mp_ocelot_34.png"
+ },
+ {
+  "eval": "MP.single('VillagerGolem', -10, 4.5, 225, null)"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "mp_irongolem_34.png"
+ },
+ {
+  "eval": "MP.single('SnowMan', 5, 3, 225, null)"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "mp_snowgolem_34.png"
+ },
+ {
+  "eval": "(() => { mc.dev.sky.unfreeze(); MP.clear(); const { ox, oz, put } = MP; mc.dev.tp(ox, 4, oz, 0, 15); const z = oz + 6, out = []; const pig = put('Pig', ox - 5, 4, z, 180); pig.setSaddled(true); const s1 = put('Sheep', ox - 3.5, 4, z, 180); s1.setFleeceColor(14); const s2 = put('Sheep', ox - 2, 4, z, 180); s2.setFleeceColor(11); const s3 = put('Sheep', ox - 0.5, 4, z, 180); s3.setFleeceColor(15); const s4 = put('Sheep', ox + 1, 4, z, 180); s4.setSheared(true); const wolf = put('Wolf', ox + 2.5, 4, z, 180); wolf.setTamed(true); wolf.setOwner(mc.thePlayer.username); wolf.setCollarColor(14); wolf.setSitting(true); wolf.setEntityHealth(20); const angry = put('Wolf', ox + 3.7, 4, z, 180); angry.setAngry(true); const cats = [1, 2, 3].map((k, i) => { const c = put('Ozelot', ox + 5 + i * 1.1, 4, z, 180); c.setTamed(true); c.setTameSkin(k); c.setSitting(true); return c.getTexture(); }); mc.dev.sky.pin(6000); return { pig: pig.getSaddled(), wolfTex: wolf.getTexture(), angryTex: angry.getTexture(), cats }; })()"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "mp_variants.png"
+ },
+ {
+  "eval": "(() => { mc.dev.sky.unfreeze(); MP.clear(); const { ox, oz, put } = MP; const w = mc.theWorld; mc.dev.tp(ox, 4, oz, 0, 8); const z = oz + 7, out = {}; const babies = ['Pig', 'Cow', 'Sheep', 'Chicken', 'Wolf', 'Villager'].map((n, i) => { const e = put(n, ox - 6 + i * 1.1, 4, z - 2.5, 180); e.setGrowingAge(-24000); return e.isChild(); }); out.babies = babies; const profs = [0, 1, 2, 3, 4].map((k, i) => { const v = put('Villager', ox + 0.8 + i * 1.1, 4, z, 180); v.setProfession(k); return v.getTexture(); }); out.profs = profs; const g = put('VillagerGolem', ox - 4.5, 4, z + 2, 180); g.handleHealthUpdate(11); out.rose = g.getClientHoldRoseTick(); for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) w.setBlock(Math.floor(ox + 6.5) + dx, 7, Math.floor(z - 2) + dz, 1, 0, 3); const bat = put('Bat', Math.floor(ox + 6.5) + 0.5, 6.1, Math.floor(z - 2) + 0.5, 180); bat.setIsBatHanging(true); bat.posY = 7 - bat.height; bat.lastTickPosY = bat.posY; out.batY = bat.posY; const fly = put('Bat', ox - 1.5, 5.5, z - 1, 180); fly.setIsBatHanging(false); const squid = put('Squid', ox + 7.5, 4.6, z + 1.5, 180); out.squid = squid.getTexture(); mc.dev.sky.pin(6000); return out; })()"
+ },
+ {
+  "wait": 2000
+ },
+ {
+  "shot": "mp_variants2.png"
+ },
+ {
+  "eval": "(() => { mc.dev.sky.unfreeze(); MP.clear(); const { ox, oz, put } = MP; const p = mc.thePlayer, w = mc.theWorld, S = mc.dev.lib.ItemStack; const out = {}; const cow = put('Cow', ox, 4, oz + 2, 180); p.inventory.setInventorySlotContents(0, new S(325, 1, 0)); p.inventory.currentItem = 0; out.milk = (p.interactWith(cow), p.inventory.getStackInSlot(0)?.itemID); const sheep = put('Sheep', ox + 2, 4, oz + 2, 180); p.inventory.setInventorySlotContents(0, new S(359, 1, 0)); p.interactWith(sheep); out.sheared = sheep.getSheared(); const wolf = put('Wolf', ox - 2, 4, oz + 2, 180); p.inventory.setInventorySlotContents(0, new S(352, 64, 0)); for (let i = 0; i < 64 && !wolf.isTamed(); i++) p.interactWith(wolf); out.tamed = wolf.isTamed(); const golem = put('VillagerGolem', ox, 4, oz + 8, 180); mc.dev.ticks(100); out.golemTargetsCreative = golem.getAttackTarget() === p; out.alive = w.loadedEntityList.filter(e => e.isLivingEntity && !e.isDead).length; p.inventory.setInventorySlotContents(0, null); return out; })()"
+ },
+ {
+  "eval": "(() => { MP.clear(); const { ox, oz, put } = MP; const p = mc.thePlayer; mc.dev.tp(ox, 4, oz, 0, 10); const v = put('Villager', ox, 4, oz + 2, 180); v.setProfession(2); const list = v.getRecipes(p); const opened = p.interactWith(v); return { opened, screen: mc.currentScreen && mc.currentScreen.constructor.name, trades: list.length, customer: v.getCustomer() === p }; })()"
+ },
+ {
+  "waitFor": "mc.currentScreen !== null",
+  "timeout": 20000
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "mp_trading.png"
+ },
+ {
+  "eval": "(() => { const c = mc.currentScreen.inventorySlots; const r = c.getMerchantInventory(); const v = mc.currentScreen.getIMerchant(); const rec = v.getRecipes(mc.thePlayer)[0]; const S = mc.dev.lib.ItemStack; const b = rec.getItemToBuy(); r.setInventorySlotContents(0, new S(b.itemID, b.stackSize, b.getItemDamage())); const b2 = rec.getSecondItemToBuy(); if (b2) r.setInventorySlotContents(1, new S(b2.itemID, b2.stackSize, b2.getItemDamage())); return { result: r.getStackInSlot(2) && r.getStackInSlot(2).itemID, sells: rec.getItemToSell().itemID }; })()"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "mp_trading_paid.png"
+ },
+ {
+  "key": "Escape"
+ },
+ {
+  "wait": 1000
+ },
+ {
+  "eval": "({ screen: mc.currentScreen, customerCleared: mc.dev.entities('Villager')[0].getCustomer() === null })"
+ }
+]

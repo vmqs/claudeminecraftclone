@@ -1,0 +1,278 @@
+package dev.polymodels.gui;
+
+import dev.polymodels.PolyModelsMod;
+import dev.polymodels.model.ModelRegistry;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiButton;
+import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.gui.GuiSlot;
+import net.minecraft.client.gui.inventory.GuiInventory;
+import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.util.Util;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.lwjgl.Sys;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+/**
+ * "Choose Player Model" (key M, or Config in the Mods list): Steve, the built-in models and the
+ * models in config/polymodels, with a live preview of your player (in a world). Clicking a row
+ * wears the model at once and saves the choice; "Reload folder" picks up new files.
+ */
+public class GuiChooseModel extends GuiScreen {
+    private static final Logger LOG = LogManager.getLogger("PolyModels");
+    private static final int BUTTON_DONE = 0;
+    private static final int BUTTON_RELOAD = 1;
+    private static final int BUTTON_FOLDER = 2;
+
+    private final GuiScreen parent;
+    private ModelList list;
+    private List<String> ids = new ArrayList<>();
+    private String status = "";
+    private int statusColor = 0xa0a0a0;
+    private int listTop;
+    private int listBottom;
+    private int lastClickedRow = -1;
+    private long lastClickTime;
+
+    public GuiChooseModel(GuiScreen parent) {
+        this.parent = parent;
+    }
+
+    private static ModelRegistry registry() {
+        return PolyModelsMod.REGISTRY;
+    }
+
+    private void refreshIds() {
+        List<String> out = new ArrayList<>();
+        out.add(ModelRegistry.STEVE);
+        for (ModelRegistry.Entry e : registry().list()) out.add(e.id);
+        ids = out;
+    }
+
+    @Override
+    public void initGui() {
+        refreshIds();
+        int listRight = width / 2 + 20;
+        int listLeft = Math.max(4, width / 2 - 160);
+        listTop = 32;
+        listBottom = height - 58;
+        list = new ModelList(mc, listRight - listLeft, height, listTop, listBottom, 26);
+        list.setSlotXBoundsFromLeft(listLeft);
+        buttonList.clear();
+        buttonList.add(new GuiButton(BUTTON_FOLDER, width / 2 - 154, height - 28, 100, 20, "Open folder"));
+        buttonList.add(new GuiButton(BUTTON_RELOAD, width / 2 - 50, height - 28, 100, 20, "Reload folder"));
+        buttonList.add(new GuiButton(BUTTON_DONE, width / 2 + 54, height - 28, 100, 20, "Done"));
+    }
+
+    @Override
+    public void handleMouseInput() throws IOException {
+        super.handleMouseInput();
+        // Scrolling and the scroll bar. Its own click test assumes the list starts at x = 0, so
+        // clicks on rows are handled in mouseClicked instead (see ModelList.elementClicked).
+        list.handleMouseInput();
+    }
+
+    @Override
+    protected void mouseClicked(int mouseX, int mouseY, int mouseButton) throws IOException {
+        super.mouseClicked(mouseX, mouseY, mouseButton);
+        if (mouseButton != 0 || mouseY < listTop || mouseY > listBottom) return;
+        int row = list.getSlotIndexFromScreenCoords(mouseX, mouseY);
+        if (row < 0) return;
+        long now = Minecraft.getSystemTime();
+        boolean doubleClick = row == lastClickedRow && now - lastClickTime < 250L;
+        lastClickedRow = row;
+        lastClickTime = now;
+        choose(row);
+        if (doubleClick) mc.displayGuiScreen(parent);
+    }
+
+    @Override
+    protected void actionPerformed(GuiButton button) {
+        if (!button.enabled) return;
+        if (button.id == BUTTON_DONE) {
+            mc.displayGuiScreen(parent);
+        } else if (button.id == BUTTON_RELOAD) {
+            registry().reloadFolder();
+            PolyModelsMod.forgetRenderers();
+            refreshIds();
+            int n = registry().list().size() - (int) registry().list().stream().filter(e -> e.builtin).count();
+            setStatus(n == 1 ? "1 model in the folder" : n + " models in the folder", 0x55ff55);
+        } else if (button.id == BUTTON_FOLDER) {
+            openFolder(registry().folder());
+        }
+    }
+
+    private void setStatus(String text, int color) {
+        status = text;
+        statusColor = color;
+    }
+
+    /**
+     * Opens the folder the way vanilla's "Open resource pack folder" does: /usr/bin/open on macOS
+     * and "cmd /C start" on Windows (AWT's Desktop is not started from the game's thread there:
+     * on macOS it can hang next to LWJGL), then Desktop, then LWJGL's Sys.openURL.
+     */
+    private void openFolder(File dir) {
+        String path = dir.getAbsolutePath();
+        Util.EnumOS os = Util.getOSType();
+        try {
+            if (os == Util.EnumOS.OSX) {
+                Runtime.getRuntime().exec(new String[]{"/usr/bin/open", path});
+                return;
+            }
+            if (os == Util.EnumOS.WINDOWS) {
+                // Vanilla's exact command (Runtime.exec splits it and Windows joins it back).
+                Runtime.getRuntime().exec(String.format("cmd.exe /C start \"Open file\" \"%s\"", path));
+                return;
+            }
+        } catch (IOException e) {
+            LOG.warn("Could not open {}", path, e);
+        }
+        try {
+            Class<?> desktop = Class.forName("java.awt.Desktop");
+            Object d = desktop.getMethod("getDesktop").invoke(null);
+            desktop.getMethod("browse", java.net.URI.class).invoke(d, dir.toURI());
+            return;
+        } catch (Throwable t) {
+            LOG.info("No desktop integration to open {}: {}", path, t.toString());
+        }
+        try {
+            Sys.openURL("file://" + path);
+        } catch (Throwable t) {
+            LOG.warn("Could not open {}", path, t);
+        }
+        // Whatever happened, say where the folder is.
+        setStatus("Folder: " + path, 0xa0a0a0);
+    }
+
+    /** Wears the model of a row (refused for damaged files). */
+    void choose(int index) {
+        if (index < 0 || index >= ids.size()) return;
+        String id = ids.get(index);
+        ModelRegistry.Entry e = registry().find(id);
+        if (e != null && e.state() == ModelRegistry.State.FAILED) {
+            setStatus(e.id + ": " + (e.error().isEmpty() ? "cannot be used" : e.error()), 0xff5555);
+            return;
+        }
+        registry().setLocal(id);
+        setStatus(e == null ? "You look like Steve (with your skin)" : "You wear " + e.name, 0x55ff55);
+    }
+
+    @Override
+    public void drawScreen(int mouseX, int mouseY, float partialTicks) {
+        drawDefaultBackground();
+        list.drawScreen(mouseX, mouseY, partialTicks);
+        drawCenteredString(fontRendererObj, "Choose Player Model", width / 2, 12, 0xffffff);
+        int px = (width / 2 + 20 + width) / 2;
+        String id = registry().local();
+        ModelRegistry.Entry e = registry().find(id);
+        if (mc.thePlayer != null) {
+            int bottom = height - 74;
+            int scale = Math.max(20, Math.min(60, (bottom - 40) * 10 / 21));
+            GlStateManager.color(1, 1, 1, 1);
+            GuiInventory.drawEntityOnScreen(px, bottom, scale, px - mouseX, bottom - scale * 3 / 2 - mouseY, mc.thePlayer);
+        } else {
+            drawCenteredString(fontRendererObj, "Join a world", px, height / 2 - 20, 0x808080);
+            drawCenteredString(fontRendererObj, "to see the preview", px, height / 2 - 10, 0x808080);
+        }
+        String caption = e == null ? "Steve" : e.state() == ModelRegistry.State.LOADING || e.state() == ModelRegistry.State.UNLOADED ? "Loading " + e.name + "..." : e.name;
+        drawCenteredString(fontRendererObj, fontRendererObj.trimStringToWidth(caption, width - px + 40), px, height - 68, 0xa0a0a0);
+        // Credits of the chosen model (built-ins name their sources).
+        String credits = e == null ? "" : e.credits;
+        int y = height - 54;
+        if (!status.isEmpty()) {
+            drawCenteredString(fontRendererObj, fontRendererObj.trimStringToWidth(status, width - 20), width / 2, y, statusColor);
+            y += 10;
+        }
+        if (!credits.isEmpty()) {
+            List<String> lines = fontRendererObj.listFormattedStringToWidth(credits, width - 20);
+            for (int i = 0; i < Math.min(status.isEmpty() ? 2 : 1, lines.size()); i++) {
+                drawCenteredString(fontRendererObj, lines.get(i), width / 2, y, 0x808080);
+                y += 10;
+            }
+        }
+        super.drawScreen(mouseX, mouseY, partialTicks);
+    }
+
+    @Override
+    public boolean doesGuiPauseGame() {
+        return false;
+    }
+
+    /** The scrolling list of models. */
+    private final class ModelList extends GuiSlot {
+        ModelList(Minecraft mc, int width, int height, int top, int bottom, int slotHeight) {
+            super(mc, width, height, top, bottom, slotHeight);
+        }
+
+        @Override
+        protected int getSize() {
+            return ids.size();
+        }
+
+        /**
+         * Unused: vanilla's GuiSlot.handleMouseInput tests clicks against (width - listWidth) / 2
+         * without the list's left edge, which is wrong for a list moved with
+         * setSlotXBoundsFromLeft. GuiChooseModel.mouseClicked uses getSlotIndexFromScreenCoords.
+         */
+        @Override
+        protected void elementClicked(int index, boolean doubleClick, int mouseX, int mouseY) {
+        }
+
+        @Override
+        protected boolean isSelected(int index) {
+            return index >= 0 && index < ids.size() && ids.get(index).equalsIgnoreCase(registry().local());
+        }
+
+        @Override
+        protected void drawBackground() {
+        }
+
+        @Override
+        public int getListWidth() {
+            return width - 14;
+        }
+
+        @Override
+        protected int getScrollBarX() {
+            return right - 6;
+        }
+
+        @Override
+        protected void drawSlot(int index, int x, int y, int slotHeight, int mouseX, int mouseY) {
+            String id = ids.get(index);
+            ModelRegistry.Entry e = registry().find(id);
+            String title;
+            String detail;
+            int detailColor = 0x808080;
+            if (e == null) {
+                title = "Steve";
+                detail = "Vanilla, with your skin";
+            } else {
+                title = e.name;
+                switch (e.state()) {
+                    case FAILED:
+                        detail = "Damaged: " + e.error();
+                        detailColor = 0xff5555;
+                        break;
+                    case LOADING:
+                        detail = "Loading...";
+                        break;
+                    default:
+                        int tris = e.triangles >= 0 ? e.triangles : e.model() != null ? e.model().triangles : -1;
+                        String size = tris >= 0 ? String.format(Locale.ROOT, "%,d triangles", tris) : "";
+                        detail = (e.builtin ? "Built in" : id + ".mcpm") + (size.isEmpty() ? "" : ", " + size);
+                }
+            }
+            int w = getListWidth() - 6;
+            fontRendererObj.drawStringWithShadow(fontRendererObj.trimStringToWidth(title, w), x + 2, y + 1, 0xffffff);
+            fontRendererObj.drawStringWithShadow(fontRendererObj.trimStringToWidth(detail, w), x + 2, y + 12, detailColor);
+        }
+    }
+}

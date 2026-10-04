@@ -1,0 +1,15 @@
+[
+  { "goto": "?dev=1&autostart=1&seed=-1357935714&hotbar=1&time=6000&pos=176.5,64,236.5,0,0" },
+  { "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(4) === 0", "timeout": 240000 },
+  { "eval": "mc.dev.tp(176.5, 64, 236.5, 0, 0); mc.dev.setTime(6000); mc.dev.select(0)" },
+  { "wait": 1500 },
+  { "eval": "mc.dev.setTime(6000)" },
+  { "shot": "spawn_noon.png" },
+  { "key": "F3" },
+  { "wait": 300 },
+  { "shot": "spawn_noon_f3.png" },
+  { "key": "F3" },
+  { "eval": "mc.dev.look(0, 60); mc.dev.select(5)" },
+  { "wait": 600 },
+  { "shot": "look_down_block_outline.png" }
+]

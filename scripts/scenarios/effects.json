@@ -1,0 +1,221 @@
+[
+ {
+  "goto": "?dev=1&autostart=1&seed=claude&type=flat&time=6000&hotbar=1"
+ },
+ {
+  "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(3) === 0",
+  "timeout": 1200000
+ },
+ {
+  "eval": "(() => { mc.timer.timerSpeed = 0; mc.timer.elapsedPartialTicks = 0; mc.dev.setTime(6000); mc.gameSettings.hideGUI = true; for (const e of mc.theWorld.loadedEntityList) if (e !== mc.thePlayer) e.setDead(); mc.dev.look(0, 0); mc.dev.ticks(2); mc.effectRenderer.clearEffects(mc.theWorld); return { pos: [mc.thePlayer.posX, mc.thePlayer.posY, mc.thePlayer.posZ] }; })()"
+ },
+ {
+  "eval": "(() => { const p = mc.thePlayer, w = mc.theWorld; const list = [[\"smoke\", 2.6, -0.4, 3.5, 0, 0, 0], [\"smoke\", 2.6, -0.4, 3.5, 0, 0, 0], [\"smoke\", 2.6, -0.4, 3.5, 0, 0, 0], [\"smoke\", 2.6, -0.4, 3.5, 0, 0, 0], [\"smoke\", 2.6, -0.4, 3.5, 0, 0, 0], [\"smoke\", 2.6, -0.4, 3.5, 0, 0, 0], [\"largesmoke\", 1.56, -0.4, 3.5, 0, 0, 0], [\"largesmoke\", 1.56, -0.4, 3.5, 0, 0, 0], [\"largesmoke\", 1.56, -0.4, 3.5, 0, 0, 0], [\"largesmoke\", 1.56, -0.4, 3.5, 0, 0, 0], [\"explode\", 0.52, -0.4, 3.5, 0, 0, 0], [\"explode\", 0.52, -0.4, 3.5, 0, 0, 0], [\"explode\", 0.52, -0.4, 3.5, 0, 0, 0], [\"explode\", 0.52, -0.4, 3.5, 0, 0, 0], [\"explode\", 0.52, -0.4, 3.5, 0, 0, 0], [\"explode\", 0.52, -0.4, 3.5, 0, 0, 0], [\"cloud\", -0.52, -0.4, 3.5, 0, 0, 0], [\"cloud\", -0.52, -0.4, 3.5, 0, 0, 0], [\"cloud\", -0.52, -0.4, 3.5, 0, 0, 0], [\"cloud\", -0.52, -0.4, 3.5, 0, 0, 0], [\"cloud\", -0.52, -0.4, 3.5, 0, 0, 0], [\"cloud\", -0.52, -0.4, 3.5, 0, 0, 0], [\"reddust\", -1.56, -0.4, 3.5, 0, 0, 0], [\"reddust\", -1.56, -0.4, 3.5, 0, 0, 0], [\"reddust\", -1.56, -0.4, 3.5, 0, 0, 0], [\"reddust\", -1.56, -0.4, 3.5, 0, 0, 0], [\"reddust\", -1.56, -0.4, 3.5, 0, 0, 0], [\"reddust\", -1.56, -0.4, 3.5, 0, 0, 0], [\"snowshovel\", -2.6, -0.4, 3.5, 0, 0, 0], [\"snowshovel\", -2.6, -0.4, 3.5, 0, 0, 0], [\"snowshovel\", -2.6, -0.4, 3.5, 0, 0, 0], [\"snowshovel\", -2.6, -0.4, 3.5, 0, 0, 0], [\"snowshovel\", -2.6, -0.4, 3.5, 0, 0, 0], [\"snowshovel\", -2.6, -0.4, 3.5, 0, 0, 0]]; for (const [n, dx, dy, dz, vx, vy, vz] of list) mc.renderGlobal.doSpawnParticle(n, p.posX + dx, p.posY + dy, p.posZ + dz, vx, vy, vz); return mc.effectRenderer.getLayerCounts(); })()"
+ },
+ {
+  "eval": "(() => { mc.dev.ticks(4); return mc.effectRenderer.getLayerCounts(); })()"
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "shot": "fx_smoke.png"
+ },
+ {
+  "eval": "mc.effectRenderer.clearEffects(mc.theWorld)"
+ },
+ {
+  "eval": "(() => { const p = mc.thePlayer, w = mc.theWorld; const list = [[\"spell\", 2.6, -0.4, 3.5, 0, 0, 0], [\"spell\", 2.6, -0.4, 3.5, 0, 0, 0], [\"spell\", 2.6, -0.4, 3.5, 0, 0, 0], [\"spell\", 2.6, -0.4, 3.5, 0, 0, 0], [\"spell\", 2.6, -0.4, 3.5, 0, 0, 0], [\"spell\", 2.6, -0.4, 3.5, 0, 0, 0], [\"instantSpell\", 1.56, -0.4, 3.5, 0, 0, 0], [\"instantSpell\", 1.56, -0.4, 3.5, 0, 0, 0], [\"instantSpell\", 1.56, -0.4, 3.5, 0, 0, 0], [\"instantSpell\", 1.56, -0.4, 3.5, 0, 0, 0], [\"instantSpell\", 1.56, -0.4, 3.5, 0, 0, 0], [\"instantSpell\", 1.56, -0.4, 3.5, 0, 0, 0], [\"mobSpell\", 0.52, -0.4, 3.5, 0.9, 0.3, 0.3], [\"mobSpell\", 0.52, -0.4, 3.5, 0.9, 0.3, 0.3], [\"mobSpell\", 0.52, -0.4, 3.5, 0.9, 0.3, 0.3], [\"mobSpell\", 0.52, -0.4, 3.5, 0.9, 0.3, 0.3], [\"mobSpell\", 0.52, -0.4, 3.5, 0.9, 0.3, 0.3], [\"mobSpell\", 0.52, -0.4, 3.5, 0.9, 0.3, 0.3], [\"mobSpellAmbient\", -0.52, -0.4, 3.5, 0.3, 0.3, 0.9], [\"mobSpellAmbient\", -0.52, -0.4, 3.5, 0.3, 0.3, 0.9], [\"mobSpellAmbient\", -0.52, -0.4, 3.5, 0.3, 0.3, 0.9], [\"mobSpellAmbient\", -0.52, -0.4, 3.5, 0.3, 0.3, 0.9], [\"mobSpellAmbient\", -0.52, -0.4, 3.5, 0.3, 0.3, 0.9], [\"mobSpellAmbient\", -0.52, -0.4, 3.5, 0.3, 0.3, 0.9], [\"witchMagic\", -1.56, -0.4, 3.5, 0, 0, 0], [\"witchMagic\", -1.56, -0.4, 3.5, 0, 0, 0], [\"witchMagic\", -1.56, -0.4, 3.5, 0, 0, 0], [\"witchMagic\", -1.56, -0.4, 3.5, 0, 0, 0], [\"witchMagic\", -1.56, -0.4, 3.5, 0, 0, 0], [\"witchMagic\", -1.56, -0.4, 3.5, 0, 0, 0], [\"portal\", -2.6, -0.4, 3.5, 0.6, 0, 0], [\"portal\", -2.6, -0.4, 3.5, -0.6, 0, 0], [\"portal\", -2.6, -0.4, 3.5, 0, 0.6, 0], [\"portal\", -2.6, -0.4, 3.5, 0, -0.6, 0], [\"portal\", -2.6, -0.4, 3.5, 0, 0, 0.6], [\"portal\", -2.6, -0.4, 3.5, 0.4, 0.4, 0], [\"portal\", -2.6, -0.4, 3.5, -0.4, 0.4, 0], [\"portal\", -2.6, -0.4, 3.5, 0, 0.4, -0.4]]; for (const [n, dx, dy, dz, vx, vy, vz] of list) mc.renderGlobal.doSpawnParticle(n, p.posX + dx, p.posY + dy, p.posZ + dz, vx, vy, vz); return mc.effectRenderer.getLayerCounts(); })()"
+ },
+ {
+  "eval": "(() => { mc.dev.ticks(4); return mc.effectRenderer.getLayerCounts(); })()"
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "shot": "fx_spell.png"
+ },
+ {
+  "eval": "mc.effectRenderer.clearEffects(mc.theWorld)"
+ },
+ {
+  "eval": "(() => { const p = mc.thePlayer, w = mc.theWorld; const list = [[\"heart\", 2.6, -0.4, 3.5, 0, 0, 0], [\"heart\", 2.6, -0.4, 3.5, 0, 0, 0], [\"heart\", 2.6, -0.4, 3.5, 0, 0, 0], [\"angryVillager\", 1.56, -0.4, 3.5, 0, 0, 0], [\"angryVillager\", 1.56, -0.4, 3.5, 0, 0, 0], [\"angryVillager\", 1.56, -0.4, 3.5, 0, 0, 0], [\"happyVillager\", 0.52, -0.4, 3.5, 0, 0, 0], [\"happyVillager\", 0.52, -0.4, 3.5, 0, 0, 0], [\"happyVillager\", 0.52, -0.4, 3.5, 0, 0, 0], [\"happyVillager\", 0.52, -0.4, 3.5, 0, 0, 0], [\"happyVillager\", 0.52, -0.4, 3.5, 0, 0, 0], [\"happyVillager\", 0.52, -0.4, 3.5, 0, 0, 0], [\"note\", -0.52, -0.4, 3.5, 0, 0, 0], [\"note\", -0.52, -0.4, 3.5, 0.25, 0, 0], [\"note\", -0.52, -0.4, 3.5, 0.5, 0, 0], [\"crit\", -1.56, -0.4, 3.5, 0, 0.2, 0], [\"crit\", -1.56, -0.4, 3.5, 0, 0.2, 0], [\"crit\", -1.56, -0.4, 3.5, 0, 0.2, 0], [\"crit\", -1.56, -0.4, 3.5, 0, 0.2, 0], [\"crit\", -1.56, -0.4, 3.5, 0, 0.2, 0], [\"crit\", -1.56, -0.4, 3.5, 0, 0.2, 0], [\"crit\", -1.56, -0.4, 3.5, 0, 0.2, 0], [\"crit\", -1.56, -0.4, 3.5, 0, 0.2, 0], [\"magicCrit\", -2.6, -0.4, 3.5, 0, 0.2, 0], [\"magicCrit\", -2.6, -0.4, 3.5, 0, 0.2, 0], [\"magicCrit\", -2.6, -0.4, 3.5, 0, 0.2, 0], [\"magicCrit\", -2.6, -0.4, 3.5, 0, 0.2, 0], [\"magicCrit\", -2.6, -0.4, 3.5, 0, 0.2, 0], [\"magicCrit\", -2.6, -0.4, 3.5, 0, 0.2, 0], [\"magicCrit\", -2.6, -0.4, 3.5, 0, 0.2, 0], [\"magicCrit\", -2.6, -0.4, 3.5, 0, 0.2, 0]]; for (const [n, dx, dy, dz, vx, vy, vz] of list) mc.renderGlobal.doSpawnParticle(n, p.posX + dx, p.posY + dy, p.posZ + dz, vx, vy, vz); return mc.effectRenderer.getLayerCounts(); })()"
+ },
+ {
+  "eval": "(() => { mc.dev.ticks(3); return mc.effectRenderer.getLayerCounts(); })()"
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "shot": "fx_icons.png"
+ },
+ {
+  "eval": "mc.effectRenderer.clearEffects(mc.theWorld)"
+ },
+ {
+  "eval": "(() => { const p = mc.thePlayer, w = mc.theWorld; const list = [[\"flame\", 2.6, -0.4, 3.5, 0, 0, 0], [\"flame\", 2.6, -0.4, 3.5, 0, 0, 0], [\"flame\", 2.6, -0.4, 3.5, 0, 0, 0], [\"flame\", 2.6, -0.4, 3.5, 0, 0, 0], [\"flame\", 2.6, -0.4, 3.5, 0, 0, 0], [\"flame\", 2.6, -0.4, 3.5, 0, 0, 0], [\"lava\", 1.56, -0.4, 3.5, 0, 0, 0], [\"lava\", 1.56, -0.4, 3.5, 0, 0, 0], [\"lava\", 1.56, -0.4, 3.5, 0, 0, 0], [\"lava\", 1.56, -0.4, 3.5, 0, 0, 0], [\"lava\", 1.56, -0.4, 3.5, 0, 0, 0], [\"lava\", 1.56, -0.4, 3.5, 0, 0, 0], [\"dripWater\", 0.52, -0.4, 3.5, 0, 0, 0], [\"dripWater\", 0.52, -0.4, 3.5, 0, 0, 0], [\"dripWater\", 0.52, -0.4, 3.5, 0, 0, 0], [\"dripLava\", -0.52, -0.4, 3.5, 0, 0, 0], [\"dripLava\", -0.52, -0.4, 3.5, 0, 0, 0], [\"dripLava\", -0.52, -0.4, 3.5, 0, 0, 0], [\"splash\", -1.56, -0.4, 3.5, 0, 0, 0], [\"splash\", -1.56, -0.4, 3.5, 0, 0, 0], [\"splash\", -1.56, -0.4, 3.5, 0, 0, 0], [\"splash\", -1.56, -0.4, 3.5, 0, 0, 0], [\"splash\", -1.56, -0.4, 3.5, 0, 0, 0], [\"splash\", -1.56, -0.4, 3.5, 0, 0, 0], [\"largeexplode\", -2.6, -0.4, 3.5, 0, 0, 0]]; for (const [n, dx, dy, dz, vx, vy, vz] of list) mc.renderGlobal.doSpawnParticle(n, p.posX + dx, p.posY + dy, p.posZ + dz, vx, vy, vz); return mc.effectRenderer.getLayerCounts(); })()"
+ },
+ {
+  "eval": "(() => { mc.dev.ticks(4); return mc.effectRenderer.getLayerCounts(); })()"
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "shot": "fx_fire.png"
+ },
+ {
+  "eval": "mc.effectRenderer.clearEffects(mc.theWorld)"
+ },
+ {
+  "eval": "(() => { const p = mc.thePlayer, w = mc.theWorld; const held = p.inventory.mainInventory.find(Boolean); const items = held ? held.getItem().constructor.itemsList : []; const icon = items[264] ? 'iconcrack_264' : 'iconcrack_280'; const list = [[\"enchantmenttable\", 2.6, -0.4, 3.5, 0.6, 0, 0], [\"enchantmenttable\", 2.6, -0.4, 3.5, -0.6, 0, 0], [\"enchantmenttable\", 2.6, -0.4, 3.5, 0, 0.6, 0], [\"enchantmenttable\", 2.6, -0.4, 3.5, 0, -0.6, 0], [\"enchantmenttable\", 2.6, -0.4, 3.5, 0, 0, 0.6], [\"enchantmenttable\", 2.6, -0.4, 3.5, 0.4, 0.4, 0], [\"enchantmenttable\", 2.6, -0.4, 3.5, -0.4, 0.4, 0], [\"enchantmenttable\", 2.6, -0.4, 3.5, 0, 0.4, -0.4], [\"townaura\", 1.733, -0.4, 3.5, 0, 0, 0], [\"townaura\", 1.733, -0.4, 3.5, 0, 0, 0], [\"townaura\", 1.733, -0.4, 3.5, 0, 0, 0], [\"townaura\", 1.733, -0.4, 3.5, 0, 0, 0], [\"townaura\", 1.733, -0.4, 3.5, 0, 0, 0], [\"townaura\", 1.733, -0.4, 3.5, 0, 0, 0], [\"townaura\", 1.733, -0.4, 3.5, 0, 0, 0], [\"townaura\", 1.733, -0.4, 3.5, 0, 0, 0], [\"townaura\", 1.733, -0.4, 3.5, 0, 0, 0], [\"townaura\", 1.733, -0.4, 3.5, 0, 0, 0], [\"townaura\", 1.733, -0.4, 3.5, 0, 0, 0], [\"townaura\", 1.733, -0.4, 3.5, 0, 0, 0], [\"depthsuspend\", 0.867, -0.4, 3.5, 0, 0, 0], [\"depthsuspend\", 0.867, -0.4, 3.5, 0, 0, 0], [\"depthsuspend\", 0.867, -0.4, 3.5, 0, 0, 0], [\"depthsuspend\", 0.867, -0.4, 3.5, 0, 0, 0], [\"depthsuspend\", 0.867, -0.4, 3.5, 0, 0, 0], [\"depthsuspend\", 0.867, -0.4, 3.5, 0, 0, 0], [\"depthsuspend\", 0.867, -0.4, 3.5, 0, 0, 0], [\"depthsuspend\", 0.867, -0.4, 3.5, 0, 0, 0], [\"depthsuspend\", 0.867, -0.4, 3.5, 0, 0, 0], [\"depthsuspend\", 0.867, -0.4, 3.5, 0, 0, 0], [\"depthsuspend\", 0.867, -0.4, 3.5, 0, 0, 0], [\"depthsuspend\", 0.867, -0.4, 3.5, 0, 0, 0], [\"snowballpoof\", 0.0, -0.4, 3.5, 0, 0, 0], [\"snowballpoof\", 0.0, -0.4, 3.5, 0, 0, 0], [\"snowballpoof\", 0.0, -0.4, 3.5, 0, 0, 0], [\"snowballpoof\", 0.0, -0.4, 3.5, 0, 0, 0], [\"snowballpoof\", 0.0, -0.4, 3.5, 0, 0, 0], [\"snowballpoof\", 0.0, -0.4, 3.5, 0, 0, 0], [\"snowballpoof\", 0.0, -0.4, 3.5, 0, 0, 0], [\"snowballpoof\", 0.0, -0.4, 3.5, 0, 0, 0], [\"slime\", -0.867, -0.4, 3.5, 0, 0, 0], [\"slime\", -0.867, -0.4, 3.5, 0, 0, 0], [\"slime\", -0.867, -0.4, 3.5, 0, 0, 0], [\"slime\", -0.867, -0.4, 3.5, 0, 0, 0], [\"slime\", -0.867, -0.4, 3.5, 0, 0, 0], [\"slime\", -0.867, -0.4, 3.5, 0, 0, 0], [\"slime\", -0.867, -0.4, 3.5, 0, 0, 0], [\"slime\", -0.867, -0.4, 3.5, 0, 0, 0], [icon, -1.733, -0.4, 3.5, 0, 0.1, 0], [icon, -1.733, -0.4, 3.5, 0, 0.1, 0], [icon, -1.733, -0.4, 3.5, 0, 0.1, 0], [icon, -1.733, -0.4, 3.5, 0, 0.1, 0], [icon, -1.733, -0.4, 3.5, 0, 0.1, 0], [icon, -1.733, -0.4, 3.5, 0, 0.1, 0], [icon, -1.733, -0.4, 3.5, 0, 0.1, 0], [icon, -1.733, -0.4, 3.5, 0, 0.1, 0], [\"tilecrack_1_0\", -2.6, -0.4, 3.5, 0, 0.1, 0], [\"tilecrack_1_0\", -2.6, -0.4, 3.5, 0, 0.1, 0], [\"tilecrack_1_0\", -2.6, -0.4, 3.5, 0, 0.1, 0], [\"tilecrack_1_0\", -2.6, -0.4, 3.5, 0, 0.1, 0], [\"tilecrack_1_0\", -2.6, -0.4, 3.5, 0, 0.1, 0], [\"tilecrack_1_0\", -2.6, -0.4, 3.5, 0, 0.1, 0], [\"tilecrack_1_0\", -2.6, -0.4, 3.5, 0, 0.1, 0], [\"tilecrack_1_0\", -2.6, -0.4, 3.5, 0, 0.1, 0]]; for (const [n, dx, dy, dz, vx, vy, vz] of list) mc.renderGlobal.doSpawnParticle(n, p.posX + dx, p.posY + dy, p.posZ + dz, vx, vy, vz); return mc.effectRenderer.getLayerCounts(); })()"
+ },
+ {
+  "eval": "(() => { mc.dev.ticks(3); return mc.effectRenderer.getLayerCounts(); })()"
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "shot": "fx_misc.png"
+ },
+ {
+  "eval": "mc.effectRenderer.clearEffects(mc.theWorld)"
+ },
+ {
+  "eval": "(() => { const p = mc.thePlayer, w = mc.theWorld; const list = [[\"hugeexplosion\", 0, 0, 7, 0, 0, 0]]; for (const [n, dx, dy, dz, vx, vy, vz] of list) mc.renderGlobal.doSpawnParticle(n, p.posX + dx, p.posY + dy, p.posZ + dz, vx, vy, vz); return mc.effectRenderer.getLayerCounts(); })()"
+ },
+ {
+  "eval": "(() => { mc.dev.ticks(4); return mc.effectRenderer.getLayerCounts(); })()"
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "shot": "fx_huge.png"
+ },
+ {
+  "eval": "mc.effectRenderer.clearEffects(mc.theWorld)"
+ },
+ {
+  "eval": "(() => { const p = mc.thePlayer, w = mc.theWorld; const list = [[8, 3, 16, 0, \"ff0000\", null, []], [4, 3, 16, 1, \"3366ff\", \"ffff00\", []], [0, 3, 16, 2, \"33ff33\", null, [\"trail\"]], [-4, 3, 16, 3, \"ffcc00\", null, []], [-8, 3, 16, 4, \"ffffff\", null, [\"flicker\"]]]; for (const [dx, dy, dz, t, col, fade, flags] of list) { const e = { Type: t, Colors: [parseInt(col, 16)] }; if (fade) e.FadeColors = [parseInt(fade, 16)]; if (flags.includes(\"trail\")) e.Trail = 1; if (flags.includes(\"flicker\")) e.Flicker = 1; w.makeFireworks(p.posX + dx, p.posY + dy, p.posZ + dz, 0, 0, 0, { Explosions: [e] }); } mc.dev.ticks(8); return mc.effectRenderer.getLayerCounts(); })()"
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "shot": "fx_fireworks.png"
+ },
+ {
+  "eval": "(() => { mc.dev.ticks(14); return mc.effectRenderer.getLayerCounts(); })()"
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "shot": "fx_fireworks_late.png"
+ },
+ {
+  "eval": "(() => { mc.effectRenderer.clearEffects(mc.theWorld); mc.dev.look(0, 30); mc.dev.ticks(1); return 1; })()"
+ },
+ {
+  "eval": "(() => { const p = mc.thePlayer; const bx = Math.floor(p.posX), by = Math.floor(p.boundingBox.minY), bz = Math.floor(p.posZ); for (const [dx, dy, dz, id, m] of [[1, 0, 3, 1, 0], [0, 0, 3, 2, 0], [-1, 0, 3, 35, 14], [-2, 0, 3, 18, 0]]) mc.effectRenderer.addBlockDestroyEffects(bx + dx, by + dy, bz + dz, id, m); mc.dev.ticks(3); return mc.effectRenderer.getLayerCounts(); })()"
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "shot": "fx_blockbreak.png"
+ },
+ {
+  "eval": "mc.effectRenderer.clearEffects(mc.theWorld)"
+ },
+ {
+  "eval": "(() => { const p = mc.thePlayer; const bx = Math.floor(p.posX), by = Math.floor(p.boundingBox.minY), bz = Math.floor(p.posZ); for (let i = 0; i < 12; i++) { mc.effectRenderer.addBlockHitEffects(bx, by - 1, bz + 3, 1); mc.effectRenderer.addBlockHitEffects(bx + 1, by - 1, bz + 3, 1); } mc.dev.ticks(2); return mc.effectRenderer.getLayerCounts(); })()"
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "shot": "fx_blockhit.png"
+ },
+ {
+  "eval": "mc.effectRenderer.clearEffects(mc.theWorld)"
+ },
+ {
+  "eval": "(() => { const assert = (c, m) => { if (!c) throw new Error(\"assertion failed: \" + m); }; const p = mc.thePlayer, rg = mc.renderGlobal; const names = [...rg.constructor.particleFactories.keys()]; const missing = []; mc.effectRenderer.clearEffects(mc.theWorld); for (const n of names) { const fx = rg.doSpawnParticle(n, p.posX, p.posY, p.posZ + 3, 0.1, 0.1, 0.1); if (!fx) missing.push(n); } const held = p.inventory.mainInventory.find(Boolean); assert(held, 'hotbar filled'); const items = held.getItem().constructor.itemsList; const needItems = [['snowballpoof', 332], ['slime', 341]].filter(([, id]) => !items[id]).map(([n]) => n); const bad = missing.filter((n) => !needItems.includes(n)); assert(bad.length === 0, 'no particle for ' + bad.join(', ')); assert(rg.constructor.particleFactories.has('rain'), 'rain splash factory'); assert(rg.doSpawnParticle('tilecrack_1_0', p.posX, p.posY, p.posZ + 3, 0, 0, 0), 'tilecrack'); assert(rg.doSpawnParticle('iconcrack_280', p.posX, p.posY, p.posZ + 3, 0, 0, 0), 'iconcrack'); return { names: names.length, missingNeedItems: missing }; })()"
+ },
+ {
+  "eval": "(() => { const assert = (c, m) => { if (!c) throw new Error(\"assertion failed: \" + m); }; const p = mc.thePlayer, rg = mc.renderGlobal; mc.effectRenderer.clearEffects(mc.theWorld); assert(rg.doSpawnParticle('smoke', p.posX, p.posY, p.posZ + 17, 0, 0, 0) === null, 'smoke beyond 16 blocks'); assert(rg.doSpawnParticle('smoke', p.posX, p.posY, p.posZ + 15, 0, 0, 0) !== null, 'smoke within 16 blocks'); for (const n of ['largeexplode', 'hugeexplosion', 'fireworksSpark']) assert(rg.doSpawnParticle(n, p.posX, p.posY, p.posZ + 40, 0, 0, 0) !== null, n + ' far away'); return mc.effectRenderer.getLayerCounts(); })()"
+ },
+ {
+  "eval": "(() => { const assert = (c, m) => { if (!c) throw new Error(\"assertion failed: \" + m); }; const p = mc.thePlayer, rg = mc.renderGlobal, gs = mc.gameSettings; const old = gs.particleSetting; let n1 = 0, n2 = 0; gs.particleSetting = 2; for (let i = 0; i < 300; i++) if (rg.doSpawnParticle('smoke', p.posX, p.posY, p.posZ + 3, 0, 0, 0)) n2++; gs.particleSetting = 1; for (let i = 0; i < 300; i++) if (rg.doSpawnParticle('smoke', p.posX, p.posY, p.posZ + 3, 0, 0, 0)) n1++; gs.particleSetting = old; assert(n2 === 0, 'minimal spawned ' + n2); assert(n1 > 160 && n1 < 240, 'decreased spawned ' + n1 + ' of 300'); mc.effectRenderer.clearEffects(mc.theWorld); return { decreased: n1, minimal: n2 }; })()"
+ },
+ {
+  "eval": "(() => { const assert = (c, m) => { if (!c) throw new Error(\"assertion failed: \" + m); }; mc.effectRenderer.clearEffects(mc.theWorld); mc.dev.look(0, 20); const p = mc.thePlayer, w = mc.theWorld; const stack = p.inventory.mainInventory.find(Boolean); assert(stack, 'hotbar filled'); const e = w.constructor.itemDropFactory(w, p.posX, p.boundingBox.minY + 0.2, p.posZ + 1.2, stack.copy()); assert(e, 'item entity'); e.delayBeforeCanPickup = 0; e.motionX = e.motionY = e.motionZ = 0; w.spawnEntityInWorld(e); mc.sndManager.debugLog.length = 0; mc.dev.ticks(1); for (let i = 0; i < 4; i++) mc.renderGlobal.doSpawnParticle('footstep', p.posX + (i - 1.5) * 0.4, p.boundingBox.minY + 0.01, p.posZ + 2 + (i % 2) * 0.3, 0, 0, 0); const c = mc.effectRenderer.getLayerCounts(); assert(c[3] >= 5, 'pickup + footsteps on the lit layer: ' + c[3]); assert(mc.sndManager.debugLog.some(ev => ev.name === 'random.pop'), 'pickup pop'); return c; })()"
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "shot": "fx_pickup_footstep.png"
+ },
+ {
+  "eval": "(() => { mc.effectRenderer.clearEffects(mc.theWorld); mc.dev.look(0, 0); return 1; })()"
+ },
+ {
+  "eval": "(() => { const assert = (c, m) => { if (!c) throw new Error(\"assertion failed: \" + m); }; const p = mc.thePlayer, rg = mc.renderGlobal; for (let i = 0; i < 4100; i++) rg.doSpawnParticle('townaura', p.posX, p.posY, p.posZ + 3, 0, 0, 0); const c = mc.effectRenderer.getLayerCounts(); assert(c[0] === 4000, 'layer 0 holds ' + c[0]); mc.effectRenderer.clearEffects(mc.theWorld); return c; })()"
+ },
+ {
+  "waitFor": "mc.sndManager.getDebugInfo().context === 'running'",
+  "timeout": 20000
+ },
+ {
+  "eval": "(() => { mc.timer.timerSpeed = 1; mc.sndManager.debugLog.length = 0; mc.sndManager.playSoundFX('random.click', 1, 1); mc.sndManager.playSound('no.such.sound', 0, 0, 0, 1, 1); mc.dev.look(0, 70); mc.dev.ticks(1); const m = mc.objectMouseOver; mc.dev.click(0); return { target: m && [m.blockX, m.blockY, m.blockZ, mc.theWorld.getBlockId(m.blockX, m.blockY, m.blockZ)] }; })()"
+ },
+ {
+  "waitFor": "mc.sndManager.debugLog.some(e => e.kind === 'started' && e.name === 'random.click') && mc.sndManager.debugLog.some(e => e.kind === 'started' && e.name.startsWith('dig.'))",
+  "timeout": 20000
+ },
+ {
+  "eval": "(() => { const assert = (c, m) => { if (!c) throw new Error(\"assertion failed: \" + m); }; const log = mc.sndManager.debugLog; assert(log.some(e => e.kind === 'missing' && e.name === 'no.such.sound'), 'missing sound logged'); const click = log.find(e => e.kind === 'started' && e.name === 'random.click'); assert(Math.abs(click.volume - 0.25) < 1e-6, 'GUI click at a quarter volume'); const dig = log.find(e => e.kind === 'started' && e.name.startsWith('dig.')); assert(Math.abs(dig.pitch - 0.8) < 1e-6, 'break sound pitch 0.8'); return log.filter(e => e.kind === 'started').map(e => e.name + ' ' + e.path + ' v=' + e.volume + ' p=' + e.pitch); })()"
+ },
+ {
+  "eval": "(() => { const assert = (c, m) => { if (!c) throw new Error(\"assertion failed: \" + m); }; mc.sndManager.debugLog.length = 0; const p = mc.thePlayer; mc.dev.look(90, 0); const x0 = p.posX; mc.dev.press(17, 30); assert(Math.abs(p.posX - x0) > 2, 'walked'); const steps = mc.sndManager.debugLog.filter(e => e.kind === 'requested' && e.name.startsWith('step.')); assert(steps.length >= 2, 'step sounds while walking: ' + steps.length); assert(steps.every(e => Math.abs(e.volume - 0.15) < 1e-6), 'step volume 0.15'); return steps.map(e => e.name + ' v=' + e.volume + ' p=' + e.pitch); })()"
+ },
+ {
+  "eval": "(() => { const assert = (c, m) => { if (!c) throw new Error(\"assertion failed: \" + m); }; mc.sndManager.debugLog.length = 0; for (let i = 0; i < 40; i++) mc.sndManager.playSound('random.pop', mc.thePlayer.posX, mc.thePlayer.posY, mc.thePlayer.posZ, 1, 1); const ch = mc.sndManager.getDebugInfo().channels; assert(ch === 28, 'channels in use ' + ch); return ch; })()"
+ },
+ {
+  "eval": "(() => { mc.sndManager.debugLog.length = 0; const p = mc.thePlayer; mc.theWorld.playRecord('13', Math.floor(p.posX), Math.floor(p.posY), Math.floor(p.posZ)); return mc.sndManager.getDebugInfo().record; })()"
+ },
+ {
+  "waitFor": "mc.sndManager.debugLog.some(e => e.kind === 'started' && e.path === 'streaming/13.ogg')",
+  "timeout": 30000
+ },
+ {
+  "eval": "(() => { const p = mc.thePlayer; const has11 = mc.sndManager.getDebugInfo().records.includes('11'); mc.sndManager.debugLog.length = 0; mc.theWorld.playRecord(has11 ? '11' : '13', Math.floor(p.posX), Math.floor(p.posY), Math.floor(p.posZ)); return { has11 }; })()"
+ },
+ {
+  "waitFor": "mc.sndManager.debugLog.some(e => e.kind === 'started' && e.path && e.path.startsWith('streaming/'))",
+  "timeout": 30000
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "eval": "(() => { const assert = (c, m) => { if (!c) throw new Error(\"assertion failed: \" + m); }; const s = mc.sndManager.streaming; assert(s && !s.audio.paused && s.audio.currentTime > 0, 'record is playing'); const t = s.audio.currentTime; const info = mc.sndManager.getDebugInfo(); mc.theWorld.playRecord(null, 0, 0, 0); assert(mc.sndManager.getDebugInfo().record === null, 'record stopped'); return { t, src: info.record }; })()"
+ },
+ {
+  "eval": "(() => { mc.sndManager.debugLog.length = 0; mc.sndManager.ticksBeforeMusic = 0; mc.dev.ticks(2); return mc.sndManager.debugLog.filter(e => e.kind === 'music').map(e => e.path); })()"
+ },
+ {
+  "waitFor": "mc.sndManager.debugLog.some(e => e.kind === 'started' && /^(music|newmusic)\\//.test(e.path))",
+  "timeout": 30000
+ },
+ {
+  "eval": "(() => { const assert = (c, m) => { if (!c) throw new Error(\"assertion failed: \" + m); }; const t = mc.sndManager.ticksBeforeMusic; assert(t >= 12000 && t < 24000, 'next music in 12000-24000 ticks: ' + t); mc.gameSettings.musicVolume = 0; mc.sndManager.onSoundOptionsChanged(); assert(mc.sndManager.getDebugInfo().music === null, 'music off stops the music'); mc.gameSettings.musicVolume = 1; return mc.sndManager.getDebugInfo(); })()"
+ }
+]

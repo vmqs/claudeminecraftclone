@@ -1,0 +1,7 @@
+[
+  { "goto": "?dev=1&autostart=1&seed=-1357935714&hotbar=1&time=6000&type=flat" },
+  { "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0", "timeout": 240000 },
+  { "eval": "(() => ({ spawnY: mc.theWorld.worldInfo.spawnY, feet: mc.thePlayer.boundingBox.minY, column: [0, 1, 2, 3, 4].map((y) => mc.theWorld.getBlockId(Math.floor(mc.thePlayer.posX), y, Math.floor(mc.thePlayer.posZ))) }))()" },
+  { "wait": 500 },
+  { "shot": "flat.png" }
+]

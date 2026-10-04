@@ -1,0 +1,385 @@
+import type { EntityPlayer } from '../../entity/EntityPlayer';
+import type { TagCompound } from '../../item/ItemStack';
+import type { Chunk } from '../Chunk';
+import { World, type WorldInfo } from '../World';
+import { readChunkFromNBT, writeChunkToNBT } from './AnvilChunkLoader';
+import { NBTError, readNBT, writeCompressedNBT, writeNBT, zlibDeflate, zlibInflate } from './NBT';
+import { SaveError, type SaveBackend } from './SaveBackend';
+import { levelDatRoot, worldInfoToNBT } from './WorldInfoNBT';
+
+let lastSessionTime = 0;
+
+/** A session time stamp no other handler of this page uses (Date.now(), bumped when equal). */
+function nextSessionTime(): number {
+  lastSessionTime = Math.max(Date.now(), lastSessionTime + 1);
+  return lastSessionTime;
+}
+
+interface QueuedChunk {
+  /** The dimension (0 overworld, -1 Nether, 1 End). */
+  dim: number;
+  cx: number;
+  cz: number;
+  /** Uncompressed chunk NBT, until it is compressed for writing. */
+  nbt: Uint8Array | null;
+  /** Zlib-compressed NBT. */
+  data: Uint8Array | null;
+  /** Being written right now. */
+  inFlight: boolean;
+}
+
+/** A chunk's key in the handler's maps: its position and dimension. */
+function dimKey(dim: number, cx: number, cz: number): number {
+  return World.chunkKey(cx, cz) + (dim + 1) * 2 ** 45;
+}
+
+/**
+ * The folder a dimension's chunks are kept under: the world's own for the overworld, its
+ * "DIM-1" / "DIM1" sub-folder (the 1.5.2 layout, `<world>/DIM-1/region`) for the others.
+ */
+export function chunkFolderOf(folder: string, dim: number): string {
+  return dim === 0 ? folder : `${folder}/DIM${dim}`;
+}
+
+/**
+ * One open world's save (AnvilSaveHandler + AnvilChunkLoader): chunks are serialized the moment
+ * they unload or are saved (so later changes cannot leak into the snapshot), queued, compressed
+ * a few per tick and written to the backend in batches. Reads check the queue first, as
+ * AnvilChunkLoader.loadChunk checks its pending list. Chunks the player changed stay cached
+ * (compressed) so the bed can be found synchronously on respawn.
+ */
+export class SaveHandler {
+  /** Chunk positions present in the backend (dimension keys, see dimKey). */
+  private readonly saved = new Set<number>();
+  /** Dimensions whose saved chunk positions are known (the overworld's come with the handler). */
+  private readonly knownDimensions = new Set<number>([0]);
+  private readonly queue = new Map<number, QueuedChunk>();
+  /** Compressed copies of player-modified chunks (and those around the bed). */
+  private readonly keep = new Map<number, Uint8Array>();
+  private writeChain: Promise<void> = Promise.resolve();
+  private writesInFlight = 0;
+  /** The last failed write, shown by the game; cleared by the next successful one. */
+  error: string | null = null;
+  /** Called when a write fails (the game shows the message). */
+  onError: ((message: string) => void) | null = null;
+  /** The world's data/ files that changed (maps, idcounts), written with level.dat. */
+  worldData: (() => Map<string, Uint8Array>) | null = null;
+  closed = false;
+  /** session.lock's time stamp of this session (SaveHandler.initializationTime), unique per handler. */
+  private readonly sessionTime = nextSessionTime();
+  /** Whether this session wrote session.lock (only then are writes checked against it). */
+  private locked = false;
+
+  constructor(
+    readonly backend: SaveBackend,
+    readonly folder: string,
+    positions: Iterable<[number, number]> = [],
+  ) {
+    for (const [x, z] of positions) this.saved.add(dimKey(0, x, z));
+  }
+
+  /** Reads which chunks of another dimension (DIM-1, DIM1) the save holds; needed before its chunks are requested. */
+  async loadDimension(dim: number): Promise<void> {
+    if (this.knownDimensions.has(dim)) return;
+    const positions = await this.backend.chunkPositions(chunkFolderOf(this.folder, dim));
+    if (this.knownDimensions.has(dim)) return;
+    for (const [x, z] of positions) this.saved.add(dimKey(dim, x, z));
+    this.knownDimensions.add(dim);
+  }
+
+  /** Whether loadDimension(dim) has finished (always true for the overworld). */
+  isDimensionLoaded(dim: number): boolean {
+    return this.knownDimensions.has(dim);
+  }
+
+  get savedChunkCount(): number {
+    return this.saved.size;
+  }
+
+  get pendingCount(): number {
+    return this.queue.size + this.writesInFlight;
+  }
+
+  /** Whether a chunk can come from the save (AnvilChunkLoader would find it). */
+  hasChunk(cx: number, cz: number, dim = 0): boolean {
+    const k = dimKey(dim, cx, cz);
+    return this.queue.has(k) || this.saved.has(k);
+  }
+
+  /** The chunk's NBT if it is available without the backend (queued or kept), else null. */
+  private loadNow(k: number): TagCompound | null {
+    const q = this.queue.get(k);
+    if (q) return readNBT(q.nbt ?? zlibInflate(q.data!));
+    const kept = this.keep.get(k);
+    if (kept) return readNBT(zlibInflate(kept));
+    return null;
+  }
+
+  /** A saved chunk read synchronously from the queue or cache (bed respawn), or null. */
+  loadChunkNow(world: World, cx: number, cz: number): Chunk | null {
+    const tag = this.loadNow(dimKey(world.provider.dimensionId, cx, cz));
+    return tag ? readChunkFromNBT(world, cx, cz, tag) : null;
+  }
+
+  /** AnvilChunkLoader.loadChunk: the saved chunk, or null when missing or unreadable. */
+  async loadChunk(world: World, cx: number, cz: number): Promise<Chunk | null> {
+    const dim = world.provider.dimensionId;
+    const k = dimKey(dim, cx, cz);
+    try {
+      let tag = this.loadNow(k);
+      if (!tag) {
+        const data = await this.backend.getChunk(chunkFolderOf(this.folder, dim), cx, cz);
+        // Saved again (or unloaded) while reading: the newer copy wins.
+        tag = this.loadNow(k);
+        if (!tag) {
+          if (!data) return null;
+          tag = readNBT(zlibInflate(data));
+        }
+      }
+      return readChunkFromNBT(world, cx, cz, tag);
+    } catch (e) {
+      console.warn(`Chunk ${cx},${cz} could not be read and will be regenerated`, e instanceof NBTError ? e.message : e);
+      return null;
+    }
+  }
+
+  /** World time each chunk was last saved at (Chunk.lastSaveTime). */
+  private readonly lastSaveTime = new WeakMap<Chunk, number>();
+
+  /**
+   * Chunk.needsSaving(true): never saved, changed since (blocks, light, tile entities), or
+   * holding entities (other than players) and not saved this tick.
+   */
+  needsSaving(chunk: Chunk, world: World): boolean {
+    const k = dimKey(world.provider.dimensionId, chunk.xPosition, chunk.zPosition);
+    if (chunk.isModified || (!this.saved.has(k) && !this.queue.has(k))) return true;
+    if (this.lastSaveTime.get(chunk) === world.getTotalWorldTime()) return false;
+    for (const list of chunk.entityLists) for (const e of list) if (!e.isPlayerEntity) return true;
+    return false;
+  }
+
+  /** saveChunk: snapshots the chunk now and queues it for writing. */
+  saveChunk(chunk: Chunk, world: World): void {
+    if (this.closed) return;
+    const dim = world.provider.dimensionId;
+    const k = dimKey(dim, chunk.xPosition, chunk.zPosition);
+    chunk.isModified = false;
+    this.lastSaveTime.set(chunk, world.getTotalWorldTime());
+    let nbt: Uint8Array;
+    try {
+      nbt = writeNBT(writeChunkToNBT(chunk, world));
+    } catch (e) {
+      console.error(`Chunk ${chunk.xPosition},${chunk.zPosition} could not be saved`, e);
+      return;
+    }
+    this.queue.set(k, { dim, cx: chunk.xPosition, cz: chunk.zPosition, nbt, data: null, inFlight: false });
+    this.keep.delete(k);
+    if (chunk.playerModified) this.keepModified.add(k);
+  }
+
+  /** Chunks whose compressed copy stays in memory after writing. */
+  private readonly keepModified = new Set<number>();
+
+  /** Keeps a chunk's compressed copy in memory (bed respawn), loading it from the backend if needed. */
+  async keepChunk(cx: number, cz: number, dim = 0): Promise<void> {
+    const k = dimKey(dim, cx, cz);
+    this.keepModified.add(k);
+    if (this.queue.has(k) || this.keep.has(k) || !this.saved.has(k)) return;
+    try {
+      const data = await this.backend.getChunk(chunkFolderOf(this.folder, dim), cx, cz);
+      if (data && !this.queue.has(k)) this.keep.set(k, data);
+    } catch {
+      // Not cached: the respawn then misses this bed, as a missing chunk would.
+    }
+  }
+
+  private compress(q: QueuedChunk): void {
+    if (q.data) return;
+    q.data = zlibDeflate(q.nbt!);
+    q.nbt = null;
+  }
+
+  /**
+   * Compresses queued chunks for up to `budgetMs` and starts writing what is ready (a few per
+   * tick, like ThreadedFileIOBase draining the pending chunks).
+   */
+  pump(budgetMs: number): void {
+    if (this.queue.size === 0 || performance.now() < this.retryAt) return;
+    const t0 = performance.now();
+    const batch: QueuedChunk[] = [];
+    for (const q of this.queue.values()) {
+      if (q.inFlight) continue;
+      this.compress(q);
+      batch.push(q);
+      if (performance.now() - t0 > budgetMs || batch.length >= 64) break;
+    }
+    this.write(batch);
+  }
+
+  private write(batch: QueuedChunk[]): Promise<void> {
+    if (batch.length === 0) return this.writeChain;
+    const items = batch.map((q) => ({ k: dimKey(q.dim, q.cx, q.cz), q }));
+    for (const { q } of items) q.inFlight = true;
+    this.writesInFlight += items.length;
+    const run = async (): Promise<void> => {
+      if (this.closed) {
+        this.writesInFlight -= items.length;
+        for (const { q } of items) q.inFlight = false;
+        return;
+      }
+      try {
+        await this.checkSessionLock();
+        for (const dim of new Set(items.map(({ q }) => q.dim))) {
+          await this.backend.putChunks(
+            chunkFolderOf(this.folder, dim),
+            items.filter(({ q }) => q.dim === dim).map(({ q }) => ({ cx: q.cx, cz: q.cz, data: q.data! })),
+          );
+        }
+        for (const { k, q } of items) {
+          this.saved.add(k);
+          // Only drop the queue entry if it was not saved again meanwhile.
+          if (this.queue.get(k) === q) {
+            this.queue.delete(k);
+            if (this.keepModified.has(k)) this.keep.set(k, q.data!);
+          }
+        }
+        this.error = null;
+      } catch (e) {
+        this.reportError(e);
+      } finally {
+        this.writesInFlight -= items.length;
+        for (const { q } of items) q.inFlight = false;
+      }
+    };
+    this.writeChain = this.writeChain.then(run, run);
+    return this.writeChain;
+  }
+
+  /** After a failed write the queue waits a while before trying again (storage full, blocked). */
+  private retryAt = 0;
+
+  private reportError(e: unknown): void {
+    this.retryAt = performance.now() + 10000;
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error('Saving failed:', e);
+    if (this.error !== msg) {
+      this.error = msg;
+      this.onError?.(msg);
+    }
+  }
+
+  /**
+   * Writes everything queued. `progress` gets 0-100 while compressing (the "Saving chunks" bar);
+   * yields to the browser between slices so the screen keeps drawing.
+   */
+  async flush(progress?: (percent: number) => void): Promise<void> {
+    const total = this.queue.size;
+    let doneCount = 0;
+    let slice: QueuedChunk[] = [];
+    let t0 = performance.now();
+    for (const q of [...this.queue.values()]) {
+      if (q.inFlight) continue;
+      this.compress(q);
+      slice.push(q);
+      doneCount++;
+      if (performance.now() - t0 > 30 || slice.length >= 128) {
+        void this.write(slice);
+        slice = [];
+        progress?.(Math.floor((doneCount * 100) / Math.max(1, total)));
+        await new Promise((r) => setTimeout(r, 0));
+        t0 = performance.now();
+      }
+    }
+    await this.write(slice);
+    progress?.(100);
+    await this.writeChain;
+  }
+
+  /** saveWorldInfoWithPlayer: level.dat (gzip NBT) with the player's tag, and the save's size. */
+  async saveLevel(info: WorldInfo, player: EntityPlayer | TagCompound | null): Promise<void> {
+    if (this.closed) return;
+    let tag: TagCompound | null = null;
+    if (player && 'writeToNBT' in player && typeof player.writeToNBT === 'function') {
+      tag = {};
+      (player as EntityPlayer).writeToNBT(tag);
+    } else if (player) {
+      tag = player as TagCompound;
+    }
+    info.lastTimePlayed = Date.now();
+    // SizeOnDisk stays 0, as the integrated server writes it.
+    const bytes = writeCompressedNBT(levelDatRoot(worldInfoToNBT(info, tag, 0)));
+    const files = new Map<string, Uint8Array | null>(this.worldData?.() ?? []);
+    files.set('level.dat', bytes);
+    const run = async (): Promise<void> => {
+      if (this.closed) return;
+      try {
+        await this.checkSessionLock();
+        await this.backend.putFiles(this.folder, files);
+        this.error = null;
+      } catch (e) {
+        this.reportError(e);
+      }
+    };
+    this.writeChain = this.writeChain.then(run, run);
+    await this.writeChain;
+  }
+
+  /**
+   * saveAllChunks: every loaded chunk is snapshotted and queued, the level is written, and (when
+   * `wait`) everything is flushed before the promise resolves.
+   */
+  async saveAll(world: World, player: EntityPlayer | null, wait: boolean, progress?: (percent: number) => void): Promise<void> {
+    this.saveChunks(world);
+    if (wait) await this.flush(progress);
+    else this.pump(8);
+    await this.saveLevel(world.worldInfo, player);
+  }
+
+  /**
+   * setSessionLock: session.lock holds this session's start time (a big-endian long), so a
+   * second tab opening the same world takes it over and this one stops writing.
+   */
+  lockSession(): void {
+    const b = new Uint8Array(8);
+    new DataView(b.buffer).setBigInt64(0, BigInt(this.sessionTime));
+    this.locked = true;
+    this.runFirst(() => this.backend.putFiles(this.folder, new Map([['session.lock', b]])));
+  }
+
+  /** checkSessionLock: throws (and stops saving) when another session took the world over. */
+  private async checkSessionLock(): Promise<void> {
+    if (!this.locked) return;
+    const b = await this.backend.getFile(this.folder, 'session.lock');
+    if (b && b.length >= 8 && new DataView(b.buffer, b.byteOffset, 8).getBigInt64(0) === BigInt(this.sessionTime)) return;
+    this.closed = true;
+    throw new SaveError('The save is being accessed from another location, aborting');
+  }
+
+  /** Runs `fn` before every write of this handler (clearing a reused folder). */
+  runFirst(fn: () => Promise<void>): void {
+    const run = async (): Promise<void> => {
+      try {
+        await fn();
+      } catch (e) {
+        this.reportError(e);
+      }
+    };
+    this.writeChain = this.writeChain.then(run, run);
+  }
+
+  /** ChunkProviderServer.saveChunks(true): snapshots every loaded chunk that needs saving. */
+  saveChunks(world: World): number {
+    let n = 0;
+    for (const c of world.getLoadedChunks()) {
+      if (!this.needsSaving(c, world)) continue;
+      this.saveChunk(c, world);
+      n++;
+    }
+    return n;
+  }
+
+  /** Waits for queued writes (without compressing more). */
+  idle(): Promise<void> {
+    return this.writeChain;
+  }
+}

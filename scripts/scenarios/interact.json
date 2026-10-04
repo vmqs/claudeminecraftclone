@@ -1,0 +1,15 @@
+[
+  { "goto": "?dev=1&autostart=1&seed=-1357935714&hotbar=1&time=6000" },
+  { "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0", "timeout": 240000 },
+  { "eval": "(() => { const p = mc.thePlayer; let best = 0; for (const yaw of [0, 90, 180, 270]) { const x0 = p.posX, z0 = p.posZ; mc.dev.look(yaw, 0); mc.dev.press(17, 20); mc.dev.ticks(5); best = Math.max(best, Math.hypot(p.posX - x0, p.posZ - z0)); } return { walkedBest: best.toFixed(3), expected: '~4.3 blocks in 20 ticks + 5 coasting', onGround: p.onGround }; })()" },
+  { "eval": "(() => { const p = mc.thePlayer; mc.dev.press(57); mc.dev.press(57); const y0 = p.posY; mc.dev.key(57, true); mc.dev.ticks(10); mc.dev.key(57, false); mc.dev.ticks(1); return { flying: p.capabilities.isFlying, rose: (p.posY - y0).toFixed(3) }; })()" },
+  { "wait": 500 },
+  { "shot": "interact_flying.png" },
+  { "eval": "(() => { const p = mc.thePlayer; mc.dev.press(42, 30); mc.dev.press(57); mc.dev.press(57); mc.dev.ticks(40); return { flying: p.capabilities.isFlying, onGround: p.onGround }; })()" },
+  { "eval": "(() => { mc.dev.look(0, 70); mc.dev.ticks(1); const m = mc.objectMouseOver; if (!m) return 'no target'; const w = mc.theWorld; const pos = [m.blockX, m.blockY, m.blockZ]; const before = w.getBlockId(pos[0], pos[1], pos[2]); mc.dev.click(0); return { pos, before, after: w.getBlockId(pos[0], pos[1], pos[2]) }; })()" },
+  { "wait": 1000 },
+  { "shot": "interact_broken.png" },
+  { "eval": "(() => { mc.dev.select(0); mc.dev.ticks(1); const m = mc.objectMouseOver; if (!m) return 'no target'; const w = mc.theWorld; const side = m.sideHit; const tgt = [m.blockX, m.blockY, m.blockZ]; const off = [[0,-1,0],[0,1,0],[0,0,-1],[0,0,1],[-1,0,0],[1,0,0]][side]; const at = [tgt[0] + off[0], tgt[1] + off[1], tgt[2] + off[2]]; mc.dev.click(1); return { side, tgt, at, placed: w.getBlockId(at[0], at[1], at[2]) }; })()" },
+  { "wait": 1000 },
+  { "shot": "interact_placed.png" }
+]

@@ -1,0 +1,186 @@
+[
+ {
+  "goto": "?dev=1&autostart=1&seed=123456789&dim=1&time=6000&pos=70,95,70,135,25&fly=1&pack=faithful"
+ },
+ {
+  "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0 && mc.dev.end.dragon() !== null",
+  "timeout": 600000
+ },
+ {
+  "eval": "(() => { window.must = (ok, info) => { if (!ok) throw new Error('assert failed: ' + JSON.stringify(info)); return info; }; window.lookAt = (cx, cy, cz, tx, ty, tz) => { const dx = tx - cx, dy = ty - cy, dz = tz - cz; mc.dev.tp(cx, cy - 1.62, cz, Math.atan2(-dx, dz) * 180 / Math.PI, -Math.atan2(dy, Math.hypot(dx, dz)) * 180 / Math.PI); }; mc.gameSettings.renderDistance = 1; mc.dev.stats.toasts(false); const w = mc.theWorld; const dragon = mc.dev.end.dragon(); w.worldInfo.gameRules.doMobSpawning = false; for (const e of w.loadedEntityList) if (e.isLivingEntity && !e.isPlayerEntity && e !== dragon) e.setDead(); const s = mc.dev.end.state(); return must(s.dimension === 1 && s.dragon && s.dragon.health === 200 && s.crystals >= 1, s); })()"
+ },
+ {
+  "waitFor": "mc.dev.pendingSections(4) === 0",
+  "timeout": 600000
+ },
+ {
+  "eval": "(() => { mc.dev.sky.pin(6000); mc.dev.tp(70, 95, 70, 135, 25); return mc.dev.end.state().crystals; })()"
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "shot": "01_end_island.png"
+ },
+ {
+  "eval": "(() => { lookAt(40, 81.6, 40, 22, 78, 22); mc.dev.end.poseDragon(22, 76, 22, 45); return mc.dev.end.state().dragon; })()"
+ },
+ {
+  "waitFor": "mc.dev.pendingSections(2) === 0",
+  "timeout": 300000
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "eval": "(() => { const s = mc.dev.end.state(); return must(s.bossBar.name === 'Ender Dragon' && s.bossBar.length > 0 && Math.abs(s.bossBar.scale - 1) < 1e-6, s.bossBar); })()"
+ },
+ {
+  "shot": "02_dragon_bossbar.png"
+ },
+ {
+  "eval": "(() => { const c = mc.dev.end.crystals().sort((a, b) => Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z))[0]; window.C = c; mc.dev.end.poseDragon(c.x + 14, c.y + 6, c.z, 0); must(mc.dev.end.linkNearestCrystal(), 'link'); lookAt(c.x + 8, c.y + 8, c.z + 26, c.x + 7, c.y + 3, c.z); return c; })()"
+ },
+ {
+  "waitFor": "mc.dev.pendingSections(2) === 0",
+  "timeout": 300000
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "shot": "03_dragon_beam.png"
+ },
+ {
+  "eval": "(() => { const e = mc.dev.end; e.poseDragon(0.5, 72, 0.5, 30); e.dragon().healingEnderCrystal = null; must(e.killDragon(), 'kill'); mc.dev.ticks(160); const d = e.state().dragon; window.D = d; lookAt(d.x + 20, d.y + 4, d.z + 20, d.x, d.y + 2, d.z); return must(d.deathTicks === 160 && d.health <= 0, d); })()"
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "shot": "04_dragon_dying.png"
+ },
+ {
+  "eval": "(() => { mc.dev.ticks(45); const s = mc.dev.end.state(); const px = Math.floor(D.x), pz = Math.floor(D.z); window.P = [px, pz]; const w = mc.theWorld; let portal = 0; for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++) if (w.getBlockId(px + dx, 64, pz + dz) === 119) portal++; const cy = Math.max(76, w.getHeightValue(px + 10, pz + 10) + 5); lookAt(px + 10, cy, pz + 10, px, 65, pz); mc.effectRenderer.clearEffects(w); return must(s.dragon === null && portal === 20 && w.getBlockId(px, 68, pz) === 122 && w.getBlockId(px + 1, 66, pz) === 50, { s, portal }); })()"
+ },
+ {
+  "waitFor": "mc.dev.pendingSections(2) === 0",
+  "timeout": 300000
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "shot": "05_exit_portal.png"
+ },
+ {
+  "eval": "(() => { const p = mc.thePlayer; p.inventory.mainInventory[0] = new mc.dev.lib.ItemStack(49, 17, 0); p.experienceLevel = 30; mc.dev.stats.set(5242902, 1); mc.dev.end.exitPortal(); return mc.dev.end.state().screen; })()"
+ },
+ {
+  "waitFor": "mc.currentScreen && mc.currentScreen.lines !== null",
+  "timeout": 60000
+ },
+ {
+  "eval": "(() => { mc.dev.end.creditsTicks(380); return must(mc.dev.end.state().conquered && mc.dev.stats.value(5242903) >= 1, mc.dev.end.state()); })()"
+ },
+ {
+  "wait": 2000
+ },
+ {
+  "shot": "06_win_logo.png"
+ },
+ {
+  "eval": "mc.dev.end.creditsTicks(1500)"
+ },
+ {
+  "wait": 2000
+ },
+ {
+  "shot": "07_win_poem.png"
+ },
+ {
+  "eval": "mc.currentScreen.lines.length"
+ },
+ {
+  "eval": "(() => { mc.dev.sky.unfreeze(); mc.dev.press(1, 1); return 'credits closed, the clock runs for the respawn'; })()"
+ },
+ {
+  "waitFor": "mc.dev.dims.arrived() && mc.theWorld.provider.dimensionId === 0 && mc.dev.pendingSections(2) === 0",
+  "timeout": 60000
+ },
+ {
+  "eval": "(() => { const p = mc.thePlayer; mc.dev.sky.pin(6000); return must(mc.theWorld.provider.dimensionId === 0 && !p.playerConqueredTheEnd && p.inventory.mainInventory[0] && p.inventory.mainInventory[0].stackSize === 17 && p.experienceLevel === 30, { x: p.posX, y: p.posY, z: p.posZ }); })()"
+ },
+ {
+  "eval": "(() => { const w = mc.theWorld; const p = mc.thePlayer; const bx = Math.floor(p.posX) + 6, bz = Math.floor(p.posZ) + 18, by = Math.floor(p.posY) + 12; for (let x = bx - 2; x <= bx + 4; x++) for (let z = bz - 2; z <= bz + 2; z++) w.setBlock(x, by - 1, z, 121); const wi = mc.dev.end.buildWither(bx, by, bz); window.W = [bx, by, bz]; lookAt(bx + 1.5, by + 3, bz + 9, bx + 1.5, by + 1.5, bz); return must(wi && wi.getInvulTime() === 220 && wi.getHealth() === 100, mc.dev.end.state().wither); })()"
+ },
+ {
+  "waitFor": "mc.dev.pendingSections(2) === 0",
+  "timeout": 300000
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "shot": "08_wither_charging.png"
+ },
+ {
+  "eval": "(() => { mc.dev.ticks(221); const s = mc.dev.end.state(); const wi = mc.dev.end.wither(); lookAt(wi.posX, wi.posY + 3, wi.posZ + 9, wi.posX, wi.posY + 2.5, wi.posZ); mc.effectRenderer.clearEffects(mc.theWorld); return must(s.wither && s.wither.invul === 0 && s.wither.texture === '/mob/wither.png' && s.bossBar.name === 'Wither', s); })()"
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "shot": "09_wither_awake.png"
+ },
+ {
+  "eval": "(() => { const wi = mc.dev.end.wither(); wi.setEntityHealth(140); wi.bossHealth = 140; mc.effectRenderer.clearEffects(mc.theWorld); return must(wi.isArmored(), mc.dev.end.state().wither); })()"
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "shot": "10_wither_armor.png"
+ },
+ {
+  "goto": "?dev=1&autostart=1&seed=1&type=flat&mobs=0&time=6000&pack=faithful"
+ },
+ {
+  "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0",
+  "timeout": 600000
+ },
+ {
+  "eval": "(() => { window.must = (ok, info) => { if (!ok) throw new Error('assert failed: ' + JSON.stringify(info)); return info; }; mc.gameSettings.renderDistance = 1; mc.dev.stats.toasts(false); const p = mc.thePlayer; window.S = [Math.floor(p.posX) + 0.5, Math.floor(p.posZ) + 0.5]; mc.dev.tp(S[0], 4, S[1], 0, -6); return S; })()"
+ },
+ {
+  "waitFor": "mc.dev.pendingSections(4) === 0",
+  "timeout": 600000
+ },
+ {
+  "eval": "(() => { mc.dev.sky.pin(6000); const d = mc.dev.newEntity('EnderDragon'); d.setLocationAndAngles(S[0], 8, S[1] + 26, 0, 0); mc.theWorld.spawnEntityInWorld(d); mc.dev.end.poseDragon(S[0], 8, S[1] + 26, 0, 0); mc.dev.tp(S[0], 4, S[1], 0, -6); mc.effectRenderer.clearEffects(mc.theWorld); return mc.dev.end.state().dragon; })()"
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "shot": "11_dragon_side_cmp.png"
+ },
+ {
+  "eval": "(() => { mc.dev.end.dragon().setDead(); mc.dev.ticks(1); const make = (turn) => { const w = mc.dev.newEntity('WitherBoss'); const yaw = 180 + turn; w.setLocationAndAngles(S[0], 4, S[1] + 6, yaw, 0); mc.theWorld.spawnEntityInWorld(w); w.prevPosX = w.lastTickPosX = w.posX; w.prevPosY = w.lastTickPosY = w.posY; w.prevPosZ = w.lastTickPosZ = w.posZ; w.rotationYawHead = w.prevRotationYawHead = w.renderYawOffset = w.prevRenderYawOffset = yaw; w.bossHealth = 100; w.ticksExisted = 0; return w; }; window.MAKEW = make; make(0); mc.dev.tp(S[0], 4, S[1], 0, -16); mc.effectRenderer.clearEffects(mc.theWorld); return mc.dev.end.state().wither; })()"
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "shot": "12_wither_front_cmp.png"
+ },
+ {
+  "eval": "(() => { mc.dev.end.wither().setDead(); mc.dev.ticks(1); MAKEW(60); mc.dev.tp(S[0], 4, S[1], 0, -16); mc.effectRenderer.clearEffects(mc.theWorld); return mc.dev.end.state().wither; })()"
+ },
+ {
+  "wait": 2500
+ },
+ {
+  "shot": "13_wither_turned_cmp.png"
+ }
+]
