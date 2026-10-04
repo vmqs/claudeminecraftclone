@@ -372,6 +372,8 @@ public final class McpmFormat {
         } catch (Exception e) {
             throw new McpmException("bad header");
         }
+        // Like the web decoder (typeof h === 'object'): an array passes here and fails on its fields.
+        if (root != null && root.isJsonArray()) return new JsonObject();
         if (root == null || !root.isJsonObject()) throw new McpmException("bad header");
         return root.getAsJsonObject();
     }

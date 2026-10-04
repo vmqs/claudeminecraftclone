@@ -92,6 +92,8 @@ public final class DevTest {
             mc.gameSettings.renderDistanceChunks = 4;
             mc.gameSettings.difficulty = EnumDifficulty.PEACEFUL;
             mc.gameSettings.pauseOnLostFocus = false;
+            // No "Press E to open your inventory" toast over the screenshots.
+            mc.gameSettings.showInventoryAchievementHint = false;
             mc.getSaveLoader().flushCache();
             mc.getSaveLoader().deleteWorldDirectory(WORLD);
             WorldSettings settings = new WorldSettings(20260410L, WorldSettings.GameType.SURVIVAL, false, false, WorldType.FLAT).enableCommands();

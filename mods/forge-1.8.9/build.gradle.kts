@@ -54,6 +54,9 @@ dependencies {
     minecraft("com.mojang:minecraft:1.8.9")
     mappings("de.oceanlabs.mcp:mcp_stable:22-1.8.9")
     forge("net.minecraftforge:forge:1.8.9-11.15.1.2318-1.8.9")
+
+    // The .mcpm decoder checked against the web game's own decoder (src/test/resources/mcpm-reference.json).
+    testImplementation("junit:junit:4.13.2")
 }
 
 // The built-in models are the web game's own files (public/models/<id>/model.mcpm), copied into

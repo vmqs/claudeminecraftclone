@@ -145,9 +145,16 @@ public final class ModelRegistry {
                 JsonObject m = el.getAsJsonObject();
                 String id = m.get("id").getAsString();
                 if (!id.matches("[a-z0-9_]{1,32}")) continue;
-                if (ModelRegistry.class.getResource(BUILTIN_DIR + id + ".mcpm") == null) continue;
-                out.add(new Entry(id, McpmFormat.cleanText(m.get("name").getAsString(), McpmFormat.MAX_NAME),
-                        m.has("credits") ? McpmFormat.cleanText(m.get("credits").getAsString(), McpmFormat.MAX_CREDITS) : "", true, -1, null));
+                McpmFormat.Info info;
+                try (InputStream file = ModelRegistry.class.getResourceAsStream(BUILTIN_DIR + id + ".mcpm")) {
+                    if (file == null) continue;
+                    info = McpmFormat.readInfo(readPrefix(file));
+                } catch (Exception ex) {
+                    LOG.warn("Built-in model {} is damaged", id, ex);
+                    continue;
+                }
+                String credits = m.has("credits") ? McpmFormat.cleanText(m.get("credits").getAsString(), McpmFormat.MAX_CREDITS) : info.credits;
+                out.add(new Entry(id, info.name, credits, true, info.triangleCount, null));
             }
         } catch (Exception e) {
             LOG.error("Could not read the built-in model list", e);
@@ -201,16 +208,22 @@ public final class ModelRegistry {
 
     /** Header bytes only (enough for name and counts). */
     private static byte[] readPrefix(File f) throws IOException {
-        try (DataInputStream in = new DataInputStream(new FileInputStream(f))) {
-            byte[] head = new byte[12];
-            in.readFully(head);
-            int len = (head[8] & 0xff) | (head[9] & 0xff) << 8 | (head[10] & 0xff) << 16 | (head[11] & 0xff) << 24;
-            if (len < 0 || len > McpmFormat.MAX_HEADER) return head;
-            byte[] out = new byte[12 + len];
-            System.arraycopy(head, 0, out, 0, 12);
-            in.readFully(out, 12, len);
-            return out;
+        try (InputStream in = new FileInputStream(f)) {
+            return readPrefix(in);
         }
+    }
+
+    private static byte[] readPrefix(InputStream stream) throws IOException {
+        DataInputStream in = new DataInputStream(stream);
+        byte[] head = new byte[12];
+        in.readFully(head);
+        int len = (head[8] & 0xff) | (head[9] & 0xff) << 8 | (head[10] & 0xff) << 16 | (head[11] & 0xff) << 24;
+        // A bad length is reported by readInfo ("bad header").
+        if (len < 0 || len > McpmFormat.MAX_HEADER) return head;
+        byte[] out = new byte[12 + len];
+        System.arraycopy(head, 0, out, 0, 12);
+        in.readFully(out, 12, len);
+        return out;
     }
 
     public File folder() {
