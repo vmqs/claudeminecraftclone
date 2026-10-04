@@ -17,7 +17,9 @@ Status:
 - [x] 6 CI (.github/workflows/forge-mod.yml; JAVA_HOME_8_X64 toolchain lookup checked locally)
 - [x] 7 real test under Xvfb: dev client (runClientDirect) and the RELEASE jar in a production-style
   launch (obfuscated client + forge universal + launchwrapper/FMLTweaker; needs log4j 2.0-beta9):
-  22 checks pass, 19 screenshots (scratchpad/fm-devtest, fm-prodtest)
+  24 checks pass (incl. the M key, Controls category, lang file), 19 screenshots (scratchpad/fm-devtest,
+  fm-prodtest). Final jar: scratchpad/polymodels-1.0.0.jar
+- Done.
 - [x] 8 README (mod + main), LICENSE (MIT, code only), ARCHITECTURE §3/§13, TESTING
 - [x] JUnit McpmFormatTest vs scripts/mcpm-reference.mjs fixture (built-ins bit-exact, 42 refusals)
 

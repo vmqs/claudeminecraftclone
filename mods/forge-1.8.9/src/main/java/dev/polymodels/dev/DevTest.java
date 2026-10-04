@@ -11,6 +11,9 @@ import net.minecraft.client.gui.GuiMainMenu;
 import net.minecraft.client.gui.inventory.GuiInventory;
 import net.minecraft.block.BlockBed;
 import net.minecraft.block.state.IBlockState;
+import net.minecraft.client.gui.GuiControls;
+import net.minecraft.client.gui.GuiSlot;
+import net.minecraft.client.resources.I18n;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraft.entity.item.EntityBoat;
 import net.minecraft.entity.player.EntityPlayer;
@@ -29,10 +32,13 @@ import net.minecraft.world.EnumDifficulty;
 import net.minecraft.world.WorldServer;
 import net.minecraft.world.WorldSettings;
 import net.minecraft.world.WorldType;
+import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import net.minecraftforge.fml.common.gameevent.InputEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.lwjgl.input.Keyboard;
 
 import java.io.File;
 import java.io.IOException;
@@ -348,11 +354,41 @@ public final class DevTest {
             shot("11_folder_model_f5");
             check("the folder model is drawn", draws(reg().find("my_noob")) > 0, "");
             mc.gameSettings.hideGUI = false;
-            mc.displayGuiScreen(new GuiChooseModel(null));
+            // The key: listed under its own category in Controls, M by default, opens the chooser.
+            KeyBinding key = null;
+            for (KeyBinding k : mc.gameSettings.keyBindings) if ("key.polymodels.choose".equals(k.getKeyDescription())) key = k;
+            check("the key is registered: M, category Poly Player Models", key != null && key.getKeyCodeDefault() == Keyboard.KEY_M && "key.categories.polymodels".equals(key.getKeyCategory())
+                    && "Poly Player Models".equals(I18n.format("key.categories.polymodels")) && "Choose Player Model".equals(I18n.format("key.polymodels.choose")), key == null ? "missing" : key.getKeyCategory());
+            if (key != null) {
+                KeyBinding.onTick(key.getKeyCode());
+                FMLCommonHandler.instance().bus().post(new InputEvent.KeyInputEvent());
+            }
             return 30;
         });
         step(() -> {
+            check("pressing the key opens the chooser", mc.currentScreen instanceof GuiChooseModel, String.valueOf(mc.currentScreen));
+            return 0;
+        });
+        step(() -> {
             shot("12_chooser_in_world");
+            mc.displayGuiScreen(new GuiControls(null, mc.gameSettings));
+            return 10;
+        });
+        step(() -> {
+            // Scroll the key list to its end, where mod categories go.
+            for (java.lang.reflect.Field f : GuiControls.class.getDeclaredFields()) {
+                if (!GuiSlot.class.isAssignableFrom(f.getType())) continue;
+                try {
+                    f.setAccessible(true);
+                    ((GuiSlot) f.get(mc.currentScreen)).scrollBy(100000);
+                } catch (ReflectiveOperationException e) {
+                    LOG.warn("Could not scroll the controls list", e);
+                }
+            }
+            return 20;
+        });
+        step(() -> {
+            shot("12b_controls");
             mc.displayGuiScreen(null);
             reg().setLocal("trevor");
             mc.gameSettings.hideGUI = true;
