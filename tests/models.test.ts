@@ -8,7 +8,7 @@
  * With MODEL_PREVIEW_DIR=<dir> it also writes PNG previews of the built-in models posed by
  * ModelBiped (front, side, walking, sneaking, swinging).
  */
-import { deflateSync } from 'fflate';
+import { deflateSync, zipSync, zlibSync } from 'fflate';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { classifyName } from '../src/client/model/BoneNames';
@@ -16,6 +16,8 @@ import { parseFbx } from '../src/client/model/FbxParser';
 import { parseGltf } from '../src/client/model/GltfParser';
 import { buildPlayerModel } from '../src/client/model/ModelBuilder';
 import { ModelFiles } from '../src/client/model/ModelFiles';
+import { encodePng } from '../src/client/model/ImageCodecs';
+import { importModel } from '../src/client/model/ModelImportPipeline';
 import { partMatrices, bipedPivots, restPose } from '../src/client/model/ModelPose';
 import { parseObj } from '../src/client/model/ObjParser';
 import {
@@ -305,6 +307,212 @@ function objFrom(boxes: { name: string; min: number[]; max: number[] }[], transf
   checkRig('gltf person', model);
   // The shoulder pivot comes from the RightArm joint (x = -26 of 180 -> about -0.26 blocks).
   check('gltf: shoulder pivot from the joint', Math.abs(model.rig.pivots[PART_RIGHT_ARM][0] + 0.26) < 0.03, JSON.stringify(model.rig.pivots[PART_RIGHT_ARM]));
+  // The same as a .glb (JSON chunk + BIN chunk).
+  const glbJson = { ...gltf, buffers: [{ byteLength: total }] };
+  const jsonBytes = new TextEncoder().encode(JSON.stringify(glbJson));
+  const jsonPad = (jsonBytes.length + 3) & ~3;
+  const glb = new Uint8Array(12 + 8 + jsonPad + 8 + bin.length);
+  const gv = new DataView(glb.buffer);
+  gv.setUint32(0, 0x46546c67, true);
+  gv.setUint32(4, 2, true);
+  gv.setUint32(8, glb.length, true);
+  gv.setUint32(12, jsonPad, true);
+  gv.setUint32(16, 0x4e4f534a, true);
+  glb.fill(0x20, 20, 20 + jsonPad);
+  glb.set(jsonBytes, 20);
+  gv.setUint32(20 + jsonPad, bin.length, true);
+  gv.setUint32(24 + jsonPad, 0x004e4942, true);
+  glb.set(bin, 28 + jsonPad);
+  const glbScene = parseGltf(glb, new ModelFiles(), 'person.glb');
+  const fromGlb = await buildPlayerModel(glbScene, null, nodeCodec, { name: 'Rigged GLB' });
+  check('glb: same rig as the .gltf', fromGlb.report.rig === 'skeleton' && Math.abs(fromGlb.model.rig.pivots[PART_RIGHT_ARM][0] - model.rig.pivots[PART_RIGHT_ARM][0]) < 1e-4);
+}
+
+// ------------------------------------------------------------------ binary FBX
+
+{
+  // A small binary FBX 7.4 writer: node records, typed properties, zlib-compressed arrays.
+  type Prop = ['L', bigint] | ['S', string] | ['D', number] | ['I', number] | ['d', number[]] | ['i', number[]] | ['R', Uint8Array];
+  interface Node {
+    name: string;
+    props: Prop[];
+    children?: Node[];
+  }
+  const parts: Uint8Array[] = [];
+  let size = 0;
+  const push = (b: Uint8Array) => {
+    parts.push(b);
+    size += b.length;
+  };
+  const u32 = (v: number) => {
+    const b = new Uint8Array(4);
+    new DataView(b.buffer).setUint32(0, v, true);
+    return b;
+  };
+  const propBytes = (p: Prop): Uint8Array => {
+    const [t, v] = p;
+    if (t === 'L') {
+      const b = new Uint8Array(9);
+      b[0] = 76;
+      new DataView(b.buffer).setBigInt64(1, v as bigint, true);
+      return b;
+    }
+    if (t === 'S' || t === 'R') {
+      const d = t === 'S' ? new TextEncoder().encode(v as string) : (v as Uint8Array);
+      const b = new Uint8Array(5 + d.length);
+      b[0] = t.charCodeAt(0);
+      new DataView(b.buffer).setUint32(1, d.length, true);
+      b.set(d, 5);
+      return b;
+    }
+    if (t === 'D') {
+      const b = new Uint8Array(9);
+      b[0] = 68;
+      new DataView(b.buffer).setFloat64(1, v as number, true);
+      return b;
+    }
+    if (t === 'I') {
+      const b = new Uint8Array(5);
+      b[0] = 73;
+      new DataView(b.buffer).setInt32(1, v as number, true);
+      return b;
+    }
+    const arr = v as number[];
+    const raw = new Uint8Array(arr.length * (t === 'd' ? 8 : 4));
+    const dv = new DataView(raw.buffer);
+    arr.forEach((x, i) => (t === 'd' ? dv.setFloat64(i * 8, x, true) : dv.setInt32(i * 4, x, true)));
+    const z = zlibSync(raw);
+    const b = new Uint8Array(13 + z.length);
+    b[0] = t.charCodeAt(0);
+    const bv = new DataView(b.buffer);
+    bv.setUint32(1, arr.length, true);
+    bv.setUint32(5, 1, true);
+    bv.setUint32(9, z.length, true);
+    b.set(z, 13);
+    return b;
+  };
+  const writeNode = (n: Node, offset: number): Uint8Array => {
+    const name = new TextEncoder().encode(n.name);
+    const props = n.props.map(propBytes);
+    const propLen = props.reduce((a, b) => a + b.length, 0);
+    const headLen = 13 + name.length + propLen;
+    const kids: Uint8Array[] = [];
+    let at = offset + headLen;
+    for (const c of n.children ?? []) {
+      const k = writeNode(c, at);
+      kids.push(k);
+      at += k.length;
+    }
+    if (n.children) {
+      kids.push(new Uint8Array(13));
+      at += 13;
+    }
+    const out = new Uint8Array(at - offset);
+    const dv = new DataView(out.buffer);
+    dv.setUint32(0, at, true);
+    dv.setUint32(4, props.length, true);
+    dv.setUint32(8, propLen, true);
+    out[12] = name.length;
+    out.set(name, 13);
+    let o = 13 + name.length;
+    for (const p of props) {
+      out.set(p, o);
+      o += p.length;
+    }
+    for (const k of kids) {
+      out.set(k, o);
+      o += k.length;
+    }
+    return out;
+  };
+  const pngTex = encodePng({ width: 2, height: 2, rgba: new Uint8Array([255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 255, 255]) });
+  const P = (name: string, ...vals: number[]): Node => ({ name: 'P', props: [['S', name], ['S', name], ['S', ''], ['S', 'A'], ...vals.map((x) => ['D', x] as Prop)] });
+  const roots: Node[] = [
+    { name: 'GlobalSettings', props: [], children: [{ name: 'Properties70', props: [], children: [{ name: 'P', props: [['S', 'UpAxis'], ['S', 'int'], ['S', 'Integer'], ['S', ''], ['I', 2]] }] }] },
+    {
+      name: 'Objects',
+      props: [],
+      children: [
+        {
+          name: 'Geometry',
+          props: [['L', 10n], ['S', 'Quad\u0000\u0001Geometry'], ['S', 'Mesh']],
+          children: [
+            { name: 'Vertices', props: [['d', [0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0]]] },
+            { name: 'PolygonVertexIndex', props: [['i', [0, 1, 2, -4]]] },
+            {
+              name: 'LayerElementUV',
+              props: [['I', 0]],
+              children: [
+                { name: 'MappingInformationType', props: [['S', 'ByPolygonVertex']] },
+                { name: 'ReferenceInformationType', props: [['S', 'IndexToDirect']] },
+                { name: 'UV', props: [['d', [0, 0, 1, 0, 1, 1, 0, 1]]] },
+                { name: 'UVIndex', props: [['i', [0, 1, 2, 3]]] },
+              ],
+            },
+          ],
+        },
+        { name: 'Model', props: [['L', 20n], ['S', 'Quad\u0000\u0001Model'], ['S', 'Mesh']], children: [{ name: 'Properties70', props: [], children: [P('Lcl Translation', 0, 0, 3), P('Lcl Rotation', 90, 0, 0)] }] },
+        { name: 'Material', props: [['L', 30n], ['S', 'Skin\u0000\u0001Material'], ['S', '']], children: [] },
+        { name: 'Texture', props: [['L', 40n], ['S', 'skin\u0000\u0001Texture'], ['S', '']], children: [{ name: 'RelativeFilename', props: [['S', 'textures\\skin.png']] }] },
+        { name: 'Video', props: [['L', 50n], ['S', 'skin\u0000\u0001Video'], ['S', 'Clip']], children: [{ name: 'Content', props: [['R', pngTex]] }] },
+      ],
+    },
+    {
+      name: 'Connections',
+      props: [],
+      children: [
+        { name: 'C', props: [['S', 'OO'], ['L', 10n], ['L', 20n]] },
+        { name: 'C', props: [['S', 'OO'], ['L', 20n], ['L', 0n]] },
+        { name: 'C', props: [['S', 'OO'], ['L', 30n], ['L', 20n]] },
+        { name: 'C', props: [['S', 'OP'], ['L', 40n], ['L', 30n], ['S', 'DiffuseColor']] },
+        { name: 'C', props: [['S', 'OO'], ['L', 50n], ['L', 40n]] },
+      ],
+    },
+  ];
+  const header = new Uint8Array(27);
+  header.set(new TextEncoder().encode('Kaydara FBX Binary  '), 0);
+  header[20] = 0;
+  header[21] = 0x1a;
+  header[22] = 0;
+  new DataView(header.buffer).setUint32(23, 7400, true);
+  push(header);
+  for (const n of roots) push(writeNode(n, size));
+  push(new Uint8Array(13));
+  push(u32(0));
+  const fbx = new Uint8Array(size);
+  let o = 0;
+  for (const b of parts) {
+    fbx.set(b, o);
+    o += b.length;
+  }
+  const scene = parseFbx(fbx);
+  check('fbx binary: one quad as two triangles', scene.meshes.length === 1 && scene.meshes[0].indices.length === 6, `${scene.meshes[0]?.indices.length}`);
+  check('fbx binary: Z up from the settings', scene.upAxis === 'z');
+  // Rotated 90 degrees about X, then moved 3 up along Z: the quad stands in the XZ plane at z 3..4.
+  const pz = [...scene.meshes[0].positions].filter((_, i) => i % 3 === 2);
+  check('fbx binary: node transform (rotation then translation)', Math.abs(Math.min(...pz) - 3) < 1e-6 && Math.abs(Math.max(...pz) - 4) < 1e-6, JSON.stringify(pz));
+  check('fbx binary: UVs read and flipped to image rows', scene.meshes[0].uvs !== null && [...scene.meshes[0].uvs!].includes(1) && [...scene.meshes[0].uvs!].includes(0));
+  check('fbx binary: embedded texture found', scene.textures.length === 1 && scene.textures[0].name === 'skin.png' && scene.textures[0].bytes?.length === pngTex.length, JSON.stringify(scene.textures.map((t) => [t.name, t.bytes?.length])));
+}
+
+// ------------------------------------------------------------------ Import Model... on a .zip
+
+{
+  const toSource = (p: number[]) => [p[0], p[1], p[2]];
+  const obj = 'mtllib person.mtl\nusemtl cloth\n' + objFrom(personBoxes(), toSource);
+  const tex = encodePng({ width: 4, height: 4, rgba: new Uint8Array(64).fill(200) });
+  const zip = zipSync({ 'person/person.obj': new TextEncoder().encode(obj), 'person/person.mtl': new TextEncoder().encode('newmtl cloth\nmap_Kd C:\\Users\\me\\tex\\cloth.png\n'), 'person/tex/cloth.png': tex });
+  const r = await importModel([{ name: 'person.zip', bytes: zip }], nodeCodec);
+  const m = decodePlayerModel(r.bytes);
+  check('zip import: model found inside the archive', r.report !== null && r.report.rig === 'geometry' && m.textures.length === 1 && m.materials[0].texture === 0, JSON.stringify(r.report));
+  check('zip import: named after the file', r.name === 'Person', r.name);
+  let refused = '';
+  try {
+    await importModel([{ name: 'notes.txt', bytes: new TextEncoder().encode('hello') }], nodeCodec);
+  } catch (e) {
+    refused = e instanceof Error ? e.message : String(e);
+  }
+  check('zip import: no model is a clear message', /No model found/.test(refused), refused);
 }
 
 // ------------------------------------------------------------------ ASCII FBX
