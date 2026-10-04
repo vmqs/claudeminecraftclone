@@ -1,4 +1,5 @@
 import { Keyboard } from '../client/Keyboard';
+import { exportModel, type ExportKind } from '../client/model/ModelExport';
 import { deleteUserModel, importModelFiles, pickModelFiles, readFiles, turnUserModel } from '../client/model/ModelImport';
 import { MAX_NET_MODEL_BYTES, PlayerModels, STEVE_KEY, type ModelKey } from '../client/model/PlayerModels';
 import { PlayerSkins } from '../client/skin/PlayerSkins';
@@ -28,6 +29,8 @@ const BUTTON_MODEL = 3;
 const BUTTON_IMPORT = 4;
 const BUTTON_DELETE = 5;
 const BUTTON_TURN = 6;
+const BUTTON_EXPORT_MCPM = 7;
+const BUTTON_EXPORT_GLB = 8;
 
 /**
  * "Account Manager": everything about the player in one 1.5.2-style screen (the launcher's job
@@ -35,7 +38,8 @@ const BUTTON_TURN = 6;
  * LAN game and when joining one), the player model ("Model: Steve" cycles through Steve, the
  * built-in models and imported ones; "Import Model..." reads GLB, glTF, FBX or OBJ files, a .zip
  * of them, or a .mcpm; "Delete Model" removes an imported one, "Turn Around" turns one whose
- * front and back were mixed up) and Steve's skin ("Upload
+ * front and back were mixed up, "Export .mcpm" saves the chosen model's file (for the Forge 1.8.9
+ * mod in mods/forge-1.8.9) and "Export .glb" saves it as binary glTF for Blender) and Steve's skin ("Upload
  * Skin..." for a 64x32 or 64x64 PNG, "Reset to Steve"). The preview shows the chosen model
  * turning slowly. Opened from the title screen and from Options.
  */
@@ -47,6 +51,8 @@ export class GuiAccountManager extends GuiScreen {
   private buttonImport!: GuiButton;
   private buttonDelete!: GuiButton;
   private buttonTurn!: GuiButton;
+  private buttonExportMcpm!: GuiButton;
+  private buttonExportGlb!: GuiButton;
   private status = '';
   private statusColor = STATUS_INFO;
   /** The preview's automatic turn; it cannot be dragged. */
@@ -55,6 +61,7 @@ export class GuiAccountManager extends GuiScreen {
   private ticks = 0;
   private picking = false;
   private importing = false;
+  private exporting = false;
   private readonly model = new ModelBiped(0);
   private box = { x: 0, y: 0, w: 0, h: 0 };
   private pinned: ModelKey | null = null;
@@ -75,14 +82,16 @@ export class GuiAccountManager extends GuiScreen {
     this.nameField.setMaxStringLength(16);
     this.nameField.setFocused(true);
     this.nameField.setText(old);
-    this.buttonList.push((this.buttonModel = new GuiButton(BUTTON_MODEL, rx, top + 54, 170, 20, '')));
-    this.buttonList.push((this.buttonImport = new GuiButton(BUTTON_IMPORT, rx, top + 76, 84, 20, 'Import Model...')));
-    this.buttonList.push((this.buttonDelete = new GuiButton(BUTTON_DELETE, rx + 86, top + 76, 84, 20, 'Delete Model')));
-    this.buttonList.push((this.buttonUpload = new GuiButton(1, rx, top + 110, 84, 20, 'Upload Skin...')));
-    this.buttonList.push(new GuiButton(2, rx + 86, top + 110, 84, 20, 'Reset to Steve'));
+    this.buttonList.push((this.buttonModel = new GuiButton(BUTTON_MODEL, rx, top + 44, 170, 20, '')));
+    this.buttonList.push((this.buttonImport = new GuiButton(BUTTON_IMPORT, rx, top + 66, 84, 20, 'Import Model...')));
+    this.buttonList.push((this.buttonDelete = new GuiButton(BUTTON_DELETE, rx + 86, top + 66, 84, 20, 'Delete Model')));
+    this.buttonList.push((this.buttonExportMcpm = new GuiButton(BUTTON_EXPORT_MCPM, rx, top + 88, 84, 20, 'Export .mcpm')));
+    this.buttonList.push((this.buttonExportGlb = new GuiButton(BUTTON_EXPORT_GLB, rx + 86, top + 88, 84, 20, 'Export .glb')));
+    this.buttonList.push((this.buttonUpload = new GuiButton(1, rx, top + 122, 84, 20, 'Upload Skin...')));
+    this.buttonList.push(new GuiButton(2, rx + 86, top + 122, 84, 20, 'Reset to Steve'));
     // Under the preview, for imported models whose front and back were mixed up.
     this.buttonList.push((this.buttonTurn = new GuiButton(BUTTON_TURN, this.box.x, top + 146, this.box.w, 20, 'Turn Around')));
-    this.buttonList.push((this.buttonDone = new GuiButton(200, cx - 100, top + 168, I18n.translateToLocal('gui.done'))));
+    this.buttonList.push((this.buttonDone = new GuiButton(200, cx - 100, top + 178, I18n.translateToLocal('gui.done'))));
     void PlayerModels.loadBuiltins().then(() => {
       if (this.mc?.currentScreen === this) this.updateButtons();
     });
@@ -95,13 +104,22 @@ export class GuiAccountManager extends GuiScreen {
     const key = PlayerModels.local;
     const label = `Model: ${PlayerModels.nameOf(key)}`;
     this.buttonModel.displayString = this.fontRenderer.getStringWidth(label) > 160 ? this.fontRenderer.trimStringToWidth(label, 150) + '...' : label;
-    this.buttonModel.enabled = !this.importing;
-    this.buttonImport.enabled = !this.picking && !this.importing;
+    this.buttonModel.enabled = !this.importing && !this.exporting;
+    this.buttonImport.enabled = !this.picking && !this.importing && !this.exporting;
     const imported = key.startsWith('data:') && PlayerModels.user.some((u) => `data:${u.hash}` === key);
-    this.buttonDelete.enabled = !this.importing && imported;
+    this.buttonDelete.enabled = !this.importing && !this.exporting && imported;
     this.buttonTurn.drawButton = imported;
-    this.buttonTurn.enabled = !this.importing && imported;
+    this.buttonTurn.enabled = !this.importing && !this.exporting && imported;
+    this.updateExportButtons();
     this.pinPreview(key);
+  }
+
+  /** Steve has no model file; a model that failed to load cannot be saved either. */
+  private updateExportButtons(): void {
+    const key = PlayerModels.local;
+    const ok = key !== STEVE_KEY && !this.importing && !this.exporting && PlayerModels.stateOf(key) !== 'failed';
+    this.buttonExportMcpm.enabled = ok;
+    this.buttonExportGlb.enabled = ok;
   }
 
   /** Keeps the previewed model loaded while the screen is open. */
@@ -114,6 +132,8 @@ export class GuiAccountManager extends GuiScreen {
 
   override updateScreen(): void {
     this.nameField.updateCursorCounter();
+    // A model can finish (or fail) loading while the screen is open.
+    this.updateExportButtons();
     this.ticks++;
     this.prevSpin = this.spin;
     this.spin += SPIN_PER_TICK;
@@ -210,9 +230,40 @@ export class GuiAccountManager extends GuiScreen {
           this.updateButtons();
         },
       );
+    } else if (b.id === BUTTON_EXPORT_MCPM || b.id === BUTTON_EXPORT_GLB) {
+      void this.exportChosen(b.id === BUTTON_EXPORT_MCPM ? 'mcpm' : 'glb');
     } else if (b.id === 200) {
       if (!this.commitName()) return;
       this.mc.displayGuiScreen(this.parentScreen);
+    }
+  }
+
+  /**
+   * Saves the worn model as a file (what Export .mcpm / Export .glb do): .mcpm for the Forge 1.8.9
+   * mod's config/polymodels folder, .glb for Blender and other glTF tools.
+   */
+  async exportChosen(kind: ExportKind): Promise<boolean> {
+    const key = PlayerModels.local;
+    if (key === STEVE_KEY || this.exporting) return false;
+    this.exporting = true;
+    this.updateButtons();
+    this.setStatus(`Saving ${PlayerModels.nameOf(key)} as .${kind}...`);
+    try {
+      const r = await exportModel(key, kind);
+      if (!r.ok) {
+        this.setStatus(r.error ?? 'The model could not be saved', STATUS_ERROR);
+        return false;
+      }
+      const size = (r.bytes ?? 0) >= 1024 * 1024 ? `${((r.bytes ?? 0) / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round((r.bytes ?? 0) / 1024))} KB`;
+      const hint = kind === 'mcpm' ? ' (Forge 1.8.9 mod: config/polymodels)' : '';
+      this.setStatus(`Saved ${r.file}, ${size}${hint}`, STATUS_OK);
+      return true;
+    } catch (e) {
+      this.setStatus(`The model could not be saved (${e instanceof Error ? e.message : String(e)})`, STATUS_ERROR);
+      return false;
+    } finally {
+      this.exporting = false;
+      this.updateButtons();
     }
   }
 
@@ -319,9 +370,8 @@ export class GuiAccountManager extends GuiScreen {
     this.nameField.drawTextBox();
     if (!valid) this.drawString(this.fontRenderer, '3-16 letters, digits or _', rx, top + 33, 0xff5555);
     else if (this.mc.lanServer || this.mc.netHandler) this.drawString(this.fontRenderer, 'Used from the next game you join', rx, top + 33, 0x808080);
-    this.drawString(this.fontRenderer, 'Model', rx, top + 44, 0xa0a0a0);
-    this.drawString(this.fontRenderer, key === STEVE_KEY ? 'Skin' : 'Skin (worn by Steve)', rx, top + 100, 0xa0a0a0);
-    let y = top + 134;
+    this.drawString(this.fontRenderer, key === STEVE_KEY ? 'Skin' : 'Skin (worn by Steve)', rx, top + 112, 0xa0a0a0);
+    let y = top + 146;
     for (const line of this.fontRenderer.listFormattedStringToWidth(this.status, 170).slice(0, 3)) {
       this.drawString(this.fontRenderer, line, rx, y, this.statusColor);
       y += this.fontRenderer.FONT_HEIGHT;

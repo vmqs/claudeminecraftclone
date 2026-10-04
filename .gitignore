@@ -10,3 +10,8 @@ public/assets/
 .DS_Store
 # Screenshot harness output
 shots/
+# Forge 1.8.9 mod (mods/forge-1.8.9): Gradle and loom output, the dev client's run directory
+/mods/forge-1.8.9/build/
+/mods/forge-1.8.9/.gradle/
+/mods/forge-1.8.9/run/
+/mods/forge-1.8.9/out/

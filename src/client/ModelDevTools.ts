@@ -1,6 +1,7 @@
 import { GuiAccountManager } from '../gui/GuiAccountManager';
 import { customModelForKey, customModelStats } from '../render/entity/CustomPlayerModels';
 import type { Minecraft } from './Minecraft';
+import { exportLog, exportModel, type ExportKind } from './model/ModelExport';
 import { importModelFiles, turnUserModel } from './model/ModelImport';
 import { PlayerModels, STEVE_KEY, type ModelKey } from './model/PlayerModels';
 
@@ -160,6 +161,28 @@ export class ModelDevTools {
   async turnAround(): Promise<string | null> {
     const key = PlayerModels.local;
     return key.startsWith('data:') ? turnUserModel(key.slice(5)) : null;
+  }
+
+  /**
+   * Export .mcpm / Export .glb for the worn model (through the open Account Manager when there is
+   * one, so its message shows); `download` false skips the browser download. Resolves with the
+   * outcome; `lastExport()` describes the file.
+   */
+  async exportModel(kind: ExportKind, download = true): Promise<Record<string, unknown>> {
+    const screen = this.mc.currentScreen;
+    if (download && screen instanceof GuiAccountManager) {
+      const ok = await screen.exportChosen(kind);
+      return { ok, status: (screen as unknown as { status: string }).status };
+    }
+    return { ...(await exportModel(PlayerModels.local, kind, download ? undefined : () => {})) };
+  }
+
+  /** The last exported file: kind, name, size, its first bytes (hex) and, with `withBytes`, the bytes. */
+  lastExport(withBytes = false): Record<string, unknown> | null {
+    const e = exportLog.last;
+    if (!e) return null;
+    const head = Array.from(e.bytes.subarray(0, 4), (b) => b.toString(16).padStart(2, '0')).join('');
+    return { kind: e.kind, file: e.file, size: e.bytes.length, head, ...(withBytes ? { bytes: e.bytes } : {}) };
   }
 
   /** What is chosen, loaded and drawn. */
