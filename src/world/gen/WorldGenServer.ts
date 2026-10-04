@@ -9,7 +9,9 @@ import { type ChunkGenerator, ChunkProviderGenerate } from './ChunkProviderGener
 import { WorldGeneratorBonusChest } from './feature/WorldGeneratorBonusChest';
 import { computeChunkLight } from './GenLighting';
 import { GenStore } from './GenStore';
+import { DimensionGenerators } from './DimensionGenerators';
 import { GenWorld } from './GenWorld';
+import './nether/ChunkProviderHell';
 import { chunkFromTerrain, type TerrainChunk, toTerrainChunk } from './TerrainChunk';
 import { SPAWN_BIOMES } from './WorldChunkManager';
 
@@ -26,6 +28,8 @@ export interface WorldGenOptions {
    * (MinecraftServer.initialWorldChunkLoad uses 12, i.e. 25x25 chunks); 0 disables it.
    */
   initialRadius?: number;
+  /** The dimension generated (0 overworld, -1 the Nether, 1 the End: DimensionGenerators). */
+  dimension?: number;
 }
 
 const key = GenWorld.key;
@@ -51,9 +55,12 @@ export class WorldGenServer {
 
   constructor(readonly options: WorldGenOptions) {
     const seed = options.seed;
+    const other = options.dimension ? DimensionGenerators.create(options.dimension, seed, options.mapFeatures) : null;
     this.provider =
-      options.worldType === 'flat' ? new ChunkProviderFlat(seed, options.generatorOptions ?? null, options.mapFeatures) : new ChunkProviderGenerate(seed, options.mapFeatures, options.worldType);
+      other ??
+      (options.worldType === 'flat' ? new ChunkProviderFlat(seed, options.generatorOptions ?? null, options.mapFeatures) : new ChunkProviderGenerate(seed, options.mapFeatures, options.worldType));
     this.world = new GenWorld(this.provider.biomeSource);
+    if (other) this.world.provider = { ...other.providerInfo };
     this.world.averageGroundLevel = this.provider.getAverageGroundLevel();
     this.world.missingChunk = (cx, cz) => (this.populating > 0 ? this.loadForFeature(cx, cz) : undefined);
   }

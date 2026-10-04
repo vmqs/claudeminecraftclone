@@ -31,7 +31,8 @@ const GRID = 64;
 export class GenWorld implements ChunkHost {
   readonly isRemote = false;
   readonly rand = new JavaRandom(0n);
-  readonly provider: WorldProviderInfo = { dimensionId: 0, isHellWorld: false, hasNoSky: false };
+  /** The provider flags of the dimension being generated (WorldGenServer sets the Nether's or the End's). */
+  provider: WorldProviderInfo = { dimensionId: 0, isHellWorld: false, hasNoSky: false };
   readonly chunks = new Map<number, Chunk>();
   scheduledUpdatesAreImmediate = false;
   /** WorldProvider.getAverageGroundLevel of this world (64, or 4 for superflat). */
@@ -320,7 +321,7 @@ export class GenWorld implements ChunkHost {
    * read this light, so it decides where they generate.
    */
   updateAllLightTypes(x: number, y: number, z: number): void {
-    this.updateLightByType(EnumSkyBlock.Sky, x, y, z);
+    if (!this.provider.hasNoSky) this.updateLightByType(EnumSkyBlock.Sky, x, y, z);
     this.updateLightByType(EnumSkyBlock.Block, x, y, z);
   }
 

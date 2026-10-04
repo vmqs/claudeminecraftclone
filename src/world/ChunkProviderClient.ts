@@ -62,12 +62,12 @@ export class ChunkProviderClient {
     seed: bigint,
     worldType: string,
     mapFeatures: boolean,
-    options: { generatorOptions?: string | null; bonusChest?: boolean } = {},
+    options: { generatorOptions?: string | null; bonusChest?: boolean; dimension?: number } = {},
   ) {
     this.worker = WorldGenWorkers.take();
     this.worker.onmessage = (e: MessageEvent<WorldGenResponse>) => this.onMessage(e.data);
     this.worker.onerror = (e) => console.error('[worldgen]', e.message);
-    this.post({ type: 'init', seed: seed.toString(), worldType, mapFeatures, generatorOptions: options.generatorOptions ?? null, bonusChest: options.bonusChest ?? false });
+    this.post({ type: 'init', seed: seed.toString(), worldType, mapFeatures, generatorOptions: options.generatorOptions ?? null, bonusChest: options.bonusChest ?? false, dimension: options.dimension });
     StructureLocator.provider = (name, x, y, z) => this.findClosestStructure(name, x, y, z);
   }
 
