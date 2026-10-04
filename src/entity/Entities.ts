@@ -63,3 +63,6 @@ EntityList.addUnsaved(EntityFishHook, 'FishHook');
 
 // Hostile and Nether mobs (mobshostile slice).
 import './HostileMobs';
+
+// The Ender Dragon and the Wither (end slice).
+import './Bosses';

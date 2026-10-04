@@ -8,7 +8,8 @@ const f = Math.fround;
 
 /**
  * An ender crystal (EntityEnderCrystal): keeps a fire burning at its feet and explodes
- * (strength 6) when hit by anything.
+ * (strength 6) when hit by anything; the Ender Dragon heals from the nearest one and is hurt
+ * when the one it is linked to is destroyed. Only the authoritative world explodes it.
  */
 export class EntityEnderCrystal extends Entity {
   innerRotation = 0;
@@ -51,7 +52,7 @@ export class EntityEnderCrystal extends Entity {
 
   override attackEntityFrom(_src: DamageSource, _amount: number): boolean {
     if (this.isEntityInvulnerable()) return false;
-    if (!this.isDead) {
+    if (!this.isDead && !this.worldObj.isRemote) {
       this.health = 0;
       this.setDead();
       this.worldObj.createExplosion(null, this.posX, this.posY, this.posZ, 6, true);
