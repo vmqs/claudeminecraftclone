@@ -1,0 +1,122 @@
+[
+ {
+  "goto": "?dev=1&autostart=1&seed=1&type=flat&mode=survival&time=6000&mobs=0&pack=faithful&pos=8.5,4,8.5,180,0"
+ },
+ {
+  "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0",
+  "timeout": 600000
+ },
+ {
+  "eval": "(() => {\n  window.fails = []; window.must = (ok, info) => { if (!ok) fails.push(info); return { ok, info }; };\n  window.tidy = () => { const w = mc.theWorld; w.worldInfo.gameRules.doMobSpawning = false; for (const e of w.loadedEntityList) if (e !== mc.thePlayer) e.setDead(); mc.dev.ticks(1); };\n  window.heardReset = () => { mc.sndManager.debugLog.length = 0; };\n  window.heard = (re) => mc.sndManager.debugLog.filter((e) => e.kind === 'requested' && (typeof re === 'string' ? e.name === re : re.test(e.name))).length;\n  window.names = () => mc.sndManager.debugLog.filter((e) => e.kind === 'requested').map((e) => e.name);\n  // Counts calls of an entity method (the sound's source event) without changing what it does.\n  window.countCalls = (obj, method) => { const c = { n: 0 }; const orig = obj[method]; obj[method] = function (...a) { c.n++; return orig.apply(this, a); }; return c; };\n  window.home = () => { mc.dev.tp(8.5, 4, 8.5, 180, 0); mc.thePlayer.motionX = mc.thePlayer.motionY = mc.thePlayer.motionZ = 0; mc.dev.ticks(1); };\n  tidy();\n  return { audio: mc.sndManager.getDebugInfo(), state: mc.dev.survival.state().mode };\n})()"
+ },
+ {
+  "eval": "(() => {\n  const p = mc.thePlayer, w = mc.theWorld, L = mc.dev.lib;\n  const out = {};\n  home();\n  mc.dev.setStack(0, 1, 64); mc.dev.setStack(1, 278, 1); mc.dev.select(0);\n  // Place a stone block on the ground two blocks north, then mine it and walk onto the drop.\n  mc.dev.look(180, 45); mc.dev.ticks(2);\n  heardReset(); mc.dev.click(1); mc.dev.ticks(2); out.place = names();\n  must(heard('dig.stone') === 1 && names().length === 1, { place: out.place });\n  mc.dev.select(1); mc.dev.ticks(1);\n  heardReset(); mc.dev.mouse(0, true);\n  let t = 0; while (mc.dev.target() === 1 && t++ < 60) mc.dev.ticks(1);\n  mc.dev.mouse(0, false); mc.dev.ticks(1);\n  out.mine = names(); out.mineTicks = t;\n  must(heard('dig.stone') === 1 && heard(/^dig\\./) === 1, { mine: out.mine });\n  heardReset();\n  const drop = mc.dev.entities('Item')[0];\n  if (drop) { mc.dev.tp(drop.posX, 4, drop.posZ, 180, 0); mc.dev.ticks(20); }\n  out.pickup = names();\n  must(!!drop && heard('random.pop') === 1, { pickup: out.pickup, drop: !!drop });\n  home();\n  // Walk north for 30 ticks: one step sound per step.\n  const steps = countCalls(p, 'playStepSound');\n  heardReset(); mc.dev.press(17, 30); mc.dev.ticks(5);\n  out.walk = { steps: steps.n, heard: heard(/^step\\./) };\n  must(steps.n >= 3 && heard(/^step\\./) === steps.n, { walk: out.walk });\n  home();\n  return out;\n})()"
+ },
+ {
+  "eval": "(() => {\n  const p = mc.thePlayer, w = mc.theWorld, L = mc.dev.lib;\n  const out = {};\n  home(); mc.dev.select(2); mc.dev.setStack(2, 0);\n  // A pig two blocks north: one hurt sound per hit, one death sound.\n  const pig = mc.dev.spawn('Pig'); pig.setLocationAndAngles(8.5, 4, 6.5, 0, 0);\n  mc.dev.look(180, 20); mc.dev.ticks(3);\n  heardReset(); mc.dev.click(0); mc.dev.ticks(2); out.hit = names();\n  must(heard('mob.pig.say') === 1, { hit: out.hit });\n  mc.dev.ticks(12); pig.setEntityHealth(1); pig.setLocationAndAngles(8.5, 4, 6.5, 0, 0); mc.dev.ticks(1);\n  heardReset(); mc.dev.click(0); mc.dev.ticks(2); out.kill = names();\n  must(heard('mob.pig.death') === 1 && heard('mob.pig.say') === 0, { kill: out.kill });\n  mc.dev.ticks(25); tidy(); home();\n  // A door two blocks north on untouched ground: opened, closed.\n  w.setBlock(8, 4, 6, 64, 1, 3); w.setBlock(8, 5, 6, 64, 8, 3); mc.dev.look(180, 15); mc.dev.ticks(2);\n  out.doorTarget = mc.dev.target();\n  heardReset(); mc.dev.click(1); mc.dev.ticks(3); out.door1 = names();\n  must(heard(/^random\\.door_/) === 1 && names().length === 1, { door1: out.door1, target: out.doorTarget });\n  heardReset(); mc.playerController.onPlayerRightClick(p, w, null, 8, 4, 6, 3, mc.objectMouseOver?.hitVec ?? { xCoord: 8.5, yCoord: 4.5, zCoord: 6.5 }); mc.dev.ticks(3); out.door2 = names();\n  must(heard(/^random\\.door_/) === 1 && names().length === 1, { door2: out.door2 });\n  w.setBlock(8, 5, 6, 0, 0, 3); w.setBlock(8, 4, 6, 0, 0, 3);\n  return out;\n})()"
+ },
+ {
+  "eval": "(() => {\n  const p = mc.thePlayer, w = mc.theWorld;\n  home(); tidy();\n  w.setBlock(8, 4, 6, 54, 0, 3); mc.dev.look(180, 30); mc.dev.ticks(3);\n  heardReset(); mc.dev.click(1); mc.dev.ticks(10);\n  return { screen: mc.currentScreen && mc.currentScreen.constructor.name, opened: names() };\n})()"
+ },
+ {
+  "wait": 1000
+ },
+ {
+  "shot": "bf_01_chest_open.png"
+ },
+ {
+  "key": "Escape"
+ },
+ {
+  "waitFor": "mc.currentScreen === null",
+  "timeout": 60000
+ },
+ {
+  "eval": "(() => {\n  const w = mc.theWorld; mc.dev.ticks(15); const opened = heard('random.chestopen'), closed = heard('random.chestclosed');\n  must(opened === 1 && closed === 1, { opened, closed, names: names() });\n  w.setBlock(8, 4, 6, 0, 0, 3); mc.dev.ticks(1);\n  return { opened, closed };\n})()"
+ },
+ {
+  "eval": "(() => {\n  const p = mc.thePlayer, w = mc.theWorld, L = mc.dev.lib;\n  const out = {};\n  home(); tidy();\n  // Eating a porkchop: one chomp per updateItemUse, one burp.\n  mc.dev.survival.setFood(10, 0); mc.dev.setStack(3, 320, 4); mc.dev.select(3); mc.dev.look(180, -30); mc.dev.ticks(2);\n  const uses = countCalls(p, 'updateItemUse');\n  heardReset(); mc.dev.click(1, 40); mc.dev.ticks(2);\n  out.eat = { uses: uses.n, eat: heard('random.eat'), burp: heard('random.burp'), left: p.inventory.mainInventory[3]?.stackSize };\n  must(uses.n > 0 && heard('random.eat') === uses.n && heard('random.burp') === 1 && out.eat.left === 3, { eat: out.eat });\n  // A bow shot north, slightly up: one twang, one thud where the arrow lands.\n  mc.dev.setStack(4, 261, 1); mc.dev.setStack(10, 262, 16); mc.dev.select(4); mc.dev.look(180, 30); mc.dev.ticks(2);\n  heardReset(); mc.dev.click(1, 20); mc.dev.ticks(60);\n  out.bow = names();\n  must(heard('random.bow') === 1 && heard('random.bowhit') === 1, { bow: out.bow });\n  // An explosion six blocks east, and the player hurt.\n  heardReset(); w.createExplosion(null, 14.5, 4, 8.5, 1, false); mc.dev.ticks(1);\n  out.explosion = names();\n  must(heard('random.explode') === 1, { explosion: out.explosion });\n  heardReset(); p.attackEntityFrom(L.DamageSource.generic, 1); mc.dev.ticks(1);\n  out.hurt = names();\n  must(heard('damage.hit') === 1, { hurt: out.hurt });\n  mc.dev.survival.setHealth(20); tidy();\n  return out;\n})()"
+ },
+ {
+  "eval": "(() => {\n  const p = mc.thePlayer;\n  home(); tidy(); mc.dev.setTime(18000); mc.dev.survival.vulnerable();\n  const z = mc.dev.spawn('Zombie'); z.setLocationAndAngles(8.5, 4, 0.5, 0, 0);\n  const zs = countCalls(z, 'playStepSound'); const zl = countCalls(z, 'playLivingSound');\n  heardReset();\n  let hits = 0; const h0 = p.getHealth();\n  for (let i = 0; i < 120; i++) { mc.dev.ticks(1); if (p.getHealth() < 20) { hits++; mc.dev.survival.setHealth(20); } }\n  const out = { steps: zs.n, stepHeard: heard('mob.zombie.step'), living: zl.n, livingHeard: heard('mob.zombie.say'), hits, hurtHeard: heard('damage.hit') };\n  must(zs.n > 0 && out.stepHeard === zs.n && out.livingHeard === zl.n && hits > 0 && out.hurtHeard === hits, out);\n  return out;\n})()"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "bf_02_survival_zombie_night.png"
+ },
+ {
+  "eval": "(() => {\n  const p = mc.thePlayer;\n  tidy(); home(); mc.dev.survival.setMode('creative'); mc.dev.setTime(18000); mc.dev.look(180, 10);\n  const x = 8.5, z = 8.5, y = 4;\n  const put = (name, dx, dz) => { const e = mc.dev.spawn(name); e.setLocationAndAngles(x + dx, y, z + dz, 0, 0); return e; };\n  const mobs = [put('Zombie', -2, -5), put('Skeleton', 2, -6), put('Creeper', 0, -3), put('Spider', -4, -4), put('PigZombie', 4, -4), put('Wolf', 3, -2), put('Enderman', -3, -7)];\n  mc.dev.ticks(2);\n  for (const m of mobs) p.attackTargetEntityWithCurrentItem(m);\n  let held = 0, closest = 99, fuse = 0;\n  for (let i = 0; i < 120; i++) {\n    mc.dev.tp(x, y, z, 180, 10); mc.dev.ticks(1);\n    for (const m of mobs) {\n      if (m.getAttackTarget?.() === p || m.entityToAttack === p) held++;\n      if (!m.isDead) closest = Math.min(closest, m.getDistanceToEntity(p));\n    }\n    if (mobs[2].getCreeperState() > 0) fuse++;\n  }\n  const out = { held, closest: +closest.toFixed(2), arrows: mc.dev.entities('Arrow').length, fuse, pigAnger: mobs[4].getAngerLevel(), wolfAngry: mobs[5].isAngry(), screaming: mobs[6].isScreaming() };\n  must(held === 0 && out.arrows === 0 && fuse === 0 && out.pigAnger === 0 && !out.wolfAngry && !out.screaming && closest > 1.4, out);\n  return out;\n})()"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "bf_03_creative_mobs_night.png"
+ },
+ {
+  "eval": "(() => {\n  const p = mc.thePlayer;\n  mc.dev.survival.setMode('survival'); mc.dev.survival.vulnerable();\n  const z = mc.dev.entities('Zombie')[0];\n  p.attackTargetEntityWithCurrentItem(z); mc.dev.ticks(10);\n  const before = z.getAttackTarget() === p;\n  mc.dev.survival.setMode('creative');\n  let held = 0; for (let i = 0; i < 40; i++) { mc.dev.ticks(1); if (z.getAttackTarget() === p) held++; }\n  must(before && held === 0, { before, held });\n  tidy(); mc.dev.setTime(6000); mc.dev.survival.setMode('survival'); home();\n  return { before, held };\n})()"
+ },
+ {
+  "key": "Escape"
+ },
+ {
+  "waitFor": "mc.currentScreen !== null",
+  "timeout": 60000
+ },
+ {
+  "wait": 800
+ },
+ {
+  "eval": "(() => { const b = mc.currentScreen.buttonList.find((b) => b.id === 4); heardReset(); return { x: b.xPosition, y: b.yPosition, w: b.width, h: b.height, label: b.displayString }; })()"
+ },
+ {
+  "click": [
+   426,
+   156
+  ]
+ },
+ {
+  "waitFor": "mc.currentScreen === null",
+  "timeout": 60000
+ },
+ {
+  "eval": "(() => { const n = heard('random.click'); must(n === 1, { clicks: names() }); return { clicks: names() }; })()"
+ },
+ {
+  "eval": "(() => { mc.gameSettings.thirdPersonView = 1; mc.dev.look(200, 20); mc.dev.ticks(2); return true; })()"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "bf_04_third_person.png"
+ },
+ {
+  "eval": "(() => { mc.gameSettings.thirdPersonView = 0; mc.dev.ticks(1); return true; })()"
+ },
+ {
+  "key": "e"
+ },
+ {
+  "waitFor": "mc.currentScreen !== null",
+  "timeout": 60000
+ },
+ {
+  "wait": 1000
+ },
+ {
+  "shot": "bf_05_survival_inventory.png"
+ },
+ {
+  "key": "Escape"
+ },
+ {
+  "waitFor": "mc.currentScreen === null",
+  "timeout": 60000
+ },
+ {
+  "eval": "(() => { const log = mc.sndManager.debugLog.filter((e) => e.kind === 'failed' || e.kind === 'missing').map((e) => e.kind + ' ' + e.name); const r = { problems: [...new Set(log)].slice(0, 20), fails }; if (fails.length) throw new Error('bugfix asserts failed: ' + JSON.stringify(r)); return r; })()"
+ }
+]
