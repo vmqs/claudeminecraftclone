@@ -58,6 +58,8 @@ export interface SourceScene {
   frontHint: [number, number, number] | null;
   /** Free text found in the file (author, title) for the model's credits. */
   info: string[];
+  /** Whether materials state their alpha mode (glTF); otherwise textures with holes are cut-outs. */
+  explicitAlpha?: boolean;
 }
 
 export class ModelImportError extends Error {}

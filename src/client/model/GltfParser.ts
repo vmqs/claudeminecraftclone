@@ -202,7 +202,7 @@ export function parseGltf(bytes: Uint8Array, files: ModelFiles, path: string): S
     return w;
   };
 
-  const scene: SourceScene = { meshes: [], materials: [], textures: [], bones: [], upAxis: 'y', frontHint: [0, 0, 1], info: [] };
+  const scene: SourceScene = { meshes: [], materials: [], textures: [], bones: [], upAxis: 'y', frontHint: [0, 0, 1], info: [], explicitAlpha: true };
   const extras = json.asset?.extras;
   if (extras && typeof extras === 'object') {
     for (const k of ['title', 'author', 'license', 'source']) if (typeof extras[k] === 'string') scene.info.push(`${k}: ${extras[k]}`);
