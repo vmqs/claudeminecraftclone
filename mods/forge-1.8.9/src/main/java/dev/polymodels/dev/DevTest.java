@@ -9,7 +9,16 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityOtherPlayerMP;
 import net.minecraft.client.gui.GuiMainMenu;
 import net.minecraft.client.gui.inventory.GuiInventory;
+import net.minecraft.block.BlockBed;
+import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.settings.KeyBinding;
+import net.minecraft.entity.item.EntityBoat;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.potion.Potion;
+import net.minecraft.potion.PotionEffect;
+import net.minecraft.util.BlockPos;
+import net.minecraft.util.DamageSource;
+import net.minecraft.util.EnumFacing;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;
@@ -63,6 +72,7 @@ public final class DevTest {
     private boolean finished;
     private long countA;
     private ModelRegistry.Entry john;
+    private BlockPos[] bed;
 
     public DevTest(String outDir) {
         this.out = new File(outDir).getAbsoluteFile();
@@ -197,6 +207,47 @@ public final class DevTest {
             serverPlayer(p -> p.inventory.armorInventory[3] = null);
             return 10;
         });
+        // Vanilla's own transforms and tints, with the model.
+        step(() -> {
+            serverPlayer(p -> p.attackEntityFrom(DamageSource.generic, 1.0F));
+            return 2;
+        });
+        step(() -> {
+            check("hurt (red tint)", mc.thePlayer.hurtTime > 0, "hurtTime " + mc.thePlayer.hurtTime);
+            shot("08b_john_hurt");
+            serverPlayer(p -> p.addPotionEffect(new PotionEffect(Potion.invisibility.id, 400, 0, false, false)));
+            return 20;
+        });
+        step(() -> {
+            countA = draws(john);
+            return 10;
+        });
+        step(() -> {
+            check("invisible: only the held item is drawn, as in vanilla", mc.thePlayer.isInvisible() && draws(john) == countA, draws(john) - countA + " draws");
+            shot("08c_john_invisible");
+            serverPlayer(p -> p.removePotionEffect(Potion.invisibility.id));
+            return 10;
+        });
+        step(() -> {
+            serverPlayer(p -> {
+                EntityBoat boat = new EntityBoat(p.worldObj, p.posX, p.posY + 0.5, p.posZ);
+                p.worldObj.spawnEntityInWorld(boat);
+                p.mountEntity(boat);
+            });
+            return 30;
+        });
+        step(() -> {
+            check("riding a boat", mc.thePlayer.isRiding(), "");
+            look(0, 0);
+            shot("08d_john_riding");
+            serverPlayer(p -> {
+                net.minecraft.entity.Entity boat = p.ridingEntity;
+                p.mountEntity(null);
+                if (boat != null) boat.setDead();
+                p.setPositionAndUpdate(0.5, p.posY, 0.5);
+            });
+            return 20;
+        });
         // Other players: models named in the "players" config section.
         step(() -> {
             reg().setPlayer("TrevorTest", "trevor");
@@ -221,7 +272,34 @@ public final class DevTest {
             check("Trevor drawn for TrevorTest", draws(reg().find("trevor")) > 0, "");
             check("the Noob drawn for NoobTest", draws(reg().find("roblox_noob")) > 0, "");
             for (int id = -100; id >= -103; id--) mc.theWorld.removeEntityFromWorld(id);
+            // A bed in front of us for another player (sleeping is vanilla's transform too).
+            BlockPos foot = new BlockPos(mc.thePlayer.posX - 1, mc.thePlayer.posY, mc.thePlayer.posZ + 3);
+            bed = new BlockPos[]{foot, foot.east()};
+            serverPlayer(p -> {
+                IBlockState state = Blocks.bed.getDefaultState().withProperty(BlockBed.FACING, EnumFacing.EAST);
+                p.worldObj.setBlockState(bed[0], state.withProperty(BlockBed.PART, BlockBed.EnumPartType.FOOT), 3);
+                p.worldObj.setBlockState(bed[1], state.withProperty(BlockBed.PART, BlockBed.EnumPartType.HEAD), 3);
+            });
+            return 20;
+        });
+        step(() -> {
+            EntityOtherPlayerMP sleeper = spawnOther(-104, "JohnTest", bed[1].getX() + 0.5, bed[1].getY(), bed[1].getZ() + 0.5, null);
+            // What the client does for the use-bed packet.
+            sleeper.trySleep(bed[1]);
+            look(0, 40);
+            return 30;
+        });
+        step(() -> {
+            net.minecraft.entity.Entity sleeper = mc.theWorld.getEntityByID(-104);
+            check("another player in John Marston sleeps in a bed", sleeper instanceof EntityPlayer && ((EntityPlayer) sleeper).isPlayerSleeping(), "");
+            shot("09b_sleeping_player");
+            mc.theWorld.removeEntityFromWorld(-104);
+            BlockPos[] b = bed;
+            serverPlayer(p -> {
+                for (BlockPos pos : b) p.worldObj.setBlockToAir(pos);
+            });
             for (String n : Arrays.asList("TrevorTest", "NoobTest", "JohnTest")) reg().setPlayer(n, null);
+            look(0, 0);
             mc.gameSettings.hideGUI = false;
             countA = draws(john);
             mc.displayGuiScreen(new GuiInventory(mc.thePlayer));
@@ -388,7 +466,7 @@ public final class DevTest {
     }
 
     /** Another player standing in front of us, facing us (client side only). */
-    private void spawnOther(int id, String name, double x, double y, double z, ItemStack held) {
+    private EntityOtherPlayerMP spawnOther(int id, String name, double x, double y, double z, ItemStack held) {
         // Steve's default skin for every test player (an even UUID hash).
         UUID uuid = UUID.nameUUIDFromBytes(name.getBytes(StandardCharsets.UTF_8));
         for (int i = 0; (uuid.hashCode() & 1) != 0; i++) uuid = UUID.nameUUIDFromBytes((name + i).getBytes(StandardCharsets.UTF_8));
@@ -399,6 +477,7 @@ public final class DevTest {
         o.renderYawOffset = o.prevRenderYawOffset = 180;
         o.setCurrentItemOrArmor(0, held);
         mc.theWorld.addEntityToWorld(id, o);
+        return o;
     }
 
     private static byte[] resource(String path) throws IOException {
