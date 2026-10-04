@@ -66,5 +66,9 @@
   {"wait": 1500},
   {"shot": "models_17_hurt_invisible.png"},
   {"eval": "(async () => { const w = mc.theWorld; for (const e of w.loadedEntityList) if (e.username === 'Trevor') e.setInvisible(false); mc.dev.sky.unfreeze(); mc.gameSettings.hideGUI = false; const names = ['John', 'Trevor', 'Noob', 'Tester']; for (const n of names) mc.dev.models.setRemote(n, null); await new Promise((r) => setTimeout(r, 1000)); const steve = await mc.dev.models.measureFrames(4000); const imported = mc.dev.models.state().user[0].hash; const keys = ['john_marston', 'trevor', 'roblox_noob', 'data:' + imported]; names.forEach((n, i) => mc.dev.models.setRemote(n, keys[i])); await new Promise((r) => setTimeout(r, 1000)); const custom = await mc.dev.models.measureFrames(4000); return { steve, custom, gpu: mc.dev.models.state().gpu }; })()"},
+  {"eval": "mc.gameSettings.hideGUI = false; mc.dev.player.clearOthers(); mc.dev.tp(0.5, 4, 0.5, 0, 15); mc.dev.player.armor(3, 86); const boat = mc.dev.spawn('Boat', 0.5, 4.5, 3.5); mc.thePlayer.mountEntity(boat); mc.dev.sky.unfreeze(); mc.dev.ticks(3); mc.gameSettings.thirdPersonView = 2; mc.dev.sky.pin(6000); __check('riding a boat with a pumpkin on the head', mc.thePlayer.isRiding(), mc.thePlayer.posY)"},
+  {"wait": 2000},
+  {"shot": "models_18_trevor_boat_pumpkin.png"},
+  {"eval": "mc.thePlayer.mountEntity(mc.thePlayer.ridingEntity); mc.dev.player.armor(3, 0); mc.gameSettings.thirdPersonView = 0; mc.dev.sky.unfreeze(); mc.dev.ticks(2); 'off the boat'"},
   {"eval": "__check('no failed checks', window.__fails.length === 0, window.__fails)"}
 ]
