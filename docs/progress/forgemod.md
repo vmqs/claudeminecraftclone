@@ -14,7 +14,12 @@ Status:
 - [x] 1 web export (tests/glbexport.test.ts 682 checks; scenarios export/account/models pass; Khronos validator clean)
 - [x] 2 scaffold (gg.essential.loom 0.10.0.5, Gradle 8.8 wrapper; loom's runClient fails Gradle 8 validation -> runClientDirect)
 - [x] 3 decoder  - [x] 4 rendering (compiles)  - [x] 5 selection GUI/config/key (compiles)
-- [ ] 6 CI  - [ ] 7 real test under Xvfb  - [ ] 8 README/docs
+- [x] 6 CI (.github/workflows/forge-mod.yml; JAVA_HOME_8_X64 toolchain lookup checked locally)
+- [x] 7 real test under Xvfb: dev client (runClientDirect) and the RELEASE jar in a production-style
+  launch (obfuscated client + forge universal + launchwrapper/FMLTweaker; needs log4j 2.0-beta9):
+  22 checks pass, 19 screenshots (scratchpad/fm-devtest, fm-prodtest)
+- [x] 8 README (mod + main), LICENSE (MIT, code only), ARCHITECTURE §3/§13, TESTING
+- [x] JUnit McpmFormatTest vs scripts/mcpm-reference.mjs fixture (built-ins bit-exact, 42 refusals)
 
 Notes for a resume:
 - JDK 8 for running: scratchpad/jdk8 (Temurin 8u504), listed in ~/.gradle/gradle.properties

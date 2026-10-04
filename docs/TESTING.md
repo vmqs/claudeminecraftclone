@@ -473,3 +473,20 @@ docs/MULTIPLAYER.md, `MC|Model`).
 The built-in models are made with `node scripts/convert-models.mjs <downloads dir>` (the user's
 three downloads unpacked; Trevor's RAR needs `node-unrar-js`, see the script); it prints each
 model's size, rig, up axis and facing and the parts' vertex counts.
+
+## Model export and the Forge 1.8.9 mod
+
+```sh
+node scripts/run-node-test.mjs tests/glbexport.test.ts   # .glb export: structure, round trip, re-import
+GLB_EXPORT_DIR=/tmp/glb node scripts/run-node-test.mjs tests/glbexport.test.ts   # also writes <id>.glb
+node scripts/export-glb.mjs <out dir> [model.mcpm ...]    # .mcpm -> .glb (built-ins without arguments)
+node scripts/shot.mjs export                              # Export .mcpm / .glb buttons in the browser
+node scripts/mcpm-reference.mjs                           # regenerate the mod's decoder fixture
+cd mods/forge-1.8.9 && ./gradlew build                    # mod jar + McpmFormatTest (Java vs web decoder)
+```
+
+`mc.dev.models.exportModel(kind, download?)` runs Export .mcpm / Export .glb (`download` false
+skips the browser download) and `mc.dev.models.lastExport(withBytes?)` describes the last file.
+The mod's in-game test (`./gradlew runClientDirect -PrunJvmArgs="-Dpolymodels.devtest=<dir>"`, also
+with the release jar in a normal Forge install) is described in `mods/forge-1.8.9/README.md`;
+headless it needs Xvfb, Mesa llvmpipe and an `xrandr` (or a stand-in) for LWJGL 2.9.4.

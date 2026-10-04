@@ -37,7 +37,9 @@ to each other (WebRTC); there is no game server to run.
   from their skeleton (or by their shape when they have none) and animated like Steve; they are
   kept in the browser (**Delete Model** removes one, **Turn Around** turns one that faces
   backwards). Other players in a room see your model
-  (imported ones up to 3 MB).
+  (imported ones up to 3 MB). **Export .mcpm** saves the chosen model's file (for the Minecraft
+  1.8.9 mod below) and **Export .glb** saves it as a standard glTF 2.0 file (mesh, textures and a
+  six-bone skeleton) for Blender or any glTF viewer.
 - **Host:** in your world press Esc → **Open to LAN**, pick the game mode for other players and
   Allow Cheats, then **Start LAN World** (or type `/publish`). The chat shows a
   code such as `Room code: K7XQ-2MHB` (also copied to the clipboard, and shown on the pause
@@ -59,6 +61,17 @@ Finding a room uses public signalling relays (Nostr and BitTorrent trackers). Mo
 networks connect fine; strict NATs and firewalls (some office, school and mobile networks)
 block direct links and would need a TURN relay, which the game does not provide. Details,
 the protocol and its limits: `docs/MULTIPLAYER.md`.
+
+## Player models in Minecraft 1.8.9 (Forge mod)
+
+[`mods/forge-1.8.9`](mods/forge-1.8.9/README.md) is **Poly Player Models**, a small client-side
+Forge mod for Minecraft 1.8.9 (Forge 11.15.1.2318): drop `polymodels-1.0.0.jar` into
+`.minecraft/mods/`, press **M** in game and wear John Marston, Trevor, the Roblox Noob, or any model
+exported here with **Export .mcpm** (put it in `.minecraft/config/polymodels/`). It is animated by
+vanilla's own player animations and seen in F5 and the inventory; other players see your normal
+skin. Build it with `cd mods/forge-1.8.9 && ./gradlew build`, or download the jar from the
+"Forge 1.8.9 mod" GitHub Actions run. Install, usage, limitations and credits: its
+[README](mods/forge-1.8.9/README.md).
 
 ## Controls and texture packs
 
@@ -90,7 +103,8 @@ list. Clearing the browser's site data deletes the saves, so export worlds you w
   [Faithful License](resourcepacks/FAITHFUL_LICENSE.txt).
 - Player models: user-supplied models: John Marston (Red Dead Redemption, Rockstar Games),
   Trevor Philips (GTA V, Rockstar Games), Roblox Noob (Roblox Corporation) — included at the
-  repo owner's request. Converted into `public/models/` by `scripts/convert-models.mjs`.
+  repo owner's request. Converted into `public/models/` by `scripts/convert-models.mjs`, and
+  bundled in the Forge 1.8.9 mod's jar with the same credits.
 - Sounds, music, fallback textures, and language files belong to **Mojang Studios**. They are
   downloaded from Mojang's servers at build time by `scripts/fetch-assets.mjs` and are not stored
   in this repository.
