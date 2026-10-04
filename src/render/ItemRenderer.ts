@@ -19,6 +19,7 @@ import { MapItemRenderer } from './MapItemRenderer';
 import { ItemIds } from '../block/BlockIds';
 import type { ItemMap } from '../item/ItemMap';
 import { bindPlayerSkin } from './entity/SkinTextures';
+import { renderCustomFirstPersonArm } from './entity/CustomPlayerModels';
 
 const f = Math.fround;
 const PI_F = f(Math.PI);
@@ -343,6 +344,7 @@ export class ItemRenderer {
 
   /** RenderPlayer.renderFirstPersonArm. */
   private renderFirstPersonArm(): void {
+    if (renderCustomFirstPersonArm(this.mc.thePlayer)) return;
     GL.color(1, 1, 1);
     this.armModel.onGround = 0;
     this.armModel.setRotationAngles(0, 0, 0, 0, 0, f(0.0625), this.mc.thePlayer);

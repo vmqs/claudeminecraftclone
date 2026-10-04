@@ -30,6 +30,14 @@ to each other (WebRTC); there is no game server to run.
   press **Upload Skin...** to wear a 64x32 or 64x64 PNG skin (a turning preview shows it);
   **Reset to Steve** goes back to the default. Both are remembered by the browser, and the other
   players in a room see your skin.
+- **Your model:** in the same screen **Model:** switches between Steve (with your skin) and
+  polygon player models: three built in (John Marston, Trevor, Roblox Noob) and any you add with
+  **Import Model...** (a `.glb`, `.gltf`, `.fbx` or `.obj` file with its textures, or a `.zip`
+  of them). Imported models are scaled to a player's 1.8 blocks, turned to face forward, rigged
+  from their skeleton (or by their shape when they have none) and animated like Steve; they are
+  kept in the browser (**Delete Model** removes one, **Turn Around** turns one that faces
+  backwards). Other players in a room see your model
+  (imported ones up to 3 MB).
 - **Host:** in your world press Esc → **Open to LAN**, pick the game mode for other players and
   Allow Cheats, then **Start LAN World** (or type `/publish`). The chat shows a
   code such as `Room code: K7XQ-2MHB` (also copied to the clipboard, and shown on the pause
@@ -80,6 +88,9 @@ list. Clearing the browser's site data deletes the saves, so export worlds you w
 - Textures: **Classic Faithful 32x** for 1.5.2, by Vattic, Evorp and the Faithful team,
   <https://faithfulpack.net>. The pack is included unmodified in `resourcepacks/` under the
   [Faithful License](resourcepacks/FAITHFUL_LICENSE.txt).
+- Player models: user-supplied models: John Marston (Red Dead Redemption, Rockstar Games),
+  Trevor Philips (GTA V, Rockstar Games), Roblox Noob (Roblox Corporation) — included at the
+  repo owner's request. Converted into `public/models/` by `scripts/convert-models.mjs`.
 - Sounds, music, fallback textures, and language files belong to **Mojang Studios**. They are
   downloaded from Mojang's servers at build time by `scripts/fetch-assets.mjs` and are not stored
   in this repository.

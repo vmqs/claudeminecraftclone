@@ -33,6 +33,8 @@ import type { PlayerControllerGuest } from './PlayerControllerGuest';
 import { INTERPOLATION_STEPS, setRemoteTarget, snapToTarget } from './RemoteEntityTick';
 import { WorldClient } from './WorldClient';
 import { decodePlayerSkin, encodeOwnSkin, SKIN_CHANNEL } from '../SkinSync';
+import { MODEL_CHANNEL, ModelSyncClient } from '../ModelSync';
+import type { PlayerModelRegistry } from '../../client/model/PlayerModels';
 
 function fromHex(hex: string): Uint8Array {
   const out = new Uint8Array(hex.length >> 1);
@@ -82,6 +84,8 @@ export interface GuestClient {
   localSkin?(): Uint8Array | null;
   /** Another player's skin from the host (null: Steve). */
   playerSkin?(name: string, rgba: Uint8Array | null): void;
+  /** The player-model registry (MC|Model; absent: the game's shared one). */
+  readonly models?: PlayerModelRegistry;
 }
 
 /**
@@ -207,6 +211,7 @@ export class NetClientHandler {
     if (this.state === 'play') {
       this.sendClientInfo();
       this.sendSkin();
+      this.modelSync.tick();
     }
     if (++this.ticksSinceMessage > TIMEOUT_TICKS) this.fail('disconnect.lost', 'disconnect.timeout');
   }
@@ -405,6 +410,7 @@ export class NetClientHandler {
         return this.client.autocompleteResponse(p.text.split('\u0000'));
       case 'CustomPayload':
         if (p.channel === 'MC|Rejoin' && p.data.length === 16) this.client.storeRejoinToken?.([...p.data].map((v) => v.toString(16).padStart(2, '0')).join(''));
+        else if (p.channel === MODEL_CHANNEL) this.modelSync.received(p.data);
         else if (p.channel === SKIN_CHANNEL) {
           const skin = decodePlayerSkin(p.data);
           if (skin && skin.name !== player.username) this.client.playerSkin?.(skin.name, skin.rgba);
@@ -445,6 +451,12 @@ export class NetClientHandler {
     this.client.startGuestWorld(w, player, type);
     this.sentClientInfo = '';
     this.sendClientInfo();
+  }
+
+  /** MC|Model: this player's model to the host, the others' from it. */
+  private modelSyncClient: ModelSyncClient | null = null;
+  private get modelSync(): ModelSyncClient {
+    return (this.modelSyncClient ??= new ModelSyncClient(this, () => this.client.username, this.client.models));
   }
 
   private sentClientInfo = '';

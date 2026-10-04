@@ -84,6 +84,8 @@ import { loadUsername } from '../net/Username';
 import { connectToServerAddress } from '../net/connect/ServerConnector';
 import { BootSplash } from './BootSplash';
 import { PlayerSkins } from './skin/PlayerSkins';
+import { installPlayerModels } from './model/PlayerModelsInstall';
+import { PlayerModels } from './model/PlayerModels';
 import { loadSavedSkin } from './skin/SkinFiles';
 import { EntityCrit2FX } from '../render/particle/EntityCrit2FX';
 import type { Entity } from '../entity/Entity';
@@ -259,6 +261,7 @@ export class Minecraft implements SettingsListener {
     this.playerController = this.singlePlayerController = new PlayerControllerMP(this);
     // The player the user controls wears the Account Manager's skin.
     PlayerSkins.localPlayer = () => this.thePlayer;
+    installPlayerModels(this);
     this.updateDisplaySize();
     installStats(this);
     EntityBase.dimensionTravel = (e, dim) => this.onEntityTravel(e, dim);
@@ -1199,6 +1202,7 @@ export class Minecraft implements SettingsListener {
     this.serverConnect?.abort();
     this.serverConnect = null;
     PlayerSkins.clearRemote();
+    PlayerModels.clearRemote();
     if (this.playerController !== this.singlePlayerController) this.setPlayerController(this.singlePlayerController);
     GuiIngame.playerListProvider = null;
     this.updateBackgroundTicking();

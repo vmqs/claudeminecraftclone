@@ -1,10 +1,13 @@
 import { Keyboard } from '../client/Keyboard';
+import { deleteUserModel, importModelFiles, pickModelFiles, readFiles, turnUserModel } from '../client/model/ModelImport';
+import { MAX_NET_MODEL_BYTES, PlayerModels, STEVE_KEY, type ModelKey } from '../client/model/PlayerModels';
 import { PlayerSkins } from '../client/skin/PlayerSkins';
 import { pickPngFile, readSkinFile, saveSkin } from '../client/skin/SkinFiles';
 import { I18n } from '../core/I18n';
 import { filterUsername, isUsernameChar, isValidUsername, saveUsername } from '../net/Username';
 import { GL } from '../render/gl/GL';
 import { RenderHelper } from '../render/RenderHelper';
+import { customModelForKey } from '../render/entity/CustomPlayerModels';
 import { ModelBiped } from '../render/entity/ModelBiped';
 import { bindSkin } from '../render/entity/SkinTextures';
 import { Gui } from './Gui';
@@ -21,17 +24,29 @@ const STATUS_INFO = 0xa0a0a0;
 const STATUS_ERROR = 0xff5555;
 const STATUS_OK = 0x55ff55;
 
+const BUTTON_MODEL = 3;
+const BUTTON_IMPORT = 4;
+const BUTTON_DELETE = 5;
+const BUTTON_TURN = 6;
+
 /**
  * "Account Manager": everything about the player in one 1.5.2-style screen (the launcher's job
  * in 1.5.2). The username (3 to 16 letters, digits or _, used in single player, when hosting a
- * LAN game and when joining one) and the skin: a turning preview of the player model wearing it
- * "Upload Skin..." for a 64x32 or 64x64 PNG, and "Reset to Steve". Opened
- * from the title screen and from Options.
+ * LAN game and when joining one), the player model ("Model: Steve" cycles through Steve, the
+ * built-in models and imported ones; "Import Model..." reads GLB, glTF, FBX or OBJ files, a .zip
+ * of them, or a .mcpm; "Delete Model" removes an imported one, "Turn Around" turns one whose
+ * front and back were mixed up) and Steve's skin ("Upload
+ * Skin..." for a 64x32 or 64x64 PNG, "Reset to Steve"). The preview shows the chosen model
+ * turning slowly. Opened from the title screen and from Options.
  */
 export class GuiAccountManager extends GuiScreen {
   private nameField!: GuiTextField;
   private buttonDone!: GuiButton;
   private buttonUpload!: GuiButton;
+  private buttonModel!: GuiButton;
+  private buttonImport!: GuiButton;
+  private buttonDelete!: GuiButton;
+  private buttonTurn!: GuiButton;
   private status = '';
   private statusColor = STATUS_INFO;
   /** The preview's automatic turn; it cannot be dragged. */
@@ -39,8 +54,10 @@ export class GuiAccountManager extends GuiScreen {
   private prevSpin = 0;
   private ticks = 0;
   private picking = false;
+  private importing = false;
   private readonly model = new ModelBiped(0);
   private box = { x: 0, y: 0, w: 0, h: 0 };
+  private pinned: ModelKey | null = null;
 
   constructor(private readonly parentScreen: GuiScreen | null) {
     super();
@@ -52,21 +69,47 @@ export class GuiAccountManager extends GuiScreen {
     const cx = Math.trunc(this.width / 2);
     const top = Math.trunc(this.height / 6);
     this.box = { x: cx - 150, y: top, w: 120, h: 130 };
-    const rx = cx - 10;
+    const rx = cx - 20;
     const old = this.nameField?.getText() ?? this.mc.username;
-    this.nameField = new GuiTextField(this.fontRenderer, rx, top + 16, 160, 20);
+    this.nameField = new GuiTextField(this.fontRenderer, rx, top + 10, 170, 20);
     this.nameField.setMaxStringLength(16);
     this.nameField.setFocused(true);
     this.nameField.setText(old);
-    this.buttonList.push((this.buttonUpload = new GuiButton(1, rx, top + 72, 160, 20, 'Upload Skin...')));
-    this.buttonList.push(new GuiButton(2, rx, top + 96, 160, 20, 'Reset to Steve'));
+    this.buttonList.push((this.buttonModel = new GuiButton(BUTTON_MODEL, rx, top + 54, 170, 20, '')));
+    this.buttonList.push((this.buttonImport = new GuiButton(BUTTON_IMPORT, rx, top + 76, 84, 20, 'Import Model...')));
+    this.buttonList.push((this.buttonDelete = new GuiButton(BUTTON_DELETE, rx + 86, top + 76, 84, 20, 'Delete Model')));
+    this.buttonList.push((this.buttonUpload = new GuiButton(1, rx, top + 110, 84, 20, 'Upload Skin...')));
+    this.buttonList.push(new GuiButton(2, rx + 86, top + 110, 84, 20, 'Reset to Steve'));
+    // Under the preview, for imported models whose front and back were mixed up.
+    this.buttonList.push((this.buttonTurn = new GuiButton(BUTTON_TURN, this.box.x, top + 146, this.box.w, 20, 'Turn Around')));
     this.buttonList.push((this.buttonDone = new GuiButton(200, cx - 100, top + 168, I18n.translateToLocal('gui.done'))));
+    void PlayerModels.loadBuiltins().then(() => {
+      if (this.mc?.currentScreen === this) this.updateButtons();
+    });
     this.updateButtons();
   }
 
   private updateButtons(): void {
     this.buttonDone.enabled = isValidUsername(this.nameField.getText());
     this.buttonUpload.enabled = !this.picking;
+    const key = PlayerModels.local;
+    const label = `Model: ${PlayerModels.nameOf(key)}`;
+    this.buttonModel.displayString = this.fontRenderer.getStringWidth(label) > 160 ? this.fontRenderer.trimStringToWidth(label, 150) + '...' : label;
+    this.buttonModel.enabled = !this.importing;
+    this.buttonImport.enabled = !this.picking && !this.importing;
+    const imported = key.startsWith('data:') && PlayerModels.user.some((u) => `data:${u.hash}` === key);
+    this.buttonDelete.enabled = !this.importing && imported;
+    this.buttonTurn.drawButton = imported;
+    this.buttonTurn.enabled = !this.importing && imported;
+    this.pinPreview(key);
+  }
+
+  /** Keeps the previewed model loaded while the screen is open. */
+  private pinPreview(key: ModelKey): void {
+    if (this.pinned === key) return;
+    if (this.pinned) PlayerModels.unpin(this.pinned);
+    this.pinned = key === STEVE_KEY ? null : key;
+    if (this.pinned) PlayerModels.pinned.add(this.pinned);
   }
 
   override updateScreen(): void {
@@ -79,6 +122,8 @@ export class GuiAccountManager extends GuiScreen {
   override onGuiClosed(): void {
     Keyboard.enableRepeatEvents(false);
     this.commitName();
+    if (this.pinned) PlayerModels.unpin(this.pinned);
+    this.pinned = null;
   }
 
   /** The typed name becomes the account's when it is valid. */
@@ -122,9 +167,94 @@ export class GuiAccountManager extends GuiScreen {
       PlayerSkins.setLocal(null);
       saveSkin(null);
       this.setStatus('You wear the default skin', STATUS_OK);
+    } else if (b.id === BUTTON_MODEL) {
+      this.cycleModel(1);
+    } else if (b.id === BUTTON_IMPORT) {
+      this.picking = true;
+      this.updateButtons();
+      this.setStatus('Choose a .glb, .gltf, .fbx or .obj model (with its textures), or a .zip');
+      pickModelFiles().then(
+        (files) => {
+          this.picking = false;
+          this.updateButtons();
+          if (files.length) void this.useModelFiles(files);
+          else this.setStatus('');
+        },
+        () => {
+          this.picking = false;
+          this.updateButtons();
+        },
+      );
+    } else if (b.id === BUTTON_DELETE) {
+      const key = PlayerModels.local;
+      if (!key.startsWith('data:')) return;
+      const name = PlayerModels.nameOf(key);
+      void deleteUserModel(key.slice(5)).then(() => {
+        this.setStatus(`Deleted ${name}`, STATUS_OK);
+        this.updateButtons();
+      });
+    } else if (b.id === BUTTON_TURN) {
+      const key = PlayerModels.local;
+      if (!key.startsWith('data:')) return;
+      this.importing = true;
+      this.updateButtons();
+      void turnUserModel(key.slice(5)).then(
+        (k) => {
+          this.importing = false;
+          this.setStatus(k ? 'Turned the model around' : 'The model is gone', k ? STATUS_OK : STATUS_ERROR);
+          this.updateButtons();
+        },
+        () => {
+          this.importing = false;
+          this.setStatus('The model could not be turned', STATUS_ERROR);
+          this.updateButtons();
+        },
+      );
     } else if (b.id === 200) {
       if (!this.commitName()) return;
       this.mc.displayGuiScreen(this.parentScreen);
+    }
+  }
+
+  /** The next (or previous) model in the list: Steve, the built-in ones, the imported ones. */
+  cycleModel(step: number): void {
+    const list = PlayerModels.choices();
+    const i = list.indexOf(PlayerModels.local);
+    const next = list[((((i < 0 ? 0 : i) + step) % list.length) + list.length) % list.length];
+    PlayerModels.setLocal(next);
+    this.setStatus(next === STEVE_KEY ? 'You look like Steve (with your skin)' : '');
+    this.updateButtons();
+  }
+
+  /** Imports chosen model files and wears the result (what Import Model... does with them). */
+  async useModelFiles(files: File[] | { name: string; bytes: Uint8Array }[]): Promise<boolean> {
+    this.importing = true;
+    this.updateButtons();
+    this.setStatus('Importing the model...');
+    try {
+      let list: { name: string; bytes: Uint8Array }[];
+      if (files.length && files[0] instanceof File) {
+        const read = await readFiles(files as File[]);
+        if (read.error) {
+          this.setStatus(read.error, STATUS_ERROR);
+          return false;
+        }
+        list = read.files;
+      } else list = files as { name: string; bytes: Uint8Array }[];
+      const r = await importModelFiles(list);
+      if (!r.ok || !r.key) {
+        this.setStatus(r.error ?? 'The model could not be imported', STATUS_ERROR);
+        return false;
+      }
+      PlayerModels.setLocal(r.key);
+      const how = r.report ? `${r.report.triangles.toLocaleString('en-US')} triangles, rigged by ${r.report.rig === 'skeleton' ? 'its skeleton' : 'its shape'}` : 'ready';
+      const warn = r.warnings ?? [];
+      const big = (r.bytes ?? 0) > MAX_NET_MODEL_BYTES;
+      this.setStatus(`Imported ${r.name} (${how})${warn.length ? '. ' + warn[0] : ''}`, big || warn.length ? STATUS_INFO : STATUS_OK);
+      return true;
+    } finally {
+      this.importing = false;
+      this.updateButtons();
     }
   }
 
@@ -138,7 +268,7 @@ export class GuiAccountManager extends GuiScreen {
     }
     PlayerSkins.setLocal(r.rgba);
     saveSkin(PlayerSkins.local);
-    this.setStatus('Skin changed', STATUS_OK);
+    this.setStatus(PlayerModels.local === STEVE_KEY ? 'Skin changed' : 'Skin changed (Steve wears it)', STATUS_OK);
     return true;
   }
 
@@ -157,6 +287,13 @@ export class GuiAccountManager extends GuiScreen {
   }
 
   protected override mouseClicked(x: number, y: number, button: number): void {
+    // Right-clicking the model button goes back through the list.
+    const m = this.buttonModel;
+    if (button === 1 && m.enabled && x >= m.xPosition && y >= m.yPosition && x < m.xPosition + m.width && y < m.yPosition + m.height) {
+      this.mc.sndManager.playSoundFX('random.click', 1, 1);
+      this.cycleModel(-1);
+      return;
+    }
     super.mouseClicked(x, y, button);
     this.nameField.mouseClicked(x, y, button);
   }
@@ -165,33 +302,42 @@ export class GuiAccountManager extends GuiScreen {
     this.drawDefaultBackground();
     const cx = Math.trunc(this.width / 2);
     const top = this.box.y;
-    const rx = cx - 10;
+    const rx = cx - 20;
     this.drawCenteredString(this.fontRenderer, 'Account Manager', cx, top - 20, 0xffffff);
     const b = this.box;
     Gui.drawRect(b.x - 1, b.y - 1, b.x + b.w + 1, b.y + b.h + 1, -6250336);
     Gui.drawRect(b.x, b.y, b.x + b.w, b.y + b.h, -16777216);
-    this.drawSkinPreview(pt);
-    this.drawCenteredString(this.fontRenderer, PlayerSkins.local ? 'Custom skin' : 'Steve', b.x + Math.trunc(b.w / 2), b.y + b.h + 5, 0xa0a0a0);
+    const key = PlayerModels.local;
+    const shown = this.drawPreview(key, pt);
+    let caption: string;
+    if (key === STEVE_KEY) caption = PlayerSkins.local ? 'Custom skin' : 'Steve';
+    else caption = PlayerModels.stateOf(key) === 'failed' ? 'Could not load the model' : shown ? PlayerModels.nameOf(key) : 'Loading...';
+    this.drawCenteredString(this.fontRenderer, this.fontRenderer.trimStringToWidth(caption, b.w + 20), b.x + Math.trunc(b.w / 2), b.y + b.h + 5, 0xa0a0a0);
     const name = this.nameField.getText();
     const valid = isValidUsername(name);
-    this.drawString(this.fontRenderer, 'Username', rx, top + 4, 0xa0a0a0);
+    this.drawString(this.fontRenderer, 'Username', rx, top, 0xa0a0a0);
     this.nameField.drawTextBox();
-    if (!valid) this.drawString(this.fontRenderer, '3-16 letters, digits or _', rx, top + 40, 0xff5555);
-    else if (this.mc.lanServer || this.mc.netHandler) this.drawString(this.fontRenderer, 'Used from the next game you join', rx, top + 40, 0x808080);
-    this.drawString(this.fontRenderer, 'Skin', rx, top + 60, 0xa0a0a0);
-    let y = top + 122;
-    for (const line of this.fontRenderer.listFormattedStringToWidth(this.status, 160).slice(0, 3)) {
+    if (!valid) this.drawString(this.fontRenderer, '3-16 letters, digits or _', rx, top + 33, 0xff5555);
+    else if (this.mc.lanServer || this.mc.netHandler) this.drawString(this.fontRenderer, 'Used from the next game you join', rx, top + 33, 0x808080);
+    this.drawString(this.fontRenderer, 'Model', rx, top + 44, 0xa0a0a0);
+    this.drawString(this.fontRenderer, key === STEVE_KEY ? 'Skin' : 'Skin (worn by Steve)', rx, top + 100, 0xa0a0a0);
+    let y = top + 134;
+    for (const line of this.fontRenderer.listFormattedStringToWidth(this.status, 170).slice(0, 3)) {
       this.drawString(this.fontRenderer, line, rx, y, this.statusColor);
       y += this.fontRenderer.FONT_HEIGHT;
     }
     super.drawScreen(mx, my, pt);
   }
 
-  /** The player model in the preview box (lit like the inventory's player), turning slowly. */
-  private drawSkinPreview(pt: number): void {
+  /**
+   * The player model in the preview box (lit like the inventory's player), turning slowly.
+   * Returns false while a custom model is still loading (Steve stands in).
+   */
+  private drawPreview(key: ModelKey, pt: number): boolean {
     const b = this.box;
     const scale = (b.h - 34) / 1.8;
     const yaw = f(this.prevSpin + (this.spin - this.prevSpin) * pt);
+    const custom = customModelForKey(key);
     GL.enable(GL.COLOR_MATERIAL);
     GL.enable(GL.DEPTH_TEST);
     GL.pushMatrix();
@@ -211,16 +357,18 @@ export class GuiAccountManager extends GuiScreen {
     GL.enable(GL.ALPHA_TEST);
     GL.alphaFunc(GL.GREATER, f(0.1));
     GL.color(1, 1, 1, 1);
-    bindSkin(this.mc.renderEngine, PlayerSkins.local, '/mob/char.png');
+    const model = custom ?? this.model;
+    if (!custom) bindSkin(this.mc.renderEngine, PlayerSkins.local, '/mob/char.png');
     // ModelBase starts as a child model; RenderLiving sets these from the entity every frame.
-    this.model.onGround = 0;
-    this.model.isChild = false;
-    this.model.isRiding = false;
-    this.model.render(null, 0, 0, f(this.ticks + pt), 0, 0, SCALE);
+    model.onGround = 0;
+    model.isChild = false;
+    model.isRiding = false;
+    model.render(null, 0, 0, f(this.ticks + pt), 0, 0, SCALE);
     GL.popMatrix();
     GL.disable(GL.RESCALE_NORMAL);
     GL.enable(GL.CULL_FACE);
     RenderHelper.disableStandardItemLighting();
     GL.disable(GL.COLOR_MATERIAL);
+    return key === STEVE_KEY || custom !== null;
   }
 }

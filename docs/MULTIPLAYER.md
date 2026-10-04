@@ -11,7 +11,8 @@ carry the WebRTC handshake. See **Privacy and security** below for what that exp
 **Your account.** The title screen's **Account Manager** (under Multiplayer; also **Account
 Manager...** in Options) holds the player's **name** and **skin**: a field for the name, a
 turning preview of the player model wearing the skin, **Upload Skin...**
-and **Reset to Steve**. The host plays and the guests join under that name.
+and **Reset to Steve**, and the **player model** (**Model:** Steve / the built-in models / imported
+ones, **Import Model...**, **Delete Model**, **Turn Around**). The host plays and the guests join under that name.
 
 **Hosting.** Start or load a world, press Esc and choose **Open to LAN**. The screen has the
 1.5.2 settings (**Game Mode** for other players, **Allow Cheats**). Press **Start LAN World**.
@@ -167,7 +168,7 @@ varint length and its bytes (a one-byte id and the fields of the schema in `Pack
 from a guest may hold 64 KiB and 256 packets; frames from the host 8 MiB and 8192 packets
 (a chunk goes in a frame of its own). Strings, lists, item NBT, metadata and JSON fields have
 their own caps; a packet that a side may not send (`allowedFrom`) or that breaks a limit closes
-the connection. `PROTOCOL_VERSION` is 2 (2 added Packet200Statistic) and the handshake carries the game version `1.5.2`.
+the connection. `PROTOCOL_VERSION` is 4 (2 added Packet200Statistic, 3 dimensions, 4 `MC|Model`) and the handshake carries the game version `1.5.2`.
 The layouts of Handshake and KickDisconnect never change (`tests/netprotocol.test.ts` pins their
 bytes), so builds of different protocols still read each other's refusal.
 
@@ -222,7 +223,7 @@ closed. `tests/nettransport.test.ts` checks the patched layer.
 | 130, 132 | UpdateSign, TileEntityData | both / host | |
 | 200 | Statistic | host | a statistic the host counted for the guest's player (amounts above 100 split); the guest counts the independent ones (movement, jumps, play time) itself and applies the achievement parent rule, as 1.5.2's client did |
 | 201–205 | PlayerInfo, PlayerAbilities, AutoComplete, ClientInfo, ClientCommand | mixed | TAB list, flying, Tab completion, render distance and chat visibility (sent when they change), respawn |
-| 250 | CustomPayload | both | `MC|ItemName` (anvil), `MC|Beacon`, `MC|BEdit` / `MC|BSign`, `MC|Rejoin` (the 16-byte rejoin token: host to guest after the login, guest to host right after the handshake), `MC|Skin` (skins, below) |
+| 250 | CustomPayload | both | `MC|ItemName` (anvil), `MC|Beacon`, `MC|BEdit` / `MC|BSign`, `MC|Rejoin` (the 16-byte rejoin token: host to guest after the login, guest to host right after the handshake), `MC|Skin` (skins, below), `MC|Model` (player models, below) |
 | 255 | KickDisconnect | both | the reason on the disconnect screen |
 
 **Skins (`MC|Skin`).** A guest sends its own skin after the login and whenever it changes:
@@ -233,6 +234,21 @@ dropped and counted, not kicked) and the name, re-apply 1.5.2's skin processing 
 result only as a 64x32 texture. The host accepts one change per guest every 40 ticks (a newer
 one waits its turn), relays it to everyone else, tells a newcomer every known skin, and sends
 "Steve" for a guest that left.
+
+**Player models (`MC|Model`, `src/net/ModelSync.ts`, host side `src/net/server/ModelRelay.ts`).**
+Model keys are `steve`, `builtin:<id>` (public/models/index.json, sent by id only) and
+`data:<hash>` (a model file, `.mcpm`, known by its content hash). A guest sends WEAR (type 0: key
+and, for data, the file size, at most 3 MiB) after the login and whenever its choice changes,
+then the file in DATA pieces (type 1: 16-byte hash, offset, at most 32 KiB, one per tick, so a
+guest message stays under 64 KiB). The host assembles the pieces in order (anything out of
+order, too long or for another hash cancels the upload), checks that the bytes hash to the key
+and decode as a model (`decodePlayerModel`: counts, ranges, indices, joints, image types and a
+bounded inflate), then shows it on its own players and relays it. A change takes effect at most
+once per 40 ticks. Host to guest: PLAYER (type 0: name, key, size) and DATA (type 1: hash,
+offset, total size, at most 48 KiB, two pieces per tick per guest); guests check the hash and
+decode again and cache files by hash. A newcomer learns every model (and gets the files); a guest
+that leaves becomes Steve everywhere; a model too large to send, or one that failed to load,
+makes the others see Steve. Malformed messages are dropped and counted, never kicked.
 
 ### Server connections
 
@@ -350,8 +366,10 @@ node scripts/run-node-test.mjs tests/netprotocol.test.ts   # codecs, frames, lim
 node scripts/run-node-test.mjs tests/nettransport.test.ts  # the patched trystero wire layer (buffer limits)
 node scripts/run-node-test.mjs tests/netsession.test.ts    # host World + guests over the in-memory transport
 node scripts/run-node-test.mjs tests/netskins.test.ts      # skins between the host and two guests
+node scripts/run-node-test.mjs tests/netmodels.test.ts     # player models: built-ins by id, imported files relayed, hostile data
 node scripts/run-node-test.mjs tests/account.test.ts       # skin processing, MC|Skin, the relay, server addresses, connectors
 npm run build && node scripts/mp-test.mjs --out shots/mp     # two browser contexts, real WebRTC
+node scripts/mp-models.mjs --out shots/mp-models            # two players in John Marston / an imported model / the Noob
 ```
 
 `tests/netsession.test.ts` runs a real host `World` and `LanServer` with guests joining over

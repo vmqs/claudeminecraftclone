@@ -79,6 +79,8 @@ src/
   main.ts                  boot: create canvas, load assets, start Minecraft
   client/                  Minecraft (main loop), Timer, GameSettings, KeyBinding, input,
                            PlayerControllerCreative, EntityPlayerSP, MovementInput, devtools
+  client/model/            custom player models: FBX/glTF/OBJ parsers, ModelBuilder (normalise,
+                           rig), the .mcpm format, PlayerModels registry, IndexedDB store, import worker
   core/                    JavaRandom, MathHelper, AxisAlignedBB, Vec3, MovingObjectPosition,
                            Facing, NBT-ish helpers, I18n (StringTranslate over lang/en_US.lang)
   assets/                  ResourceManager (layered packs), manifest types, image/text/sound loading,
@@ -421,7 +423,9 @@ Porting is far simpler and more faithful if we emulate that API on WebGL2.
   `addTranslation`, and `draw()`. `draw()` streams into a dynamic VBO and renders with the current
   GL state. Quads become triangles through a shared index buffer.
 - A single **uber-shader** handles texture, vertex colour or `glColor`, lightmap, two-light
-  diffuse, alpha test, and linear or exponential fog, selected by uniforms. Terrain sections use
+  diffuse, alpha test, and linear or exponential fog, selected by uniforms. It also skins custom
+  player models on the GPU (`GL.drawSkinned`: attributes 5/6 hold four bone indices and weights,
+  `u_bones` eight matrices; off for every other draw). Terrain sections use
   the same shader with a compact static vertex format (int16 positions relative to the section,
   normalized uint16 UVs, RGBA8 colour, 2×uint8 light).
 
@@ -663,8 +667,8 @@ scroll, survival-inventory tab with the destroy slot), the HUD (hotbar, crosshai
 name fade, chat lines, "Now playing"), the death screen, and the F3 debug screen with the original
 text lines. Added for this port: the boot splash (one of two pictures from `public/splash/`,
 stretched over the window, `src/client/BootSplash.ts`, in place of the Mojang logo), the Account
-Manager (title screen under Multiplayer, and Options; name, skin preview and upload,
-`src/gui/GuiAccountManager.ts`) and the Room Code screen (Multiplayer, beside Direct Connect).
+Manager (title screen under Multiplayer, and Options; name, player model choice and import,
+skin preview and upload, `src/gui/GuiAccountManager.ts`) and the Room Code screen (Multiplayer, beside Direct Connect).
 
 Shared widgets: `GuiButton`, `GuiTextField` (selection, Ctrl+A/C/X/V), `GuiSlot` (scrolling
 lists). Container windows extend `GuiContainer`, which draws the slots, the cursor stack and
@@ -769,6 +773,7 @@ registries are imported once by `src/client/Minecraft.ts`.
 | Statistics and achievements | Count with `player.addStat(id, amount)` / `player.triggerAchievement(id)` using the 1.5.2 ids in `src/stats/StatIds.ts` (`StatIds.jump`, `StatIds.mineBlock(id)`, `craftItem`, `useItem`, `breakItem`, `AchievementIds.*`; no imports, so block and item code the workers load may use it). `EntityPlayer.addStat` is a no-op; `EntityPlayerSP` sends to `ClientStats` (`src/stats/ClientStats.ts`: the stat file, the parent rule, the toast), `EntityClientPlayerMP` keeps only independent statistics and takes the host's through Packet200 (`incrementStat`), `EntityPlayerMP` sends its non-independent ones to its guest. `StatList` (`resolve(id)`: per-block / per-item ids through their tables, so grass counts as dirt), `AchievementList` (positions, icons, parents), `StatFileWriter` (per lower-cased username in `localStorage`, saved every few seconds after a change, on leaving a world and when the page hides; follows `mc.username`). Screens: `GuiAchievements`, `GuiStats`, the toast `GuiAchievement` (drawn by a frame listener that `installStats` adds). Client-side counters (worlds, games, joins, quits) go through `ClientStats.readStat`. |
 | Dev hooks | `src/client/DevTools.ts` (`?dev=1` → `window.mc.dev`), scenarios in `scripts/scenarios/`. |
 | Accounts and skins | The name is `Minecraft.username` (`src/net/Username.ts` stores it). Skins: `PlayerSkins` (`src/client/skin/PlayerSkins.ts`; `local` for the player the user controls, `setRemote(name, rgba)` for others, `skinFor(player)`); 64x32 RGBA processed by `processSkin` (`SkinImage.ts`); textures and binding in `src/render/entity/SkinTextures.ts` (`bindPlayerSkin(engine, player)` wherever a player model is drawn; RenderPlayer and ItemRenderer use it). Over the network: `MC\|Skin` (`src/net/SkinSync.ts`, host relay `src/net/server/SkinRelay.ts`). |
+| Player models | Polygon models players wear instead of Steve (§13 "Accounts and skins" for the skin). Runtime format `.mcpm` (`src/client/model/PlayerModelFormat.ts`: model space = blocks, +Y up, feet on y = 0, 1.8 tall, facing +Z, right hand on -X; every vertex bound to up to four of ModelBiped's six parts; the rig's pivots, palms and head box; `decodePlayerModel` checks everything). Built-ins: `public/models/<id>/model.mcpm` + `index.json`, made by `scripts/convert-models.mjs` (the same pipeline as Import Model...). Import pipeline (no DOM, runs in `ModelImportWorker.ts`; the parsers load only on import): `ModelFiles` (.zip), `FbxParser` (binary/ASCII), `GltfParser` (.gltf/.glb), `ObjParser` (+MTL) → `SourceScene` → `ModelBuilder.buildPlayerModel` (up axis, facing, scale, skeleton rig through `BoneNames.classifyName` or a shape rig, limbs turned to hang like Steve's, textures ≤ 1024 px) → `encodePlayerModel`. Registry: `PlayerModels` (`src/client/model/PlayerModels.ts`; keys `steve` / `builtin:<id>` / `data:<hash>`; `local` (saved in `mc152.playerModel`), `setRemote(name, key)`, `keyFor(player)`, `dataFor(key)`, `putData(bytes)`; imported files in IndexedDB through `ModelStore`). Drawing: `customModelFor(player)` (`src/render/entity/CustomPlayerModels.ts`) gives a `ModelCustomPlayer` (a `ModelBiped` whose `render` poses the six parts with `ModelPose.partMatrices` and draws `CustomModelMesh` with `GL.drawSkinned`; its arm and head `postRender` move held and head items onto the model); `RenderPlayer` swaps it in as `mainModel` (no armour layers, cape or stuck arrows), `ItemRenderer`'s empty hand calls `renderCustomFirstPersonArm`. Network: `MC\|Model` (`src/net/ModelSync.ts`, `server/ModelRelay.ts`, see `docs/MULTIPLAYER.md`). Dev: `mc.dev.models`. |
 | Server connections | `registerServerConnector(scheme, { connect, ping? })` (`src/net/connect/ServerConnector.ts`): Direct Connect, Add Server and the list's ping use the connector of the address's scheme (`tcp` for a plain `host[:port]`, parsed by `ServerAddress.ts` like 1.5.2); the connection it returns carries `Packets.ts` frames into the usual guest login. See `docs/MULTIPLAYER.md`. |
 | Key bindings and options | A new `KeyBinding(desc, code)` in `GameSettings`, appended to `keyBindings`, is saved (`key_<desc>`), listed by the scrolling `GuiControls`, flagged red on clashes and covered by Reset Keys (`keyCodeDefault`); read it with `isPressed()` / `pressed` in the tick or `GameSettings.isKeyDown`. English names for keys 1.5.2's lang lacks: `client/ControlsText.ts` (`translateOr`). Hotbar keys: `gameSettings.keyBindsHotbar[i]`; the sprint key reaches the player as `MovementInput.sprint`; the zoom state is `EntityRenderer.zoom.active`. |
 | Texture packs | `ResourceManager.packs` (bundled, then imported), `selectedPack`, `selectPack(id)` (async: an imported pack's files load from IndexedDB first; `onPackChanged` listeners then reload), `addUserPack(ImportedPack)`, `removeUserPack(id)`; `readTexturePack(name, zipBytes, modernMap)` (`assets/PackImport.ts`, worker-safe) checks and converts a .zip, `importTexturePackFile/Bytes` (`assets/PackFiles.ts`) do both. Regenerate the 1.6+ name table with `node scripts/gen-pack-map.mjs`. |
@@ -847,6 +852,10 @@ tick; autosave snapshots and Save and Quit (`SaveHandler.flush`) are unchanged.
 progress, so a deferred launch counts once; opening a saved world (`ws === null`) counts
 `startGame` and `joinMultiplayer` but not `createWorld`. `node_modules` and `public/assets` may be symlinks in worktrees and are ignored
 as such (`/node_modules`, `/public/assets` in `.gitignore`): never commit them.
+
+**Wave 6 (player models).** Custom polygon player models (§13 "Player models"): the uber shader
+skins on the GPU, `RenderPlayer` draws a `ModelCustomPlayer` for players that wear one, the
+Account Manager chooses and imports them, `MC|Model` shares them (protocol 4).
 
 **Wave 5 (dimensions).** The Nether and the End are real dimensions (§5.8): providers, one World
 per loaded dimension (`DimensionManager`), portal travel with the `Teleporter`, DIM-1/DIM1 saving
