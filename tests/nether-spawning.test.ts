@@ -20,6 +20,7 @@ import { EnumCreatureType } from '../src/world/biome/SpawnListEntry';
 import { Chunk } from '../src/world/Chunk';
 import { ChunkSection } from '../src/world/ChunkSection';
 import { ChunkProviderHell } from '../src/world/gen/nether/ChunkProviderHell';
+import '../src/world/gen/nether/NetherRegistration';
 import { WorldGenServer } from '../src/world/gen/WorldGenServer';
 import { PossibleCreatures } from '../src/world/PossibleCreatures';
 import { SpawnerAnimals } from '../src/world/SpawnerAnimals';

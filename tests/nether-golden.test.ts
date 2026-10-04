@@ -16,6 +16,7 @@ import { GuiCreateWorld } from '../src/gui/GuiCreateWorld';
 import { EnumCreatureType } from '../src/world/biome/SpawnListEntry';
 import { GenWorld } from '../src/world/gen/GenWorld';
 import { ChunkProviderHell } from '../src/world/gen/nether/ChunkProviderHell';
+import '../src/world/gen/nether/NetherRegistration';
 import { toTerrainChunk } from '../src/world/gen/TerrainChunk';
 import { WorldGenServer } from '../src/world/gen/WorldGenServer';
 import type { StructureStart } from '../src/world/gen/structure/StructureStart';

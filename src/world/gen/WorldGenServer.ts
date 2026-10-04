@@ -11,7 +11,7 @@ import { computeChunkLight } from './GenLighting';
 import { GenStore } from './GenStore';
 import { DimensionGenerators, providerInfoFor } from './DimensionGenerators';
 import { GenWorld } from './GenWorld';
-import './nether/ChunkProviderHell';
+import './nether/NetherRegistration';
 import { chunkFromTerrain, type TerrainChunk, toTerrainChunk } from './TerrainChunk';
 import { SPAWN_BIOMES } from './WorldChunkManager';
 

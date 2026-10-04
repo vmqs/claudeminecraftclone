@@ -6,7 +6,7 @@ import { EnumCreatureType, type SpawnListEntry } from '../../biome/SpawnListEntr
 import type { IWorld } from '../../IWorld';
 import type { ChunkGenerator, GeneratedChunk } from '../ChunkProviderGenerate';
 import { SingleBiomeSource } from '../ChunkProviderFlat';
-import { type DimensionGeneratorOptions, DimensionGenerators } from '../DimensionGenerators';
+import type { DimensionGeneratorOptions } from '../DimensionGenerators';
 import { NoiseGeneratorOctaves } from '../NoiseGeneratorOctaves';
 import { WorldGenFlowers } from '../WorldGenFlowers';
 import { WorldGenMinable } from '../WorldGenMinable';
@@ -349,4 +349,3 @@ export class ChunkProviderHell implements ChunkGenerator {
   }
 }
 
-DimensionGenerators.register(-1, (o) => new ChunkProviderHell(o.seed, o));
