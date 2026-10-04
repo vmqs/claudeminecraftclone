@@ -48,7 +48,7 @@ const GOLDEN: [bigint, string, number][] = [
   [-4172144997902289642n, 'aa337f40bfa052d97e9f3447c0f2bd130aae902e1d2ee533b0051c2b525650c2', 960535],
 ];
 for (const [seed, hash, solid] of GOLDEN) {
-  const p = new ChunkProviderEnd(seed, new JavaRandom(1n));
+  const p = new ChunkProviderEnd(seed, null, new JavaRandom(1n));
   const h = createHash('sha256');
   let n = 0;
   for (let cx = -12; cx < 12; cx++) {
@@ -118,7 +118,7 @@ function endWorld(R = 7): World {
   const w = new World(info);
   w.provider.dimensionId = 1;
   w.difficultySetting = 2;
-  const gen = new ChunkProviderEnd(info.seed, new JavaRandom(5n));
+  const gen = new ChunkProviderEnd(info.seed, null, new JavaRandom(5n));
   for (let cx = -R; cx <= R; cx++) {
     for (let cz = -R; cz <= R; cz++) {
       const c = chunkFromTerrain(w, toTerrainChunk(cx, cz, gen.provideChunk(cx, cz)));

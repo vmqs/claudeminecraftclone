@@ -5,6 +5,7 @@ import { Biomes } from '../../biome/BiomeGenBase';
 import type { IWorld } from '../../IWorld';
 import { SingleBiomeSource } from '../ChunkProviderFlat';
 import type { ChunkGenerator, GeneratedChunk } from '../ChunkProviderGenerate';
+import type { DimensionGeneratorOptions } from '../DimensionGenerators';
 import { NoiseGeneratorOctaves } from '../NoiseGeneratorOctaves';
 import { BiomeEndDecorator } from './BiomeEndDecorator';
 
@@ -38,8 +39,10 @@ export class ChunkProviderEnd implements ChunkGenerator {
   readonly biomeSource = new SingleBiomeSource(Biomes.sky);
   private readonly decorator = new BiomeEndDecorator();
 
+  /** `(seed, options)` like the other dimension generators; `populateRand` replaces World.rand (tests). */
   constructor(
     readonly seed: bigint,
+    _options?: Partial<DimensionGeneratorOptions> | null,
     readonly populateRand: JavaRandom = new JavaRandom(),
   ) {
     const rand = new JavaRandom(seed);

@@ -17,6 +17,10 @@ Owner: End generation, Ender Dragon, ender crystals, end portal activation, GuiW
 7. [x] Docs: ARCHITECTURE §13 row "The End and bosses", TESTING (?dim=1, mc.dev.end, end scenario/test).
 
 ## Notes for the merge with dimensions
+- DimensionGenerators.ts here is API-compatible with the dimensions slice's (same register /
+  options / `(seed, options)` constructors); take theirs at the merge and keep
+  `import './end/EndRegistration'` in WorldGenServer (their file-name fallback also finds
+  `end/ChunkProviderEnd.ts`).
 - `?dim=1` dev path: WorldSettings.dimension -> world.provider.dimensionId -> ChunkProviderClient
   init.dimension -> WorldGenServer -> DimensionGenerators.create(1). The dimensions slice should
   keep `init.dimension = world.provider.dimensionId` (or call DimensionGenerators.create) so

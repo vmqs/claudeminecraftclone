@@ -7,7 +7,7 @@ import { BONUS_CHEST_CONTENT } from './ChestLoot';
 import { ChunkProviderFlat } from './ChunkProviderFlat';
 import { type ChunkGenerator, ChunkProviderGenerate } from './ChunkProviderGenerate';
 import { DimensionGenerators } from './DimensionGenerators';
-import './Dimensions';
+import './end/EndRegistration';
 import { WorldGeneratorBonusChest } from './feature/WorldGeneratorBonusChest';
 import { computeChunkLight } from './GenLighting';
 import { GenStore } from './GenStore';
@@ -56,7 +56,7 @@ export class WorldGenServer {
   constructor(readonly options: WorldGenOptions) {
     const seed = options.seed;
     this.provider =
-      DimensionGenerators.create(options.dimension ?? 0, options) ??
+      DimensionGenerators.create(options.dimension ?? 0, { seed, worldType: options.worldType, mapFeatures: options.mapFeatures, generatorOptions: options.generatorOptions ?? null }) ??
       (options.worldType === 'flat' ? new ChunkProviderFlat(seed, options.generatorOptions ?? null, options.mapFeatures) : new ChunkProviderGenerate(seed, options.mapFeatures, options.worldType));
     this.world = new GenWorld(this.provider.biomeSource);
     this.world.averageGroundLevel = this.provider.getAverageGroundLevel();
