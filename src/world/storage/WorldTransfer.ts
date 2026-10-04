@@ -2,15 +2,17 @@ import { unzipSync, zipSync, type Zippable } from 'fflate';
 import { NBT, NBTError, gzipInflate, readCompressedNBT, zlibDeflate } from './NBT';
 import { encodeRegion, parseRegionFileName, readRegionPayloads, regionFileName, type RegionChunk } from './RegionFile';
 import type { SaveFormat } from './SaveFormat';
+import { chunkFolderOf } from './SaveHandler';
 
 /**
  * Worlds in and out of the browser as a .zip of a 1.5.2 save folder:
  *   <folder>/level.dat               gzip NBT {Data: {...,Player}}
  *   <folder>/region/r.<x>.<z>.mca    Anvil regions, chunks zlib-compressed
+ *   <folder>/DIM-1/region/...        the Nether's regions, DIM1/region/... the End's
  *   <folder>/players/<name>.dat      (when present), data/*.dat (when present)
  * so an exported world opens in Minecraft 1.5.2 and a world zipped from a real saves folder can
  * be played here. Imports are checked defensively: size limits, a readable level.dat, and only
- * the files a 1.5.2 overworld uses; anything wrong ends in an ImportError with a reason.
+ * the files a 1.5.2 world uses; anything wrong ends in an ImportError with a reason.
  */
 
 export class ImportError extends Error {}
@@ -48,20 +50,28 @@ export async function exportWorld(saves: SaveFormat, folder: string, onProgress?
     const data = await backend.getFile(folder, path);
     if (data) files[`${folder}/${path}`] = [data, { level: 0 }];
   }
-  const regions = new Map<string, RegionChunk[]>();
-  const positions = await backend.chunkPositions(folder);
+  // region/ for the overworld, DIM-1/region/ (Nether) and DIM1/region/ (End) beside it.
+  const dims: [prefix: string, chunkFolder: string, positions: [number, number][]][] = [];
+  for (const dim of [0, -1, 1]) {
+    const chunkFolder = chunkFolderOf(folder, dim);
+    dims.push([dim === 0 ? '' : `DIM${dim}/`, chunkFolder, await backend.chunkPositions(chunkFolder)]);
+  }
+  const total = dims.reduce((t, d) => t + d[2].length, 0);
   const now = Math.floor(Date.now() / 1000);
   let n = 0;
-  for (const [cx, cz] of positions) {
-    const data = await backend.getChunk(folder, cx, cz);
-    if (!data) continue;
-    const key = regionFileName(cx >> 5, cz >> 5);
-    let list = regions.get(key);
-    if (!list) regions.set(key, (list = []));
-    list.push({ x: cx & 31, z: cz & 31, data, timestamp: now });
-    if (++n % 64 === 0) onProgress?.(Math.floor((n * 80) / Math.max(1, positions.length)));
+  for (const [prefix, chunkFolder, positions] of dims) {
+    const regions = new Map<string, RegionChunk[]>();
+    for (const [cx, cz] of positions) {
+      const data = await backend.getChunk(chunkFolder, cx, cz);
+      if (!data) continue;
+      const key = regionFileName(cx >> 5, cz >> 5);
+      let list = regions.get(key);
+      if (!list) regions.set(key, (list = []));
+      list.push({ x: cx & 31, z: cz & 31, data, timestamp: now });
+      if (++n % 64 === 0) onProgress?.(Math.floor((n * 80) / Math.max(1, total)));
+    }
+    for (const [name, chunks] of regions) files[`${folder}/${prefix}region/${name}`] = [encodeRegion(chunks), { level: 1 }];
   }
-  for (const [name, chunks] of regions) files[`${folder}/region/${name}`] = [encodeRegion(chunks), { level: 1 }];
   onProgress?.(90);
   await new Promise((r) => setTimeout(r, 0));
   const zip = zipSync(files, { mtime: new Date() });
@@ -102,11 +112,11 @@ export async function importWorld(saves: SaveFormat, zip: Uint8Array, fileName: 
     throw new ImportError('There is no level.dat in this .zip');
   }
   const root = levels[0].name.slice(0, levels[0].name.length - 'level.dat'.length);
-  // Only what a 1.5.2 overworld save holds; the Nether and the End (DIM-1, DIM1) are not played here.
+  // Only what a 1.5.2 save holds: the overworld's regions and the Nether's (DIM-1) and End's (DIM1).
   const wanted = (name: string): boolean => {
     if (!name.startsWith(root)) return false;
     const rel = name.slice(root.length);
-    return rel === 'level.dat' || rel === 'level.dat_old' || /^region\/r\.-?\d+\.-?\d+\.mca$/.test(rel) || /^players\/[^/]{1,64}\.dat$/.test(rel) || /^data\/[^/]{1,64}\.dat$/.test(rel);
+    return rel === 'level.dat' || rel === 'level.dat_old' || /^(DIM-?1\/)?region\/r\.-?\d+\.-?\d+\.mca$/.test(rel) || /^players\/[^/]{1,64}\.dat$/.test(rel) || /^data\/[^/]{1,64}\.dat$/.test(rel);
   };
   let total = 0;
   for (const e of entries) {
@@ -147,11 +157,13 @@ export async function importWorld(saves: SaveFormat, zip: Uint8Array, fileName: 
   const folder = importFolderName(dir, (n) => saves.getWorldInfo(n) !== null || saves.isFolderTaken(n));
   const backend = saves.backend;
   // Chunks first, so the world only appears in the list once it is complete.
-  const regionNames = Object.keys(files).filter((n) => rel(n).startsWith('region/'));
+  const regionNames = Object.keys(files).filter((n) => /^(DIM-?1\/)?region\//.test(rel(n)));
   let chunkCount = 0;
   try {
     for (let i = 0; i < regionNames.length; i++) {
-      const r = parseRegionFileName(rel(regionNames[i]).slice('region/'.length));
+      const path = rel(regionNames[i]);
+      const dim = path.startsWith('DIM-1/') ? -1 : path.startsWith('DIM1/') ? 1 : 0;
+      const r = parseRegionFileName(path.slice(path.indexOf('region/') + 'region/'.length));
       if (!r) continue;
       let payloads;
       try {
@@ -171,7 +183,7 @@ export async function importWorld(saves: SaveFormat, zip: Uint8Array, fileName: 
         }
         batch.push({ cx: r.rx * 32 + p.x, cz: r.rz * 32 + p.z, data: stored });
       }
-      await backend.putChunks(folder, batch);
+      await backend.putChunks(chunkFolderOf(folder, dim), batch);
       chunkCount += batch.length;
       onProgress?.(10 + Math.floor(((i + 1) * 80) / Math.max(1, regionNames.length)));
     }

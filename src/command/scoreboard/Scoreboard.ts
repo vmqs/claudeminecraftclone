@@ -306,6 +306,11 @@ export class Scoreboard {
 const boards = new WeakMap<World, Scoreboard>();
 
 /** World.getScoreboard: one scoreboard per world, created on first use. */
+/** WorldServerMulti: another dimension's world shares the overworld's scoreboard. */
+export function shareScoreboard(from: World, to: World): void {
+  boards.set(to, getScoreboard(from));
+}
+
 export function getScoreboard(world: World): Scoreboard {
   let b = boards.get(world);
   if (!b) {

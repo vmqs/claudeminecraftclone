@@ -16,6 +16,8 @@ function nextSessionTime(): number {
 }
 
 interface QueuedChunk {
+  /** The dimension (0 overworld, -1 Nether, 1 End). */
+  dim: number;
   cx: number;
   cz: number;
   /** Uncompressed chunk NBT, until it is compressed for writing. */
@@ -26,6 +28,19 @@ interface QueuedChunk {
   inFlight: boolean;
 }
 
+/** A chunk's key in the handler's maps: its position and dimension. */
+function dimKey(dim: number, cx: number, cz: number): number {
+  return World.chunkKey(cx, cz) + (dim + 1) * 2 ** 45;
+}
+
+/**
+ * The folder a dimension's chunks are kept under: the world's own for the overworld, its
+ * "DIM-1" / "DIM1" sub-folder (the 1.5.2 layout, `<world>/DIM-1/region`) for the others.
+ */
+export function chunkFolderOf(folder: string, dim: number): string {
+  return dim === 0 ? folder : `${folder}/DIM${dim}`;
+}
+
 /**
  * One open world's save (AnvilSaveHandler + AnvilChunkLoader): chunks are serialized the moment
  * they unload or are saved (so later changes cannot leak into the snapshot), queued, compressed
@@ -34,8 +49,10 @@ interface QueuedChunk {
  * (compressed) so the bed can be found synchronously on respawn.
  */
 export class SaveHandler {
-  /** Chunk positions present in the backend. */
+  /** Chunk positions present in the backend (dimension keys, see dimKey). */
   private readonly saved = new Set<number>();
+  /** Dimensions whose saved chunk positions are known (the overworld's come with the handler). */
+  private readonly knownDimensions = new Set<number>([0]);
   private readonly queue = new Map<number, QueuedChunk>();
   /** Compressed copies of player-modified chunks (and those around the bed). */
   private readonly keep = new Map<number, Uint8Array>();
@@ -58,7 +75,21 @@ export class SaveHandler {
     readonly folder: string,
     positions: Iterable<[number, number]> = [],
   ) {
-    for (const [x, z] of positions) this.saved.add(World.chunkKey(x, z));
+    for (const [x, z] of positions) this.saved.add(dimKey(0, x, z));
+  }
+
+  /** Reads which chunks of another dimension (DIM-1, DIM1) the save holds; needed before its chunks are requested. */
+  async loadDimension(dim: number): Promise<void> {
+    if (this.knownDimensions.has(dim)) return;
+    const positions = await this.backend.chunkPositions(chunkFolderOf(this.folder, dim));
+    if (this.knownDimensions.has(dim)) return;
+    for (const [x, z] of positions) this.saved.add(dimKey(dim, x, z));
+    this.knownDimensions.add(dim);
+  }
+
+  /** Whether loadDimension(dim) has finished (always true for the overworld). */
+  isDimensionLoaded(dim: number): boolean {
+    return this.knownDimensions.has(dim);
   }
 
   get savedChunkCount(): number {
@@ -70,8 +101,8 @@ export class SaveHandler {
   }
 
   /** Whether a chunk can come from the save (AnvilChunkLoader would find it). */
-  hasChunk(cx: number, cz: number): boolean {
-    const k = World.chunkKey(cx, cz);
+  hasChunk(cx: number, cz: number, dim = 0): boolean {
+    const k = dimKey(dim, cx, cz);
     return this.queue.has(k) || this.saved.has(k);
   }
 
@@ -86,17 +117,18 @@ export class SaveHandler {
 
   /** A saved chunk read synchronously from the queue or cache (bed respawn), or null. */
   loadChunkNow(world: World, cx: number, cz: number): Chunk | null {
-    const tag = this.loadNow(World.chunkKey(cx, cz));
+    const tag = this.loadNow(dimKey(world.provider.dimensionId, cx, cz));
     return tag ? readChunkFromNBT(world, cx, cz, tag) : null;
   }
 
   /** AnvilChunkLoader.loadChunk: the saved chunk, or null when missing or unreadable. */
   async loadChunk(world: World, cx: number, cz: number): Promise<Chunk | null> {
-    const k = World.chunkKey(cx, cz);
+    const dim = world.provider.dimensionId;
+    const k = dimKey(dim, cx, cz);
     try {
       let tag = this.loadNow(k);
       if (!tag) {
-        const data = await this.backend.getChunk(this.folder, cx, cz);
+        const data = await this.backend.getChunk(chunkFolderOf(this.folder, dim), cx, cz);
         // Saved again (or unloaded) while reading: the newer copy wins.
         tag = this.loadNow(k);
         if (!tag) {
@@ -119,7 +151,7 @@ export class SaveHandler {
    * holding entities (other than players) and not saved this tick.
    */
   needsSaving(chunk: Chunk, world: World): boolean {
-    const k = World.chunkKey(chunk.xPosition, chunk.zPosition);
+    const k = dimKey(world.provider.dimensionId, chunk.xPosition, chunk.zPosition);
     if (chunk.isModified || (!this.saved.has(k) && !this.queue.has(k))) return true;
     if (this.lastSaveTime.get(chunk) === world.getTotalWorldTime()) return false;
     for (const list of chunk.entityLists) for (const e of list) if (!e.isPlayerEntity) return true;
@@ -129,7 +161,8 @@ export class SaveHandler {
   /** saveChunk: snapshots the chunk now and queues it for writing. */
   saveChunk(chunk: Chunk, world: World): void {
     if (this.closed) return;
-    const k = World.chunkKey(chunk.xPosition, chunk.zPosition);
+    const dim = world.provider.dimensionId;
+    const k = dimKey(dim, chunk.xPosition, chunk.zPosition);
     chunk.isModified = false;
     this.lastSaveTime.set(chunk, world.getTotalWorldTime());
     let nbt: Uint8Array;
@@ -139,7 +172,7 @@ export class SaveHandler {
       console.error(`Chunk ${chunk.xPosition},${chunk.zPosition} could not be saved`, e);
       return;
     }
-    this.queue.set(k, { cx: chunk.xPosition, cz: chunk.zPosition, nbt, data: null, inFlight: false });
+    this.queue.set(k, { dim, cx: chunk.xPosition, cz: chunk.zPosition, nbt, data: null, inFlight: false });
     this.keep.delete(k);
     if (chunk.playerModified) this.keepModified.add(k);
   }
@@ -148,12 +181,12 @@ export class SaveHandler {
   private readonly keepModified = new Set<number>();
 
   /** Keeps a chunk's compressed copy in memory (bed respawn), loading it from the backend if needed. */
-  async keepChunk(cx: number, cz: number): Promise<void> {
-    const k = World.chunkKey(cx, cz);
+  async keepChunk(cx: number, cz: number, dim = 0): Promise<void> {
+    const k = dimKey(dim, cx, cz);
     this.keepModified.add(k);
     if (this.queue.has(k) || this.keep.has(k) || !this.saved.has(k)) return;
     try {
-      const data = await this.backend.getChunk(this.folder, cx, cz);
+      const data = await this.backend.getChunk(chunkFolderOf(this.folder, dim), cx, cz);
       if (data && !this.queue.has(k)) this.keep.set(k, data);
     } catch {
       // Not cached: the respawn then misses this bed, as a missing chunk would.
@@ -185,7 +218,7 @@ export class SaveHandler {
 
   private write(batch: QueuedChunk[]): Promise<void> {
     if (batch.length === 0) return this.writeChain;
-    const items = batch.map((q) => ({ k: World.chunkKey(q.cx, q.cz), q }));
+    const items = batch.map((q) => ({ k: dimKey(q.dim, q.cx, q.cz), q }));
     for (const { q } of items) q.inFlight = true;
     this.writesInFlight += items.length;
     const run = async (): Promise<void> => {
@@ -196,10 +229,12 @@ export class SaveHandler {
       }
       try {
         await this.checkSessionLock();
-        await this.backend.putChunks(
-          this.folder,
-          items.map(({ q }) => ({ cx: q.cx, cz: q.cz, data: q.data! })),
-        );
+        for (const dim of new Set(items.map(({ q }) => q.dim))) {
+          await this.backend.putChunks(
+            chunkFolderOf(this.folder, dim),
+            items.filter(({ q }) => q.dim === dim).map(({ q }) => ({ cx: q.cx, cz: q.cz, data: q.data! })),
+          );
+        }
         for (const { k, q } of items) {
           this.saved.add(k);
           // Only drop the queue entry if it was not saved again meanwhile.

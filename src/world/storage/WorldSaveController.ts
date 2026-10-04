@@ -43,6 +43,11 @@ export class WorldSaveController {
   /** The world and player of the last tick (for saving when the page is hidden). */
   private world: World | null = null;
   private player: EntityPlayer | null = null;
+  /**
+   * The other dimensions' loaded worlds (the Nether, the End, or the overworld while the player
+   * is elsewhere): their chunks are saved with the player's world's (saveAllWorlds).
+   */
+  otherWorlds: (() => World[]) | null = null;
 
   constructor(private readonly host: SaveHost) {
     // Leaving the tab (or closing it) saves like pausing: the browser may never come back.
@@ -50,7 +55,10 @@ export class WorldSaveController {
       // The world list is read at start-up so the Singleplayer screen has it at once.
       void SaveFormat.instance.ensureLoaded();
       const save = (): void => {
-        if (this.handler && this.world && !this.handler.closed) void this.handler.saveAll(this.world, this.player, true);
+        if (this.handler && this.world && !this.handler.closed) {
+          this.saveOtherWorlds(this.handler);
+          void this.handler.saveAll(this.world, this.player, true);
+        }
       };
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') save();
@@ -59,10 +67,13 @@ export class WorldSaveController {
     }
   }
 
-  attach(handler: SaveHandler, provider: ChunkProviderClient): void {
+  /**
+   * The world's save for the session. `provider` is the chunk source of the player's world (null
+   * while it is not known yet); `world` the overworld, whose maps and data files are saved.
+   */
+  attach(handler: SaveHandler, provider: ChunkProviderClient | null, world: World = provider!.world): void {
     this.handler = handler;
-    provider.saveHandler = handler;
-    const world = provider.world;
+    if (provider) provider.saveHandler = handler;
     handler.worldData = () => collectWorldData(world);
     this.tickCounter = 0;
     this.wasPaused = false;
@@ -75,9 +86,15 @@ export class WorldSaveController {
     this.world = world;
     this.player = player;
     if (!h || !world) return;
-    if (paused && !this.wasPaused) void h.saveAll(world, player, false);
+    if (paused && !this.wasPaused) {
+      this.saveOtherWorlds(h);
+      void h.saveAll(world, player, false);
+    }
     this.wasPaused = paused;
-    if (!paused && ++this.tickCounter % 900 === 0) void h.saveAll(world, player, false);
+    if (!paused && ++this.tickCounter % 900 === 0) {
+      this.saveOtherWorlds(h);
+      void h.saveAll(world, player, false);
+    }
     if (h.pendingCount > 0 && !IdleTasks.has(SAVE_TASK)) {
       IdleTasks.add(SAVE_TASK, (deadline) => {
         if (this.handler !== h || h.closed) return false;
@@ -89,7 +106,14 @@ export class WorldSaveController {
 
   /** The whole world on demand (save-all style), without a screen. */
   saveNow(world: World, player: EntityPlayer | null): Promise<void> {
-    return this.handler ? this.handler.saveAll(world, player, true) : Promise.resolve();
+    if (!this.handler) return Promise.resolve();
+    this.saveOtherWorlds(this.handler);
+    return this.handler.saveAll(world, player, true);
+  }
+
+  /** Snapshots the chunks of the other dimensions that need saving. */
+  private saveOtherWorlds(h: SaveHandler): void {
+    for (const w of this.otherWorlds?.() ?? []) h.saveChunks(w);
   }
 
   /**
@@ -110,6 +134,7 @@ export class WorldSaveController {
     ls.setLoadingProgress(0);
     const info = world.worldInfo;
     // stopServer's saveAllWorlds: the chunks that need it, then the world goes away.
+    this.saveOtherWorlds(h);
     h.saveChunks(world);
     provider.saveHandler = null;
     provider.dispose();

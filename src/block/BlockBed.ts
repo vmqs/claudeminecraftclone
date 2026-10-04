@@ -53,7 +53,20 @@ export class BlockBed extends BlockDirectional {
       if (w.getBlockId(x, y, z) !== this.blockID) return true;
       meta = w.getBlockMetadata(x, y, z);
     }
-    // The overworld can always be slept in (beds explode only in the Nether and the End).
+    // Beds only work where players can respawn, and never in a Hell biome: elsewhere they blow up.
+    const canRespawn = (w.provider as { canRespawnHere?(): boolean }).canRespawnHere?.() ?? true;
+    if (!canRespawn || w.getBiomeGenForCoords(x, z).biomeID === 8) {
+      w.setBlockToAir(x, y, z);
+      // As in 1.5.2, the explosion is centred one block past the head (where a second half was
+      // looked for), not between the two halves.
+      const d = BlockDirectional.getDirection(meta);
+      x += BlockBed.footBlockToHeadBlockMap[d][0];
+      z += BlockBed.footBlockToHeadBlockMap[d][1];
+      if (w.getBlockId(x, y, z) === this.blockID) w.setBlockToAir(x, y, z);
+      const f = Math.fround;
+      (w as { newExplosion?(e: null, x: number, y: number, z: number, size: number, flaming: boolean, smoking: boolean): unknown }).newExplosion?.(null, f(x + f(0.5)), f(y + f(0.5)), f(z + f(0.5)), 5, true, true);
+      return true;
+    }
     if (BlockBed.isBedOccupied(meta)) {
       const sleeper = (w.playerEntities ?? []).find((o) => {
         const s = o as unknown as SleepingPlayer;

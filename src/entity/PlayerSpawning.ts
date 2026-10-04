@@ -73,10 +73,10 @@ export const PlayerSpawning = {
    * one's game mode, and appears at its bed when the bed is still there; a missing bed sends
    * "Your home bed was missing or obstructed" and the world spawn is used.
    */
-  respawn(p: EntityPlayer, old: EntityPlayer, w: World): void {
+  respawn(p: EntityPlayer, old: EntityPlayer, w: World, keepEverything = false): void {
     const bed = old.getBedLocation();
     const forced = old.isSpawnForced();
-    p.clonePlayer(old, false);
+    p.clonePlayer(old, keepEverything);
     const enderFrom = InventoryEnderChest.forPlayer(old);
     const enderTo = InventoryEnderChest.forPlayer(p);
     for (let i = 0; i < enderFrom.getSizeInventory(); i++) enderTo.setInventorySlotContents(i, enderFrom.getStackInSlot(i));

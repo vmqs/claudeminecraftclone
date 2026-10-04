@@ -89,6 +89,12 @@ import type { Entity } from '../entity/Entity';
 import { installStats, noteWorldLaunch } from '../stats/StatsInstall';
 import { ClientStats } from '../stats/ClientStats';
 import { StatIds } from '../stats/StatIds';
+import { Entity as EntityBase } from '../entity/Entity';
+import { DimensionManager, type LoadedDimension } from '../world/DimensionManager';
+import { getProviderForDimension } from '../world/WorldProviders';
+import { shareMapStorage } from '../item/ItemMap';
+import { shareScoreboard } from '../command/scoreboard/Scoreboard';
+import { PlayerTravel } from './PlayerTravel';
 
 /** World creation options (WorldSettings). */
 export interface WorldSettings {
@@ -110,6 +116,8 @@ interface PendingWorld {
   world: World;
   provider: ChunkProviderClient;
   phase: 'spawn' | 'terrain';
+  /** The area loaded before the player appears (the world spawn unless the player is saved in another dimension). */
+  center?: { x: number; z: number };
   /** A saved world: the single player's tag from level.dat (null for a new player). */
   player?: TagCompound | null;
   /** Writes level.dat as soon as the player is in (a new world, so it is listed at once). */
@@ -143,11 +151,18 @@ export class Minecraft implements SettingsListener {
   objectMouseOver: MovingObjectPosition | null = null;
   currentScreen: GuiScreen | null = null;
   chunkProvider: ChunkProviderClient | null = null;
+  /**
+   * The integrated server's worlds, one per dimension (single player and a LAN host; null for a
+   * guest): theWorld / chunkProvider are the ones the player is in.
+   */
+  dimensions: DimensionManager | null = null;
+  /** The client player's trips between dimensions (portals, the End, respawning). */
+  readonly travel = new PlayerTravel(this);
   /** The integrated server's commands; recreated for every world. */
   commandManager: ServerCommandManager | null = null;
   /** What commands see as MinecraftServer: this client's world and player. */
   private readonly commandServer: CommandServer = {
-    getWorlds: () => (this.theWorld ? [this.theWorld] : []),
+    getWorlds: () => this.dimensions?.worlds() ?? (this.theWorld ? [this.theWorld] : []),
     getPlayers: () => [...(this.thePlayer ? [this.thePlayer] : []), ...(this.lanServer?.guestPlayers() ?? [])],
     sendChatMsg: (msg) => (this.lanServer ? this.lanServer.sendChatMsg(msg) : this.ingameGUI.getChatGUI().printChatMessage(msg)),
     isSinglePlayer: () => true,
@@ -244,6 +259,7 @@ export class Minecraft implements SettingsListener {
     PlayerSkins.localPlayer = () => this.thePlayer;
     this.updateDisplaySize();
     installStats(this);
+    EntityBase.dimensionTravel = (e, dim) => this.onEntityTravel(e, dim);
   }
 
   get mouseX(): number {
@@ -384,7 +400,8 @@ export class Minecraft implements SettingsListener {
     prof.startSection('tick');
     for (let i = 0; i < this.timer.elapsedTicks; i++) this.runTick();
     this.tickLoading();
-    this.chunkProvider?.processIncoming(FrameBudget.ms(4));
+    if (this.dimensions && this.theWorld) this.dimensions.processIncoming(this.theWorld, FrameBudget.ms(4));
+    else this.chunkProvider?.processIncoming(FrameBudget.ms(4));
     prof.endStartSection('preRenderErrors');
     RenderBlocks.fancyGrass = this.gameSettings.fancyGraphics;
     RenderBlocks.anaglyphEnable = this.gameSettings.anaglyph;
@@ -447,7 +464,8 @@ export class Minecraft implements SettingsListener {
         try {
           this.timer.updateTimer();
           for (let i = 0; i < this.timer.elapsedTicks; i++) this.runTick();
-          this.chunkProvider?.processIncoming(8);
+          if (this.dimensions && this.theWorld) this.dimensions.processIncoming(this.theWorld, 8);
+          else this.chunkProvider?.processIncoming(8);
           IdleTasks.run(10);
         } catch (e) {
           console.error(e);
@@ -525,7 +543,11 @@ export class Minecraft implements SettingsListener {
     }
     const w = this.theWorld;
     if (w && this.thePlayer) {
-      if (this.chunkProvider) {
+      if (this.dimensions) {
+        // Every dimension's chunks: around the player (or where it is about to appear), the guests, arrivals.
+        const c = this.travel.loadCenter() ?? { dim: w.provider.dimensionId, x: this.thePlayer.posX, z: this.thePlayer.posZ };
+        this.dimensions.tickChunkLoading(c.dim, { x: c.x, z: c.z, radius: this.renderGlobal.renderRadius + 1 });
+      } else if (this.chunkProvider) {
         this.chunkProvider.loadRadius = this.renderGlobal.renderRadius + 1;
         this.chunkProvider.updateLoadedArea(this.thePlayer.posX, this.thePlayer.posZ);
       }
@@ -540,12 +562,19 @@ export class Minecraft implements SettingsListener {
         const serverProf = DebugHooks.profiler;
         serverProf.startSection('root');
         serverProf.startSection('levels');
-        serverProf.startSection('entities');
-        w.updateEntities();
-        serverProf.endStartSection('tick');
-        w.tick();
-        serverProf.endStartSection('connection');
+        // MinecraftServer.updateTimeLightAndEntities: every dimension's world (the overworld first).
+        for (const ow of this.dimensions?.worlds() ?? [w]) {
+          serverProf.startSection('entities');
+          ow.updateEntities();
+          serverProf.endStartSection('tick');
+          ow.tick();
+          serverProf.endSection();
+        }
+        this.dimensions?.tickTeleporters();
+        serverProf.startSection('connection');
         this.lanServer?.tick();
+        // A portal trip asked for during the tick, and arrivals whose chunks are in.
+        this.travel.tick();
         serverProf.endSection();
         serverProf.endSection();
         serverProf.endSection();
@@ -846,6 +875,7 @@ export class Minecraft implements SettingsListener {
     const provider = new ChunkProviderClient(world, info.seed, ws.terrainType, ws.mapFeatures, { generatorOptions: info.generatorOptions, bonusChest: info.bonusChest });
     this.saveController.attach(handler, provider);
     this.chunkProvider = provider;
+    this.dimensions = this.createDimensions(info, world, provider);
     this.pendingWorld = { world, provider, phase: 'spawn', isNew: true };
     this.loadingScreen.resetProgressAndMessage(I18n.translateToLocal('menu.loadingLevel'));
     this.loadingScreen.resetProgresAndWorkingMessage(I18n.translateToLocal('menu.generatingTerrain'));
@@ -876,9 +906,28 @@ export class Minecraft implements SettingsListener {
         this.openingWorld = null;
         const world = new World(info);
         installWorldData(world, data);
+        // The player's Dimension tag: it logs into that dimension's world (the overworld otherwise).
+        const savedDim = player && 'Dimension' in player ? Number(player.Dimension) : 0;
+        const dim = getProviderForDimension(savedDim) ? savedDim : 0;
+        if (dim !== 0) {
+          // The overworld still runs the clock; the player's dimension loads around its position.
+          const manager = this.createDimensions(info, world, null);
+          this.dimensions = manager;
+          manager.saveHandler = handler;
+          this.saveController.attach(handler, null, world);
+          const pos = Array.isArray(player?.Pos) ? (player.Pos as number[]).map(Number) : [info.spawnX, info.spawnY, info.spawnZ];
+          void handler.loadDimension(dim).then(() => {
+            if (this.dimensions !== manager || handler.closed) return;
+            const d = manager.load(dim);
+            this.chunkProvider = d.provider;
+            this.pendingWorld = { world: d.world, provider: d.provider!, phase: 'terrain', player, center: { x: pos[0], z: pos[2] } };
+          });
+          return;
+        }
         const provider = new ChunkProviderClient(world, info.seed, info.terrainType, info.mapFeaturesEnabled, { generatorOptions: info.generatorOptions, bonusChest: info.bonusChest });
         this.saveController.attach(handler, provider);
         this.chunkProvider = provider;
+        this.dimensions = this.createDimensions(info, world, provider);
         this.pendingWorld = { world, provider, phase: 'terrain', player };
         // The bed's chunks stay readable at once for a respawn far from it.
         const sx = player && 'SpawnX' in player ? Number(player.SpawnX) : null;
@@ -904,12 +953,13 @@ export class Minecraft implements SettingsListener {
     if (!pw || pw.phase !== 'terrain') return;
     const info = pw.world.worldInfo;
     const r = 2;
+    const center = pw.center ?? { x: info.spawnX, z: info.spawnZ };
     pw.provider.loadRadius = r + 1;
-    pw.provider.updateLoadedArea(info.spawnX, info.spawnZ);
+    pw.provider.updateLoadedArea(center.x, center.z);
     pw.provider.processIncoming(FrameBudget.ms(12));
     let have = 0;
-    const cx = info.spawnX >> 4;
-    const cz = info.spawnZ >> 4;
+    const cx = Math.floor(center.x) >> 4;
+    const cz = Math.floor(center.z) >> 4;
     for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) if (pw.world.chunkExists(cx + dx, cz + dz)) have++;
     // No progress bar: 1.5.2's integrated server never reports a percentage on this screen.
     if (have < (2 * r + 1) * (2 * r + 1)) return;
@@ -987,11 +1037,16 @@ export class Minecraft implements SettingsListener {
           this.thePlayer.writeToNBT(playerTag);
         }
         if (this.thePlayer) this.theWorld.removeEntity(this.thePlayer);
+        // The other dimensions' chunks are saved with the rest (stopServer's saveAllWorlds).
         if (!this.saveController.close(this.theWorld, provider, playerTag, () => provider.dispose())) provider.dispose();
+        this.dimensions?.dispose();
       } else {
         this.saveController.discard();
         provider?.dispose();
+        this.dimensions?.dispose();
       }
+      this.dimensions = null;
+      this.travel.reset();
       this.chunkProvider = null;
       this.renderGlobal?.setWorldAndLoadRenderers(null);
       this.effectRenderer?.clearEffects(null);
@@ -1024,11 +1079,21 @@ export class Minecraft implements SettingsListener {
    * player (what keepInventory saves, the same game mode) appears at its bed or near the world
    * spawn.
    */
-  respawnPlayer(): void {
+  respawnPlayer(keepEverything = false): void {
     const w = this.theWorld;
     const old = this.thePlayer;
     if (!w || !old) return;
+    // respawnPlayer(player, 0, ...): always into the overworld.
+    if (this.dimensions && old.dimension !== 0) {
+      this.travel.startRespawn(old, keepEverything);
+      return;
+    }
     w.removeEntity(old);
+    this.finishRespawn(old, w, keepEverything);
+  }
+
+  /** The respawn itself, in the overworld (`w`), once the chunks around its spawn are there. */
+  finishRespawn(old: EntityPlayerSP, w: World, keepEverything: boolean): void {
     this.renderViewEntity = null;
     const p = new EntityPlayerSP(this, w, this.username);
     p.entityId = old.entityId;
@@ -1039,12 +1104,48 @@ export class Minecraft implements SettingsListener {
     // Kept-in-memory chunks around the bed come back first so the bed can be found.
     loadChunksAroundBed(old, w, this.chunkProvider);
     this.playerController.flipPlayer(p);
-    PlayerSpawning.respawn(p, old, w);
+    PlayerSpawning.respawn(p, old, w, keepEverything);
     this.playerController.setGameType(p.gameType);
     w.spawnEntityInWorld(p);
     p.movementInput = new MovementInputFromOptions(this.gameSettings);
     this.playerController.setPlayerCapabilities(p);
     if (this.currentScreen instanceof GuiGameOver) this.displayGuiScreen(null);
+  }
+
+  // ------------------------------------------------------------------ dimensions
+
+  /** The integrated server's dimensions for a world being opened (its overworld given). */
+  private createDimensions(info: WorldInfo, overworld: World, provider: ChunkProviderClient | null): DimensionManager {
+    const m = new DimensionManager(info, overworld, provider);
+    m.saveHandler = this.saveController.handler;
+    this.saveController.otherWorlds = () => (this.dimensions === m ? m.others(this.theWorld).map((d) => d.world) : []);
+    m.onWorldCreated = (w) => {
+      // WorldServerMulti: the overworld's maps and scoreboard, the options' difficulty.
+      shareMapStorage(overworld, w);
+      shareScoreboard(overworld, w);
+      PlayerSpawning.applyDifficulty(w, this.gameSettings.difficulty);
+    };
+    return m;
+  }
+
+  /** Entity.travelToDimension on this game's worlds. */
+  private onEntityTravel(e: Entity, dim: number): void {
+    if (!this.dimensions || !this.dimensions.dimensionOf(e.worldObj)) return;
+    if (e === this.thePlayer) this.travel.request(dim);
+    else if (!e.isPlayerEntity) this.dimensions.transferEntity(e, dim);
+  }
+
+  /** The client switches to another dimension's world (Minecraft.loadWorld for a Respawn packet). */
+  enterDimensionWorld(d: LoadedDimension): void {
+    this.objectMouseOver = null;
+    this.sndManager.playStreaming(null, 0, 0, 0);
+    this.sndManager.stopAllSounds();
+    this.theWorld = d.world;
+    this.chunkProvider = d.provider;
+    d.provider?.installStructureLocator();
+    this.renderGlobal.setWorldAndLoadRenderers(d.world);
+    this.effectRenderer.clearEffects(d.world);
+    PlayerSpawning.applyDifficulty(d.world, this.gameSettings.difficulty);
   }
 
   /** Always false, as in 1.5.2: every command goes to the (integrated) server. */
@@ -1115,7 +1216,8 @@ export class Minecraft implements SettingsListener {
       commandManager: () => this.commandManager,
       getPossibleCompletions: (p, text) => getPossibleCompletions(p, text),
       setExtraLoadCenters: (centers) => {
-        if (this.chunkProvider) this.chunkProvider.extraCenters = centers;
+        if (this.dimensions) this.dimensions.extraCenters = new Map([[w.provider.dimensionId, centers]]);
+        else if (this.chunkProvider) this.chunkProvider.extraCenters = centers;
       },
       hostSkin: () => PlayerSkins.local,
       playerSkin: (name, rgba) => PlayerSkins.setRemote(name, rgba),

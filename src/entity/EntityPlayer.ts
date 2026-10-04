@@ -343,6 +343,15 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
     return this.inventory.canHarvestBlock(b);
   }
 
+  /** 80 ticks in a portal before travelling; at once for invulnerable (Creative) players. */
+  override getMaxInPortalTime(): number {
+    return this.capabilities.disableDamage ? 0 : 80;
+  }
+
+  override getPortalCooldown(): number {
+    return 10;
+  }
+
   override getEyeHeight(): number {
     return f(0.12);
   }

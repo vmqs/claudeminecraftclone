@@ -872,6 +872,25 @@ export class World implements IWorld, IBlockAccess {
     this.updateAllPlayersSleepingFlag();
   }
 
+  /**
+   * removePlayerEntityDangerously: takes an entity (a player changing dimension) out of the world
+   * at once, from the player list, its chunk and the entity list, without waiting for the
+   * end-of-tick removal of dead entities. It is left marked dead; the caller revives it.
+   */
+  removePlayerEntityDangerously(e: Entity): void {
+    e.setDead();
+    const i = this.playerEntities.indexOf(e as unknown as EntityPlayer);
+    if (i >= 0) {
+      this.playerEntities.splice(i, 1);
+      this.updateAllPlayersSleepingFlag();
+    }
+    if (e.addedToChunk && this.chunkExists(e.chunkCoordX, e.chunkCoordZ)) this.getChunkFromChunkCoords(e.chunkCoordX, e.chunkCoordZ).removeEntity(e);
+    e.addedToChunk = false;
+    const li = this.loadedEntityList.indexOf(e);
+    if (li >= 0) this.loadedEntityList.splice(li, 1);
+    this.releaseEntitySkin(e);
+  }
+
   // ------------------------------------------------------------------ sleeping (WorldServer)
 
   /** Every player lies in a bed (refreshed whenever one lies down, gets up, joins or leaves). */
