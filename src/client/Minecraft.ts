@@ -112,8 +112,6 @@ export interface WorldSettings {
   /** EnumGameType id (0 survival, 1 creative, 2 adventure); creative when absent. */
   gameType?: number;
   hardcore?: boolean;
-  /** Development only (?dim=1): the dimension the new world generates as (1 = the End). */
-  dimension?: number;
 }
 
 interface PendingWorld {
@@ -877,7 +875,6 @@ export class Minecraft implements SettingsListener {
     info.lastTimePlayed = Date.now();
     const handler = SaveFormat.instance.createWorld(folder);
     const world = new World(info);
-    if (ws.dimension) world.provider.dimensionId = ws.dimension;
     const provider = new ChunkProviderClient(world, info.seed, ws.terrainType, ws.mapFeatures, { generatorOptions: info.generatorOptions, bonusChest: info.bonusChest });
     this.saveController.attach(handler, provider);
     this.chunkProvider = provider;

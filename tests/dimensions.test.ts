@@ -73,7 +73,8 @@ const f = Math.fround;
   for (const s of p.sections) for (const v of s.skyLight) sky += v;
   check('nether chunk has no sky light', sky === 0, String(sky));
   const s0 = p.sections.find((s) => s.y === 0)!;
-  check('nether chunk has bedrock and netherrack', s0.blocks[0] === B.bedrock && s0.blocks[1 << 8] === B.netherrack);
+  // The real ChunkProviderHell (NetherRegistration): bedrock at y 0, a ragged bedrock floor above it.
+  check('nether chunk has bedrock and netherrack', s0.blocks[0] === B.bedrock && s0.blocks.some((b) => b === B.netherrack));
   check('nether world provider', gen.world.provider.hasNoSky && gen.world.provider.isHellWorld && gen.world.provider.dimensionId === -1);
   const endGen = new WorldGenServer({ seed: 42n, worldType: 'default', mapFeatures: true, dimension: 1 });
   const ep = endGen.finalizeChunk(0, 0);

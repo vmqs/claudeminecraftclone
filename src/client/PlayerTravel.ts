@@ -143,6 +143,7 @@ export class PlayerTravel {
       // The exit portal: "The End." and the credits; the player leaves the End.
       p.triggerAchievement(AchievementIds.theEnd2);
       p.worldObj.removeEntity(p);
+      p.playerConqueredTheEnd = true;
       this.showWinScreen(() => mc.respawnPlayer(true));
       return;
     }
@@ -211,6 +212,9 @@ export class PlayerTravel {
     w.updateEntityWithOptionalForce(p, false);
     if (a.place) mgr.teleporter(a.dim).placeInPortal(p, a.fromX, a.fromY, a.fromZ, a.fromYaw);
     mgr.releaseArrival(a.dim);
+    // 1.5.2 placed the player in the tick it left, its cooldown still running: standing in the
+    // arrival portal keeps restarting it (setInPortal) instead of sending the player straight back.
+    p.timeUntilPortal = p.getPortalCooldown();
     // The client gets a new player (setDimensionAndSpawnPlayer): standing still, no swirl.
     p.motionX = p.motionY = p.motionZ = 0;
     p.timeInPortal = p.prevTimeInPortal = 0;

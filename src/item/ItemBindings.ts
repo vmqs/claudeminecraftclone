@@ -41,4 +41,3 @@ TileEntityFurnace.smeltingResult = (id) => FurnaceRecipes.smelting().getSmelting
 TileEntityBeacon.applyEffect = (p, id, duration, amplifier, ambient) => p.addPotionEffect(new PotionEffect(id, duration, amplifier, ambient));
 
 // The exit portal in the End: the credits and the respawn that keeps everything (end slice).
-import '../client/WinGame';

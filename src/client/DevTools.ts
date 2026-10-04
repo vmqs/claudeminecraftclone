@@ -52,6 +52,9 @@ export class DevTools {
   /** The End and the bosses (dragon, crystals, exit portal and credits, Wither, portal frames). */
   readonly end: EndDevTools;
 
+  /** The dimension a ?dim= dev world is still on its way to (isInGame is false until it arrives). */
+  pendingDimension: number | null = null;
+
   constructor(private readonly mc: Minecraft) {
     this.sky = new SkyDevTools(mc);
     this.survival = new SurvivalDevTools(mc);
@@ -70,7 +73,7 @@ export class DevTools {
   /** True once the player stands in a loaded, meshed area with no screen open. */
   isInGame(): boolean {
     const mc = this.mc;
-    return !!mc.theWorld && !!mc.thePlayer && mc.currentScreen === null && !mc.loadingScreen.active;
+    return !!mc.theWorld && !!mc.thePlayer && mc.currentScreen === null && !mc.loadingScreen.active && this.pendingDimension === null;
   }
 
   /** Sections still waiting for a mesh within `radius` chunks of the player. */
@@ -225,7 +228,8 @@ export class DevTools {
  * (&structures=0, &bonus=1 and &preset=<superflat string> as on the More World Options page);
  * ?hotbar=1 fills the hotbar; ?time= sets the world time; ?pos=x,y,z[,yaw,pitch] teleports
  * (feet position); ?fly=1 starts flying; ?mode=survival|hardcore|adventure picks the game mode;
- * ?mobs=0 turns natural mob spawning off.
+ * ?mobs=0 turns natural mob spawning off; ?dim=-1|1 sends the player to the Nether or the End once
+ * the world is open.
  */
 export function installDevHooks(mc: Minecraft, params: URLSearchParams): void {
   const dev = new DevTools(mc);
@@ -245,11 +249,26 @@ export function installDevHooks(mc: Minecraft, params: URLSearchParams): void {
     gameType,
     hardcore: mode === 'hardcore',
     allowCommands: mode !== 'hardcore',
-    dimension: Number(params.get('dim') ?? 0) || undefined,
   });
+  // ?dim=-1|1: the world opens in the overworld and the player then goes through to that
+  // dimension (Entity.travelToDimension, as a portal would); ?pos and the rest apply on arrival.
+  const dim = Number(params.get('dim') ?? 0) || 0;
+  let tripAsked = false;
+  if (dim !== 0) dev.pendingDimension = dim;
   let applied = false;
   mc.frameListeners.push(() => {
     if (applied || !mc.thePlayer || !mc.theWorld) return;
+    if (dim !== 0) {
+      if (mc.thePlayer.dimension !== dim) {
+        if (!tripAsked && mc.currentScreen === null && !mc.loadingScreen.active) {
+          tripAsked = true;
+          mc.thePlayer.travelToDimension(dim);
+        }
+        return;
+      }
+      if (mc.travel.busy) return;
+      dev.pendingDimension = null;
+    }
     applied = true;
     if (params.has('hotbar')) dev.fillHotbar();
     const time = params.get('time');

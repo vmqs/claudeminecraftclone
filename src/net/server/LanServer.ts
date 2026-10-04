@@ -625,6 +625,7 @@ export class LanServer implements PlayerServer, LanWorldServer {
       w.updateEntityWithOptionalForce(p, false);
       if (a.place) m.teleporter(a.dim).placeInPortal(p, a.fromX, a.fromY, a.fromZ, a.fromYaw);
       if (!this.arrivals.some((o) => o.dim === a.dim)) m.releaseArrival(a.dim);
+      p.timeUntilPortal = p.getPortalCooldown();
       w.updateEntityWithOptionalForce(p, false);
       const h = a.h;
       h.setPlayerLocation(p.posX, p.posY, p.posZ, p.rotationYaw, p.rotationPitch);

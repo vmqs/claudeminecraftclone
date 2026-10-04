@@ -23,12 +23,10 @@ import { DamageSource } from '../src/entity/DamageSource';
 import { MathHelper } from '../src/core/MathHelper';
 import { World, WorldInfo } from '../src/world/World';
 import { chunkFromTerrain, toTerrainChunk } from '../src/world/gen/TerrainChunk';
-import { conquerTheEnd } from '../src/client/WinGame';
-import { EndPortalHooks } from '../src/block/EndPortalHooks';
+import { Entity as EntityBase } from '../src/entity/Entity';
 import { Block } from '../src/block/Block';
 import { ItemStack } from '../src/item/ItemStack';
 import { PlayerSpawning } from '../src/entity/PlayerSpawning';
-import { AchievementIds } from '../src/stats/StatIds';
 import { EntityWither } from '../src/entity/EntityWither';
 import { EntityWitherSkull } from '../src/entity/EntityWitherSkull';
 import { EntityArrow } from '../src/entity/EntityArrow';
@@ -260,35 +258,32 @@ const near = (a: number, b: number, eps = 1e-3) => Math.abs(a - b) < eps;
 
 // ------------------------------------------------------------------ the exit portal
 {
+  // The exit portal is BlockEndPortal's travelToDimension(1) from the End (1.5.2): the dimensions
+  // code (PlayerTravel, LanServer.travelGuest) gives "The End.", the credits and the respawn.
   const w = endWorld(2);
-  const screens: unknown[] = [];
-  const stats: number[] = [];
-  class LocalPlayer extends EntityPlayer {
-    readonly mc = { displayGuiScreen: (s: unknown) => screens.push(s) };
-    override triggerAchievement(id: number): void {
-      stats.push(id);
-    }
-  }
+  const trips: [Entity, number][] = [];
+  const hook = EntityBase.dimensionTravel;
+  EntityBase.dimensionTravel = (e, d) => void trips.push([e, d]);
+  class LocalPlayer extends EntityPlayer {}
   const p = new LocalPlayer(w);
   p.setLocationAndAngles(0.5, 70, 0.5, 0, 0);
   w.spawnEntityInWorld(p);
   p.inventory.mainInventory[0] = new ItemStack(BlockIds.obsidian, 17, 0);
   p.experienceLevel = 30;
-  check('exit portal hook installed', EndPortalHooks.enterExitPortal === conquerTheEnd);
   w.setBlock(0, 70, 0, BlockIds.endPortal);
   // The portal block itself would vanish in the End unless placed by the dragon's death.
   check('end portals vanish in the End unless the boss was defeated', w.getBlockId(0, 70, 0) === 0);
   Block.blocksList[BlockIds.endPortal]!.onEntityCollidedWithBlock(w, 0, 70, 0, p);
-  Block.blocksList[BlockIds.endPortal]!.onEntityCollidedWithBlock(w, 0, 70, 0, p);
-  check('conquered the End once', p.playerConqueredTheEnd && screens.length === 1 && (screens[0] as object).constructor.name === 'GuiWinGame', String(screens.length));
-  check('The End. achievement', stats.includes(AchievementIds.theEnd2));
+  check('the exit portal is travelToDimension(1) from the End', trips.length === 1 && trips[0][0] === p && trips[0][1] === 1);
+  p.playerConqueredTheEnd = true;
   const q = new LocalPlayer(w);
   PlayerSpawning.respawn(q, p, w);
   check('respawn keeps inventory and levels', q.inventory.mainInventory[0]?.stackSize === 17 && q.experienceLevel === 30 && !q.playerConqueredTheEnd);
   const o = new LocalPlayer(w);
   const overworld = new World(new WorldInfo());
   Block.blocksList[BlockIds.endPortal]!.onEntityCollidedWithBlock(overworld, 0, 70, 0, o);
-  check('no credits from an overworld portal', !o.playerConqueredTheEnd);
+  check('an overworld end portal sends to the End', trips.length === 2 && trips[1][0] === o && trips[1][1] === 1 && !o.playerConqueredTheEnd);
+  EntityBase.dimensionTravel = hook;
 }
 
 // ------------------------------------------------------------------ the Wither

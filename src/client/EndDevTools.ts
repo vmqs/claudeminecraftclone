@@ -12,7 +12,6 @@ import { Item } from '../item/Item';
 import { ItemStack } from '../item/ItemStack';
 import { TileEntitySkull } from '../world/tileentity/TileEntitySkull';
 import type { Minecraft } from './Minecraft';
-import { conquerTheEnd } from './WinGame';
 
 screenFactories.set('wingame', () => new GuiWinGame());
 
@@ -103,9 +102,13 @@ export class EndDevTools {
     return d.getHealth() <= 0;
   }
 
-  /** Walks the local player into the exit portal (EndPortalHooks.enterExitPortal). */
+  /**
+   * Walks the local player into the exit portal: BlockEndPortal's travelToDimension(1) from the
+   * End (PlayerTravel: The End., the credits, then the respawn in the overworld keeping everything).
+   */
   exitPortal(): void {
-    if (this.mc.thePlayer) conquerTheEnd(this.mc.thePlayer);
+    const p = this.mc.thePlayer;
+    if (p && p.dimension === 1) p.travelToDimension(1);
   }
 
   /** Advances the open credits by `n` screen ticks (they count only while the game runs). */
