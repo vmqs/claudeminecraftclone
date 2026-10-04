@@ -13,6 +13,10 @@ import org.lwjgl.opengl.GL30;
 import org.lwjgl.opengl.GLContext;
 
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReadParam;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
+import javax.imageio.stream.MemoryCacheImageInputStream;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
@@ -20,6 +24,7 @@ import java.io.ByteArrayInputStream;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.nio.ShortBuffer;
+import java.util.Iterator;
 
 /**
  * A player model ready to draw: the vertices moved once into ModelBiped's space ("biped space":
@@ -35,6 +40,10 @@ public final class PolyModel {
     public static final float PLAYER_SCALE = 0.9375f;
     /** Largest texture side uploaded (bigger pictures are scaled down). */
     private static final int MAX_TEXTURE_SIDE = 2048;
+    /** Largest picture side accepted at all (the web game's MAX_IMAGE_SIDE). */
+    static final int MAX_SOURCE_SIDE = 8192;
+    /** Pictures larger than this are subsampled while decoding (at most 4096² pixels in memory). */
+    private static final int MAX_DECODE_SIDE = 4096;
     /** Steve's rotation points at rest (ModelBiped's constructor), in pixels. */
     public static final float[][] STEVE_REST = {{0, 0, 0}, {0, 0, 0}, {-5, 2, 0}, {5, 2, 0}, {-1.9f, 12, 0}, {1.9f, 12, 0}};
 
@@ -153,14 +162,47 @@ public final class PolyModel {
         for (int i = 0; i < images.length; i++) {
             McpmFormat.Texture t = d.textures[i];
             try {
-                images[i] = ImageIO.read(new ByteArrayInputStream(t.bytes));
+                images[i] = readImage(t.bytes);
             } catch (Exception | OutOfMemoryError e) {
                 images[i] = null;
+                LOG.warn("Model {}: texture {} ({}): {}", id, i, t.mime, e.toString());
             }
             if (images[i] == null) LOG.warn("Model {}: texture {} ({}) cannot be read here and is left out", id, i, t.mime);
             else images[i] = fitTexture(images[i]);
         }
         return new PolyModel(id, d, images);
+    }
+
+    /**
+     * Decodes a PNG or JPEG after reading its size from the header: a small file can declare a
+     * huge picture, so sides over MAX_SOURCE_SIDE are refused before any pixels are allocated, and
+     * pictures over MAX_DECODE_SIDE are subsampled while decoding. Null when no reader knows the
+     * format (WebP).
+     */
+    static BufferedImage readImage(byte[] bytes) throws java.io.IOException {
+        // In memory: ImageIO's default stream may spill to a temporary file.
+        try (ImageInputStream in = new MemoryCacheImageInputStream(new ByteArrayInputStream(bytes))) {
+            Iterator<ImageReader> readers = ImageIO.getImageReaders(in);
+            if (!readers.hasNext()) return null;
+            ImageReader reader = readers.next();
+            try {
+                reader.setInput(in, true, true);
+                int w = reader.getWidth(0);
+                int h = reader.getHeight(0);
+                if (w <= 0 || h <= 0 || w > MAX_SOURCE_SIDE || h > MAX_SOURCE_SIDE) {
+                    throw new java.io.IOException("picture " + w + "x" + h + " is larger than " + MAX_SOURCE_SIDE + " pixels");
+                }
+                ImageReadParam param = reader.getDefaultReadParam();
+                int side = Math.max(w, h);
+                if (side > MAX_DECODE_SIDE) {
+                    int step = (side + MAX_DECODE_SIDE - 1) / MAX_DECODE_SIDE;
+                    param.setSourceSubsampling(step, step, 0, 0);
+                }
+                return reader.read(0, param);
+            } finally {
+                reader.dispose();
+            }
+        }
     }
 
     /** Pictures larger than MAX_TEXTURE_SIDE are scaled down. */
