@@ -414,7 +414,14 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
   }
 
   getEntityById(id: number): Entity | null {
-    return this.tracker.getEntity(id);
+    const e = this.tracker.getEntity(id);
+    if (e) return e;
+    // A part of a multi-part entity (the dragon's follow its id, like WorldServer's id map).
+    for (let i = 1; i <= 8; i++) {
+      const part = this.tracker.getEntity(id - i)?.getParts()?.[i - 1];
+      if (part && part.entityId === id) return part;
+    }
+    return null;
   }
 
   /** func_96290_a: spawn protection does not apply to a LAN game. */

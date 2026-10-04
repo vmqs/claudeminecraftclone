@@ -504,6 +504,8 @@ export class NetClientHandler {
     if (this.player && id === this.player.entityId) return;
     this.removeEntity(id);
     e.entityId = id;
+    // The dragon's parts take the ids after it, as on the host (Packet24MobSpawn).
+    e.getParts()?.forEach((part, i) => (part.entityId = id + 1 + i));
     this.serverPos.set(id, [Math.floor(x * 32), Math.floor(y * 32), Math.floor(z * 32)]);
     this.entities.set(id, e);
     this.world!.addEntityFromHost(e);

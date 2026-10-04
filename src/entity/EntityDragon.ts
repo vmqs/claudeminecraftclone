@@ -155,6 +155,15 @@ export class EntityDragon extends EntityLiving implements IEntityMultiPart {
     this.layOutParts(false);
   }
 
+  /** A guest's tick of the dragon (RemoteEntityVisuals): the client half, and the death's ticks. */
+  updateRemote(): void {
+    this.updateClientState();
+    if (this.getHealth() <= 0) {
+      this.deathTicks++;
+      if (this.deathTicks >= 180 && this.deathTicks <= 200) this.deathParticle('hugeexplosion');
+    }
+  }
+
   /** The client's wing flap: mob.enderdragon.wings each time the beat passes its low point. */
   private playWingSound(): void {
     const now = MathHelper.cos(f(f(this.animTime * PI_F) * 2));
@@ -437,7 +446,7 @@ export class EntityDragon extends EntityLiving implements IEntityMultiPart {
     this.targetZ = this.posZ - f(c * 5) + f(f(this.rand.nextFloat() - f(0.5)) * 2);
     this.target = null;
     const by = src.getEntity();
-    if ((by !== null && by.isPlayerEntity) || src.isExplosion()) this.attackDragonFrom(src, amount);
+    if (((by !== null && by.isPlayerEntity) || src.isExplosion()) && !this.worldObj.isRemote) this.attackDragonFrom(src, amount);
     return true;
   }
 

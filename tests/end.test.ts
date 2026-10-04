@@ -29,6 +29,14 @@ import { Block } from '../src/block/Block';
 import { ItemStack } from '../src/item/ItemStack';
 import { PlayerSpawning } from '../src/entity/PlayerSpawning';
 import { AchievementIds } from '../src/stats/StatIds';
+import { EntityWither } from '../src/entity/EntityWither';
+import { EntityWitherSkull } from '../src/entity/EntityWitherSkull';
+import { EntityArrow } from '../src/entity/EntityArrow';
+import { EntityItem } from '../src/entity/EntityItem';
+import type { BlockSkull } from '../src/block/BlockSkull';
+import { TileEntitySkull } from '../src/world/tileentity/TileEntitySkull';
+import { Chunk } from '../src/world/Chunk';
+import { ItemIds } from '../src/block/BlockIds';
 import { check, report } from './harness';
 
 registerBlockItems();
@@ -275,6 +283,96 @@ const near = (a: number, b: number, eps = 1e-3) => Math.abs(a - b) < eps;
   const overworld = new World(new WorldInfo());
   Block.blocksList[BlockIds.endPortal]!.onEntityCollidedWithBlock(overworld, 0, 70, 0, o);
   check('no credits from an overworld portal', !o.playerConqueredTheEnd);
+}
+
+// ------------------------------------------------------------------ the Wither
+function flatWorld(): World {
+  const info = new WorldInfo();
+  info.seed = 1n;
+  const w = new World(info);
+  w.difficultySetting = 2;
+  for (let cx = -4; cx <= 4; cx++) {
+    for (let cz = -4; cz <= 4; cz++) {
+      const c = new Chunk(w, cx, cz);
+      for (let x = 0; x < 16; x++) for (let z = 0; z < 16; z++) for (let y = 0; y < 4; y++) c.setBlockIDWithMetadata(x, y, z, y === 0 ? BlockIds.bedrock : BlockIds.stone, 0);
+      c.generateSkylightMap();
+      w.addChunk(c);
+    }
+  }
+  w.mobSpawner = null;
+  return w;
+}
+
+function skull(w: World, x: number, y: number, z: number): TileEntitySkull {
+  w.setBlock(x, y, z, BlockIds.skull, 1);
+  const te = w.getBlockTileEntity(x, y, z) as TileEntitySkull;
+  te.setSkullType(1, '');
+  return te;
+}
+
+{
+  const w = flatWorld();
+  check('WitherBoss registered (64)', EntityList.createEntityByName('WitherBoss', w) instanceof EntityWither && EntityList.getEntityID(new EntityWither(w)) === 64);
+  // The T of soul sand along x with three wither skeleton skulls; the last skull completes it.
+  for (const [x, y] of [[0, 4], [1, 4], [2, 4]]) w.setBlock(x, 5, 0, BlockIds.slowSand);
+  w.setBlock(1, 4, 0, BlockIds.slowSand);
+  skull(w, 0, 6, 0);
+  skull(w, 1, 6, 0);
+  const te = skull(w, 2, 6, 0);
+  (Block.blocksList[BlockIds.skull] as BlockSkull).makeWither(w, 2, 6, 0, te);
+  const withers = w.loadedEntityList.filter((e) => e instanceof EntityWither) as EntityWither[];
+  check('one wither built', withers.length === 1, String(withers.length));
+  const wi = withers[0];
+  check('pattern removed', w.getBlockId(1, 5, 0) === 0 && w.getBlockId(1, 4, 0) === 0 && w.getBlockId(0, 6, 0) === 0 && w.getBlockId(2, 6, 0) === 0);
+  check('wither at the T, 1.45 below the skulls', near(wi.posX, 1.5) && near(wi.posY, 6 - 1.45) && near(wi.posZ, 0.5), `${wi.posX} ${wi.posY} ${wi.posZ}`);
+  check('charging: 220 ticks, a third of 300 health', wi.getInvulTime() === 220 && wi.getHealth() === 100);
+  check('blue while charging', wi.getTexture() === '/mob/wither_invul.png');
+  check('invulnerable while charging', !wi.attackEntityFrom(DamageSource.generic, 5));
+  for (let i = 0; i < 219; i++) w.updateEntity(wi);
+  check('heals while charging', wi.getHealth() > 250, String(wi.getHealth()));
+  w.setBlock(1, 6, 1, BlockIds.dirt);
+  w.updateEntity(wi);
+  check('awake after 220 ticks', wi.getInvulTime() === 0 && wi.getTexture() === '/mob/wither.png');
+  check('the spawn explosion broke blocks', w.getBlockId(1, 6, 1) === 0 && w.getBlockId(1, 3, 0) === 0);
+  // NBT keeps the charge.
+  const copy = new EntityWither(w);
+  copy.func_82206_m();
+  const tag: Record<string, unknown> = {};
+  copy.writeToNBT(tag);
+  const back = new EntityWither(w);
+  back.readFromNBT(tag);
+  check('Invul saved', back.getInvulTime() === 220 && back.getBossHealth() === 100);
+  // Targets: living non-undead things, a skull from the middle head.
+  const pig = EntityList.createEntityByName('Pig', w)!;
+  pig.setLocationAndAngles(wi.posX + 8, 4, wi.posZ, 0, 0);
+  w.spawnEntityInWorld(pig);
+  const zombie = EntityList.createEntityByName('Zombie', w)!;
+  zombie.setLocationAndAngles(wi.posX - 6, 4, wi.posZ, 0, 0);
+  w.spawnEntityInWorld(zombie);
+  let skulls = 0;
+  let zombieTargeted = false;
+  for (let i = 0; i < 200; i++) {
+    for (const e of [...w.loadedEntityList]) if (!e.isDead) w.updateEntity(e);
+    if (wi.watchedTargets.includes(zombie.entityId)) zombieTargeted = true;
+    skulls += w.loadedEntityList.filter((e) => e instanceof EntityWitherSkull && e.ticksExisted === 1).length;
+  }
+  check('targets the pig', wi.watchedTargets.includes(pig.entityId) || pig.isDead, JSON.stringify(wi.watchedTargets));
+  check('never the undead zombie', !zombieTargeted);
+  check('shoots wither skulls', skulls > 0, String(skulls));
+  // Armour below half health: arrows bounce off.
+  wi.setEntityHealth(150);
+  wi.bossHealth = 150;
+  check('armoured at half health', wi.isArmored());
+  const arrow = new EntityArrow(w);
+  const p = new TestPlayer(w);
+  check('arrows bounce off the armour', !wi.attackEntityFrom(DamageSource.causeArrowDamage(arrow, p), 5));
+  wi['hurtResistantTime' as keyof EntityWither] = 0 as never;
+  check('swords still hurt', wi.attackEntityFrom(DamageSource.causePlayerDamage(p), 5));
+  // Death drops a nether star.
+  wi['hurtResistantTime' as keyof EntityWither] = 0 as never;
+  wi.attackEntityFrom(DamageSource.causePlayerDamage(p), 1000);
+  const star = w.loadedEntityList.some((e) => e instanceof EntityItem && e.getEntityItem().itemID === ItemIds.netherStar);
+  check('drops a nether star', star);
 }
 
 report();
