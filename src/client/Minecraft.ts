@@ -1034,6 +1034,7 @@ export class Minecraft implements SettingsListener {
       if (this.theWorld && provider) {
         // playerLoggedOut: writePlayerData, then removeEntity (which dismounts it).
         let playerTag: TagCompound | null = null;
+        this.travel.abortForSave();
         if (this.thePlayer && this.saveController.handler) {
           playerTag = {};
           this.thePlayer.writeToNBT(playerTag);

@@ -86,6 +86,8 @@ const SAVED_NAME_RESERVED_MS = 30 * 60 * 1000;
 interface GuestArrival {
   h: NetServerHandler;
   dim: number;
+  /** Where the trip started (kept for a guest who leaves before arriving). */
+  fromDim: number;
   fromX: number;
   fromY: number;
   fromZ: number;
@@ -372,7 +374,15 @@ export class LanServer implements PlayerServer, LanWorldServer {
     for (const v of this.views.values()) v.tracker.removePlayer(h);
     this.particles.delete(h);
     const ai = this.arrivals.findIndex((a) => a.h === h);
-    if (ai >= 0) this.arrivals.splice(ai, 1);
+    if (ai >= 0) {
+      // Between two worlds: remembered in the portal it went into.
+      const a = this.arrivals[ai];
+      this.arrivals.splice(ai, 1);
+      if (h.player) {
+        h.player.dimension = a.fromDim;
+        h.player.setLocationAndAngles(a.fromX, a.fromY, a.fromZ, a.fromYaw, h.player.rotationPitch);
+      }
+    }
     this.skins.left(h);
     const p = h.player;
     if (!p) return;
@@ -586,7 +596,7 @@ export class LanServer implements PlayerServer, LanWorldServer {
     p.theItemInWorldManager.setWorld(d.world);
     p.setLocationAndAngles(a.x, a.y, a.z, a.yaw, a.pitch);
     this.syncWorlds();
-    this.arrivals.push({ h, dim: target, fromX, fromY, fromZ, fromYaw, place: a.place, entrance: a.entrance });
+    this.arrivals.push({ h, dim: target, fromDim: from, fromX, fromY, fromZ, fromYaw, place: a.place, entrance: a.entrance });
   }
 
   /** Guests whose destination chunks are loaded go into their new world (transferEntityToWorld's end). */

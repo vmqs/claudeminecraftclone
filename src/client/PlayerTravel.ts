@@ -11,6 +11,9 @@ import type { Minecraft } from './Minecraft';
 /** A trip through a portal waiting for the destination's chunks. */
 interface PendingArrival {
   dim: number;
+  /** Where the trip started (the player goes back there if the game is left meanwhile). */
+  fromDim: number;
+  fromPitch: number;
   fromX: number;
   fromY: number;
   fromZ: number;
@@ -163,6 +166,7 @@ export class PlayerTravel {
     const fromY = serverPosY(p);
     const fromZ = p.posZ;
     const fromYaw = p.rotationYaw;
+    const fromPitch = p.rotationPitch;
     p.worldObj.removePlayerEntityDangerously(p);
     p.isDead = false;
     const a = mgr.arrivalPoint(p, from, to);
@@ -171,7 +175,7 @@ export class PlayerTravel {
     p.setWorld(d.world);
     p.setLocationAndAngles(a.x, a.y, a.z, a.yaw, a.pitch);
     p.motionX = p.motionY = p.motionZ = 0;
-    this.arrival = { dim: to, fromX, fromY, fromZ, fromYaw, place: a.place, entrance: a.entrance };
+    this.arrival = { dim: to, fromDim: from, fromPitch, fromX, fromY, fromZ, fromYaw, place: a.place, entrance: a.entrance };
     if (to === 1) void mc.renderEngine.preload([END_SKY_TEXTURE]);
     this.showWorld(d);
   }
@@ -250,6 +254,20 @@ export class PlayerTravel {
     if (bed && provider && !provider.requestSavedArea(bed.posX >> 4, bed.posZ >> 4, 1)) return;
     this.respawn = null;
     mc.finishRespawn(r.old, w, r.keepEverything);
+  }
+
+  /**
+   * The game is being left while the player is between two worlds: it is saved back where its
+   * trip started (in the portal it went into), as nothing has placed it at the other end yet.
+   */
+  abortForSave(): void {
+    const a = this.arrival;
+    const p = this.mc.thePlayer;
+    if (a && p) {
+      p.dimension = a.fromDim;
+      p.setLocationAndAngles(a.fromX, a.fromY, a.fromZ, a.fromYaw, a.fromPitch);
+    }
+    this.arrival = null;
   }
 
   /** Whether `p` is the player whose trip or respawn is under way. */
