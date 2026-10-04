@@ -821,5 +821,59 @@ for (const [who, name, hurt, death] of [
   ear1(both, 'random.bowhit', 'mp guest arrow lands');
 }
 
+// Particles on both sides: the host's crit, a tamed wolf's hearts (status 7), a spawner's flames,
+// the host's sprint dust. Each player sees each once (guests make their own copies of status,
+// tile-entity and player effects; the host forwards none of those).
+{
+  const cow = spawnMob(hw, 'Cow', 9.5, 4, 10);
+  step(4);
+  clearAll();
+  hp.fallDistance = 1;
+  hp.onGround = false;
+  hp.inventory.mainInventory[hp.inventory.currentItem] = null;
+  host.pc.attackEntity(hp, cow);
+  hp.fallDistance = 0;
+  hp.onGround = true;
+  step(3);
+  for (const e of both) check(`mp host crit: ${e.label} sees it once`, e.countEffect('EntityCrit2FX') === 1, e.effects.join(', '));
+  ear1(both, 'mob.cow.hurt', 'mp host crit hit');
+  cow.setDead();
+
+  const wolf = spawnMob(hw, 'Wolf', 9.5, 4, 10);
+  step(4);
+  clearAll();
+  hw.setEntityState(wolf, 7);
+  step(3);
+  for (const e of both) check(`mp tamed hearts: ${e.label} sees 7`, e.countEffect('particle:heart') === 7, String(e.countEffect('particle:heart')));
+  wolf.setDead();
+  step(2);
+
+  hw.setBlock(6, 4, 8, B.mobSpawner, 0);
+  step(3);
+  clearAll();
+  step(20);
+  const hostFlames = hEar.countEffect('particle:flame');
+  const guestFlames = gEar.countEffect('particle:flame');
+  check('mp spawner flames on the host', hostFlames >= 15, String(hostFlames));
+  check('mp spawner flames on the guest, not doubled', guestFlames >= 15 && guestFlames <= 21, `${guestFlames} (host ${hostFlames})`);
+  hw.setBlock(6, 4, 8, 0, 0);
+  step(3);
+
+  hp.setPosition(8.5, 4 + hp.yOffset, 6.5);
+  step(3);
+  clearAll();
+  // Sprinting east under its own movement (the sprint key), well fed.
+  hp.getFoodStats().setFoodLevel(20);
+  hp.rotationYaw = -90;
+  hp.movementInput.moveForward = 1;
+  hp.movementInput.sprint = true;
+  step(20);
+  hp.movementInput.moveForward = 0;
+  hp.movementInput.sprint = false;
+  step(3);
+  const dust = (e: Ear) => e.effects.filter((x) => x.startsWith('particle:tilecrack_')).length;
+  check('mp host sprint dust on the host', dust(hEar) >= 15, String(dust(hEar)));
+  check('mp host sprint dust on the guest, not doubled', dust(gEar) <= dust(hEar) + 3 && dust(gEar) >= 10, `${dust(gEar)} (host ${dust(hEar)})`);
+}
 
 report();
