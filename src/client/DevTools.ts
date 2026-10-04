@@ -233,6 +233,7 @@ export function installDevHooks(mc: Minecraft, params: URLSearchParams): void {
     gameType,
     hardcore: mode === 'hardcore',
     allowCommands: mode !== 'hardcore',
+    dimension: Number(params.get('dim') ?? 0) || undefined,
   });
   let applied = false;
   mc.frameListeners.push(() => {

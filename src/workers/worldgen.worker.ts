@@ -369,6 +369,7 @@ self.onmessage = (e: MessageEvent<WorldGenRequest>) => {
         generatorOptions: m.generatorOptions ?? null,
         bonusChest: m.bonusChest ?? false,
         initialRadius: m.initialRadius,
+        dimension: m.dimension,
       });
       requested.clear();
       spawnQueue = null;

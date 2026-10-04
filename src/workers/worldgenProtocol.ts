@@ -17,6 +17,8 @@ export type WorldGenRequest =
       bonusChest?: boolean;
       /** Chunk radius of the spawn area generated in the original order (default 12). */
       initialRadius?: number;
+      /** The world's dimension id (DimensionGenerators: 1 the End); 0 when absent. */
+      dimension?: number;
     }
   | { type: 'request'; cx: number; cz: number }
   | { type: 'cancel'; cx: number; cz: number }

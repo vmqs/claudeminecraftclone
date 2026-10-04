@@ -67,7 +67,7 @@ export class ChunkProviderClient {
     this.worker = WorldGenWorkers.take();
     this.worker.onmessage = (e: MessageEvent<WorldGenResponse>) => this.onMessage(e.data);
     this.worker.onerror = (e) => console.error('[worldgen]', e.message);
-    this.post({ type: 'init', seed: seed.toString(), worldType, mapFeatures, generatorOptions: options.generatorOptions ?? null, bonusChest: options.bonusChest ?? false });
+    this.post({ type: 'init', seed: seed.toString(), worldType, mapFeatures, generatorOptions: options.generatorOptions ?? null, bonusChest: options.bonusChest ?? false, dimension: world.provider.dimensionId });
     StructureLocator.provider = (name, x, y, z) => this.findClosestStructure(name, x, y, z);
   }
 
