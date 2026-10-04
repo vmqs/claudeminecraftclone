@@ -597,7 +597,7 @@ export async function buildPlayerModel(scene: SourceScene, files: ModelFiles | n
         w.pos[i * 3] -= cx;
         w.pos[i * 3 + 2] -= cz;
       }
-      for (const p of [...pivots, ...hands]) {
+      for (const p of new Set([...pivots, ...hands])) {
         p[0] -= cx;
         p[2] -= cz;
       }
@@ -772,7 +772,7 @@ function rigFromSkeleton(
   }
   const neck = rootOf(PART_BODY, (b) => boneClass[b].kind === 'neck');
   const headPivot = bonePos[head];
-  const bodyPivot: V3 = neck >= 0 ? bonePos[neck] : headPivot;
+  const bodyPivot: V3 = neck >= 0 ? [...bonePos[neck]] as V3 : [...headPivot] as V3;
   // Hands and feet: the first hand/foot joint of each side (wrist, ankle), else the farthest bone.
   const endOf = (part: number, root: number, kinds: string[]): V3 => {
     let best = -1;
@@ -789,7 +789,7 @@ function rigFromSkeleton(
   const ankles = [endOf(PART_RIGHT_LEG, legs[0], ['foot', 'toe']), endOf(PART_LEFT_LEG, legs[1], ['foot', 'toe'])];
   // Palms: a little past the wrist, towards the arm's far vertices.
   const palms = wrists.map((wr, s) => palmFrom(w, partW, s === 0 ? PART_RIGHT_ARM : PART_LEFT_ARM, bonePos[arms[s]], wr));
-  const pivots: V3[] = [headPivot, bodyPivot, bonePos[arms[0]], bonePos[arms[1]], bonePos[legs[0]], bonePos[legs[1]]];
+  const pivots: V3[] = [[...headPivot] as V3, bodyPivot, [...bonePos[arms[0]]] as V3, [...bonePos[arms[1]]] as V3, [...bonePos[legs[0]]] as V3, [...bonePos[legs[1]]] as V3];
   return { pivots, hands: palms, feet: ankles };
 }
 
@@ -970,7 +970,7 @@ function rigFromGeometry(w: Work, partW: Float32Array, report: BuildReport): { p
   const neckCx = neckBlob ? (neckBlob[0] + neckBlob[1]) / 2 : 0;
   const headZ = headBox ? (headBox.min[2] + headBox.max[2]) / 2 : 0;
   const headPivot: V3 = [neckCx, neckY, headZ];
-  const pivots: V3[] = [headPivot, headPivot];
+  const pivots: V3[] = [headPivot, [...headPivot] as V3];
   const hands: V3[] = [];
   const feet: V3[] = [];
   for (const [part, sign] of [
@@ -1266,7 +1266,11 @@ function findImage(files: ModelFiles | null, name: string): string | null {
 /** For materials without a texture: a diffuse image named like the material or its mesh. */
 function guessImage(files: ModelFiles | null, names: string[]): string | null {
   if (!files) return null;
-  const images = files.images().filter((i) => !/(_n|_nrm|_normal|_norm|_spec|_s|_bump|_rough|_metal|_ao|_orm|_emissive|_height|_disp|_gloss)(\b|_|$)/.test(i.stem));
+  const rank = (p: string) => (/\.(png|jpe?g|webp)$/i.test(p) ? 0 : /\.(tga|bmp|gif)$/i.test(p) ? 1 : 2);
+  const images = files
+    .images()
+    .filter((i) => !/(_n|_nrm|_normal|_norm|_spec|_s|_bump|_rough|_metal|_ao|_orm|_emissive|_height|_disp|_gloss)(\b|_|$)/.test(i.stem))
+    .sort((a, b) => rank(a.path) - rank(b.path));
   for (const raw of names) {
     const n = raw.toLowerCase().replace(/[^a-z0-9_]/g, '_');
     if (!n) continue;

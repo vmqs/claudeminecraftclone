@@ -1,19 +1,12 @@
 // Node-side helpers for custom player models: an image codec without a DOM (PNG only) and a
 // small software rasteriser that draws a model posed by ModelBiped, for tests and for looking
 // at conversions without a browser.
-import { decodeKnown, encodePng, type RgbaImage } from '../src/client/model/ImageCodecs';
+import { decodeKnown, encodePng, pngOnlyCodec, type RgbaImage } from '../src/client/model/ImageCodecs';
 import type { ImageCodec } from '../src/client/model/ModelBuilder';
 import { partMatrices, bipedPivots, toBipedSpace, type PartPose } from '../src/client/model/ModelPose';
 import type { PlayerModelData } from '../src/client/model/PlayerModelFormat';
 
-export const nodeCodec: ImageCodec = {
-  async decode(bytes, name) {
-    return decodeKnown(bytes, name);
-  },
-  async encode(img, _opaque) {
-    return { mime: 'image/png', bytes: encodePng(img) };
-  },
-};
+export const nodeCodec: ImageCodec = pngOnlyCodec;
 
 export interface View {
   /** Camera yaw in degrees (0 = looking at the model's front). */

@@ -501,3 +501,13 @@ export function decodeKnown(bytes: Uint8Array, name: string): RgbaImage | null {
   }
   return null;
 }
+
+/** An image codec without a DOM: reads PNG, DDS and TGA, writes PNG (the conversion script, tests). */
+export const pngOnlyCodec = {
+  async decode(bytes: Uint8Array, name: string): Promise<RgbaImage | null> {
+    return decodeKnown(bytes, name);
+  },
+  async encode(img: RgbaImage, _opaque: boolean): Promise<{ mime: string; bytes: Uint8Array }> {
+    return { mime: 'image/png', bytes: encodePng(img) };
+  },
+};

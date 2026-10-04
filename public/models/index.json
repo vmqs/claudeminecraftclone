@@ -1,0 +1,28 @@
+{
+  "models": [
+    {
+      "id": "john_marston",
+      "name": "John Marston",
+      "credits": "John Marston (Red Dead Redemption), Rockstar Games. User-supplied model, included at the repo owner's request.",
+      "file": "john_marston/model.mcpm",
+      "bytes": 1436734,
+      "hash": "24bb21335f78020061676cea5fa063f0"
+    },
+    {
+      "id": "trevor",
+      "name": "Trevor",
+      "credits": "Trevor Philips (Grand Theft Auto V), Rockstar Games. User-supplied model, included at the repo owner's request.",
+      "file": "trevor/model.mcpm",
+      "bytes": 1840643,
+      "hash": "674f6aab8ef385e17118da6ab251a07e"
+    },
+    {
+      "id": "roblox_noob",
+      "name": "Roblox Noob",
+      "credits": "Roblox Noob (Roblox Corporation), model by vanyabro85 on Sketchfab (CC-BY-4.0). User-supplied model, included at the repo owner's request.",
+      "file": "roblox_noob/model.mcpm",
+      "bytes": 13619,
+      "hash": "dd27da94cebaf4bb90306cd72f85cc24"
+    }
+  ]
+}
