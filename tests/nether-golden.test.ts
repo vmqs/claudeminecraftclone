@@ -16,6 +16,7 @@ import { GuiCreateWorld } from '../src/gui/GuiCreateWorld';
 import { EnumCreatureType } from '../src/world/biome/SpawnListEntry';
 import { GenWorld } from '../src/world/gen/GenWorld';
 import { ChunkProviderHell } from '../src/world/gen/nether/ChunkProviderHell';
+import { netherBridgePieceName } from '../src/world/gen/nether/NetherBridgePieces';
 import '../src/world/gen/nether/NetherRegistration';
 import { toTerrainChunk } from '../src/world/gen/TerrainChunk';
 import { WorldGenServer } from '../src/world/gen/WorldGenServer';
@@ -70,7 +71,7 @@ function layoutText(g: ChunkProviderHell): string {
     lines.push(`start ${key} ${s.components.length} ${b.minX} ${b.minY} ${b.minZ} ${b.maxX} ${b.maxY} ${b.maxZ}`);
     for (const c of s.components) {
       const cb = c.getBoundingBox();
-      const name = c.constructor.name.replace('NetherBridge', '');
+      const name = netherBridgePieceName(c);
       lines.push(`  ${name} ${c.coordBaseMode} ${c.getComponentType()} ${cb.minX} ${cb.minY} ${cb.minZ} ${cb.maxX} ${cb.maxY} ${cb.maxZ}`);
     }
   }

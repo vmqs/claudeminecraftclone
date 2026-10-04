@@ -83,6 +83,11 @@ sprint mode and toggle, current item, the Controls screen's scroll row), `scroll
 automation has no file picker), `importPack(name, bytes | base64)`, `importTestPack(kind)`,
 `selectPack(idOrName)` (resolves once the textures reloaded) and `removePack(id)`.
 
+`mc.dev.nether` (`src/client/NetherDevTools.ts`): `fortresses(radius?, x?, z?)` (fortress starts of the
+world's seed near the player), `pieces(kind?, radius?)` (pieces by 1.5.2 name: `Throne`, `Entrance`,
+`NetherStalkRoom`, `Crossing3`..., nearest first), `isInFortress(x, y, z)`, `spawnList(x, y, z)` (the
+monster list the spawner uses there).
+
 `mc.dev.perf` (`src/client/PerfDevTools.ts`): `stats()` (frame interval, idle time, the frame
 budget, draw calls, the meshing and chunk queues, chunks sent twice), `unmeshed(r)` (sections
 within r chunks never meshed yet), `areaShown(r)` (every chunk within r loaded and every section
@@ -137,6 +142,9 @@ node scripts/shot.mjs stats                  # hint and achievement toasts, a ga
                                              # (tooltips, dragging), Statistics General / Blocks / Items, sorting,
                                              # saving and loading the stat file (asserts; vanilla captures of the
                                              # same values in ref/extra/stats)
+node scripts/shot.mjs nether                 # travels to the Nether (needs the dimensions slice's mc.travel), a fortress
+                                             # over the lava sea, F3 (biome Hell), the blaze spawner balcony, a nether
+                                             # wart room, with the spawner, spawn lists and block counts in the log
 node scripts/shot.mjs path/to/scenario.json --url http://localhost:5173/ --server none
 ```
 
@@ -342,3 +350,18 @@ with and without F3, the block outline while looking down, the loading screens, 
 options menus, and HUD captures at each GUI scale. World generation is a port of 1.5.2's,
 so the same seed gives the same terrain: the reference spawn, cave, water and biome positions of
 seeds "claude" and 123456789 are checked by `scripts/scenarios/worldgen.json`.
+
+## The Nether
+
+```sh
+node scripts/run-node-test.mjs tests/nether-golden.test.ts tests/nether-spawning.test.ts tests/nether-blocks.test.ts
+```
+
+`nether-golden` compares the Nether generator with hashes of dumps of 1.5.2's own
+`ChunkProviderHell` (raw terrain of seeds "claude" and 123456789, the layout of the 25 fortresses
+within 64 chunks of the origin, three populated areas with their blaze spawners and scheduled
+ticks; the dumps came from a small Java program run against the 1.5.2 client jar outside the
+repository), and checks that terrain made ahead and the order chunks are generated in change
+nothing. `nether-spawning` runs the mob spawner in a generated Nether area around a fortress
+(blazes and wither skeletons with stone swords in the fortress, ghasts outside, no overworld
+monsters); `nether-blocks` the Nether's lava, water buckets, ice and nether wart.

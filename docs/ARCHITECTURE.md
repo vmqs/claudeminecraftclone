@@ -781,3 +781,21 @@ tick; autosave snapshots and Save and Quit (`SaveHandler.flush`) are unchanged.
 progress, so a deferred launch counts once; opening a saved world (`ws === null`) counts
 `startGame` and `joinMultiplayer` but not `createWorld`. `node_modules` and `public/assets` may be symlinks in worktrees and are ignored
 as such (`/node_modules`, `/public/assets` in `.gitignore`): never commit them.
+
+**Wave-5 Nether generation.** `src/world/gen/nether/`: `ChunkProviderHell` (dimension -1, registered
+with `DimensionGenerators` by `nether/NetherRegistration.ts`; constructed as
+`new ChunkProviderHell(seed, options)`), `MapGenCavesHell`, the features (`WorldGenHellLava`,
+`WorldGenFire`, `WorldGenGlowStone1/2`; mushrooms and nether quartz through `WorldGenFlowers` /
+`WorldGenMinable`) and the fortresses (`MapGenNetherBridge`, `StructureNetherBridgeStart`, every
+`ComponentNetherBridge*` piece in `NetherBridgePieces.ts`; 1.5.2 fortresses have no chests and
+generate even with "Generate Structures" off). Raw terrain, fortress layouts and populated areas are
+byte-identical to 1.5.2 (`tests/nether-golden.test.ts` holds hashes of dumps of the original
+generator). One deliberate difference: 1.5.2's `ChunkProviderHell.populate` never reseeds its random,
+so the original's decoration depends on the order the server loaded chunks; here every population
+starts from the state the server has when the chunk was the last of its 2x2 group to be generated
+(`seedPopulateRandom`), which keeps the worker deterministic with or without terrain workers.
+Spawn lists that depend on a dimension's generator go through `PossibleCreatures`
+(`src/world/PossibleCreatures.ts`, asked first by `SpawnerAnimals.spawnRandomCreature`, like
+`WorldServer.spawnRandomCreature` asks the chunk provider): `nether/NetherSpawning.ts` (imported by
+`Minecraft.ts`) gives monsters inside fortress pieces the fortress list (blaze, pigman, skeleton,
+magma cube), recomputing the layouts from the seed on the main thread.

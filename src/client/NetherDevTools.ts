@@ -2,6 +2,7 @@ import { Biomes } from '../world/biome/BiomeGenBase';
 import { EnumCreatureType } from '../world/biome/SpawnListEntry';
 import { SingleBiomeSource } from '../world/gen/ChunkProviderFlat';
 import { MapGenNetherBridge } from '../world/gen/nether/MapGenNetherBridge';
+import { netherBridgePieceName } from '../world/gen/nether/NetherBridgePieces';
 import { PossibleCreatures } from '../world/PossibleCreatures';
 import type { Minecraft } from './Minecraft';
 
@@ -57,7 +58,7 @@ export class NetherDevTools {
     const out: FortressPieceInfo[] = [];
     for (const s of this.generator().structureMap.values()) {
       for (const c of s.components) {
-        const name = c.constructor.name.replace('NetherBridge', '');
+        const name = netherBridgePieceName(c);
         if (kind && name !== kind) continue;
         const b = c.getBoundingBox();
         out.push({ kind: name, facing: c.coordBaseMode, box: [b.minX, b.minY, b.minZ, b.maxX, b.maxY, b.maxZ], centre: c.getCenter() });

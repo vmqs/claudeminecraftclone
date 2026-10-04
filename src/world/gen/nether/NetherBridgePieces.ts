@@ -831,3 +831,26 @@ const SECONDARY: readonly PieceWeight[] = [
   new PieceWeight(NetherBridgeCorridor4, 7, 2),
   new PieceWeight(NetherBridgeNetherStalkRoom, 5, 2),
 ];
+
+const PIECE_NAMES = new Map<abstract new (...args: never[]) => NetherBridgePiece, string>([
+  [NetherBridgeStartPiece, 'StartPiece'],
+  [NetherBridgeStraight, 'Straight'],
+  [NetherBridgeCrossing3, 'Crossing3'],
+  [NetherBridgeEnd, 'End'],
+  [NetherBridgeCrossing, 'Crossing'],
+  [NetherBridgeStairs, 'Stairs'],
+  [NetherBridgeThrone, 'Throne'],
+  [NetherBridgeEntrance, 'Entrance'],
+  [NetherBridgeNetherStalkRoom, 'NetherStalkRoom'],
+  [NetherBridgeCorridor5, 'Corridor5'],
+  [NetherBridgeCrossing2, 'Crossing2'],
+  [NetherBridgeCorridor2, 'Corridor2'],
+  [NetherBridgeCorridor, 'Corridor'],
+  [NetherBridgeCorridor3, 'Corridor3'],
+  [NetherBridgeCorridor4, 'Corridor4'],
+]);
+
+/** A fortress piece's 1.5.2 name without "ComponentNetherBridge" (stable in minified builds). */
+export function netherBridgePieceName(c: StructureComponent): string {
+  return PIECE_NAMES.get(c.constructor as abstract new (...args: never[]) => NetherBridgePiece) ?? '?';
+}
