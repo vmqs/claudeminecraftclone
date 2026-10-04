@@ -36,6 +36,6 @@ Notes for a resume:
 3. [x] minor: inflate must reach the final block; name via JS String() rules; fixture cases (deep, syncflush, name array/object/number)
 4. [x] minor: entity-outline pass (copy renderOutlines onto the replacement renderer)
 5. [x] minor: texture size read before decoding (>8192 refused, big ones subsampled)
-6. [ ] minor: "Open folder" uses vanilla's OS switch (open / cmd start / Desktop / Sys.openURL)
+6. [x] minor: "Open folder" uses vanilla's OS switch (open / cmd start / Desktop / Sys.openURL)
 7. [ ] minor: performance: per-player skin cache (only parts that moved are re-skinned), GlStateManager state instead of GL queries, README cost per player
 8. [ ] rebuild jar, copy to scratchpad, one headless prod-style run, look at screenshots

@@ -8,6 +8,9 @@ import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.GuiSlot;
 import net.minecraft.client.gui.inventory.GuiInventory;
 import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.util.Util;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.lwjgl.Sys;
 
 import java.io.File;
@@ -22,6 +25,7 @@ import java.util.Locale;
  * wears the model at once and saves the choice; "Reload folder" picks up new files.
  */
 public class GuiChooseModel extends GuiScreen {
+    private static final Logger LOG = LogManager.getLogger("PolyModels");
     private static final int BUTTON_DONE = 0;
     private static final int BUTTON_RELOAD = 1;
     private static final int BUTTON_FOLDER = 2;
@@ -87,18 +91,42 @@ public class GuiChooseModel extends GuiScreen {
         statusColor = color;
     }
 
+    /**
+     * Opens the folder the way vanilla's "Open resource pack folder" does: /usr/bin/open on macOS
+     * and "cmd /C start" on Windows (AWT's Desktop is not started from the game's thread there:
+     * on macOS it can hang next to LWJGL), then Desktop, then LWJGL's Sys.openURL.
+     */
     private void openFolder(File dir) {
+        String path = dir.getAbsolutePath();
+        Util.EnumOS os = Util.getOSType();
         try {
-            java.awt.Desktop.getDesktop().open(dir);
+            if (os == Util.EnumOS.OSX) {
+                Runtime.getRuntime().exec(new String[]{"/usr/bin/open", path});
+                return;
+            }
+            if (os == Util.EnumOS.WINDOWS) {
+                // Vanilla's exact command (Runtime.exec splits it and Windows joins it back).
+                Runtime.getRuntime().exec(String.format("cmd.exe /C start \"Open file\" \"%s\"", path));
+                return;
+            }
+        } catch (IOException e) {
+            LOG.warn("Could not open {}", path, e);
+        }
+        try {
+            Class<?> desktop = Class.forName("java.awt.Desktop");
+            Object d = desktop.getMethod("getDesktop").invoke(null);
+            desktop.getMethod("browse", java.net.URI.class).invoke(d, dir.toURI());
             return;
-        } catch (Throwable ignored) {
-            // No desktop integration: let LWJGL ask the system.
+        } catch (Throwable t) {
+            LOG.info("No desktop integration to open {}: {}", path, t.toString());
         }
         try {
-            Sys.openURL(dir.toURI().toString());
+            Sys.openURL("file://" + path);
         } catch (Throwable t) {
-            setStatus("Open " + dir.getAbsolutePath(), 0xa0a0a0);
+            LOG.warn("Could not open {}", path, t);
         }
+        // Whatever happened, say where the folder is.
+        setStatus("Folder: " + path, 0xa0a0a0);
     }
 
     /** Wears the model of a row (refused for damaged files). */
