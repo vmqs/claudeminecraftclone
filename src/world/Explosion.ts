@@ -115,17 +115,18 @@ export class Explosion {
     this.explosionSize = size;
   }
 
+  /** The pitch doExplosionB played the sound at (a LAN host sends it with the explosion). */
+  soundPitch = 1;
+
   /**
-   * Sound, particles, block removal with 1/size drop chance, and fires when flaming. In single
-   * player both the integrated server and the client's copy of the explosion (Packet60) play
-   * the sound, so it is heard twice at two random pitches; the particles only exist once.
+   * Sound, particles, block removal with 1/size drop chance, and fires when flaming. The sound
+   * is heard once: the client's copy of the explosion (Packet60) ran this too in 1.5.2, but a
+   * client's world sound was silent, only the server's Packet62 reached the speakers.
    */
   doExplosionB(spawnParticles: boolean): void {
     const w = this.worldObj;
-    const rounds = spawnParticles ? 2 : 1;
-    for (let i = 0; i < rounds; i++) {
-      w.playSoundEffect(this.explosionX, this.explosionY, this.explosionZ, 'random.explode', 4, f(f(1 + f(f(w.rand.nextFloat() - w.rand.nextFloat()) * f(0.2))) * f(0.7)));
-    }
+    this.soundPitch = f(f(1 + f(f(w.rand.nextFloat() - w.rand.nextFloat()) * f(0.2))) * f(0.7));
+    w.playSoundEffect(this.explosionX, this.explosionY, this.explosionZ, 'random.explode', 4, this.soundPitch);
     w.spawnParticle(this.explosionSize >= 2 && this.isSmoking ? 'hugeexplosion' : 'largeexplode', this.explosionX, this.explosionY, this.explosionZ, 1, 0, 0);
     if (this.isSmoking) {
       for (const [x, y, z] of this.affectedBlockPositions) {

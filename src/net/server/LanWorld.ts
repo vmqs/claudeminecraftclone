@@ -189,6 +189,8 @@ export class LanWorld implements WorldNetListener, IWorldAccess {
       if (p.getDistanceSq(e.explosionX, e.explosionY, e.explosionZ) >= 4096) continue;
       const push = e.getPlayerKnockbackMap().get(p);
       if (push) h.allowPush(push.xCoord, push.yCoord, push.zCoord);
+      // The sound is the server's (Packet62 within 16 x 4 blocks); the guest's copy is silent.
+      h.sendPacket(levelSound('random.explode', e.explosionX, e.explosionY, e.explosionZ, 4, e.soundPitch));
       h.sendPacket({ type: 'Explosion', x: e.explosionX, y: e.explosionY, z: e.explosionZ, size: e.explosionSize, records, motionX: push?.xCoord ?? 0, motionY: push?.yCoord ?? 0, motionZ: push?.zCoord ?? 0 });
     }
   }
@@ -237,6 +239,9 @@ export class LanWorld implements WorldNetListener, IWorldAccess {
     const w = this.world;
     if (w.localEffectsOnly || this.server.handlers.length === 0) return;
     const source = w.tickingEntity;
+    // Guests make these themselves: every client runs its own copy of each player (sprinting,
+    // potion swirls, eating, a death's poof) and of each tile entity (a spawner's flames).
+    if (source?.isPlayerEntity || w.isTickingTileEntities) return;
     for (const h of this.server.handlers) {
       const p = h.player;
       if (h.state !== 'play' || !p || p === source || p.worldObj !== w) continue;

@@ -779,12 +779,14 @@ export class World implements IWorld, IBlockAccess {
     for (const a of this.worldAccesses) a.playSound(name, x, y, z, volume, pitch);
   }
 
-  /** Client-only sound with optional distance delay (WorldClient.playSound). */
+  /**
+   * Client-only sound with optional distance delay (WorldClient.playSound): heard here only, by
+   * the listeners that play sounds themselves (RenderGlobal). A LAN host never forwards it: every
+   * client makes these sounds itself (block display ticks, rain, level events, the local
+   * player's own sounds, which EntityPlayerSP reports separately).
+   */
   playSound(x: number, y: number, z: number, name: string, volume: number, pitch: number, distanceDelay: boolean): void {
-    for (const a of this.worldAccesses) {
-      if (a.playSoundWithDistanceDelay) a.playSoundWithDistanceDelay(name, x, y, z, volume, pitch, distanceDelay);
-      else a.playSound(name, x, y, z, volume, pitch);
-    }
+    for (const a of this.worldAccesses) a.playSoundWithDistanceDelay?.(name, x, y, z, volume, pitch, distanceDelay);
   }
 
   spawnParticle(name: string, x: number, y: number, z: number, vx: number, vy: number, vz: number): void {
@@ -918,11 +920,19 @@ export class World implements IWorld, IBlockAccess {
 
   /**
    * Entity status events (Packet38EntityStatus): the client copy of the entity reacts in
-   * handleHealthUpdate (hurt/death sounds, hearts, smoke, eating, firework bursts...).
+   * handleHealthUpdate (hurt animation, hearts, smoke, eating, firework bursts...). Its hurt and
+   * death sounds are only heard on a guest (see EntityLiving.handleHealthUpdate).
    */
   setEntityState(e: Entity, status: number): void {
     this.netEvents?.entityStatus(e, status);
-    e.handleHealthUpdate(status);
+    // The client half: guests replay it from the packet, so a host keeps its effects to itself.
+    const was = this.localEffectsOnly;
+    if (this.netEvents) this.localEffectsOnly = true;
+    try {
+      e.handleHealthUpdate(status);
+    } finally {
+      this.localEffectsOnly = was;
+    }
   }
 
   /** createExplosion: a smoking (block-destroying), non-flaming explosion. */
@@ -1309,6 +1319,11 @@ export class World implements IWorld, IBlockAccess {
       }
     }
     this.updateTileEntities();
+  }
+
+  /** True while tile entities tick (each LAN guest ticks its own copies and makes their particles). */
+  get isTickingTileEntities(): boolean {
+    return this.scanningTileEntities;
   }
 
   /** Ticks tile entities, drops invalid ones, then applies the removals and additions queued meanwhile. */

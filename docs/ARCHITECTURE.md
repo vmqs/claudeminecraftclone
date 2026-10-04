@@ -544,18 +544,31 @@ hopper, spawner; `EntityMinecart.createMinecart(w, x, y, z, type)`), `EntityHang
 (`new EntityArrow(w, shooter, velocity)`, `new EntityTNTPrimed(w, x, y, z, igniter)`, ...).
 
 There is no client/server split, so the client's half of a few server events is replayed
-explicitly, as single player did:
-- `World.setEntityState(e, status)` calls `e.handleHealthUpdate(status)` (Packet38): living
-  entities play the hurt (2) and death (3) sound a second time at their own pitch, tamed animals
-  show hearts/smoke (7/6), fireworks burst (17), TNT minecarts light (10).
+explicitly, as single player did. Every sound is still heard exactly once per player: 1.5.2's
+client RenderGlobal ignored world sounds (`playSoundEffect` / `playSoundAtEntity`), so a client
+copy running the same code as the server made no sound; only the server's Packet62 and
+client-only sounds (`World.playSound`, EntityPlayerSP's own sounds) were heard. The rules:
+- `World.setEntityState(e, status)` calls `e.handleHealthUpdate(status)` (Packet38): the hurt
+  animation, tamed hearts/smoke (7/6), fireworks bursts (17), TNT minecarts lighting (10). The
+  hurt (2) and death (3) sounds only play on a LAN guest's copy, where only the guest's own
+  player is heard (the host's sound packets leave a player out of its own sounds). A host runs
+  it with `localEffectsOnly`, since guests replay it from the packet.
 - `EntityLiving.onItemPickup` runs `EntityLiving.collectEffect` (Packet22, installed by
-  `src/render/entity/EntityClientHooks.ts`): a second pop/orb sound and the `EntityPickupFX`.
-- `Explosion.doExplosionB(true)` plays `random.explode` twice (server and Packet60 echo).
-- Sounds that both the server entity and the client's copy play from their own update code are
-  played twice through `Entity.playSoundEchoed(name, volume, pitchFn)`, each with its own random
-  pitch: `fireworks.launch`, an arrow sticking in a block (`random.bowhit`), items and XP orbs
-  fizzing in lava. Code that only ran on one side in 1.5.2 (entity hits, fire extinguished in
-  water, server-only events) plays once. New entity code follows the same rule.
+  `src/render/entity/EntityClientHooks.ts`): the `EntityPickupFX`, no sound (the item's own
+  `random.pop` is the one heard).
+- `Explosion.doExplosionB` plays `random.explode` once; a LAN host sends it with the explosion
+  packet (`Explosion.soundPitch`).
+- Code that both the server entity and the client copy ran in 1.5.2 (`fireworks.launch`, an
+  arrow sticking in a block, fizzing in lava, a wolf shaking) plays once.
+- `World.playSound` is client-only: it reaches only listeners implementing
+  `IWorldAccess.playSoundWithDistanceDelay` (RenderGlobal), never the LAN host's `LanWorld`.
+  A guest's `WorldClient` drops `playSoundEffect` / `playSoundAtEntity` (its predicted
+  placements, chest lids, status echoes and explosion packets stay silent; the host's
+  `LevelSound` packets play through `World.playSound`).
+- A host never forwards particles made during a player's or a tile entity's update (every
+  client runs its own copies of those) nor those of level events (`RenderGlobal.playAuxSFX`).
+`tests/sounds.test.ts` counts what each player hears and sees for every such event, in single
+player and on both sides of a LAN game. New entity code follows the same rules.
 
 Potion effects live on `EntityLiving.activePotionsMap` as `PotionEffectLike` objects
 (`src/entity/PotionEffects.ts`: `PotionId`, the swirl colour, and `PotionHooks`: `effectsOf(stack)`,

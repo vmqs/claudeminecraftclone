@@ -90,10 +90,13 @@ export class EntityPlayerSP extends EntityPlayer {
 
   override onCriticalHit(target: Entity): void {
     this.mc.effectRenderer.addEffect(new EntityCrit2FX(this.worldObj, target));
+    // A LAN host's guests see it too (EntityPlayerMP.onCriticalHit's Packet18).
+    this.worldObj.netEvents?.entityAnimation(target, 6);
   }
 
   override onEnchantmentCritical(target: Entity): void {
     this.mc.effectRenderer.addEffect(new EntityCrit2FX(this.worldObj, target, 'magicCrit'));
+    this.worldObj.netEvents?.entityAnimation(target, 7);
   }
 
   /** EntityClientPlayerMP.sendChatMessage: goes to the integrated server's chat handler. */

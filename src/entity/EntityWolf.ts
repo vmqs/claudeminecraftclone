@@ -154,8 +154,8 @@ export class EntityWolf extends EntityTameable {
       this.prevTimeWolfIsShaking = 0;
     } else if ((this.isShaking || this.isShakingAnim) && this.isShakingAnim) {
       if (this.timeWolfIsShaking === 0) {
-        // Played by both the server's and the client's wolf.
-        this.playSoundEchoed('mob.wolf.shake', this.getSoundVolume(), () => f(f(f(this.rand.nextFloat() - this.rand.nextFloat()) * f(0.2)) + 1));
+        // The server's wolf and the client's both ran this; only the server's sound was heard.
+        this.playSound('mob.wolf.shake', this.getSoundVolume(), f(f(f(this.rand.nextFloat() - this.rand.nextFloat()) * f(0.2)) + 1));
       }
       this.prevTimeWolfIsShaking = this.timeWolfIsShaking;
       this.timeWolfIsShaking = f(this.timeWolfIsShaking + f(0.05));

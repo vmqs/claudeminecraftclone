@@ -72,7 +72,7 @@ export class EntityFireworkRocket extends Entity {
     this.rotationYaw = headingYaw(this.motionX, this.motionZ);
     this.rotationPitch = headingPitch(this.motionY, horiz);
     smoothRotation(this);
-    if (this.fireworkAge === 0) this.playSoundEchoed('fireworks.launch', 3, () => 1);
+    if (this.fireworkAge === 0) this.playSound('fireworks.launch', 3, 1);
     this.fireworkAge++;
     this.worldObj.spawnParticle('fireworksSpark', this.posX, this.posY - 0.3, this.posZ, this.rand.nextGaussian() * 0.05, -this.motionY * 0.5, this.rand.nextGaussian() * 0.05);
     if (this.fireworkAge > this.lifetime) {

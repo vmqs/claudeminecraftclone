@@ -131,8 +131,8 @@ export class EntityIronGolem extends EntityGolem {
 
   override handleHealthUpdate(status: number): void {
     if (status === 4) {
+      // The throw sound is attackEntityAsMob's (the client copy's was silent in 1.5.2).
       this.attackTimer = 10;
-      this.playSound('mob.irongolem.throw', 1, 1);
     } else if (status === 11) {
       this.clientHoldRoseTick = 400;
     } else {
