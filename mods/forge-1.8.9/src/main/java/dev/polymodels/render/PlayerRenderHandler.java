@@ -39,6 +39,9 @@ public final class PlayerRenderHandler {
             renderers.put(model, r);
         }
         event.setCanceled(true);
+        // RenderManager told the vanilla renderer whether this is the entity-outline pass
+        // (spectators' player highlight); the replacement must draw the same pass.
+        r.setRenderOutlines(RenderPolyPlayer.rendersOutlines(event.renderer));
         float yaw = player.prevRotationYaw + (player.rotationYaw - player.prevRotationYaw) * event.partialRenderTick;
         r.doRender(player, event.x, event.y, event.z, yaw, event.partialRenderTick);
     }

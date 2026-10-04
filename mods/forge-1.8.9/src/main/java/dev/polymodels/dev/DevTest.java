@@ -5,6 +5,7 @@ import dev.polymodels.PolyModelsMod;
 import dev.polymodels.gui.GuiChooseModel;
 import dev.polymodels.model.ModelRegistry;
 import dev.polymodels.model.PolyModel;
+import dev.polymodels.render.RenderPolyPlayer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityOtherPlayerMP;
 import net.minecraft.client.gui.GuiMainMenu;
@@ -317,6 +318,27 @@ public final class DevTest {
             serverPlayer(p -> {
                 for (BlockPos pos : b) p.worldObj.setBlockToAir(pos);
             });
+            // Spectator outlines: another player in John, highlighted through the outline pass.
+            serverPlayer(p -> p.setGameType(WorldSettings.GameType.SPECTATOR));
+            spawnOther(-106, "JohnTest", mc.thePlayer.posX, mc.thePlayer.posY, mc.thePlayer.posZ + 4.5, new ItemStack(Items.iron_sword));
+            look(0, 8);
+            return 20;
+        });
+        step(() -> {
+            KeyBinding.setKeyBindState(mc.gameSettings.keyBindSpectatorOutlines.getKeyCode(), true);
+            countA = RenderPolyPlayer.outlineDraws;
+            return 10;
+        });
+        step(() -> {
+            check("spectator outlines draw the model's silhouette", mc.thePlayer.isSpectator() && RenderPolyPlayer.outlineDraws > countA,
+                    "spectator " + mc.thePlayer.isSpectator() + ", " + (RenderPolyPlayer.outlineDraws - countA) + " outline draws");
+            shot("09c_spectator_outlines");
+            KeyBinding.setKeyBindState(mc.gameSettings.keyBindSpectatorOutlines.getKeyCode(), false);
+            mc.theWorld.removeEntityFromWorld(-106);
+            serverPlayer(p -> p.setGameType(WorldSettings.GameType.SURVIVAL));
+            return 20;
+        });
+        step(() -> {
             for (String n : Arrays.asList("TrevorTest", "NoobTest", "JohnTest")) reg().setPlayer(n, null);
             look(0, 0);
             mc.gameSettings.hideGUI = false;
