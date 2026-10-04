@@ -14,7 +14,7 @@ const f = Math.fround;
  */
 export abstract class EntityCreature extends EntityLiving {
   private pathToEntity: PathEntity | null = null;
-  protected entityToAttack: Entity | null = null;
+  private target: Entity | null = null;
   /** Stop walking this tick (it attacked, or the subclass froze it). */
   protected hasAttacked = false;
   /** Ticks left of running away after being hurt. */
@@ -22,6 +22,30 @@ export abstract class EntityCreature extends EntityLiving {
 
   constructor(world: World) {
     super(world);
+  }
+
+  /**
+   * The old AI's target (entityToAttack). Hostile mobs never take a Creative player (a hit, an
+   * angry pigman, a call for help), and drop one who switched to Creative as soon as it is read.
+   */
+  protected get entityToAttack(): Entity | null {
+    const t = this.target;
+    if (t && !this.mayTarget(t)) {
+      this.target = null;
+      this.pathToEntity = null;
+      this.onCreativeTargetDropped(t);
+      return null;
+    }
+    return t;
+  }
+
+  protected set entityToAttack(e: Entity | null) {
+    this.target = e && !this.mayTarget(e) ? null : e;
+  }
+
+  /** Whether the old AI may go after `e`: anyone but a Creative player (EntityAnimal follows them too). */
+  protected mayTarget(e: Entity): boolean {
+    return !e.isCreativeInvulnerable();
   }
 
   protected isMovementCeased(): boolean {

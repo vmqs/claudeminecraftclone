@@ -89,7 +89,7 @@ export class EntityGhast extends EntityFlying {
         this.waypointZ = this.posZ;
       }
     }
-    if (this.targetedEntity && this.targetedEntity.isDead) this.targetedEntity = null;
+    if (this.targetedEntity && (this.targetedEntity.isDead || this.targetedEntity.isCreativeInvulnerable())) this.targetedEntity = null;
     if (!this.targetedEntity || this.aggroCooldown-- <= 0) {
       this.targetedEntity = this.worldObj.getClosestVulnerablePlayerToEntity(this, 100);
       if (this.targetedEntity) this.aggroCooldown = 20;

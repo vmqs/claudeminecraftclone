@@ -82,10 +82,16 @@ export class EntityWolf extends EntityTameable {
     return true;
   }
 
-  /** Targeting a player makes the wolf angry. */
+  /** Targeting a player makes the wolf angry (never a Creative player, who is not taken). */
   override setAttackTarget(e: EntityLiving | null): void {
     super.setAttackTarget(e);
-    if (e && e.isPlayerEntity) this.setAngry(true);
+    if (e && e.isPlayerEntity && this.getAttackTarget() === e) this.setAngry(true);
+  }
+
+  /** The player it was angry with switched to Creative: a wild wolf calms down. */
+  protected override onCreativeTargetDropped(t: Entity): void {
+    super.onCreativeTargetDropped(t);
+    if (!this.isTamed()) this.setAngry(false);
   }
 
   protected override updateAITick(): void {

@@ -54,7 +54,9 @@ export class EntitySilverfish extends EntityMob {
 
   override attackEntityFrom(src: DamageSource, amount: number): boolean {
     if (this.isEntityInvulnerable()) return false;
-    if (this.allySummonCooldown <= 0 && (src instanceof EntityDamageSource || src === Sources.magic)) this.allySummonCooldown = 20;
+    // A Creative player's hit calls no friends out of the stone.
+    const creative = src.getEntity()?.isCreativeInvulnerable() ?? false;
+    if (this.allySummonCooldown <= 0 && !creative && (src instanceof EntityDamageSource || src === Sources.magic)) this.allySummonCooldown = 20;
     return super.attackEntityFrom(src, amount);
   }
 

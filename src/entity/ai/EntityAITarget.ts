@@ -12,8 +12,8 @@ export function targetClassName(e: EntityLiving): string | null {
 /**
  * Base of the target-selection tasks (EntityAITarget): keeps the attack target while it is alive,
  * in range and (optionally) seen within the last 60 ticks, and decides whether an entity is a
- * suitable target. Untamed mobs never pick a player whose capabilities disable damage (Creative)
- * unless `ignoreCreative` (revenge) is set, as in 1.5.2.
+ * suitable target. No mob ever picks a player whose capabilities disable damage (Creative);
+ * `ignoreCreative` (revenge in 1.5.2, which did go after a Creative attacker) no longer matters.
  */
 export abstract class EntityAITarget extends EntityAIBase {
   /** Whether the target must be reachable by a path ending within 1.5 blocks (checked every 10-14 ticks). */
@@ -54,15 +54,16 @@ export abstract class EntityAITarget extends EntityAIBase {
     this.taskOwner.setAttackTarget(null);
   }
 
-  protected isSuitableTarget(t: EntityLiving | null, ignoreCreative: boolean): boolean {
+  protected isSuitableTarget(t: EntityLiving | null, _ignoreCreative: boolean): boolean {
     const owner = this.taskOwner;
     if (!t || t === owner || !t.isEntityAlive()) return false;
     if (!owner.canAttackClass(targetClassName(t))) return false;
+    // Creative players are never targets, not even for revenge or by a tamed wolf (1.5.2 let a
+    // mob hit by a Creative player go after them).
+    if (t.isPlayerEntity && t.isCreativeInvulnerable()) return false;
     if (owner instanceof EntityTameable && owner.isTamed()) {
       if (t instanceof EntityTameable && t.isTamed()) return false;
       if (t === owner.getOwner()) return false;
-    } else if (t.isPlayerEntity && !ignoreCreative && t.isCreativeInvulnerable()) {
-      return false;
     }
     if (!owner.isWithinHomeDistance(MathHelper.floor_double(t.posX), MathHelper.floor_double(t.posY), MathHelper.floor_double(t.posZ))) return false;
     if (this.shouldCheckSight && !owner.getEntitySenses().canSee(t)) return false;

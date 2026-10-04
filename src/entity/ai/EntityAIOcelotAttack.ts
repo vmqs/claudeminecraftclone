@@ -22,7 +22,7 @@ export class EntityAIOcelotAttack extends EntityAIBase {
 
   override continueExecuting(): boolean {
     const v = this.theVictim!;
-    if (!v.isEntityAlive()) return false;
+    if (!v.isEntityAlive() || v.isCreativeInvulnerable()) return false;
     if (this.theEntity.getDistanceSqToEntity(v) > 225) return false;
     return !this.theEntity.getNavigator().noPath() || this.shouldExecute();
   }

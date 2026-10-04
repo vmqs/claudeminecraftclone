@@ -37,7 +37,8 @@ export class EntityAICreeperSwell extends EntityAIBase {
   override updateTask(): void {
     const c = this.swellingCreeper;
     const t = this.creeperAttackTarget;
-    if (!t || c.getDistanceSqToEntity(t) > 49 || !c.getEntitySenses().canSee(t)) c.setCreeperState(-1);
+    // A target who switched to Creative is no reason to keep the fuse burning.
+    if (!t || t.isCreativeInvulnerable() || c.getDistanceSqToEntity(t) > 49 || !c.getEntitySenses().canSee(t)) c.setCreeperState(-1);
     else c.setCreeperState(1);
   }
 }

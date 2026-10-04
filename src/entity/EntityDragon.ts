@@ -221,6 +221,11 @@ export class EntityDragon extends EntityLiving implements IEntityMultiPart {
     let dy = this.targetY - this.posY;
     const dz = this.targetZ - this.posZ;
     const dist2 = dx * dx + dy * dy + dz * dz;
+    if (this.target?.isCreativeInvulnerable()) {
+      // Its player switched to Creative: pick something else.
+      this.target = null;
+      this.forceNewTarget = true;
+    }
     if (this.target) {
       this.targetX = this.target.posX;
       this.targetZ = this.target.posZ;
@@ -375,10 +380,10 @@ export class EntityDragon extends EntityLiving implements IEntityMultiPart {
     for (const e of list) if (e.isLivingEntity) e.attackEntityFrom(DamageSource.causeMobDamage(this), 10);
   }
 
-  /** Half the time a random player, otherwise a random point at least 10 blocks away. */
+  /** Half the time a random player (never a Creative one), otherwise a random point at least 10 blocks away. */
   private setNewTarget(): void {
     this.forceNewTarget = false;
-    const players = this.worldObj.playerEntities;
+    const players = this.worldObj.playerEntities.filter((p) => !p.isCreativeInvulnerable());
     if (this.rand.nextInt(2) === 0 && players.length > 0) {
       this.target = players[this.rand.nextInt(players.length)];
       return;

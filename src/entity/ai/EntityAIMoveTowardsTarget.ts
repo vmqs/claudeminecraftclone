@@ -35,6 +35,8 @@ export class EntityAIMoveTowardsTarget extends EntityAIBase {
 
   override continueExecuting(): boolean {
     const t = this.targetEntity!;
+    // A target who switched to Creative is left alone at once (EntityLiving.getAttackTarget).
+    if (t.isCreativeInvulnerable()) return false;
     return !this.theEntity.getNavigator().noPath() && t.isEntityAlive() && t.getDistanceSqToEntity(this.theEntity) < this.maxTargetDistance * this.maxTargetDistance;
   }
 

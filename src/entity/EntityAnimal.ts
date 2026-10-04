@@ -57,6 +57,11 @@ export abstract class EntityAnimal extends EntityAgeable {
     );
   }
 
+  /** Following a player who holds food is not an attack: Creative players are followed too. */
+  protected override mayTarget(_e: Entity): boolean {
+    return true;
+  }
+
   /** Old AI: face players holding food, follow adults, court a partner and breed after 60 ticks. */
   protected override attackEntity(target: Entity, dist: number): void {
     if (target.isPlayerEntity) {

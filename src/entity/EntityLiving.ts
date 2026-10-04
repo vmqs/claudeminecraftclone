@@ -277,12 +277,27 @@ export abstract class EntityLiving extends Entity {
     return false;
   }
 
+  /**
+   * The AI's attack target. Never a Creative player (not even one who hit this mob): a target who
+   * switched to Creative is dropped the moment anything asks, and the mob stops walking at them.
+   */
   getAttackTarget(): EntityLiving | null {
-    return this.attackTarget;
+    const t = this.attackTarget;
+    if (t && t.isCreativeInvulnerable()) {
+      this.attackTarget = null;
+      this.onCreativeTargetDropped(t);
+      return null;
+    }
+    return t;
   }
 
   setAttackTarget(e: EntityLiving | null): void {
-    this.attackTarget = e;
+    this.attackTarget = e && e.isCreativeInvulnerable() ? null : e;
+  }
+
+  /** A target turned out to be a Creative player and was dropped: stop walking at them. */
+  protected onCreativeTargetDropped(_target: Entity): void {
+    this.getNavigator().clearPathEntity();
   }
 
   /** Whether this mob may target entities of that kind (not creepers or ghasts by default). */

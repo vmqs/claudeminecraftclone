@@ -150,8 +150,8 @@ for (const creative of [true, false]) {
   }
 }
 
-// Revenge on a Creative attacker: as in 1.5.2 the hurt-by task picks the player up again
-// every few ticks but drops it on the next one (players with disableDamage are never kept).
+// Revenge on a Creative attacker: 1.5.2's hurt-by task picked the player up again every few
+// ticks; here a Creative player is never a target, not even for revenge (tests/creativeaggro.test.ts).
 {
   const w = makeWorld();
   const p = addPlayer(w, true, 0.5, 0.5);
@@ -163,8 +163,7 @@ for (const creative of [true, false]) {
     tick(w, 1);
     if (zombie.getAttackTarget() === p) targeted++;
   }
-  check('zombie turns towards a creative attacker', targeted > 0, `${targeted}`);
-  check('zombie never keeps a creative target', targeted <= 15, `${targeted}`);
+  check('zombie never targets a creative attacker', targeted === 0, `${targeted}`);
   const sp = addPlayer(w, false, 0.5, 4.5);
   const z2 = spawn<EntityLiving>(w, 'Zombie', 3.5, 6.5, false);
   z2.attackEntityFrom(DamageSource.causePlayerDamage(sp), 1);

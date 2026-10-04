@@ -59,7 +59,8 @@ export class EntityPigZombie extends EntityZombie {
   override attackEntityFrom(src: DamageSource, amount: number): boolean {
     if (this.isEntityInvulnerable()) return false;
     const attacker = src.getEntity();
-    if (attacker && attacker.isPlayerEntity) {
+    // A Creative player's hits anger no one (1.5.2 turned every pigman within 32 blocks on them).
+    if (attacker && attacker.isPlayerEntity && !attacker.isCreativeInvulnerable()) {
       for (const e of this.worldObj.getEntitiesWithinAABBExcludingEntity(this, this.boundingBox.expand(32, 32, 32))) {
         if (e instanceof EntityPigZombie) e.becomeAngryAt(attacker);
       }
