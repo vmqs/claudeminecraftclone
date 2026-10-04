@@ -1392,6 +1392,11 @@ export abstract class EntityLiving extends Entity {
 
   // ------------------------------------------------------------------ potion effects
 
+  /** Whether the swirl colour and invisibility come from the network, not from local effects. */
+  protected hasSyncedPotionState(): boolean {
+    return false;
+  }
+
   /** Ticks the effects, refreshes the swirl colour, and spawns the swirl particles. */
   protected updatePotionEffects(): void {
     for (const [id, effect] of [...this.activePotionsMap]) {
@@ -1402,6 +1407,9 @@ export abstract class EntityLiving extends Entity {
         this.onChangedPotionEffect(effect);
       }
     }
+    // A copy shown from the network keeps the swirl and invisibility its owner's side sends
+    // (the server's job in 1.5.2; its client never recomputed them).
+    if (this.potionsNeedUpdate && this.hasSyncedPotionState()) this.potionsNeedUpdate = false;
     if (this.potionsNeedUpdate) {
       if (this.activePotionsMap.size === 0) {
         this.potionSwirlAmbient = false;

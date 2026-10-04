@@ -23,7 +23,7 @@ import { EntityItem } from '../src/entity/EntityItem';
 import { EntityList } from '../src/entity/EntityList';
 import { EntityLiving } from '../src/entity/EntityLiving';
 import { EntityXPOrb } from '../src/entity/EntityXPOrb';
-import { installItemEntityFactories } from '../src/entity/ItemHooksInstall';
+import { installItemEntityFactories, installPotionHooks } from '../src/entity/ItemHooksInstall';
 import { PlayerSpawning } from '../src/entity/PlayerSpawning';
 import type { GuiContainer } from '../src/gui/inventory/GuiContainer';
 import { ItemEntityFactories } from '../src/item/ItemEntitySpawning';
@@ -36,6 +36,8 @@ import type { WorldClient } from '../src/net/client/WorldClient';
 import type { EntityPlayerMP } from '../src/net/server/EntityPlayerMP';
 import { LanServer } from '../src/net/server/LanServer';
 import { MemoryHub } from '../src/net/transport/MemoryTransport';
+import { Potion } from '../src/potion/Potion';
+import { PotionEffect } from '../src/potion/PotionEffect';
 import { RenderGlobal } from '../src/render/RenderGlobal';
 import { Chunk } from '../src/world/Chunk';
 import { EnumGameType } from '../src/world/EnumGameType';
@@ -45,6 +47,7 @@ import { check, report } from './harness';
 
 registerBlockItems();
 installItemEntityFactories(ItemEntityFactories as never);
+installPotionHooks(Potion, PotionEffect);
 
 // ---------------------------------------------------------------------- listeners
 
@@ -884,8 +887,25 @@ for (const [who, name, hurt, death] of [
   hp.movementInput.sprint = false;
   step(3);
   const dust = (e: Ear) => e.effects.filter((x) => x.startsWith('particle:tilecrack_')).length;
+
   check('mp host sprint dust on the host', dust(hEar) >= 15, String(dust(hEar)));
   check('mp host sprint dust on the guest, not doubled', dust(gEar) <= dust(hEar) + 3 && dust(gEar) >= 10, `${dust(gEar)} (host ${dust(hEar)})`);
+
+  // The host under Speed: the guest's copy of the host makes the swirl from the synced colour
+  // (it keeps it: the copy has no effects of its own), the host forwards none.
+  hp.addPotionEffect(new PotionEffect(1, 2000, 0) as never);
+  step(5);
+  // As a copy spawned while the effect is on (a guest joining then): it starts with no effects
+  // of its own and must keep the colour it was sent.
+  const aliceCopy = gw.loadedEntityList.find((e) => e.entityId === hp.entityId) as unknown as { potionsNeedUpdate: boolean } | undefined;
+  check('mp guest has a copy of the host', !!aliceCopy);
+  if (aliceCopy) aliceCopy.potionsNeedUpdate = true;
+  clearAll();
+  step(60);
+  const swirl = (e: Ear) => e.countEffect('particle:mobSpell');
+  check('mp host swirl on the host', swirl(hEar) >= 15, String(swirl(hEar)));
+  check('mp host swirl on the guest, once', swirl(gEar) >= 15 && swirl(gEar) <= swirl(hEar) * 1.6 + 4, `${swirl(gEar)} (host ${swirl(hEar)})`);
+  hp.clearActivePotions();
 }
 
 report();
