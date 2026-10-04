@@ -3,19 +3,16 @@ import { BlockSand } from '../../../block/BlockSand';
 import { JavaRandom } from '../../../core/JavaRandom';
 import { Biomes } from '../../biome/BiomeGenBase';
 import { EnumCreatureType, type SpawnListEntry } from '../../biome/SpawnListEntry';
-import type { IWorld, WorldProviderInfo } from '../../IWorld';
-import type { GeneratedChunk } from '../ChunkProviderGenerate';
+import type { IWorld } from '../../IWorld';
+import type { ChunkGenerator, GeneratedChunk } from '../ChunkProviderGenerate';
 import { SingleBiomeSource } from '../ChunkProviderFlat';
-import { type DimensionGenerator, DimensionGenerators } from '../DimensionGenerators';
+import { type DimensionGeneratorOptions, DimensionGenerators } from '../DimensionGenerators';
 import { NoiseGeneratorOctaves } from '../NoiseGeneratorOctaves';
 import { WorldGenFlowers } from '../WorldGenFlowers';
 import { WorldGenMinable } from '../WorldGenMinable';
 import { MapGenCavesHell } from './MapGenCavesHell';
 import { MapGenNetherBridge } from './MapGenNetherBridge';
 import { WorldGenFire, WorldGenGlowStone1, WorldGenGlowStone2, WorldGenHellLava } from './NetherFeatures';
-
-/** The Nether's provider flags (WorldProviderHell) for the world being generated. */
-export const HELL_PROVIDER: Readonly<WorldProviderInfo> = { dimensionId: -1, isHellWorld: true, hasNoSky: true };
 
 /** Height of the lava sea: everything open below y = 32 is still lava. */
 const LAVA_LEVEL = 32;
@@ -30,7 +27,7 @@ const SHORE_LEVEL = 64;
  * mushrooms, nether quartz and hidden lava. Terrain is a pure function of the seed and the
  * chunk position, like the overworld's.
  */
-export class ChunkProviderHell implements DimensionGenerator {
+export class ChunkProviderHell implements ChunkGenerator {
   /** The original's hellRNG: seeds the noise generators, then is reseeded for every chunk. */
   private readonly hellRNG: JavaRandom;
   /** The random of population (see seedPopulateRandom). */
@@ -54,12 +51,11 @@ export class ChunkProviderHell implements DimensionGenerator {
   private readonly caveGenerator = new MapGenCavesHell();
   readonly genNetherBridge = new MapGenNetherBridge();
   readonly biomeSource = new SingleBiomeSource(Biomes.hell);
-  readonly providerInfo = HELL_PROVIDER;
 
-  /** `mapFeatures` is accepted for the generator interface; fortresses always generate in 1.5.2. */
+  /** The world's options are accepted like every dimension's; fortresses generate even without "Generate Structures" in 1.5.2. */
   constructor(
     readonly seed: bigint,
-    readonly mapFeatures = true,
+    _options?: Partial<DimensionGeneratorOptions>,
   ) {
     this.hellRNG = new JavaRandom(seed);
     this.netherNoiseGen1 = new NoiseGeneratorOctaves(this.hellRNG, 16);
@@ -353,4 +349,4 @@ export class ChunkProviderHell implements DimensionGenerator {
   }
 }
 
-DimensionGenerators.register(-1, (seed, mapFeatures) => new ChunkProviderHell(seed, mapFeatures));
+DimensionGenerators.register(-1, (o) => new ChunkProviderHell(o.seed, o));

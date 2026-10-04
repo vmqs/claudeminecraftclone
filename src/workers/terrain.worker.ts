@@ -20,7 +20,8 @@ let round: number | undefined;
 self.onmessage = (e: MessageEvent<TerrainRequest>) => {
   const m = e.data;
   if (m.type === 'init') {
-    gen = (m.dimension ? DimensionGenerators.create(m.dimension, BigInt(m.seed), false) : null) ?? new ChunkProviderGenerate(BigInt(m.seed), false, m.worldType);
+    const seed = BigInt(m.seed);
+    gen = (m.dimension ? DimensionGenerators.create(m.dimension, { seed, worldType: m.worldType, mapFeatures: false, generatorOptions: null }) : null) ?? new ChunkProviderGenerate(seed, false, m.worldType);
     round = m.round;
     return;
   }

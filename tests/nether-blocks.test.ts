@@ -1,7 +1,7 @@
 /**
  * Block behaviour that changes in the Nether (WorldProvider.isHellWorld / hasNoSky, or the Hell
  * biome): lava flows 7 blocks and faster, water poured from a bucket fizzes away, ice melts to
- * nothing, beds explode, nether wart only stays on soul sand.
+ * nothing, nether wart only stays on soul sand. (Exploding beds are the dimensions slice's.)
  *
  *   node scripts/run-node-test.mjs tests/nether-blocks.test.ts
  */
@@ -62,26 +62,6 @@ for (const nether of [true, false]) {
   Block.blocksList[B.ice]!.harvestBlock(w, p, 0, 4, 0, 0);
   const id = w.getBlockId(0, 4, 0);
   check(`broken ice leaves ${nether ? 'nothing in the Nether' : 'water in the overworld'}`, nether ? id === 0 : id === B.waterMoving, `${id}`);
-}
-
-// --- beds explode in the Nether and in the Hell biome ------------------------------------
-for (const [name, nether, biome] of [
-  ['Nether', true, 1],
-  ['Hell biome (superflat)', false, 8],
-  ['overworld', false, 1],
-] as [string, boolean, number][]) {
-  const w = makeWorld(2, [B.bedrock, B.stone, B.stone, B.stone], biome);
-  if (nether) hellify(w);
-  const p = new TestPlayer(w);
-  p.capabilities.disableDamage = true;
-  p.setLocationAndAngles(0.5, 4, -3.5, 0, 0);
-  w.spawnEntityInWorld(p);
-  // Foot at z = 0, head at z = 1 (meta 0 faces south).
-  w.setBlock(0, 4, 0, B.bed, 0, 3);
-  w.setBlock(0, 4, 1, B.bed, 8, 3);
-  Block.blocksList[B.bed]!.onBlockActivated(w, 0, 4, 0, p, 1, 0.5, 0.5, 0.5);
-  const exploded = w.getBlockId(0, 4, 1) !== B.bed && w.getBlockId(0, 3, 2) !== B.stone;
-  check(`bed ${nether || biome === 8 ? 'explodes' : 'does not explode'} (${name})`, exploded === (nether || biome === 8), `head ${w.getBlockId(0, 4, 1)} below ${w.getBlockId(0, 3, 2)}`);
 }
 
 // --- nether wart grows on soul sand only ---------------------------------------------------
