@@ -2,7 +2,7 @@
 
 Branches to merge, in order: w6/bugfix.
 
-- [ ] w6/bugfix merged
+- [x] w6/bugfix merged (clean, no conflicts; tsc passes)
 - [ ] build check
 - [ ] wiring / dedupe
 - [ ] smoke (title, spawn, interact, bugfix)
