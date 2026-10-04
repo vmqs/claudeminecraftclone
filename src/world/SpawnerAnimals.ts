@@ -5,6 +5,7 @@ import type { EntityLiving } from '../entity/EntityLiving';
 import { EntityList } from '../entity/EntityList';
 import { CREATURE_TYPES, EnumCreatureType, type SpawnListEntry } from './biome/SpawnListEntry';
 import { Material } from '../block/Material';
+import { PossibleCreatures } from './PossibleCreatures';
 import { canCreatureTypeSpawnAtLocation } from './SpawnRules';
 import type { World } from './World';
 
@@ -101,9 +102,9 @@ export const SpawnerAnimals = {
     return [x, y, z];
   },
 
-  /** World.spawnRandomCreature: a weighted pick from the biome's list at (x, z). */
-  spawnRandomCreature(w: World, type: EnumCreatureType, x: number, _y: number, z: number): SpawnListEntry | null {
-    const list = w.getBiomeGenForCoords(x, z).getSpawnableList(type);
+  /** World.spawnRandomCreature: a weighted pick from the generator's list (fortresses) or the biome's at (x, z). */
+  spawnRandomCreature(w: World, type: EnumCreatureType, x: number, y: number, z: number): SpawnListEntry | null {
+    const list = PossibleCreatures.get(w, type, x, y, z) ?? w.getBiomeGenForCoords(x, z).getSpawnableList(type);
     return list.length > 0 ? WeightedRandom.getRandomItem(w.rand, list) : null;
   },
 };

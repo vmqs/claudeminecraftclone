@@ -8,6 +8,7 @@ import '../render/particle/ParticleRegistry';
 import '../render/tileentity/TileEntityRenderers';
 import '../render/sky/SkyRegistry';
 import '../world/BlockDynamicsInstall';
+import '../world/gen/nether/NetherSpawning';
 import { I18n } from '../core/I18n';
 import { JavaRandom } from '../core/JavaRandom';
 import { MathHelper } from '../core/MathHelper';
