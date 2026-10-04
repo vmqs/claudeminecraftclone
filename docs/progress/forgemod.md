@@ -32,8 +32,8 @@ Notes for a resume:
 
 ## Review fix round (review-forgemod findings)
 1. [x] major: `S:*=...` breaks Forge's cfg parser → general `others` key (old quoted `"*"` still read), README/cfg comment, JUnit cfg test
-2. [ ] major: deeply nested header JSON → StackOverflowError at startup → iterative JSON parse, Throwable guards in rescan/builtins/preInit
-3. [ ] minor: inflate must reach the final block; name via JS String() rules; fixture cases (deep, syncflush, name array/object/number)
+2. [x] major: deeply nested header JSON → StackOverflowError at startup → iterative JSON parse, Throwable guards in rescan/builtins/preInit
+3. [x] minor: inflate must reach the final block; name via JS String() rules; fixture cases (deep, syncflush, name array/object/number)
 4. [ ] minor: entity-outline pass (copy renderOutlines onto the replacement renderer)
 5. [ ] minor: texture size read before decoding (>8192 refused, big ones subsampled)
 6. [ ] minor: "Open folder" uses vanilla's OS switch (open / cmd start / Desktop / Sys.openURL)

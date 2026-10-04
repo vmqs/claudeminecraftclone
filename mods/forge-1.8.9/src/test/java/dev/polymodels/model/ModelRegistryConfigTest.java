@@ -142,6 +142,29 @@ public class ModelRegistryConfigTest {
         assertEquals(ModelRegistry.STEVE, r.local());
     }
 
+    /**
+     * Folder files never stop the listing (or the game's start): a header nested 120,000 levels
+     * deep (a StackOverflowError in Gson's recursive parser before), garbage and an empty file.
+     */
+    @Test
+    public void hostileFolderFilesAreListed() throws Exception {
+        File dir = tmp.newFolder("config");
+        File models = new File(dir, "polymodels");
+        assertTrue(models.mkdirs());
+        McpmFormatTest.load();
+        Files.write(new File(models, "deep.mcpm").toPath(), McpmFormatTest.caseBytes("header nested 120,000 levels deep"));
+        Files.write(new File(models, "garbage.mcpm").toPath(), "not a model at all".getBytes(StandardCharsets.UTF_8));
+        Files.write(new File(models, "empty.mcpm").toPath(), new byte[0]);
+        ModelRegistry r = load(dir, null);
+        assertEquals("Tiny", r.find("deep").name);
+        assertEquals(ModelRegistry.State.UNLOADED, r.find("deep").state());
+        assertEquals(ModelRegistry.State.FAILED, r.find("garbage").state());
+        assertEquals("not a model file", r.find("garbage").error());
+        assertEquals(ModelRegistry.State.FAILED, r.find("empty").state());
+        assertEquals("unreadable file", r.find("empty").error());
+        assertTrue(r.find("john_marston") != null);
+    }
+
     /** Every name Minecraft allows (letters, digits, underscore) works unquoted. */
     @Test
     public void playerNamesNeedNoQuotes() throws IOException {

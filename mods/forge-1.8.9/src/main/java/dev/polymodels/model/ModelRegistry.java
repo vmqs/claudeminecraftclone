@@ -158,7 +158,7 @@ public final class ModelRegistry {
                 try (InputStream file = ModelRegistry.class.getResourceAsStream(BUILTIN_DIR + id + ".mcpm")) {
                     if (file == null) continue;
                     info = McpmFormat.readInfo(readPrefix(file));
-                } catch (Exception ex) {
+                } catch (Exception | StackOverflowError ex) {
                     LOG.warn("Built-in model {} is damaged", id, ex);
                     continue;
                 }
@@ -187,11 +187,13 @@ public final class ModelRegistry {
                 try {
                     McpmFormat.Info info = McpmFormat.readInfo(readPrefix(f));
                     e = new Entry(id, info.name, info.credits, false, info.triangleCount, f);
-                } catch (Exception ex) {
+                } catch (Throwable ex) {
+                    // Nothing in one file may stop the game starting or the list loading.
                     e = new Entry(id, id, "", false, -1, f);
                     e.state = State.FAILED;
                     e.error = ex instanceof McpmFormat.McpmException ? ex.getMessage() : "unreadable file";
-                    LOG.warn("{} is not a usable model: {}", f.getName(), e.error);
+                    if (ex instanceof McpmFormat.McpmException) LOG.warn("{} is not a usable model: {}", f.getName(), e.error);
+                    else LOG.warn("{} is not a usable model", f.getName(), ex);
                 }
                 list.add(e);
             }

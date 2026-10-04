@@ -2,18 +2,23 @@ package dev.polymodels.model;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
-import com.google.gson.internal.Streams;
+import com.google.gson.internal.LazilyParsedNumber;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 
+import java.io.IOException;
 import java.io.StringReader;
+import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
@@ -170,10 +175,10 @@ public final class McpmFormat {
     /** Reads only the header (name, credits, counts): enough for a list of models. */
     public static Info readInfo(byte[] bytes) throws McpmException {
         JsonObject h = header(bytes);
-        String name = cleanText(str(h.get("name")), MAX_NAME);
+        String name = cleanText(jsString(h.get("name")), MAX_NAME);
         int vc = integer(h.get("vertexCount"), 3, MAX_VERTICES, "vertex count");
         int ic = integer(h.get("indexCount"), 3, MAX_INDICES, "index count");
-        return new Info(name.isEmpty() ? "Model" : name, cleanText(str(h.get("credits")), MAX_CREDITS), vc, ic / 3);
+        return new Info(name.isEmpty() ? "Model" : name, cleanText(jsString(h.get("credits")), MAX_CREDITS), vc, ic / 3);
     }
 
     /**
@@ -278,9 +283,9 @@ public final class McpmFormat {
         d.headCenter = vec3(r.get("headCenter"), "head");
         d.headSize = (float) number(r.get("headSize"), 0.01, 4, "head size");
         d.rigSource = "skeleton".equals(str(r.get("source"))) ? "skeleton" : "geometry";
-        String name = cleanText(str(h.get("name")), MAX_NAME);
+        String name = cleanText(jsString(h.get("name")), MAX_NAME);
         d.name = name.isEmpty() ? "Model" : name;
-        d.credits = cleanText(str(h.get("credits")), MAX_CREDITS);
+        d.credits = cleanText(jsString(h.get("credits")), MAX_CREDITS);
         return d;
     }
 
@@ -313,7 +318,7 @@ public final class McpmFormat {
 
     /**
      * Inflates raw DEFLATE data (no zlib header: fflate's deflateSync), which must produce exactly
-     * {@code size} bytes; stops as soon as it would produce more.
+     * {@code size} bytes and end with its final block; stops as soon as it would produce more.
      */
     static byte[] boundedInflate(byte[] src, int off, int len, int size) throws McpmException {
         Inflater inf = new Inflater(true);
@@ -335,6 +340,9 @@ public final class McpmFormat {
                 // More output than the header promised?
                 byte[] extra = new byte[1];
                 if (inf.inflate(extra) > 0) throw new McpmException("bad geometry data");
+                // The stream must end with its final block, as fflate's inflateSync insists (a
+                // flushed but unfinished stream is refused there too).
+                if (!inf.finished()) throw new McpmException("bad geometry data");
             }
             return out;
         } catch (DataFormatException e) {
@@ -365,17 +373,166 @@ public final class McpmFormat {
         try {
             JsonReader reader = new JsonReader(new StringReader(text));
             reader.setLenient(false);
-            root = Streams.parse(reader);
+            root = parseJson(reader);
             if (reader.peek() != JsonToken.END_DOCUMENT) throw new McpmException("bad header");
         } catch (McpmException e) {
             throw e;
-        } catch (Exception e) {
+        } catch (Exception | StackOverflowError e) {
+            // parseJson does not recurse; the StackOverflowError is only a second line of defence.
             throw new McpmException("bad header");
         }
         // Like the web decoder (typeof h === 'object'): an array passes here and fails on its fields.
         if (root != null && root.isJsonArray()) return new JsonObject();
         if (root == null || !root.isJsonObject()) throw new McpmException("bad header");
         return root.getAsJsonObject();
+    }
+
+    /**
+     * Gson's tree parser (Streams.parse) recurses once per nesting level, so a header of 100,000
+     * nested arrays (well inside the 256 KB limit, and accepted by the web game's JSON.parse)
+     * overflows the stack. This builds the same tree with an explicit stack instead: any depth
+     * the header's size allows, no recursion. Duplicate keys keep the last value, as JSON.parse.
+     */
+    static JsonElement parseJson(JsonReader reader) throws IOException {
+        Deque<JsonElement> open = new ArrayDeque<>();
+        String name = null;
+        while (true) {
+            JsonToken token = reader.peek();
+            JsonElement value;
+            boolean container = false;
+            switch (token) {
+                case BEGIN_ARRAY:
+                    reader.beginArray();
+                    value = new JsonArray();
+                    container = true;
+                    break;
+                case BEGIN_OBJECT:
+                    reader.beginObject();
+                    value = new JsonObject();
+                    container = true;
+                    break;
+                case END_ARRAY:
+                    reader.endArray();
+                    if (open.size() == 1) return open.pop();
+                    open.pop();
+                    continue;
+                case END_OBJECT:
+                    reader.endObject();
+                    if (open.size() == 1) return open.pop();
+                    open.pop();
+                    continue;
+                case NAME:
+                    name = reader.nextName();
+                    continue;
+                case STRING:
+                    value = new JsonPrimitive(reader.nextString());
+                    break;
+                case NUMBER:
+                    value = new JsonPrimitive(new LazilyParsedNumber(reader.nextString()));
+                    break;
+                case BOOLEAN:
+                    value = new JsonPrimitive(reader.nextBoolean());
+                    break;
+                case NULL:
+                    reader.nextNull();
+                    value = JsonNull.INSTANCE;
+                    break;
+                default:
+                    throw new IOException("unexpected " + token);
+            }
+            JsonElement parent = open.peek();
+            if (parent == null) {
+                if (!container) return value;
+            } else if (parent.isJsonArray()) {
+                parent.getAsJsonArray().add(value);
+            } else {
+                parent.getAsJsonObject().add(name, value);
+            }
+            if (container) open.push(value);
+        }
+    }
+
+    /** Nesting followed by {@link #jsString} (deeper values count as empty, which JS cannot print). */
+    private static final int MAX_STRING_DEPTH = 64;
+
+    /**
+     * {@code String(v ?? '')} as the web decoder's cleanText does it: strings as they are, numbers
+     * as JavaScript prints them, booleans, arrays joined with commas (null inside as nothing),
+     * objects as "[object Object]".
+     */
+    static String jsString(JsonElement e) {
+        StringBuilder b = new StringBuilder();
+        appendJs(b, e, 0);
+        return b.toString();
+    }
+
+    private static void appendJs(StringBuilder b, JsonElement e, int depth) {
+        if (e == null || e.isJsonNull()) return;
+        // Bounded (the result is cut to 48 or 400 characters anyway).
+        if (b.length() > 65536) return;
+        if (e.isJsonObject()) {
+            b.append("[object Object]");
+        } else if (e.isJsonArray()) {
+            if (depth >= MAX_STRING_DEPTH) return;
+            JsonArray a = e.getAsJsonArray();
+            for (int i = 0; i < a.size(); i++) {
+                if (i > 0) b.append(',');
+                appendJs(b, a.get(i), depth + 1);
+            }
+        } else {
+            JsonPrimitive p = e.getAsJsonPrimitive();
+            if (p.isNumber()) b.append(jsNumber(p.getAsDouble()));
+            else b.append(p.getAsString());
+        }
+    }
+
+    /** Number.prototype.toString() for a finite double (shortest digits, JS exponent rules). */
+    static String jsNumber(double v) {
+        if (Double.isNaN(v)) return "NaN";
+        if (Double.isInfinite(v)) return v > 0 ? "Infinity" : "-Infinity";
+        if (v == 0) return "0";
+        String sign = v < 0 ? "-" : "";
+        BigDecimal d = shortest(Math.abs(v));
+        String digits = d.unscaledValue().toString();
+        int k = digits.length();
+        // v = 0.digits * 10^n
+        int n = k - d.scale();
+        StringBuilder out = new StringBuilder(sign);
+        if (k <= n && n <= 21) {
+            out.append(digits);
+            for (int i = k; i < n; i++) out.append('0');
+        } else if (0 < n && n <= 21) {
+            out.append(digits, 0, n).append('.').append(digits, n, k);
+        } else if (-6 < n && n <= 0) {
+            out.append("0.");
+            for (int i = n; i < 0; i++) out.append('0');
+            out.append(digits);
+        } else {
+            out.append(digits.charAt(0));
+            if (k > 1) out.append('.').append(digits, 1, k);
+            int exp = n - 1;
+            out.append('e').append(exp >= 0 ? "+" : "-").append(Math.abs(exp));
+        }
+        return out.toString();
+    }
+
+    /**
+     * The decimal with the fewest significant digits that reads back as {@code v} (the closest one
+     * when several do), as JavaScript prints numbers. Java 8's Double.toString is not always the
+     * shortest (4.9E-324 for 5e-324).
+     */
+    private static BigDecimal shortest(double v) {
+        BigDecimal exact = new BigDecimal(v);
+        for (int p = 1; p <= 17; p++) {
+            BigDecimal best = null;
+            for (java.math.RoundingMode mode : new java.math.RoundingMode[]{java.math.RoundingMode.HALF_EVEN, java.math.RoundingMode.FLOOR, java.math.RoundingMode.CEILING}) {
+                BigDecimal c = exact.round(new java.math.MathContext(p, mode));
+                if (c.doubleValue() != v) continue;
+                if (best == null || c.subtract(exact).abs().compareTo(best.subtract(exact).abs()) < 0) best = c;
+            }
+            if (best != null) return best.stripTrailingZeros();
+        }
+        return new BigDecimal(Double.toString(v)).stripTrailingZeros();
     }
 
     private static int le32(byte[] b, int o) {

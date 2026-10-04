@@ -1,6 +1,7 @@
 /** Body of scripts/mcpm-reference.mjs (bundled with rolldown). */
-import { deflateSync } from 'fflate';
+import { deflateSync, inflateSync } from 'fflate';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { constants as zlibConstants, deflateRawSync } from 'node:zlib';
 import { dirname, join } from 'node:path';
 import { decodePlayerModel, encodePlayerModel, ModelFormatError, type PlayerModelData } from '../src/client/model/PlayerModelFormat';
 
@@ -110,6 +111,23 @@ const wide: PlayerModelData = {
   indices: Uint32Array.from({ length: 30 }, (_, i) => (i * 2269) % wideVc),
   groups: [{ start: 0, count: 30, material: 0 }],
 };
+/** The model's geometry block replaced by other DEFLATE bytes (same texture offsets shifted). */
+function withGeometry(g: Uint8Array): Uint8Array {
+  const h = structuredClone(header);
+  const shift = g.length - h.geometry.length;
+  h.geometry.length = g.length;
+  for (const t of h.textures) t.offset += shift;
+  const body = new Uint8Array(g.length + payload.length - header.geometry.length);
+  body.set(g, 0);
+  body.set(payload.subarray(header.geometry.length), g.length);
+  return pack(JSON.stringify(h), body);
+}
+const rawGeometry = inflateSync(payload.subarray(header.geometry.offset, header.geometry.offset + header.geometry.length));
+/** A header with an extra field holding `depth` nested arrays (within the 256 KB header limit). */
+function deepHeader(depth: number): Uint8Array {
+  const h = JSON.stringify(header);
+  return pack(h.slice(0, -1) + ',"deep":' + '['.repeat(depth) + ']'.repeat(depth) + '}');
+}
 const text = new TextDecoder().decode(base.subarray(12, 12 + headerLen));
 const cases: [string, Uint8Array][] = [
   ['the tiny model as it is', base],
@@ -159,17 +177,58 @@ const cases: [string, Uint8Array][] = [
   ['no rig', edit((h) => { delete h.rig; })],
   ['name with control characters and a section sign', edit((h) => { h.name = 'Bad\u0001 §cName\u007f that is far too long for the forty-eight character limit'; })],
   ['32-bit indices', encodePlayerModel(wide)],
+  // Review round: a header nested deeper than a recursive parser's stack, a flushed but unfinished
+  // geometry stream, names and credits that are not strings (String() in the web game).
+  ['header nested 120,000 levels deep', deepHeader(120_000)],
+  ['geometry flushed but not finished (Z_SYNC_FLUSH)', withGeometry(new Uint8Array(deflateRawSync(rawGeometry, { finishFlush: zlibConstants.Z_SYNC_FLUSH })))],
+  ['geometry as a finished stream from another deflater', withGeometry(new Uint8Array(deflateRawSync(rawGeometry)))],
+  ['name is an array', edit((h) => { h.name = ['Arr', 'Name']; })],
+  ['name is an object', edit((h) => { h.name = { a: 1 }; })],
+  ['name is true', edit((h) => { h.name = true; })],
+  ['name is null', edit((h) => { h.name = null; })],
+  ['name is 1e21', pack(text.replace('"name":"Tiny"', '"name":1e21'))],
+  ['name is 12.50', pack(text.replace('"name":"Tiny"', '"name":12.50'))],
+  ['name is 0.0000001', pack(text.replace('"name":"Tiny"', '"name":0.0000001'))],
+  ['name is -0.000123', pack(text.replace('"name":"Tiny"', '"name":-0.000123'))],
+  ['name is 123456789012345680000', pack(text.replace('"name":"Tiny"', '"name":123456789012345680000'))],
+  ['credits are nested arrays with null', edit((h) => { h.credits = [[1, [2, null]], 'x', { b: 2 }, false]; })],
 ];
+if (!text.includes('"name":"Tiny"')) throw new Error('header text changed: update the name cases');
+/** The case's file as base64; big ones (the deep header) are stored raw-deflated. */
+function file(bytes: Uint8Array): { base64: string; deflated?: true } {
+  if (bytes.length <= 65536) return { base64: Buffer.from(bytes).toString('base64') };
+  return { base64: Buffer.from(deflateSync(bytes, { level: 9 })).toString('base64'), deflated: true };
+}
 const out2 = cases.map(([name, bytes]) => {
   try {
     const m = decodePlayerModel(bytes);
-    return { name, base64: Buffer.from(bytes).toString('base64'), error: null, vertexCount: m.positions.length / 3, indices: u32(m.indices), positions: f32(m.positions), modelName: m.name };
+    return { name, ...file(bytes), error: null, vertexCount: m.positions.length / 3, indices: u32(m.indices), positions: f32(m.positions), modelName: m.name, credits: m.credits };
   } catch (e) {
     if (!(e instanceof ModelFormatError)) throw e;
-    return { name, base64: Buffer.from(bytes).toString('base64'), error: e.message };
+    return { name, ...file(bytes), error: e.message };
   }
 });
+// Numbers as String() prints them (a name or credits that is a number): random doubles of every
+// magnitude by their bits, from a fixed seed.
+let seed = 0x2545f491;
+const rnd32 = () => {
+  seed ^= seed << 13;
+  seed ^= seed >>> 17;
+  seed ^= seed << 5;
+  return seed >>> 0;
+};
+const numbers: [string, string][] = [];
+const nv = new DataView(new ArrayBuffer(8));
+while (numbers.length < 600) {
+  nv.setUint32(0, rnd32());
+  nv.setUint32(4, rnd32());
+  // Every third one with few significant digits (short decimals, integers).
+  if (numbers.length % 3 === 0) nv.setFloat64(0, ((rnd32() % 2_000_001) - 1_000_000) / 10 ** (rnd32() % 8));
+  const x = nv.getFloat64(0);
+  if (!Number.isFinite(x)) continue;
+  numbers.push([nv.getBigUint64(0).toString(16).padStart(16, '0'), String(x)]);
+}
 mkdirSync(dirname(out), { recursive: true });
-writeFileSync(out, JSON.stringify({ generator: 'scripts/mcpm-reference.mjs (the web game\'s decodePlayerModel)', models, cases: out2 }, null, 1) + '\n');
+writeFileSync(out, JSON.stringify({ generator: 'scripts/mcpm-reference.mjs (the web game\'s decodePlayerModel)', models, cases: out2, numbers }, null, 1) + '\n');
 console.log(`${out}: ${models.length} models, ${out2.length} cases (${out2.filter((c) => c.error).length} refused)`);
 for (const c of out2) console.log(`  ${c.error ? 'refused: ' + c.error.padEnd(24) : 'ok'.padEnd(33)} ${c.name}`);

@@ -141,7 +141,7 @@ public class McpmFormatTest {
         for (JsonElement el : cases) {
             JsonObject c = el.getAsJsonObject();
             String name = c.get("name").getAsString();
-            byte[] bytes = Base64.getDecoder().decode(c.get("base64").getAsString());
+            byte[] bytes = caseBytes(c);
             JsonElement error = c.get("error");
             McpmFormat.Data d = null;
             String message = null;
@@ -158,12 +158,73 @@ public class McpmFormatTest {
                 assertEquals(name, c.get("indices").getAsLong(), fnv(d.indices));
                 assertEquals(name, c.get("positions").getAsLong(), fnv(d.positions));
                 assertEquals(name, c.get("modelName").getAsString(), d.name);
+                assertEquals(name, c.get("credits").getAsString(), d.credits);
+                try {
+                    McpmFormat.Info info = McpmFormat.readInfo(bytes);
+                    assertEquals(name, d.name, info.name);
+                    assertEquals(name, d.credits, info.credits);
+                } catch (Throwable t) {
+                    fail(name + ": readInfo threw " + t);
+                }
             } else {
                 assertEquals(name, error.getAsString(), message);
                 refused++;
             }
         }
-        assertEquals(42, refused);
+        assertEquals(43, refused);
+    }
+
+    /** A case's file: base64, raw-deflated first when the fixture says so (the deep header). */
+    static byte[] caseBytes(JsonObject c) {
+        byte[] bytes = Base64.getDecoder().decode(c.get("base64").getAsString());
+        if (!c.has("deflated")) return bytes;
+        java.util.zip.Inflater inf = new java.util.zip.Inflater(true);
+        try {
+            inf.setInput(java.util.Arrays.copyOf(bytes, bytes.length + 1));
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            byte[] buf = new byte[65536];
+            while (!inf.finished()) {
+                int n = inf.inflate(buf);
+                if (n == 0 && (inf.needsInput() || inf.needsDictionary())) throw new IllegalStateException("bad fixture data");
+                out.write(buf, 0, n);
+            }
+            return out.toByteArray();
+        } catch (java.util.zip.DataFormatException e) {
+            throw new IllegalStateException(e);
+        } finally {
+            inf.end();
+        }
+    }
+
+    /** The case named in the fixture. */
+    static byte[] caseBytes(String name) {
+        for (JsonElement el : fixture.getAsJsonArray("cases")) {
+            if (el.getAsJsonObject().get("name").getAsString().equals(name)) return caseBytes(el.getAsJsonObject());
+        }
+        throw new IllegalArgumentException("no fixture case " + name);
+    }
+
+    /** JavaScript's Number.prototype.toString, which the web game's String(name) uses. */
+    @Test
+    public void numbersPrintAsInJavaScript() {
+        String[][] cases = {
+                {"0", "0"}, {"-0", "0"}, {"1", "1"}, {"-1", "-1"}, {"12.5", "12.5"}, {"0.1", "0.1"},
+                {"100", "100"}, {"1e21", "1e+21"}, {"1.5e21", "1.5e+21"}, {"1e20", "100000000000000000000"},
+                {"123456789012345680000", "123456789012345680000"}, {"0.000001", "0.000001"},
+                {"0.0000001", "1e-7"}, {"1.25e-7", "1.25e-7"}, {"-0.000123", "-0.000123"},
+                {"5e-324", "5e-324"}, {"1.7976931348623157e308", "1.7976931348623157e+308"},
+                {"0.30000000000000004", "0.30000000000000004"}, {"4.35", "4.35"}, {"1e-6", "0.000001"},
+                {"2e-323", "2e-323"}, {"1e23", "1e+23"}, {"9007199254740993", "9007199254740992"}, {"0.1e1", "1"},
+                {"2.2250738585072014e-308", "2.2250738585072014e-308"}, {"123.456", "123.456"},
+        };
+        for (String[] c : cases) assertEquals(c[0], c[1], McpmFormat.jsNumber(Double.parseDouble(c[0])));
+        // Random doubles of every magnitude, printed by the web game's String().
+        JsonArray numbers = fixture.getAsJsonArray("numbers");
+        assertEquals(600, numbers.size());
+        for (JsonElement el : numbers) {
+            double v = Double.longBitsToDouble(Long.parseUnsignedLong(el.getAsJsonArray().get(0).getAsString(), 16));
+            assertEquals(el.getAsJsonArray().get(0).getAsString(), el.getAsJsonArray().get(1).getAsString(), McpmFormat.jsNumber(v));
+        }
     }
 
     @Test
