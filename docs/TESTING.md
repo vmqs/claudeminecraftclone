@@ -253,6 +253,15 @@ frame activation with eyes of ender. `tests/renderblocks.test.ts` renders every 
 the new bindings, Reset Keys), the sprint key in Hold and Toggle mode against a real `World`, the
 zoom key, and the texture pack importer (folder-wrapped 1.5 packs, pre-1.5 packs, converted 1.6+
 packs with animations, layout checks, broken and hostile archives);
+`tests/sounds.test.ts` counts what each player hears and sees (RenderGlobal's own sound,
+particle and level-event code over a counting sound manager) for placing and breaking blocks,
+steps, doors, chests, hitting and killing mobs, crits, idle sounds, an explosion, eating, a bow
+shot, pickups and splashes, in single player and on both sides of a LAN game (host and guest over
+`MemoryTransport`): every sound exactly once per player;
+`tests/creativeaggro.test.ts` hits every hostile and neutral mob as a Creative player (never a
+target, an attack, a shot, a lit fuse, an angry pigman or wolf, a screaming enderman or called
+silverfish, no chase) and as a Survival player (the 1.5.2 reaction), switches a player to
+Creative in the middle of a fight, and checks the dragon's target choice;
 `tests/containers.test.ts` drives the creative grid and every container (furnace, workbench, chest,
 dispenser, hopper, brewing, enchanting, anvil); `tests/mobshostile.test.ts` and
 `tests/mobspassive.test.ts` run every mob in a real `World` (Creative targeting rules, spawners,

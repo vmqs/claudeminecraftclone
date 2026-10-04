@@ -7,7 +7,11 @@ export interface IWorldAccess {
   markBlockForRenderUpdate(x: number, y: number, z: number): void;
   markBlockRangeForRenderUpdate(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number): void;
   playSound(name: string, x: number, y: number, z: number, volume: number, pitch: number): void;
-  /** Client sound with the far-away delay of WorldClient.playSound (thunder). */
+  /**
+   * Client-only sound (World.playSound, WorldClient.playSound in 1.5.2), with the far-away delay
+   * (fireworks). Only listeners that play sounds implement it; a server-side listener (LanWorld)
+   * must not, since every client makes these sounds itself.
+   */
   playSoundWithDistanceDelay?(name: string, x: number, y: number, z: number, volume: number, pitch: number, distanceDelay: boolean): void;
   spawnParticle(name: string, x: number, y: number, z: number, vx: number, vy: number, vz: number): void;
   onEntityCreate(e: Entity): void;

@@ -5,8 +5,8 @@ import { EntityAITarget } from './EntityAITarget';
 
 /**
  * Targets whoever last hurt this mob (getAITarget). With `callForHelp` every mob of the same
- * class within 16 blocks (10 up/down) without a target joins in. A Creative player stays a
- * revenge target only until the task resets.
+ * class within 16 blocks (10 up/down) without a target joins in. A Creative attacker is never
+ * a revenge target (EntityAITarget.isSuitableTarget).
  */
 export class EntityAIHurtByTarget extends EntityAITarget {
   private lastRevengeTarget: EntityLiving | null = null;

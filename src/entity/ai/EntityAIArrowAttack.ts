@@ -49,6 +49,8 @@ export class EntityAIArrowAttack extends EntityAIBase {
   }
 
   override continueExecuting(): boolean {
+    // Never another shot at a target who switched to Creative (the path may still be running).
+    if (this.attackTarget?.isCreativeInvulnerable()) return false;
     return this.shouldExecute() || !this.entityHost.getNavigator().noPath();
   }
 

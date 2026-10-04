@@ -277,12 +277,27 @@ export abstract class EntityLiving extends Entity {
     return false;
   }
 
+  /**
+   * The AI's attack target. Never a Creative player (not even one who hit this mob): a target who
+   * switched to Creative is dropped the moment anything asks, and the mob stops walking at them.
+   */
   getAttackTarget(): EntityLiving | null {
-    return this.attackTarget;
+    const t = this.attackTarget;
+    if (t && t.isCreativeInvulnerable()) {
+      this.attackTarget = null;
+      this.onCreativeTargetDropped(t);
+      return null;
+    }
+    return t;
   }
 
   setAttackTarget(e: EntityLiving | null): void {
-    this.attackTarget = e;
+    this.attackTarget = e && e.isCreativeInvulnerable() ? null : e;
+  }
+
+  /** A target turned out to be a Creative player and was dropped: stop walking at them. */
+  protected onCreativeTargetDropped(_target: Entity): void {
+    this.getNavigator().clearPathEntity();
   }
 
   /** Whether this mob may target entities of that kind (not creepers or ghasts by default). */
@@ -697,9 +712,11 @@ export abstract class EntityLiving extends Entity {
   }
 
   /**
-   * The client's copy of the entity status packet (World.setEntityState): in single player the
-   * client entity plays the hurt (2) or death (3) sound once more at its own random pitch, on
-   * top of the sound the server sent, so every hit is heard twice as in 1.5.2.
+   * The client's copy of the entity status packet (World.setEntityState): the hurt animation (2)
+   * and the hurt (2) or death (3) sound. attackEntityFrom already played the sound for everyone
+   * else, so only a guest's copy plays it, and there only a guest's own player is heard
+   * (EntityPlayerSP plays its sounds itself; other copies' world sounds are silent, as on a 1.5.2
+   * client, where the server leaves a player out of its own sounds).
    */
   override handleHealthUpdate(status: number): void {
     if (status === 2) {
@@ -707,9 +724,9 @@ export abstract class EntityLiving extends Entity {
       this.hurtResistantTime = this.maxHurtResistantTime;
       this.hurtTime = this.maxHurtTime = 10;
       this.attackedAtYaw = 0;
-      this.playSound(this.getHurtSound(), this.getSoundVolume(), f(f(f(this.rand.nextFloat() - this.rand.nextFloat()) * f(0.2)) + 1));
+      if (this.worldObj.isRemote) this.playSound(this.getHurtSound(), this.getSoundVolume(), f(f(f(this.rand.nextFloat() - this.rand.nextFloat()) * f(0.2)) + 1));
     } else if (status === 3) {
-      this.playSound(this.getDeathSound(), this.getSoundVolume(), f(f(f(this.rand.nextFloat() - this.rand.nextFloat()) * f(0.2)) + 1));
+      if (this.worldObj.isRemote) this.playSound(this.getDeathSound(), this.getSoundVolume(), f(f(f(this.rand.nextFloat() - this.rand.nextFloat()) * f(0.2)) + 1));
     } else {
       super.handleHealthUpdate(status);
     }
@@ -1375,6 +1392,11 @@ export abstract class EntityLiving extends Entity {
 
   // ------------------------------------------------------------------ potion effects
 
+  /** Whether the swirl colour and invisibility come from the network, not from local effects. */
+  protected hasSyncedPotionState(): boolean {
+    return false;
+  }
+
   /** Ticks the effects, refreshes the swirl colour, and spawns the swirl particles. */
   protected updatePotionEffects(): void {
     for (const [id, effect] of [...this.activePotionsMap]) {
@@ -1385,6 +1407,9 @@ export abstract class EntityLiving extends Entity {
         this.onChangedPotionEffect(effect);
       }
     }
+    // A copy shown from the network keeps the swirl and invisibility its owner's side sends
+    // (the server's job in 1.5.2; its client never recomputed them).
+    if (this.potionsNeedUpdate && this.hasSyncedPotionState()) this.potionsNeedUpdate = false;
     if (this.potionsNeedUpdate) {
       if (this.activePotionsMap.size === 0) {
         this.potionSwirlAmbient = false;

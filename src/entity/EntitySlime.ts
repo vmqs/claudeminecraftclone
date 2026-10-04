@@ -161,7 +161,8 @@ export class EntitySlime extends EntityLiving {
 
   /** Touching a player it can see within 0.6 x size hurts them (attack sound on a hit). */
   override onCollideWithPlayer(player: EntityPlayer): void {
-    if (!this.canDamagePlayer()) return;
+    // Creative players are never attacked (the hit did nothing to them in 1.5.2 either).
+    if (!this.canDamagePlayer() || player.isCreativeInvulnerable()) return;
     const s = this.getSlimeSize();
     if (
       this.canEntityBeSeen(player) &&

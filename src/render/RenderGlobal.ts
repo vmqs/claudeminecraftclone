@@ -1184,10 +1184,15 @@ export class RenderGlobal implements IWorldAccess {
       const vx = rand.nextGaussian() * 0.02;
       const vy = rand.nextGaussian() * 0.02;
       const vz = rand.nextGaussian() * 0.02;
-      w.spawnParticle('happyVillager', f(x + rand.nextFloat()), y + rand.nextFloat() * block.getBlockBoundsMaxY(), f(z + rand.nextFloat()), vx, vy, vz);
+      this.spawnParticle('happyVillager', f(x + rand.nextFloat()), y + rand.nextFloat() * block.getBlockBoundsMaxY(), f(z + rand.nextFloat()), vx, vy, vz);
     }
   }
 
+  /**
+   * Level events, as the client's RenderGlobal plays them: sounds through World.playSound and
+   * particles straight into this renderer (both client-only, so a LAN host never forwards them;
+   * guests get the event itself).
+   */
   playAuxSFX(_player: EntityPlayer | null, type: number, x: number, y: number, z: number, data: number): void {
     const w = this.theWorld!;
     const rand = w.rand;
@@ -1271,8 +1276,8 @@ export class RenderGlobal implements IWorldAccess {
           const px = x + 0.5 + (rand.nextFloat() - 0.5) * 2;
           const py = y + 0.5 + (rand.nextFloat() - 0.5) * 2;
           const pz = z + 0.5 + (rand.nextFloat() - 0.5) * 2;
-          w.spawnParticle('smoke', px, py, pz, 0, 0, 0);
-          w.spawnParticle('flame', px, py, pz, 0, 0, 0);
+          this.spawnParticle('smoke', px, py, pz, 0, 0, 0);
+          this.spawnParticle('flame', px, py, pz, 0, 0, 0);
         }
         break;
       default: {

@@ -292,8 +292,10 @@ export class EntityEnderman extends EntityMob {
   /** Any hit makes it scream; a player's hit keeps it angry; projectiles make it teleport away instead. */
   override attackEntityFrom(src: DamageSource, amount: number): boolean {
     if (this.isEntityInvulnerable()) return false;
-    this.setScreaming(true);
-    if (src instanceof EntityDamageSource && src.getEntity()?.isPlayerEntity) this.isAggressive = true;
+    // A Creative player's hit does not provoke it (it still teleports away from projectiles).
+    const creative = src.getEntity()?.isCreativeInvulnerable() ?? false;
+    if (!creative) this.setScreaming(true);
+    if (src instanceof EntityDamageSource && src.getEntity()?.isPlayerEntity && !creative) this.isAggressive = true;
     if (src instanceof EntityDamageSourceIndirect) {
       this.isAggressive = false;
       for (let i = 0; i < 64; i++) if (this.teleportRandomly()) return true;

@@ -43,6 +43,17 @@ export class WorldClient extends World {
     return false;
   }
 
+  /*
+   * World sounds are the host's (Packet62 LevelSound), as on a 1.5.2 client, whose RenderGlobal
+   * ignored them: the guest's copies of blocks, tile entities and entities running the same code
+   * (a predicted placement, a chest lid, a hurt status, an explosion packet) stay silent here.
+   * Client-only sounds (World.playSound: the local player, display ticks, level events, the
+   * host's sound packets) still play.
+   */
+  override playSoundAtEntity(_e: Entity, _name: string, _volume: number, _pitch: number): void {}
+
+  override playSoundEffect(_x: number, _y: number, _z: number, _name: string, _volume: number, _pitch: number): void {}
+
   /** WorldClient.tick: the clock between the host's time packets, the client weather, mood sounds and light. */
   override tick(): void {
     this.clientWeather.remoteTick();

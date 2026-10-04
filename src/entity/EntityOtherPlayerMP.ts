@@ -43,6 +43,11 @@ export class EntityOtherPlayerMP extends EntityPlayer {
     return true;
   }
 
+  /** Its effects live on its owner's side: the swirl colour and invisibility come with its metadata. */
+  protected override hasSyncedPotionState(): boolean {
+    return true;
+  }
+
   /** Packet17Sleep: the player's own side already checked the bed, so this copy just lies down. */
   override sleepInBedAt(x: number, y: number, z: number): BedSleepStatus {
     this.lieDownInBed(x, y, z);

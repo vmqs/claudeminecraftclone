@@ -82,10 +82,16 @@ export class EntityWolf extends EntityTameable {
     return true;
   }
 
-  /** Targeting a player makes the wolf angry. */
+  /** Targeting a player makes the wolf angry (never a Creative player, who is not taken). */
   override setAttackTarget(e: EntityLiving | null): void {
     super.setAttackTarget(e);
-    if (e && e.isPlayerEntity) this.setAngry(true);
+    if (e && e.isPlayerEntity && this.getAttackTarget() === e) this.setAngry(true);
+  }
+
+  /** The player it was angry with switched to Creative: a wild wolf calms down. */
+  protected override onCreativeTargetDropped(t: Entity): void {
+    super.onCreativeTargetDropped(t);
+    if (!this.isTamed()) this.setAngry(false);
   }
 
   protected override updateAITick(): void {
@@ -154,8 +160,8 @@ export class EntityWolf extends EntityTameable {
       this.prevTimeWolfIsShaking = 0;
     } else if ((this.isShaking || this.isShakingAnim) && this.isShakingAnim) {
       if (this.timeWolfIsShaking === 0) {
-        // Played by both the server's and the client's wolf.
-        this.playSoundEchoed('mob.wolf.shake', this.getSoundVolume(), () => f(f(f(this.rand.nextFloat() - this.rand.nextFloat()) * f(0.2)) + 1));
+        // The server's wolf and the client's both ran this; only the server's sound was heard.
+        this.playSound('mob.wolf.shake', this.getSoundVolume(), f(f(f(this.rand.nextFloat() - this.rand.nextFloat()) * f(0.2)) + 1));
       }
       this.prevTimeWolfIsShaking = this.timeWolfIsShaking;
       this.timeWolfIsShaking = f(this.timeWolfIsShaking + f(0.05));

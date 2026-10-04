@@ -234,18 +234,12 @@ export abstract class EntityPlayer extends EntityLiving implements ICommandSende
   }
 
   /**
-   * The local player's own hurt and death sounds are already played locally by EntityPlayerSP
-   * (the server's copies skip the player), so the status echo only replays the hurt animation.
+   * Status 9 (item use finished) is the client's own business (EntityClientPlayerMP); the rest is
+   * EntityLiving's: on a guest the hurt and death statuses are how the player hears its own hurt
+   * and death, which the host's sound packets leave out (playSoundToNearExcept).
    */
   override handleHealthUpdate(status: number): void {
-    if (status === 2) {
-      this.limbYaw = f(1.5);
-      this.hurtResistantTime = this.maxHurtResistantTime;
-      this.hurtTime = this.maxHurtTime = 10;
-      this.attackedAtYaw = 0;
-    } else if (status !== 3 && status !== 9) {
-      super.handleHealthUpdate(status);
-    }
+    if (status !== 9) super.handleHealthUpdate(status);
   }
 
   /** Creative players are never targeted by hostile mobs (EntityAITarget.isSuitableTarget). */

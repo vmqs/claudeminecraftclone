@@ -115,6 +115,11 @@ export class World implements IWorld, IBlockAccess {
    * of an explosion): a LAN host does not forward their particles and sounds.
    */
   localEffectsOnly = false;
+  /**
+   * True while code runs that each LAN guest also runs on its own copies (tile entity updates,
+   * block events): a host does not forward the particles it makes (their sounds still go).
+   */
+  replicatedEffects = false;
   readonly rand = new JavaRandom();
   /** The dimension's rules (WorldProviderSurface, WorldProviderHell, WorldProviderEnd). */
   readonly provider: WorldProvider;
@@ -779,12 +784,14 @@ export class World implements IWorld, IBlockAccess {
     for (const a of this.worldAccesses) a.playSound(name, x, y, z, volume, pitch);
   }
 
-  /** Client-only sound with optional distance delay (WorldClient.playSound). */
+  /**
+   * Client-only sound with optional distance delay (WorldClient.playSound): heard here only, by
+   * the listeners that play sounds themselves (RenderGlobal). A LAN host never forwards it: every
+   * client makes these sounds itself (block display ticks, rain, level events, the local
+   * player's own sounds, which EntityPlayerSP reports separately).
+   */
   playSound(x: number, y: number, z: number, name: string, volume: number, pitch: number, distanceDelay: boolean): void {
-    for (const a of this.worldAccesses) {
-      if (a.playSoundWithDistanceDelay) a.playSoundWithDistanceDelay(name, x, y, z, volume, pitch, distanceDelay);
-      else a.playSound(name, x, y, z, volume, pitch);
-    }
+    for (const a of this.worldAccesses) a.playSoundWithDistanceDelay?.(name, x, y, z, volume, pitch, distanceDelay);
   }
 
   spawnParticle(name: string, x: number, y: number, z: number, vx: number, vy: number, vz: number): void {
@@ -918,11 +925,19 @@ export class World implements IWorld, IBlockAccess {
 
   /**
    * Entity status events (Packet38EntityStatus): the client copy of the entity reacts in
-   * handleHealthUpdate (hurt/death sounds, hearts, smoke, eating, firework bursts...).
+   * handleHealthUpdate (hurt animation, hearts, smoke, eating, firework bursts...). Its hurt and
+   * death sounds are only heard on a guest (see EntityLiving.handleHealthUpdate).
    */
   setEntityState(e: Entity, status: number): void {
     this.netEvents?.entityStatus(e, status);
-    e.handleHealthUpdate(status);
+    // The client half: guests replay it from the packet, so a host keeps its effects to itself.
+    const was = this.localEffectsOnly;
+    if (this.netEvents) this.localEffectsOnly = true;
+    try {
+      e.handleHealthUpdate(status);
+    } finally {
+      this.localEffectsOnly = was;
+    }
   }
 
   /** createExplosion: a smoking (block-destroying), non-flaming explosion. */
@@ -1314,16 +1329,22 @@ export class World implements IWorld, IBlockAccess {
   /** Ticks tile entities, drops invalid ones, then applies the removals and additions queued meanwhile. */
   protected updateTileEntities(): void {
     this.scanningTileEntities = true;
+    const wasReplicated = this.replicatedEffects;
+    this.replicatedEffects = true;
     const list = this.loadedTileEntityList;
     let kept = 0;
-    for (let i = 0; i < list.length; i++) {
-      const te = list[i];
-      if (!te.isInvalid() && te.hasWorldObj() && this.blockExists(te.xCoord, te.yCoord, te.zCoord)) te.updateEntity();
-      if (te.isInvalid()) {
-        if (this.chunkExists(te.xCoord >> 4, te.zCoord >> 4)) this.getChunkFromChunkCoords(te.xCoord >> 4, te.zCoord >> 4).removeChunkBlockTileEntity(te.xCoord & 15, te.yCoord, te.zCoord & 15);
-      } else {
-        list[kept++] = te;
+    try {
+      for (let i = 0; i < list.length; i++) {
+        const te = list[i];
+        if (!te.isInvalid() && te.hasWorldObj() && this.blockExists(te.xCoord, te.yCoord, te.zCoord)) te.updateEntity();
+        if (te.isInvalid()) {
+          if (this.chunkExists(te.xCoord >> 4, te.zCoord >> 4)) this.getChunkFromChunkCoords(te.xCoord >> 4, te.zCoord >> 4).removeChunkBlockTileEntity(te.xCoord & 15, te.yCoord, te.zCoord & 15);
+        } else {
+          list[kept++] = te;
+        }
       }
+    } finally {
+      this.replicatedEffects = wasReplicated;
     }
     list.length = kept;
     this.scanningTileEntities = false;
@@ -1927,7 +1948,13 @@ export class World implements IWorld, IBlockAccess {
       for (const e of this.blockEventCache[i]) {
         const id = this.getBlockId(e.x, e.y, e.z);
         if (id === e.blockID) {
-          Block.blocksList[id]?.onBlockEventReceived(this, e.x, e.y, e.z, e.eventID, e.eventParameter);
+          const was = this.replicatedEffects;
+          this.replicatedEffects = true;
+          try {
+            Block.blocksList[id]?.onBlockEventReceived(this, e.x, e.y, e.z, e.eventID, e.eventParameter);
+          } finally {
+            this.replicatedEffects = was;
+          }
           this.netEvents?.blockEvent(e.x, e.y, e.z, id, e.eventID, e.eventParameter);
         }
       }

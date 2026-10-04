@@ -222,7 +222,7 @@ export class EntityWither extends EntityMob implements IRangedAttackMob {
       const id = this.getWatchedTargetId(head);
       if (id > 0) {
         const t = this.entityById(id);
-        if (t && t.isEntityAlive() && !(this.getDistanceSqToEntity(t) > 900) && this.canEntityBeSeen(t)) {
+        if (t && t.isEntityAlive() && !t.isCreativeInvulnerable() && !(this.getDistanceSqToEntity(t) > 900) && this.canEntityBeSeen(t)) {
           this.launchWitherSkullToEntity(head + 1, t as EntityLiving);
           this.nextHeadUpdate[head - 1] = this.ticksExisted + 40 + this.rand.nextInt(20);
           this.idleHeadUpdates[head - 1] = 0;
