@@ -15,6 +15,11 @@ export const ATTR_UV = 1;
 export const ATTR_COLOR = 2;
 export const ATTR_NORMAL = 3;
 export const ATTR_LIGHT = 4;
+/** Bone indices and weights of skinned meshes (custom player models). */
+export const ATTR_JOINTS = 5;
+export const ATTR_WEIGHTS = 6;
+/** Bone matrices a skinned draw can use. */
+export const MAX_BONES = 8;
 
 interface Uniforms {
   proj: WebGLUniformLocation;
@@ -33,6 +38,8 @@ interface Uniforms {
   fogMode: WebGLUniformLocation;
   fogParams: WebGLUniformLocation;
   fogColor: WebGLUniformLocation;
+  skinning: WebGLUniformLocation;
+  bones: WebGLUniformLocation;
 }
 
 /** Bytes per vertex of the Tessellator's dynamic format (same layout as the original). */
@@ -234,6 +241,8 @@ class GLFacade {
       fogMode: loc('u_fogMode'),
       fogParams: loc('u_fogParams'),
       fogColor: loc('u_fogColor'),
+      skinning: loc('u_skinning'),
+      bones: loc('u_bones'),
     };
     gl.useProgram(this.program);
     gl.uniform1i(this.u.tex, 0);
@@ -582,13 +591,17 @@ class GLFacade {
    * keeps its value until it is set again: values equal to the last ones sent are skipped
    * (matrices by their stack's version), which leaves most draws with a few GL calls.
    */
-  applyState(posScale: number, hasTexture: boolean): void {
+  applyState(posScale: number, hasTexture: boolean, skinning = false): void {
     const gl = this.gl;
     const u = this.u;
     const c = this.sent;
     if (!c.program) {
       gl.useProgram(this.program);
       c.program = true;
+    }
+    if (skinning !== c.skinning) {
+      gl.uniform1i(u.skinning, skinning ? 1 : 0);
+      c.skinning = skinning;
     }
     if (this.projection.version !== this.lastProjVersion) {
       this.f32mat.set(this.projection.top);
@@ -680,6 +693,7 @@ class GLFacade {
   /** The uniform values last sent to the program (see applyState). */
   private readonly sent = {
     program: false,
+    skinning: false,
     mvVersion: -1,
     texVersion: -1,
     normalVersion: -1,
@@ -930,6 +944,25 @@ class GLFacade {
       }
       this.drawCalls++;
     }
+    gl.bindVertexArray(null);
+  }
+
+  // ------------------------------------------------------------------ skinned meshes
+
+  /**
+   * Draws `count` indices (from byte `offset`) of a skinned mesh's VAO (custom player models,
+   * built by src/render/entity/CustomModelMesh.ts: positions, UVs, normals, joints and weights)
+   * with the current state, each vertex blended from `bones` (MAX_BONES column-major matrices).
+   */
+  drawSkinned(vao: WebGLVertexArrayObject, indexType: number, offset: number, count: number, bones: Float32Array, flags: DrawFlags): void {
+    if (count <= 0) return;
+    const gl = this.gl;
+    this.applyState(1, flags.hasTexture, true);
+    gl.uniformMatrix4fv(this.u.bones, false, bones, 0, MAX_BONES * 16);
+    gl.bindVertexArray(vao);
+    this.applyConstantAttribs(flags);
+    gl.drawElements(gl.TRIANGLES, count, indexType, offset);
+    this.drawCalls++;
     gl.bindVertexArray(null);
   }
 

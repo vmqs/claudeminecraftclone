@@ -10,6 +10,9 @@ layout(location = 1) in vec2 a_uv;
 layout(location = 2) in vec4 a_color;
 layout(location = 3) in vec3 a_normal;
 layout(location = 4) in vec2 a_light;
+// GPU skinning of custom player models (GL.drawSkinned): four of eight bone matrices per vertex.
+layout(location = 5) in vec4 a_joints;
+layout(location = 6) in vec4 a_weights;
 
 uniform mat4 u_proj;
 uniform mat4 u_mv;
@@ -19,6 +22,8 @@ uniform int u_lighting;
 uniform vec3 u_light0;
 uniform vec3 u_light1;
 uniform mat3 u_normalMat;
+uniform int u_skinning;
+uniform mat4 u_bones[8];
 
 out vec2 v_uv;
 out vec4 v_color;
@@ -26,7 +31,15 @@ out vec2 v_light;
 out float v_fogDist;
 
 void main() {
-  vec4 eye = u_mv * vec4(a_pos * u_posScale, 1.0);
+  vec4 pos = vec4(a_pos * u_posScale, 1.0);
+  vec3 normal = a_normal;
+  if (u_skinning != 0) {
+    mat4 skin = u_bones[int(a_joints.x)] * a_weights.x + u_bones[int(a_joints.y)] * a_weights.y
+      + u_bones[int(a_joints.z)] * a_weights.z + u_bones[int(a_joints.w)] * a_weights.w;
+    pos = skin * pos;
+    normal = mat3(skin) * normal;
+  }
+  vec4 eye = u_mv * pos;
   gl_Position = u_proj * eye;
   // Fog distance per vertex, interpolated: GL_NV_fog_distance with GL_EYE_RADIAL_NV, which
   // EntityRenderer.setupFog selects whenever the driver has it (NVIDIA, Mesa).
@@ -34,7 +47,7 @@ void main() {
   v_uv = (u_texMat * vec4(a_uv, 0.0, 1.0)).xy;
   vec4 c = a_color;
   if (u_lighting != 0) {
-    vec3 n = normalize(u_normalMat * a_normal);
+    vec3 n = normalize(u_normalMat * normal);
     float d = 0.4 + 0.6 * max(dot(n, u_light0), 0.0) + 0.6 * max(dot(n, u_light1), 0.0);
     c.rgb = clamp(c.rgb * d, 0.0, 1.0);
   }

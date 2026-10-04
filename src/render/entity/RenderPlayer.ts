@@ -11,6 +11,7 @@ import { ModelBiped } from './ModelBiped';
 import { BIPED_FULL3D_OFFSET, renderHeadItem, renderHeldItem, setArmorModel, setArmorOverlay } from './RenderBiped';
 import { RenderLiving } from './RenderLiving';
 import { bindPlayerSkin } from './SkinTextures';
+import { customModelFor } from './CustomPlayerModels';
 
 const f = Math.fround;
 const SCALE = f(0.0625);
@@ -46,9 +47,25 @@ export class RenderPlayer extends RenderLiving {
     this.renderPlayer(e as EntityPlayer, x, y, z, yaw, pt);
   }
 
+  /** Whether the player being drawn wears a custom polygon model (no armour layers or cape). */
+  private get customModel(): boolean {
+    return this.mainModel !== this.modelBipedMain;
+  }
+
   renderPlayer(p: EntityPlayer, x: number, y: number, z: number, yaw: number, pt: number): void {
+    // A custom polygon model replaces ModelBiped's boxes (same animation, see ModelCustomPlayer).
+    const custom = customModelFor(p);
+    this.mainModel = custom ?? this.modelBipedMain;
+    try {
+      this.renderPlayerModel(p, x, y, z, yaw, pt, custom);
+    } finally {
+      this.mainModel = this.modelBipedMain;
+    }
+  }
+
+  private renderPlayerModel(p: EntityPlayer, x: number, y: number, z: number, yaw: number, pt: number, custom: ModelBiped | null): void {
     GL.color(1, 1, 1);
-    const models = [this.modelArmorChestplate, this.modelArmor, this.modelBipedMain];
+    const models = custom ? [custom] : [this.modelArmorChestplate, this.modelArmor, this.modelBipedMain];
     const held = p.inventory.getCurrentItem();
     for (const m of models) m.heldItemRight = held ? 1 : 0;
     if (held && p.getItemInUseCount() > 0) {
@@ -68,6 +85,7 @@ export class RenderPlayer extends RenderLiving {
   }
 
   protected override shouldRenderPass(e: EntityLiving, pass: number, _pt: number): number {
+    if (this.customModel) return -1;
     return setArmorModel(this, (e as EntityPlayer).inventory.armorItemInSlot(3 - pass), pass, this.modelArmorChestplate, this.modelArmor, this.modelBipedMain);
   }
 
@@ -78,11 +96,12 @@ export class RenderPlayer extends RenderLiving {
   /** renderSpecials: helmet item, cape and held item. */
   protected override renderEquippedItems(e: EntityLiving, pt: number): void {
     const p = e as EntityPlayer;
+    const model = this.mainModel as ModelBiped;
     GL.color(1, 1, 1);
     super.renderEquippedItems(p, pt);
-    this.renderArrowsStuckInEntity(p, pt);
-    renderHeadItem(this, p, p.inventory.armorItemInSlot(3), this.modelBipedMain);
-    if (RenderPlayer.capeTexture && !p.isInvisible()) {
+    if (!this.customModel) this.renderArrowsStuckInEntity(p, pt);
+    renderHeadItem(this, p, p.inventory.armorItemInSlot(3), model);
+    if (RenderPlayer.capeTexture && !p.isInvisible() && !this.customModel) {
       this.loadTexture(RenderPlayer.capeTexture);
       this.renderCape(p, pt);
     }
@@ -90,7 +109,7 @@ export class RenderPlayer extends RenderLiving {
     if (held) {
       // While the line is out, a fishing rod is drawn as a plain stick.
       if (p.fishEntity) held = new ItemStack(ItemIds.stick, 1, 0);
-      renderHeldItem(this, p, held, this.modelBipedMain, p.getItemInUseCount() > 0 ? held.getItemUseAction() : null, BIPED_FULL3D_OFFSET, true);
+      renderHeldItem(this, p, held, model, p.getItemInUseCount() > 0 ? held.getItemUseAction() : null, BIPED_FULL3D_OFFSET, true);
     }
   }
 
@@ -182,6 +201,11 @@ export class RenderPlayer extends RenderLiving {
 
   /** The right arm alone, for the first-person view. */
   renderFirstPersonArm(p: EntityPlayer): void {
+    const custom = customModelFor(p);
+    if (custom) {
+      custom.renderFirstPersonArm(p);
+      return;
+    }
     GL.color(1, 1, 1);
     this.modelBipedMain.onGround = 0;
     this.modelBipedMain.setRotationAngles(0, 0, 0, 0, 0, SCALE, p);
