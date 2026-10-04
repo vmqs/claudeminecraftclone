@@ -152,7 +152,7 @@ export abstract class EntityThrowable extends Entity implements IProjectile {
     }
     if (victim) hit = MovingObjectPosition.forEntity(victim);
     if (hit) {
-      if (hit.typeOfHit === EnumMovingObjectType.TILE && w.getBlockId(hit.blockX, hit.blockY, hit.blockZ) === BlockIds.portal) this.inPortal = true;
+      if (hit.typeOfHit === EnumMovingObjectType.TILE && w.getBlockId(hit.blockX, hit.blockY, hit.blockZ) === BlockIds.portal) this.setInPortal();
       else this.onImpact(hit);
     }
     this.posX += this.motionX;

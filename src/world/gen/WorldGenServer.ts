@@ -4,8 +4,8 @@ import type { TagCompound } from '../../item/ItemStack';
 import { Chunk } from '../Chunk';
 import type { ChunkPayload, SectionPayload } from '../../workers/worldgenProtocol';
 import { BONUS_CHEST_CONTENT } from './ChestLoot';
-import { ChunkProviderFlat } from './ChunkProviderFlat';
-import { type ChunkGenerator, ChunkProviderGenerate } from './ChunkProviderGenerate';
+import type { ChunkGenerator } from './ChunkProviderGenerate';
+import { DimensionGenerators, providerInfoFor } from './DimensionGenerators';
 import { WorldGeneratorBonusChest } from './feature/WorldGeneratorBonusChest';
 import { computeChunkLight } from './GenLighting';
 import { GenStore } from './GenStore';
@@ -26,6 +26,8 @@ export interface WorldGenOptions {
    * (MinecraftServer.initialWorldChunkLoad uses 12, i.e. 25x25 chunks); 0 disables it.
    */
   initialRadius?: number;
+  /** The dimension generated: 0 the overworld (default), -1 the Nether, 1 the End. */
+  dimension?: number;
 }
 
 const key = GenWorld.key;
@@ -50,10 +52,15 @@ export class WorldGenServer {
   spawn: [number, number, number] | null = null;
 
   constructor(readonly options: WorldGenOptions) {
-    const seed = options.seed;
-    this.provider =
-      options.worldType === 'flat' ? new ChunkProviderFlat(seed, options.generatorOptions ?? null, options.mapFeatures) : new ChunkProviderGenerate(seed, options.mapFeatures, options.worldType);
+    const dimension = options.dimension ?? 0;
+    this.provider = DimensionGenerators.create(dimension, {
+      seed: options.seed,
+      worldType: options.worldType,
+      mapFeatures: options.mapFeatures,
+      generatorOptions: options.generatorOptions ?? null,
+    });
     this.world = new GenWorld(this.provider.biomeSource);
+    this.world.provider = providerInfoFor(dimension);
     this.world.averageGroundLevel = this.provider.getAverageGroundLevel();
     this.world.missingChunk = (cx, cz) => (this.populating > 0 ? this.loadForFeature(cx, cz) : undefined);
   }
@@ -200,9 +207,9 @@ export class WorldGenServer {
         bySy.push(p);
         sections.push(p);
       }
-      computeChunkLight(around, c, (sy) => bySy[sy]);
+      computeChunkLight(around, c, (sy) => bySy[sy], this.world.provider.hasNoSky);
     } else {
-      computeChunkLight(around, c);
+      computeChunkLight(around, c, undefined, this.world.provider.hasNoSky);
       for (const s of c.sections) {
         if (!s || s.isEmpty()) continue;
         sections.push({ y: s.yBase, blocks: s.blocks.slice(), meta: s.meta.slice(), skyLight: s.skyLight.slice(), blockLight: s.blockLight.slice() });

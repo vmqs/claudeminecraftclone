@@ -264,6 +264,22 @@ distance (far 12, normal 8, short 4, tiny 2 chunks), at most 10 (1.5.2's integra
 guests through `World.netEvents` (`WorldNetListener`) and the `IWorldAccess` the server adds,
 with 1.5.2's exclusions (a guest does not get back the sounds of its own steps and swings).
 
+**Dimensions.** The host runs a world per loaded dimension (`DimensionManager`, ARCHITECTURE
+§5.8) and the LAN server keeps a `LanWorld` for each (`src/net/server/LanWorld.ts`: its
+`EntityTracker`, the block and tile entity changes, the chunk cache, and the `WorldNetListener` /
+`IWorldAccess` that forward sounds and particles), so a guest only gets the chunks, entities and
+effects of the world its player is in; chat, the TAB list, time, rain events and broadcast sounds
+go to everyone, as in 1.5.2. A guest's portal trip (`LanServer.requestTravel`, run after the world
+tick) sends `Packet9Respawn` with the new dimension first, takes the player out of its world,
+waits for the destination's chunks around the scaled arrival point (the host loads that dimension
+for it), then the `Teleporter` places it and the guest gets its position, time, inventory, abilities
+and effects again; meanwhile its world actions are ignored. On the guest a Respawn to another
+dimension makes a new `WorldClient` with that dimension's provider (sky, fog, light) and shows
+"Downloading terrain" until the position arrives. Dying respawns in the overworld; the End's exit
+portal sends `Packet70GameEvent` 4 (the credits) and the guest's `Packet205ClientCommand` 1 brings
+it back to the overworld with everything it had. A guest who leaves is remembered with its
+dimension and rejoins there.
+
 Each guest's player is an `EntityPlayerMP` in the host world: damage, hunger, death, drops,
 item use and windows follow the server rules. A guest's movement is applied after the
 player's own tick with `NetServerHandler.handleFlying`'s checks: illegal stance or position kicks;

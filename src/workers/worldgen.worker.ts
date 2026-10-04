@@ -110,14 +110,14 @@ function spawnTerrainWorkers(): void {
   }
 }
 
-function startTerrainWorkers(seed: string, worldType: string): void {
+function startTerrainWorkers(seed: string, worldType: string, dimension: number, mapFeatures: boolean, generatorOptions: string | null): void {
   round++;
   inFlight.clear();
   localOnly.clear();
   for (const tw of terrainPool) tw.pending = 0;
   terrainActive = !!server?.canPrefetchTerrain && terrainPool.length > 0;
   if (!terrainActive) return;
-  for (const tw of terrainPool) tw.worker.postMessage({ type: 'init', seed, worldType, round } satisfies TerrainRequest);
+  for (const tw of terrainPool) tw.worker.postMessage({ type: 'init', seed, worldType, round, dimension, mapFeatures, generatorOptions } satisfies TerrainRequest);
 }
 
 /** Whether a terrain worker can take another chunk. */
@@ -369,6 +369,7 @@ self.onmessage = (e: MessageEvent<WorldGenRequest>) => {
         generatorOptions: m.generatorOptions ?? null,
         bonusChest: m.bonusChest ?? false,
         initialRadius: m.initialRadius,
+        dimension: m.dimension ?? 0,
       });
       requested.clear();
       spawnQueue = null;
@@ -377,7 +378,7 @@ self.onmessage = (e: MessageEvent<WorldGenRequest>) => {
       readyEarly.clear();
       sentEarly.clear();
       nextReadyAt = Infinity;
-      startTerrainWorkers(m.seed, m.worldType);
+      startTerrainWorkers(m.seed, m.worldType, m.dimension ?? 0, m.mapFeatures, m.generatorOptions ?? null);
       post({ type: 'ready' });
       break;
     case 'request':

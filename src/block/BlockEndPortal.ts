@@ -13,7 +13,7 @@ const fround = Math.fround;
 
 /**
  * End portal (119): a full-bright 1/16 high sheet drawn by its tile-entity renderer (render
- * type -1). Walking in would send the entity to the End, which this recreation does not have.
+ * type -1). Walking in sends the entity to the End (Entity.travelToDimension(1)).
  */
 export class BlockEndPortal extends BlockContainer {
   /** Set once the dragon is dead; until then portals outside the overworld vanish when placed. */
@@ -50,9 +50,9 @@ export class BlockEndPortal extends BlockContainer {
     return 0;
   }
 
-  override onEntityCollidedWithBlock(_w: IWorld, _x: number, _y: number, _z: number, _e: Entity): void {
-    // The original calls entity.travelToDimension(1) (the End) for unridden entities on the
-    // server; there is no End here, so nothing happens.
+  /** Unridden entities go to the End (from the End's exit portal: the player's win screen). */
+  override onEntityCollidedWithBlock(w: IWorld, _x: number, _y: number, _z: number, e: Entity): void {
+    if (e.ridingEntity === null && e.riddenByEntity === null && !w.isRemote) e.travelToDimension(1);
   }
 
   override randomDisplayTick(w: IWorld, x: number, y: number, z: number, rand: JavaRandom): void {

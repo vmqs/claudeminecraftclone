@@ -121,7 +121,9 @@ function compassFrame(frame: EntityItemFrame, frames: number): number {
   const dx = spawn.x - frame.posX;
   const dz = spawn.z - frame.posZ;
   const yaw = MathHelper.wrapAngleTo180_float(180 + frame.hangingDirection * 90) % 360;
-  const angle = -(((yaw - 90) * Math.PI) / 180 - Math.atan2(dz, dx));
+  let angle = -(((yaw - 90) * Math.PI) / 180 - Math.atan2(dz, dx));
+  // Outside surface worlds (the Nether, the End) the needle points anywhere.
+  if (!frame.worldObj.provider.isSurfaceWorld()) angle = Math.random() * Math.PI * 2;
   let i = Math.trunc((angle / (Math.PI * 2) + 1) * frames) % frames;
   while (i < 0) i = (i + frames) % frames;
   return i;

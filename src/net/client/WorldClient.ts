@@ -2,6 +2,7 @@ import { MathHelper } from '../../core/MathHelper';
 import type { Entity } from '../../entity/Entity';
 import { EntityOtherPlayerMP } from '../../entity/EntityOtherPlayerMP';
 import { World, type WorldInfo } from '../../world/World';
+import type { WorldProvider } from '../../world/WorldProvider';
 import { tickRemoteEntity } from './RemoteEntityTick';
 
 /**
@@ -18,8 +19,8 @@ export class WorldClient extends World {
   /** Set by the network handler while it adds an entity the host announced. */
   private acceptingSpawn = false;
 
-  constructor(info: WorldInfo) {
-    super(info);
+  constructor(info: WorldInfo, provider?: WorldProvider) {
+    super(info, provider);
     this.mobSpawner = null;
   }
 

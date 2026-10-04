@@ -3,6 +3,7 @@ import { BlockFluid } from '../block/BlockFluid';
 import { BlockIds } from '../block/BlockIds';
 import { Material } from '../block/Material';
 import { AxisAlignedBB } from '../core/AxisAlignedBB';
+import { Direction } from '../core/Facing';
 import { JavaRandom } from '../core/JavaRandom';
 import { MathHelper } from '../core/MathHelper';
 import { Vec3 } from '../core/Vec3';
@@ -107,7 +108,17 @@ export abstract class Entity {
   isAirBorne = false;
   timeUntilPortal = 0;
   protected inPortal = false;
+  /** field_82153_h: ticks spent in a nether portal (it drains by 4 a tick outside one). */
+  protected portalCounter = 0;
+  /** The direction the entity was moving when it entered the portal (Direction 0-3). */
+  protected teleportDirection = 0;
   dimension = 0;
+  /**
+   * Moves an entity to another dimension (Entity.travelToDimension's server half, with
+   * ServerConfigurationManager.transferEntityToWorld); installed by the dimension manager of the
+   * game that runs the world (single player or a LAN host). Null: nothing travels.
+   */
+  static dimensionTravel: ((e: Entity, dimension: number) => void) | null = null;
   private invulnerable = false;
 
   constructor(world: World) {
@@ -183,7 +194,7 @@ export abstract class Entity {
     this.prevPosZ = this.posZ;
     this.prevRotationPitch = this.rotationPitch;
     this.prevRotationYaw = this.rotationYaw;
-    if (this.timeUntilPortal > 0) this.timeUntilPortal--;
+    if (!this.worldObj.isRemote) this.updatePortal();
 
     if (this.isSprinting() && !this.isInWater()) {
       const x = MathHelper.floor_double(this.posX);
@@ -1019,16 +1030,70 @@ export abstract class Entity {
   }
 
   /**
-   * Touched a nether portal block: marks the entity as in a portal (the player's swirl overlay
-   * reads it), or restarts the cooldown. There is no Nether, so nothing ever travels.
+   * onEntityUpdate's "portal" section (server side): after getMaxInPortalTime ticks in a nether
+   * portal the entity (unless it rides something) goes to the Nether, or back to the overworld
+   * from there, and may not use a portal again for getPortalCooldown ticks.
+   */
+  private updatePortal(): void {
+    const max = this.getMaxInPortalTime();
+    if (this.inPortal) {
+      if (this.ridingEntity === null && this.portalCounter++ >= max) {
+        this.portalCounter = max;
+        this.timeUntilPortal = this.getPortalCooldown();
+        this.travelToDimension(this.worldObj.provider.dimensionId === -1 ? 0 : -1);
+      }
+      this.inPortal = false;
+    } else {
+      if (this.portalCounter > 0) this.portalCounter -= 4;
+      if (this.portalCounter < 0) this.portalCounter = 0;
+    }
+    if (this.timeUntilPortal > 0) this.timeUntilPortal--;
+  }
+
+  /** Ticks in a portal before travelling (players: 80 in Survival, 0 in Creative). */
+  getMaxInPortalTime(): number {
+    return 0;
+  }
+
+  /**
+   * Touched a nether portal block: marks the entity as in a portal (remembering which way it
+   * was moving), or restarts the cooldown while it lasts.
    */
   setInPortal(): void {
-    if (this.timeUntilPortal > 0) this.timeUntilPortal = this.getPortalCooldown();
-    else this.inPortal = true;
+    if (this.timeUntilPortal > 0) {
+      this.timeUntilPortal = this.getPortalCooldown();
+      return;
+    }
+    const dx = this.prevPosX - this.posX;
+    const dz = this.prevPosZ - this.posZ;
+    if (!this.worldObj.isRemote && !this.inPortal) this.teleportDirection = Direction.getMovementDirection(dx, dz);
+    this.inPortal = true;
   }
 
   getPortalCooldown(): number {
     return 900;
+  }
+
+  getTeleportDirection(): number {
+    return this.teleportDirection;
+  }
+
+  /**
+   * travelToDimension: leaves this world for dimension `dimension` (through a portal), arriving
+   * where the Teleporter puts it. Only the side that runs the world moves entities.
+   */
+  travelToDimension(dimension: number): void {
+    if (this.worldObj.isRemote || this.isDead) return;
+    Entity.dimensionTravel?.(this, dimension);
+  }
+
+  /** copyDataFrom: this (new) entity takes another's saved state, portal cooldown and direction. */
+  copyDataFrom(e: Entity): void {
+    const tag: TagCompound = {};
+    e.writeToNBT(tag);
+    this.readFromNBT(tag);
+    this.timeUntilPortal = e.timeUntilPortal;
+    this.teleportDirection = e.teleportDirection;
   }
 
   /** The translated "entity.<EntityList name>.name". */

@@ -19,6 +19,8 @@ import { TileEntityDispenser, TileEntityDropper } from '../../world/tileentity/T
 import { TileEntityFurnace } from '../../world/tileentity/TileEntityFurnace';
 import { TileEntityHopper } from '../../world/tileentity/TileEntityHopper';
 import { World, WorldInfo } from '../../world/World';
+import { getProviderForDimension } from '../../world/WorldProviders';
+import { shareScoreboard } from '../../command/scoreboard/Scoreboard';
 import type { TagCompound } from '../../item/ItemStack';
 import { applyMetadata, createFromSpawn } from '../EntityNetData';
 import { ChunkCodecLimits, decodeChunkData } from '../protocol/ChunkCodec';
@@ -48,8 +50,13 @@ const PARTICLE_NAME = /^[A-Za-z0-9_]{1,40}$/;
 /** What the guest's handler needs from the game client (Minecraft, or a test stand-in). */
 export interface GuestClient {
   readonly username: string;
-  /** Login accepted: the world and player exist; show them (Downloading terrain until ready). */
-  startGuestWorld(world: WorldClient, player: EntityClientPlayerMP, gameType: EnumGameType): void;
+  /**
+   * Login accepted: the world and player exist; show them (Downloading terrain until ready). Also
+   * a dimension change (Packet9Respawn to another dimension: `changedDimension`).
+   */
+  startGuestWorld(world: WorldClient, player: EntityClientPlayerMP, gameType: EnumGameType, changedDimension?: boolean): void;
+  /** Packet70GameEvent 4: the End's credits; `closed` asks the host for the respawn. */
+  showWinGame?(closed: () => void): void;
   /** Packet9Respawn: the new player replaces the old one. */
   respawnGuestPlayer(player: EntityClientPlayerMP, gameType: EnumGameType): void;
   /** The connection ended; `titleKey` is the disconnect screen's title (a lang key). */
@@ -345,6 +352,12 @@ export class NetClientHandler {
         else if (p.reason === 1) w.clientWeather.onRainEvent(true);
         else if (p.reason === 2) w.clientWeather.onRainEvent(false);
         else if (p.reason === 3) this.client.setGameType(EnumGameType.getByID(p.value));
+        else if (p.reason === 4) {
+          // GuiWinGame: the credits, then Packet205ClientCommand(1) asks for the respawn.
+          const done = () => this.addToSendQueue({ type: 'ClientCommand', payload: 1 });
+          if (this.client.showWinGame) this.client.showWinGame(done);
+          else done();
+        }
         return;
       case 'Weather': {
         const bolt = World.lightningBoltFactory?.(w, p.x / 32, p.y / 32, p.z / 32);
@@ -418,7 +431,7 @@ export class NetClientHandler {
     info.spawnZ = p.spawnZ;
     info.raining = false;
     info.thundering = false;
-    const w = new WorldClient(info);
+    const w = new WorldClient(info, getProviderForDimension(p.dimension) ?? undefined);
     w.difficultySetting = p.difficulty & 3;
     this.world = w;
     this.maxPlayers = Math.max(1, Math.min(64, p.maxPlayers));
@@ -458,8 +471,40 @@ export class NetClientHandler {
   }
 
   private handleRespawn(p: PacketOf<'Respawn'>): void {
-    const w = this.world!;
     const old = this.player!;
+    const provider = p.dimension !== old.dimension ? getProviderForDimension(p.dimension) : null;
+    if (provider) {
+      // Another dimension: a new WorldClient (the old world's scoreboard kept), its own player.
+      const oldWorld = this.world!;
+      const prev = oldWorld.worldInfo;
+      const info = new WorldInfo();
+      info.worldName = prev.worldName;
+      info.terrainType = p.terrainType === 'flat' || p.terrainType === 'largeBiomes' ? p.terrainType : 'default';
+      info.gameType = p.gameType;
+      info.hardcore = prev.hardcore;
+      info.allowCommands = prev.allowCommands;
+      info.spawnX = prev.spawnX;
+      info.spawnY = prev.spawnY;
+      info.spawnZ = prev.spawnZ;
+      info.worldTime = prev.worldTime;
+      info.totalTime = prev.totalTime;
+      const nw = new WorldClient(info, provider);
+      shareScoreboard(oldWorld, nw);
+      nw.difficultySetting = p.difficulty & 3;
+      this.world = nw;
+      this.entities.clear();
+      this.serverPos.clear();
+      this.positionReceived = false;
+      const player = new EntityClientPlayerMP(this.client.playerClient, nw, old.username, this);
+      player.entityId = old.entityId;
+      this.player = player;
+      nw.localPlayer = player;
+      const type = EnumGameType.getByID(p.gameType);
+      player.gameType = type;
+      this.client.startGuestWorld(nw, player, type, true);
+      return;
+    }
+    const w = this.world!;
     w.removeEntity(old);
     const player = new EntityClientPlayerMP(this.client.playerClient, w, old.username, this);
     player.entityId = old.entityId;

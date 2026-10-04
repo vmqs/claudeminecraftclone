@@ -17,6 +17,8 @@ export type WorldGenRequest =
       bonusChest?: boolean;
       /** Chunk radius of the spawn area generated in the original order (default 12). */
       initialRadius?: number;
+      /** The dimension this worker generates: 0 the overworld (default), -1 the Nether, 1 the End. */
+      dimension?: number;
     }
   | { type: 'request'; cx: number; cz: number }
   | { type: 'cancel'; cx: number; cz: number }
@@ -67,7 +69,9 @@ export type WorldGenResponse =
   | ChunkPayload;
 
 /** Messages from the world-generation worker to its terrain worker (terrain.worker.ts). */
-export type TerrainRequest = { type: 'init'; seed: string; worldType: string; round?: number } | { type: 'terrain'; cx: number; cz: number; round?: number };
+export type TerrainRequest =
+  | { type: 'init'; seed: string; worldType: string; round?: number; dimension?: number; mapFeatures?: boolean; generatorOptions?: string | null }
+  | { type: 'terrain'; cx: number; cz: number; round?: number };
 
 /** `round` echoes the request's, so answers meant for an earlier world are told apart. */
 export type TerrainResponse = ({ type: 'terrain'; chunk: TerrainChunk } | { type: 'failed'; cx: number; cz: number }) & { round?: number };

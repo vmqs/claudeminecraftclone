@@ -16,7 +16,7 @@ const fround = Math.fround;
 /**
  * Nether portal (90): the purple sheet inside a lit obsidian frame. Translucent (pass 1), no
  * collision, a thin slab along its plane; breaks when the frame is broken. Entities inside
- * get `setInPortal()` (the nether itself is not part of this recreation).
+ * get `setInPortal()`, which takes them to the Nether (or back) after Entity.getMaxInPortalTime.
  */
 export class BlockPortal extends BlockBreakable {
   constructor(id: number) {

@@ -40,6 +40,8 @@ export interface PlayerClient {
   readonly ingameGUI: { getChatGUI(): GuiNewChat };
   readonly gameSettings: { chatVisibility: number };
   respawnPlayer(): void;
+  /** The open screen (a portal closes it). */
+  readonly currentScreen?: GuiScreen | null;
 }
 
 /** The local player: input-driven movement, sprint/fly double-taps, FOV modifier. */
@@ -55,6 +57,12 @@ export class EntityPlayerSP extends EntityPlayer {
   prevRenderArmPitch = 0;
   timeInPortal = 0;
   prevTimeInPortal = 0;
+  /**
+   * The client player's own "in a portal" flag (EntityPlayerSP.inPortal): the swirl and the
+   * trigger sound follow it, while the inherited flag drives the server's travel timer (in single
+   * player both halves are this one entity; the client's copy never has a portal cooldown).
+   */
+  clientInPortal = false;
 
   constructor(
     readonly mc: PlayerClient,
@@ -196,6 +204,11 @@ export class EntityPlayerSP extends EntityPlayer {
   }
 
   /** EntityClientPlayerMP.onUpdate: the player only updates once its chunk is present. */
+  override setInPortal(): void {
+    this.clientInPortal = true;
+    super.setInPortal();
+  }
+
   override onUpdate(): void {
     if (this.worldObj.blockExists(MathHelper.floor_double(this.posX), 0, MathHelper.floor_double(this.posZ))) super.onUpdate();
   }
@@ -208,12 +221,12 @@ export class EntityPlayerSP extends EntityPlayer {
     if (this.sprintToggleTimer > 0) this.sprintToggleTimer--;
     ClientStats.onPlayerUpdate();
     this.prevTimeInPortal = this.timeInPortal;
-    if (this.inPortal) {
-      this.mc.displayGuiScreen(null);
+    if (this.clientInPortal) {
+      if (this.mc.currentScreen) this.mc.displayGuiScreen(null);
       if (this.timeInPortal === 0) this.mc.playSoundFX('portal.trigger', 1, this.rand.nextFloat() * 0.4 + 0.8);
       this.timeInPortal = f(this.timeInPortal + f(0.0125));
       if (this.timeInPortal >= 1) this.timeInPortal = 1;
-      this.inPortal = false;
+      this.clientInPortal = false;
     } else if ((this.getActivePotionEffect(PotionId.confusion)?.getDuration() ?? 0) > 60) {
       // Nausea warps the view like a portal, slowly, until its last 3 seconds.
       this.timeInPortal = f(this.timeInPortal + f(0.006666667));
@@ -222,7 +235,8 @@ export class EntityPlayerSP extends EntityPlayer {
       if (this.timeInPortal > 0) this.timeInPortal = f(this.timeInPortal - f(0.05));
       if (this.timeInPortal < 0) this.timeInPortal = 0;
     }
-    if (this.timeUntilPortal > 0) this.timeUntilPortal--;
+    // The client's own cooldown; in single player the world's update (Entity.onEntityUpdate) runs it.
+    if (this.worldObj.isRemote && this.timeUntilPortal > 0) this.timeUntilPortal--;
 
     const wasJumping = this.movementInput.jump;
     const threshold = f(0.8);

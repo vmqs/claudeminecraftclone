@@ -18,6 +18,7 @@ import { ControlsDevTools } from './ControlsDevTools';
 import { SaveDevTools } from './SaveDevTools';
 import { PerfDevTools } from './PerfDevTools';
 import { StatsDevTools } from '../stats/StatsDevTools';
+import { DimensionDevTools } from './DimensionDevTools';
 
 /** The hotbar of the reference captures: stone, grass, dirt, cobble, planks, log, glass, torch, diamond sword. */
 const DEV_HOTBAR = [1, 2, 3, 4, 5, 17, 20, 50, 276];
@@ -42,6 +43,8 @@ export class DevTools {
   readonly perf: PerfDevTools;
   /** Statistics and achievements (value, add, set, state, hint, pinClock, reset). */
   readonly stats: StatsDevTools;
+  /** The Nether and the End (state, portal frames, travel; src/client/DimensionDevTools.ts). */
+  readonly dims: DimensionDevTools;
 
   constructor(private readonly mc: Minecraft) {
     this.sky = new SkyDevTools(mc);
@@ -53,6 +56,7 @@ export class DevTools {
     this.saves = new SaveDevTools(mc);
     this.perf = new PerfDevTools(mc);
     this.stats = new StatsDevTools(mc);
+    this.dims = new DimensionDevTools(mc);
   }
 
   /** True once the player stands in a loaded, meshed area with no screen open. */

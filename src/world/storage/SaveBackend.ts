@@ -20,9 +20,9 @@ export interface SaveBackend {
   putChunks(folder: string, chunks: { cx: number; cz: number; data: Uint8Array }[]): Promise<void>;
   /** Every saved chunk position of a folder. */
   chunkPositions(folder: string): Promise<[number, number][]>;
-  /** Total stored bytes of a folder's chunks and files. */
+  /** Total stored bytes of a folder's chunks (every dimension's) and files. */
   folderSize(folder: string): Promise<number>;
-  /** Deletes the folder with all its files and chunks. */
+  /** Deletes the folder with all its files and the chunks of every dimension. */
   deleteFolder(folder: string): Promise<void>;
 }
 
@@ -58,6 +58,14 @@ function done(tx: IDBTransaction): Promise<void> {
 /** Key ranges over [folder, ...] compound keys. */
 function folderRange(folder: string): IDBKeyRange {
   return IDBKeyRange.bound([folder], [folder, []]);
+}
+
+/**
+ * The chunk folders of a world: its own (the overworld) and the Nether's and the End's
+ * ("<folder>/DIM-1", "<folder>/DIM1"; see SaveHandler.chunkFolderOf).
+ */
+function chunkFolders(folder: string): string[] {
+  return [folder, `${folder}/DIM-1`, `${folder}/DIM1`];
 }
 
 export class IndexedDBBackend implements SaveBackend {
@@ -162,18 +170,21 @@ export class IndexedDBBackend implements SaveBackend {
   async folderSize(folder: string): Promise<number> {
     return this.run([FILES, CHUNKS], 'readonly', async (tx) => {
       let n = 0;
-      for (const store of [FILES, CHUNKS]) {
-        const values = (await req(tx.objectStore(store).getAll(folderRange(folder)))) as Uint8Array[];
+      const files = (await req(tx.objectStore(FILES).getAll(folderRange(folder)))) as Uint8Array[];
+      for (const v of files) n += v.byteLength;
+      for (const f of chunkFolders(folder)) {
+        const values = (await req(tx.objectStore(CHUNKS).getAll(folderRange(f)))) as Uint8Array[];
         for (const v of values) n += v.byteLength;
       }
       return n;
     });
   }
 
+  /** Deletes the folder: its files and the chunks of every dimension. */
   async deleteFolder(folder: string): Promise<void> {
     await this.run([FILES, CHUNKS], 'readwrite', (tx) => {
       tx.objectStore(FILES).delete(folderRange(folder));
-      tx.objectStore(CHUNKS).delete(folderRange(folder));
+      for (const f of chunkFolders(folder)) tx.objectStore(CHUNKS).delete(folderRange(f));
     });
   }
 }
@@ -232,12 +243,12 @@ export class MemoryBackend implements SaveBackend {
   async folderSize(folder: string): Promise<number> {
     let n = 0;
     for (const v of this.files.get(folder)?.values() ?? []) n += v.byteLength;
-    for (const v of this.chunks.get(folder)?.values() ?? []) n += v.byteLength;
+    for (const f of chunkFolders(folder)) for (const v of this.chunks.get(f)?.values() ?? []) n += v.byteLength;
     return n;
   }
 
   async deleteFolder(folder: string): Promise<void> {
     this.files.delete(folder);
-    this.chunks.delete(folder);
+    for (const f of chunkFolders(folder)) this.chunks.delete(f);
   }
 }

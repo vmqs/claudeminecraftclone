@@ -116,7 +116,13 @@ export class World implements IWorld, IBlockAccess {
    */
   localEffectsOnly = false;
   readonly rand = new JavaRandom();
-  readonly provider = new WorldProvider();
+  /** The dimension's rules (WorldProviderSurface, WorldProviderHell, WorldProviderEnd). */
+  readonly provider: WorldProvider;
+  /**
+   * DerivedWorldInfo: the Nether and the End share the overworld's WorldInfo but never move its
+   * clock (the overworld, always ticking, does) nor its weather.
+   */
+  readonly derivedInfo: boolean;
   readonly worldInfo: WorldInfo;
   readonly worldAccesses: IWorldAccess[] = [];
   readonly loadedEntityList: Entity[] = [];
@@ -167,8 +173,10 @@ export class World implements IWorld, IBlockAccess {
     SpawnerAnimals.findChunksForSpawning(w, w.difficultySetting > 0, true, w.worldInfo.totalTime % 400 === 0);
   };
 
-  constructor(info: WorldInfo) {
+  constructor(info: WorldInfo, provider: WorldProvider = new WorldProvider()) {
     this.worldInfo = info;
+    this.provider = provider;
+    this.derivedInfo = provider.dimensionId !== 0;
     this.provider.terrainType = info.terrainType;
     this.emptyChunk = new EmptyChunk(this, 0, 0);
     this.ambientTickCountdown = this.rand.nextInt(12000);
@@ -437,6 +445,11 @@ export class World implements IWorld, IBlockAccess {
 
   getHeight(): number {
     return 256;
+  }
+
+  /** getActualHeight: 128 in worlds without a sky (the Nether and the End), else 256. */
+  getActualHeight(): number {
+    return this.provider.hasNoSky ? 128 : 256;
   }
 
   extendedLevelsInChunkCache(): boolean {
@@ -857,6 +870,25 @@ export class World implements IWorld, IBlockAccess {
     const i = this.playerEntities.indexOf(e as unknown as EntityPlayer);
     if (i >= 0) this.playerEntities.splice(i, 1);
     this.updateAllPlayersSleepingFlag();
+  }
+
+  /**
+   * removePlayerEntityDangerously: takes an entity (a player changing dimension) out of the world
+   * at once, from the player list, its chunk and the entity list, without waiting for the
+   * end-of-tick removal of dead entities. It is left marked dead; the caller revives it.
+   */
+  removePlayerEntityDangerously(e: Entity): void {
+    e.setDead();
+    const i = this.playerEntities.indexOf(e as unknown as EntityPlayer);
+    if (i >= 0) {
+      this.playerEntities.splice(i, 1);
+      this.updateAllPlayersSleepingFlag();
+    }
+    if (e.addedToChunk && this.chunkExists(e.chunkCoordX, e.chunkCoordZ)) this.getChunkFromChunkCoords(e.chunkCoordX, e.chunkCoordZ).removeEntity(e);
+    e.addedToChunk = false;
+    const li = this.loadedEntityList.indexOf(e);
+    if (li >= 0) this.loadedEntityList.splice(li, 1);
+    this.releaseEntitySkin(e);
   }
 
   // ------------------------------------------------------------------ sleeping (WorldServer)
@@ -1859,7 +1891,7 @@ export class World implements IWorld, IBlockAccess {
       this.clientWeather.tick();
       if (this.areAllPlayersAsleep()) {
         const t = this.worldInfo.worldTime + 24000;
-        this.setWorldTime(t - (t % 24000));
+        if (!this.derivedInfo) this.setWorldTime(t - (t % 24000));
         this.wakeAllPlayers();
       }
       if (this.worldInfo.gameRules.doMobSpawning) this.mobSpawner?.(this);
@@ -1868,8 +1900,10 @@ export class World implements IWorld, IBlockAccess {
     }
     const sub = this.calculateSkylightSubtracted(1);
     if (sub !== this.skylightSubtracted) this.skylightSubtracted = sub;
-    this.worldInfo.totalTime++;
-    this.worldInfo.worldTime++;
+    if (!this.derivedInfo) {
+      this.worldInfo.totalTime++;
+      this.worldInfo.worldTime++;
+    }
     this.tickUpdates(false);
     this.runNaturally(() => this.tickBlocksAndAmbiance());
     this.villageCollectionObj.tick();

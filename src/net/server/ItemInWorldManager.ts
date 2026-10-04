@@ -29,9 +29,14 @@ export class ItemInWorldManager {
   private durabilityRemainingOnBlock = -1;
 
   constructor(
-    readonly theWorld: World,
+    public theWorld: World,
     readonly thisPlayerMP: EntityPlayerMP,
   ) {}
+
+  /** The player changed dimension: blocks are dug in its new world. */
+  setWorld(w: World): void {
+    this.theWorld = w;
+  }
 
   setGameType(type: EnumGameType): void {
     this.gameType = type;

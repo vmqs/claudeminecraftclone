@@ -4,7 +4,19 @@ import type { WorldProviderInfo } from './IWorld';
 
 const f = Math.fround;
 
-/** WorldProviderSurface: the overworld's sky, light table and celestial maths. */
+/** A block position (ChunkCoordinates). */
+export interface BlockPos {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/**
+ * WorldProvider (the overworld's rules are WorldProviderSurface's): the sky, light table and
+ * celestial maths of a dimension, and whether players respawn there. WorldProviderHell and
+ * WorldProviderEnd override it; `getProviderForDimension` (WorldProviders.ts) makes the one
+ * for a dimension id.
+ */
 export class WorldProvider implements WorldProviderInfo {
   dimensionId = 0;
   isHellWorld = false;
@@ -15,8 +27,12 @@ export class WorldProvider implements WorldProviderInfo {
   private readonly colorsSunriseSunset = new Float32Array(4);
 
   constructor() {
+    this.registerWorldChunkManager();
     this.generateLightBrightnessTable();
   }
+
+  /** Sets the dimension's flags (the biome source itself lives in the world-generation worker). */
+  protected registerWorldChunkManager(): void {}
 
   protected generateLightBrightnessTable(): void {
     const minLight = 0;
@@ -93,6 +109,21 @@ export class WorldProvider implements WorldProviderInfo {
 
   doesXZShowFog(_x: number, _z: number): boolean {
     return false;
+  }
+
+  /** Whether players may respawn (and beds work) here. */
+  canRespawnHere(): boolean {
+    return true;
+  }
+
+  /** canCoordinateBeSpawn: the spawn search's test of a column (grass on top in the overworld). */
+  canCoordinateBeSpawn(firstUncoveredBlock: number): boolean {
+    return firstUncoveredBlock === 2;
+  }
+
+  /** Where entities arrive from another dimension when there is no portal to find (the End's platform). */
+  getEntrancePortalLocation(): BlockPos | null {
+    return null;
   }
 
   getDimensionName(): string {

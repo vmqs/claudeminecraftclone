@@ -83,6 +83,11 @@ sprint mode and toggle, current item, the Controls screen's scroll row), `scroll
 automation has no file picker), `importPack(name, bytes | base64)`, `importTestPack(kind)`,
 `selectPack(idOrName)` (resolves once the textures reloaded) and `removePack(id)`.
 
+`mc.dev.dims` (`src/client/DimensionDevTools.ts`): `state()` (the player's dimension, the loaded
+worlds and their chunk counts, a trip under way, entities waiting to arrive, position, portal
+cooldown and swirl), `frame(x, y, z, alongX)` (an empty 4x5 obsidian frame), `light(x, y, z)` (fire in
+it, which lights the portal), `travel(dim)` (Entity.travelToDimension for the player), `arrived()`,
+`count(id, r)` (blocks of an id around the player).
 `mc.dev.perf` (`src/client/PerfDevTools.ts`): `stats()` (frame interval, idle time, the frame
 budget, draw calls, the meshing and chunk queues, chunks sent twice), `unmeshed(r)` (sections
 within r chunks never meshed yet), `areaShown(r)` (every chunk within r loaded and every section
@@ -137,6 +142,10 @@ node scripts/shot.mjs stats                  # hint and achievement toasts, a ga
                                              # (tooltips, dragging), Statistics General / Blocks / Items, sorting,
                                              # saving and loading the stat file (asserts; vanilla captures of the
                                              # same values in ref/extra/stats)
+node scripts/shot.mjs dimensions             # a portal built and lit, its swirl, the trip to the Nether (portal
+                                             # built there), F3, back through the same portal, an end portal to
+                                             # the End's platform and sky, Save and Quit in the End and reopening
+                                             # there, dying in the End and respawning in the overworld (asserts)
 node scripts/shot.mjs path/to/scenario.json --url http://localhost:5173/ --server none
 ```
 
@@ -174,6 +183,21 @@ its shots line up pixel for pixel with vanilla captures of the same scenes (Supe
 `2;7,2x3,2;1`, `...;12`, `...;2`, water `2;7,2x3,2,5x9;1`, lava `2;7,2x3,2,3x11;1`); compare with
 ImageMagick (`compare -metric AE -fuzz 3%`) after masking the hand and hotbar. Sky, clouds, fog and
 the rain colours match to within a colour step; rain streaks differ by the renderer's tick count.
+
+## Dimensions
+
+```sh
+node scripts/run-node-test.mjs tests/dimensions.test.ts tests/netdimensions.test.ts
+node scripts/shot.mjs dimensions --url http://localhost:4231/ --server none
+```
+
+`tests/dimensions.test.ts` checks the providers (light tables, fog, celestial angles, flags,
+the End's entrance, the shared clock), world generation per dimension (hell and sky biomes, no
+sky light), the Teleporter (a new portal on the ground, finding an existing one 128 blocks out,
+the floating portal at y 70, turning with the portal, the End's platform), coordinate scaling and
+clamping, an item carried to the Nether through `DimensionManager.transferEntity`, idle
+dimensions unloading, the portal timer (80 ticks, cooldown 10, Creative at once) and the
+DIM-1 / DIM1 save layout (save, read back, positions per dimension, export, import, delete).
 
 ## Logic checks without a browser
 
@@ -243,9 +267,15 @@ build with `npx vite preview --port 4222 --strictPort`. Numbers and how they wer
 ## Multiplayer
 
 ```sh
-node scripts/run-node-test.mjs tests/netprotocol.test.ts tests/nettransport.test.ts tests/netsession.test.ts tests/netskins.test.ts tests/account.test.ts
+node scripts/run-node-test.mjs tests/netprotocol.test.ts tests/nettransport.test.ts tests/netsession.test.ts tests/netskins.test.ts tests/account.test.ts tests/netdimensions.test.ts
 npm run build && node scripts/mp-test.mjs --out shots/mp
 ```
+
+`tests/netdimensions.test.ts` runs a host with a `DimensionManager` (Node chunk sources from
+`tests/fakeDimensions.ts`) and a guest: a portal trip to the Nether (Respawn with the dimension,
+a new WorldClient, a portal built at the arrival point, the inventory kept, the overworld's
+entities gone), dying there and respawning in the overworld, the End's platform and its exit
+portal (the credits and a respawn that keeps everything).
 
 `tests/netprotocol.test.ts` round-trips every packet, frames and chunk data, and checks the
 limits (oversized frames, strings, lists and NBT, truncated and fuzzed input, packets from the

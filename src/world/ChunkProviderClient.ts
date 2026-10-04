@@ -53,6 +53,15 @@ export class ChunkProviderClient {
   private readonly loadingSaved = new Set<number>();
   private readonly savedIncoming: { k: number; cx: number; cz: number; chunk: Chunk | null }[] = [];
 
+  /**
+   * An area whose saved chunks stay loaded (no generation): the Teleporter's 128-block portal
+   * search reads every chunk that exists around an arrival point (see requestSavedArea).
+   */
+  pinnedSaved: { cx: number; cz: number; radius: number } | null = null;
+
+  /** The StructureLocator provider this instance installed (removed again on dispose). */
+  private readonly locate: (name: string, x: number, y: number, z: number) => Promise<[number, number, number] | null>;
+
   /** findClosestStructure requests waiting for the worker. */
   private readonly structureWaiters = new Map<number, (pos: [number, number, number] | null) => void>();
   private nextStructureId = 0;
@@ -67,8 +76,24 @@ export class ChunkProviderClient {
     this.worker = WorldGenWorkers.take();
     this.worker.onmessage = (e: MessageEvent<WorldGenResponse>) => this.onMessage(e.data);
     this.worker.onerror = (e) => console.error('[worldgen]', e.message);
-    this.post({ type: 'init', seed: seed.toString(), worldType, mapFeatures, generatorOptions: options.generatorOptions ?? null, bonusChest: options.bonusChest ?? false });
-    StructureLocator.provider = (name, x, y, z) => this.findClosestStructure(name, x, y, z);
+    // The worker generates this world's dimension (the provider's id: 0, -1 or 1).
+    const dimension = world.provider.dimensionId;
+    this.post({
+      type: 'init',
+      seed: seed.toString(),
+      worldType,
+      mapFeatures,
+      generatorOptions: options.generatorOptions ?? null,
+      bonusChest: options.bonusChest ?? false,
+      ...(dimension !== 0 ? { dimension } : {}),
+    });
+    this.locate = (name, x, y, z) => this.findClosestStructure(name, x, y, z);
+    StructureLocator.provider = this.locate;
+  }
+
+  /** Makes this provider answer World.findClosestStructure (the world the player is in). */
+  installStructureLocator(): void {
+    StructureLocator.provider = this.locate;
   }
 
   /** World.findClosestStructure ("Stronghold"), answered by the world-generation worker. */
@@ -116,8 +141,10 @@ export class ChunkProviderClient {
     const r = this.loadRadius;
     const others: [number, number, number][] = this.extraCenters.map((c) => [MathHelper.floor_double(c.x) >> 4, MathHelper.floor_double(c.z) >> 4, c.radius]);
     const othersKey = others.length > 0 ? others.join(';') : '';
+    const pin = this.pinnedSaved;
     const within = (kx: number, kz: number, extra: number): boolean => {
       if (Math.abs(kx - cx) <= r + extra && Math.abs(kz - cz) <= r + extra) return true;
+      if (pin && Math.abs(kx - pin.cx) <= pin.radius && Math.abs(kz - pin.cz) <= pin.radius) return true;
       for (const [ox, oz, or] of others) if (Math.abs(kx - ox) <= or + extra && Math.abs(kz - oz) <= or + extra) return true;
       return false;
     };
@@ -161,7 +188,7 @@ export class ChunkProviderClient {
           continue;
         }
         if (this.requested.has(k) || this.loadingSaved.has(k)) continue;
-        if (this.saveHandler?.hasChunk(kx, kz)) {
+        if (this.saveHandler?.hasChunk(kx, kz, this.world.provider.dimensionId)) {
           this.loadSaved(k, kx, kz);
           continue;
         }
@@ -169,6 +196,33 @@ export class ChunkProviderClient {
         this.post({ type: 'request', cx: kx, cz: kz });
       }
     }
+  }
+
+  /**
+   * Loads every saved chunk within `radius` of chunk (cx, cz) (nothing is generated) and keeps
+   * them while pinnedSaved covers them; true once all of them are in the world.
+   */
+  requestSavedArea(cx: number, cz: number, radius: number): boolean {
+    const h = this.saveHandler;
+    if (!h) return true;
+    const dim = this.world.provider.dimensionId;
+    let ready = true;
+    for (let dz = -radius; dz <= radius; dz++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        const kx = cx + dx;
+        const kz = cz + dz;
+        if (this.world.chunkExists(kx, kz) || !h.hasChunk(kx, kz, dim)) continue;
+        ready = false;
+        const k = World.chunkKey(kx, kz);
+        if (!this.loadingSaved.has(k)) this.loadSaved(k, kx, kz);
+      }
+    }
+    return ready;
+  }
+
+  /** Unloads every chunk (each is saved, or kept in memory without a save). */
+  unloadAll(): void {
+    for (const c of [...this.world.getLoadedChunks()]) this.unloadChunk(c.xPosition, c.zPosition);
   }
 
   /** AnvilChunkLoader.loadChunk, asynchronously: the chunk is added by processIncoming. */
@@ -360,7 +414,7 @@ export class ChunkProviderClient {
   }
 
   dispose(): void {
-    if (StructureLocator.provider) StructureLocator.provider = null;
+    if (StructureLocator.provider === this.locate) StructureLocator.provider = null;
     this.saveHandler = null;
     this.loadingSaved.clear();
     this.savedIncoming.length = 0;

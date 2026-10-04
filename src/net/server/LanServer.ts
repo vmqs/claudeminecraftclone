@@ -5,23 +5,26 @@ import type { Entity } from '../../entity/Entity';
 import type { EntityPlayer } from '../../entity/EntityPlayer';
 import { PlayerSpawning, type PlayerSurvivalState } from '../../entity/PlayerSpawning';
 import type { ItemStack } from '../../item/ItemStack';
-import type { Chunk } from '../../world/Chunk';
 import type { EnumGameType } from '../../world/EnumGameType';
-import type { Explosion } from '../../world/Explosion';
-import type { IWorldAccess } from '../../world/IWorldAccess';
+import type { DimensionManager } from '../../world/DimensionManager';
+import { serverPosY } from '../../world/Teleporter';
 import { World } from '../../world/World';
-import type { WorldNetListener } from '../../world/WorldNetListener';
-import { describeTileEntity, encodeChunkData } from '../protocol/ChunkCodec';
+import { AchievementIds } from '../../stats/StatIds';
 import type { Packet } from '../protocol/Packets';
 import type { HostTransport, NetConnection } from '../transport/Transport';
 import { EntityPlayerMP, type PlayerServer } from './EntityPlayerMP';
-import { EntityTracker } from './EntityTracker';
+import { LanWorld, type LanWorldServer } from './LanWorld';
 import { NetServerHandler, REJOIN_TOKEN_BYTES, toHex } from './NetServerHandler';
 import { SkinRelay } from './SkinRelay';
 
 /** What the LAN server needs from the host's game client. */
 export interface LanHostClient {
+  /** The overworld (the world spawn, logins, respawns). */
   readonly world: World;
+  /** Every world the host runs (one per loaded dimension); just `world` without dimensions. */
+  worlds?(): World[];
+  /** The host's dimensions (loading one, arrivals, Teleporters); absent in tests without them. */
+  dimensions?(): DimensionManager | null;
   /** The host's own player (it changes on respawn). */
   hostPlayer(): EntityPlayer | null;
   readonly hostName: string;
@@ -29,8 +32,8 @@ export interface LanHostClient {
   printChat(msg: string): void;
   commandManager(): CommandHandler | null;
   getPossibleCompletions(sender: EntityPlayer, text: string): string[];
-  /** Areas the host must keep loaded besides its own (guests, the spawn). */
-  setExtraLoadCenters(centers: { x: number; z: number; radius: number }[]): void;
+  /** Areas the host must keep loaded besides its own (guests, the spawn); `dim` defaults to the overworld. */
+  setExtraLoadCenters(centers: { x: number; z: number; radius: number; dim?: number }[]): void;
   /** The host player's skin, 64x32 RGBA (null: Steve); see SkinRelay. */
   hostSkin?(): Uint8Array | null;
   /** A guest's skin for the host's renderer (null: Steve again). */
@@ -49,6 +52,8 @@ export interface LanSettings {
 
 /** A guest's state kept for the session, so a player who reconnects finds its things again. */
 interface SavedPlayer {
+  /** The dimension the player was in. */
+  dim: number;
   x: number;
   y: number;
   z: number;
@@ -77,6 +82,20 @@ const MAX_SAVED_PLAYERS = 64;
 /** How long a departed guest's name stays reserved for its owner (then the name is free again). */
 const SAVED_NAME_RESERVED_MS = 30 * 60 * 1000;
 
+/** A guest on its way to another dimension, waiting for the chunks around its arrival point. */
+interface GuestArrival {
+  h: NetServerHandler;
+  dim: number;
+  /** Where the trip started (kept for a guest who leaves before arriving). */
+  fromDim: number;
+  fromX: number;
+  fromY: number;
+  fromZ: number;
+  fromYaw: number;
+  place: boolean;
+  entrance: boolean;
+}
+
 const CHUNKS_PER_TICK = 4;
 /**
  * Main-thread time per tick for compressing chunks for all guests together (a chunk of normal
@@ -86,6 +105,8 @@ const ENCODE_BUDGET_MS = 4;
 const MAX_PENDING_SENDS = 24;
 const PARTICLES_PER_TICK = 200;
 const SPAWN_RADIUS = 1;
+/** 1.5.2's world height in Packet9Respawn. */
+const WORLD_HEIGHT = 256;
 
 /**
  * The LAN game a host opened (IntegratedServer.shareToLAN with its ServerConfigurationManager,
@@ -95,10 +116,12 @@ const SPAWN_RADIUS = 1;
  * watches it (World.netEvents, an IWorldAccess) and applies what guests do through their
  * EntityPlayerMP.
  */
-export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
+export class LanServer implements PlayerServer, LanWorldServer {
+  /** The overworld: spawn, logins and respawns. */
   readonly world: World;
   readonly handlers: NetServerHandler[] = [];
-  readonly tracker: EntityTracker;
+  /** Each of the host's worlds as the LAN game sees it (tracker, block changes, sounds). */
+  readonly views = new Map<World, LanWorld>();
   /** Everyone's skins (MC|Skin). */
   readonly skins = new SkinRelay(this);
   code = '';
@@ -111,16 +134,16 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
   /** /whitelist: when on, only these lower-case names may join. */
   whitelistOn = false;
   readonly whitelist = new Set<string>();
-  private readonly changedBlocks = new Map<number, Set<number>>();
-  private readonly changedTiles = new Set<string>();
-  private readonly chunkCache = new Map<number, { data: Uint8Array; tick: number }>();
   private readonly particles = new Map<NetServerHandler, Map<string, number[]>>();
-  private ticks = 0;
-  /** Chunk compression this tick (ENCODE_BUDGET_MS). */
+  ticks = 0;
+  /** Chunk compression this tick (ENCODE_BUDGET_MS), over every world. */
   private encodeMs = 0;
   private encodedThisTick = 0;
   private wasRaining = false;
   private open = false;
+  /** Guests whose portal trip waits for the end of the world tick, and those waiting for chunks. */
+  private readonly travelRequests: { p: EntityPlayerMP; dim: number }[] = [];
+  private readonly arrivals: GuestArrival[] = [];
 
   constructor(
     readonly host: LanHostClient,
@@ -128,7 +151,36 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
     readonly settings: LanSettings,
   ) {
     this.world = host.world;
-    this.tracker = new EntityTracker((e) => (e instanceof EntityPlayerMP ? e.handler ?? null : null));
+  }
+
+  /** The host's worlds now (the overworld alone without dimensions). */
+  private hostWorlds(): World[] {
+    return this.host.worlds?.() ?? [this.world];
+  }
+
+  /** Follows the host's loaded worlds: a view for each new one, none for unloaded ones. */
+  private syncWorlds(): void {
+    const now = this.hostWorlds();
+    for (const w of now) {
+      if (this.views.has(w)) continue;
+      const v = new LanWorld(this, w);
+      v.attach();
+      this.views.set(w, v);
+    }
+    for (const [w, v] of this.views) {
+      if (now.includes(w)) continue;
+      v.detach();
+      this.views.delete(w);
+    }
+  }
+
+  /** The view of a world (null when the host does not run it). */
+  viewOf(w: World): LanWorld | null {
+    return this.views.get(w) ?? null;
+  }
+
+  hostPlayer(): EntityPlayer | null {
+    return this.host.hostPlayer();
   }
 
   get commandsAllowedForAll(): boolean {
@@ -149,11 +201,8 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
     this.transport.onConnection = (c) => this.onConnection(c);
     await this.transport.start(code);
     this.open = true;
-    const w = this.world;
-    w.netEvents = this;
-    w.addWorldAccess(this);
-    for (const e of w.loadedEntityList) this.tracker.addEntity(e);
-    this.wasRaining = w.isRaining();
+    this.syncWorlds();
+    this.wasRaining = this.world.isRaining();
   }
 
   /** Closes the game: guests see "Server closed", the world goes back to single player. */
@@ -162,8 +211,8 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
     this.handlers.length = 0;
     this.pendingLogins.length = 0;
     this.transport.stop();
-    if (this.world.netEvents === this) this.world.netEvents = null;
-    this.world.removeWorldAccess(this);
+    for (const v of this.views.values()) v.detach();
+    this.views.clear();
     this.host.setExtraLoadCenters([]);
     this.open = false;
   }
@@ -220,8 +269,21 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
     return true;
   }
 
-  private chunkReadyAt(x: number, z: number): boolean {
-    return this.world.chunkExists(MathHelper.floor_double(x) >> 4, MathHelper.floor_double(z) >> 4);
+  /** The world of a dimension, loaded if needed (the overworld without dimensions). */
+  private worldFor(dim: number): World | null {
+    if (dim === 0) return this.world;
+    const m = this.host.dimensions?.();
+    if (!m) return null;
+    try {
+      return m.load(dim).world;
+    } catch {
+      return null;
+    }
+  }
+
+  private chunkReadyAt(dim: number, x: number, z: number): boolean {
+    const w = this.worldFor(dim);
+    return !!w && w.chunkExists(MathHelper.floor_double(x) >> 4, MathHelper.floor_double(z) >> 4);
   }
 
   private processLogins(): void {
@@ -241,7 +303,7 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
         }
       }
       const saved = this.saved.get(h.username.toLowerCase());
-      const ready = saved && !saved.dead ? this.chunkReadyAt(saved.x, saved.z) : this.spawnAreaReady();
+      const ready = saved && !saved.dead ? this.chunkReadyAt(saved.dim, saved.x, saved.z) : this.spawnAreaReady();
       if (!ready) {
         if (this.ticks - since > 1200) h.kick('Took too long to log in');
         continue;
@@ -253,7 +315,9 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
 
   /** initializeConnectionToPlayer: the player, the login packets, the join message. */
   private completeLogin(h: NetServerHandler, saved: SavedPlayer | null): void {
-    const w = this.world;
+    // ServerConfigurationManager: the player logs into the world of its dimension.
+    const w = (saved && !saved.dead ? this.worldFor(saved.dim) : null) ?? this.world;
+    this.syncWorlds();
     const p = new EntityPlayerMP(w, h.username, this);
     if (saved) {
       PlayerSpawning.restoreState(p, saved.state, saved.dead);
@@ -271,6 +335,7 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
     h.sendPacket({
       type: 'Login',
       entityId: p.entityId,
+      dimension: w.provider.dimensionId,
       username: p.username,
       gameType: p.gameType.getID(),
       hardcore: info.hardcore,
@@ -293,7 +358,7 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
     h.setPlayerLocation(p.posX, p.posY, p.posZ, p.rotationYaw, p.rotationPitch);
     p.inventoryContainer.addCraftingToCrafters(p);
     h.sendPacket({ type: 'BlockItemSwitch', slot: p.inventory.currentItem });
-    for (const e of p.getActivePotionEffects?.() ?? []) h.sendPacket({ type: 'EntityEffect', entityId: p.entityId, effectId: e.getPotionID(), amplifier: e.getAmplifier(), duration: e.getDuration(), ambient: e.getIsAmbient() });
+    this.sendEffects(p);
     w.spawnEntityInWorld(p);
     // Everyone's entry in the new player's TAB list, and the new player in everyone's.
     for (const entry of this.playerList()) h.sendPacket({ type: 'PlayerInfo', name: entry.name, connected: true, ping: entry.responseTime });
@@ -306,8 +371,18 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
   playerDisconnected(h: NetServerHandler, reason: string): void {
     const i = this.handlers.indexOf(h);
     if (i >= 0) this.handlers.splice(i, 1);
-    this.tracker.removePlayer(h);
+    for (const v of this.views.values()) v.tracker.removePlayer(h);
     this.particles.delete(h);
+    const ai = this.arrivals.findIndex((a) => a.h === h);
+    if (ai >= 0) {
+      // Between two worlds: remembered in the portal it went into.
+      const a = this.arrivals[ai];
+      this.arrivals.splice(ai, 1);
+      if (h.player) {
+        h.player.dimension = a.fromDim;
+        h.player.setLocationAndAngles(a.fromX, a.fromY, a.fromZ, a.fromYaw, h.player.rotationPitch);
+      }
+    }
     this.skins.left(h);
     const p = h.player;
     if (!p) return;
@@ -318,6 +393,7 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
     this.saved.delete(lower);
     while (this.saved.size >= MAX_SAVED_PLAYERS) this.saved.delete(this.saved.keys().next().value!);
     this.saved.set(lower, {
+      dim: p.dimension,
       x: p.posX,
       y: p.posY,
       z: p.posZ,
@@ -333,32 +409,39 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
     });
     // The cursor stack and open windows drop like on a server logout.
     p.closeInventory();
-    this.world.removeEntity(p);
-    this.tracker.removeEntity(p);
+    p.worldObj.removeEntity(p);
+    this.viewOf(p.worldObj)?.tracker.removeEntity(p);
     this.broadcast({ type: 'PlayerInfo', name: p.username, connected: false, ping: 9999 });
     this.sendChatMsg(`§e${p.username} left the game.`);
     h.player = null;
   }
 
-  /** respawnPlayer: a dead guest comes back as a fresh EntityPlayerMP with the same id. */
+  /**
+   * respawnPlayer(player, 0, keepEverything): a dead guest (or one back from the End's credits)
+   * comes back as a fresh EntityPlayerMP with the same id, always in the overworld.
+   */
   respawnPlayer(h: NetServerHandler): void {
     const old = h.player;
-    if (!old || old.getHealth() > 0) return;
+    const conquered = !!old?.playerConqueredTheEnd;
+    if (!old || (old.getHealth() > 0 && !conquered)) return;
     const w = this.world;
-    if (w.worldInfo.hardcore) {
+    if (w.worldInfo.hardcore && !conquered) {
       // 1.5.2 put a "Death in Hardcore" ban entry; the name stays out for the session.
       this.hardcoreDead.add(old.username.toLowerCase());
       h.kick("You have died. Game over, man, it's game over!");
       return;
     }
-    this.tracker.removeEntity(old);
-    w.removeEntity(old);
+    const oldWorld = old.worldObj;
+    this.viewOf(oldWorld)?.tracker.removeEntity(old);
+    this.viewOf(oldWorld)?.tracker.removePlayer(h);
+    oldWorld.removePlayerEntityDangerously(old);
+    if (oldWorld !== w) h.loadedChunks.clear();
     const p = new EntityPlayerMP(w, old.username, this);
     p.entityId = old.entityId;
-    PlayerSpawning.respawn(p, old, w);
+    PlayerSpawning.respawn(p, old, w, conquered);
     h.setPlayer(p);
     p.theItemInWorldManager.initializeGameType(old.gameType);
-    h.sendPacket({ type: 'Respawn', gameType: p.gameType.getID(), difficulty: w.difficultySetting, terrainType: w.worldInfo.terrainType });
+    h.sendPacket({ type: 'Respawn', dimension: 0, gameType: p.gameType.getID(), difficulty: w.difficultySetting, terrainType: w.worldInfo.terrainType, worldHeight: WORLD_HEIGHT });
     h.setPlayerLocation(p.posX, p.posY, p.posZ, p.rotationYaw, p.rotationPitch);
     h.sendPacket({ type: 'UpdateTime', totalTime: w.worldInfo.totalTime, worldTime: w.worldInfo.worldTime });
     p.sendPlayerAbilities();
@@ -413,8 +496,9 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
     return this.handlers.filter((h) => h.state === 'play' && h.player).map((h) => h.player!);
   }
 
-  getEntityById(id: number): Entity | null {
-    return this.tracker.getEntity(id);
+  /** An entity a guest in world `w` refers to by id (the overworld when not given). */
+  getEntityById(id: number, w: World = this.world): Entity | null {
+    return this.viewOf(w)?.tracker.getEntity(id) ?? null;
   }
 
   /** func_96290_a: spawn protection does not apply to a LAN game. */
@@ -441,21 +525,110 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
     for (const h of this.handlers) if (h !== except && h.state === 'play') h.sendPacket(p);
   }
 
-  /** sendToAllNearExcept: guests whose player is within `range` of the point. */
-  private sendNear(x: number, y: number, z: number, range: number, p: Packet, except: EntityPlayer | null = null): void {
-    const r2 = range * range;
-    for (const h of this.handlers) {
-      const pl = h.player;
-      if (h.state !== 'play' || !pl || pl === except) continue;
-      const dx = pl.posX - x;
-      const dy = pl.posY - y;
-      const dz = pl.posZ - z;
-      if (dx * dx + dy * dy + dz * dz < r2) h.sendPacket(p);
-    }
+  sendToTracking(e: Entity, p: Packet, self: boolean): void {
+    this.viewOf(e.worldObj)?.tracker.sendToTracking(e, p, self);
   }
 
-  sendToTracking(e: Entity, p: Packet, self: boolean): void {
-    this.tracker.sendToTracking(e, p, self);
+  /** A particle for one guest, sent with the others at the end of the tick. */
+  addParticle(h: NetServerHandler, name: string, x: number, y: number, z: number, vx: number, vy: number, vz: number): void {
+    let kinds = this.particles.get(h);
+    if (!kinds) this.particles.set(h, (kinds = new Map()));
+    let list = kinds.get(name);
+    if (!list) {
+      if (kinds.size > 32) return;
+      kinds.set(name, (list = []));
+    }
+    if (list.length >= PARTICLES_PER_TICK * 6) return;
+    list.push(x, y, z, vx, vy, vz);
+  }
+
+  private sendEffects(p: EntityPlayerMP): void {
+    for (const e of p.getActivePotionEffects?.() ?? []) p.handler.sendPacket({ type: 'EntityEffect', entityId: p.entityId, effectId: e.getPotionID(), amplifier: e.getAmplifier(), duration: e.getDuration(), ambient: e.getIsAmbient() });
+  }
+
+  // ------------------------------------------------------------------ dimensions
+
+  /** Entity.travelToDimension of a guest's player: carried out after the world's tick. */
+  requestTravel(p: EntityPlayer, dim: number): void {
+    if (!(p instanceof EntityPlayerMP) || !p.handler || this.isTravelling(p)) return;
+    if (!this.travelRequests.some((r) => r.p === p)) this.travelRequests.push({ p, dim });
+  }
+
+  /** Whether the guest's player is between two worlds (its actions are ignored meanwhile). */
+  isTravelling(p: EntityPlayer): boolean {
+    return this.arrivals.some((a) => a.h.player === p);
+  }
+
+  /** EntityPlayerMP.travelToDimension: achievements, the credits, or the trip itself. */
+  private travelGuest(p: EntityPlayerMP, target: number): void {
+    const h = p.handler;
+    const m = this.host.dimensions?.();
+    if (!h || h.player !== p || p.isDead || !m) return;
+    const from = p.dimension;
+    if (from === 1 && target === 1) {
+      p.triggerAchievement(AchievementIds.theEnd2);
+      p.worldObj.removeEntity(p);
+      p.playerConqueredTheEnd = true;
+      h.sendPacket({ type: 'GameEvent', reason: 4, value: 0 });
+      return;
+    }
+    if (from === 1 && target === 0) {
+      p.triggerAchievement(AchievementIds.theEnd);
+      target = 1;
+    } else {
+      p.triggerAchievement(AchievementIds.portal);
+    }
+    // transferPlayerToDimension: the Respawn packet first, then the player leaves its world.
+    const old = p.worldObj;
+    const fromX = p.posX;
+    const fromY = serverPosY(p);
+    const fromZ = p.posZ;
+    const fromYaw = p.rotationYaw;
+    const a = m.arrivalPoint(p, from, target);
+    const d = m.load(target);
+    h.sendPacket({ type: 'Respawn', dimension: target, gameType: p.gameType.getID(), difficulty: old.difficultySetting, terrainType: d.world.worldInfo.terrainType, worldHeight: WORLD_HEIGHT });
+    this.viewOf(old)?.tracker.removePlayer(h);
+    old.removePlayerEntityDangerously(p);
+    p.isDead = false;
+    h.loadedChunks.clear();
+    p.dimension = target;
+    p.setWorld(d.world);
+    p.theItemInWorldManager.setWorld(d.world);
+    p.setLocationAndAngles(a.x, a.y, a.z, a.yaw, a.pitch);
+    this.syncWorlds();
+    this.arrivals.push({ h, dim: target, fromDim: from, fromX, fromY, fromZ, fromYaw, place: a.place, entrance: a.entrance });
+  }
+
+  /** Guests whose destination chunks are loaded go into their new world (transferEntityToWorld's end). */
+  private processArrivals(): void {
+    const m = this.host.dimensions?.();
+    for (let i = 0; i < this.arrivals.length; i++) {
+      const a = this.arrivals[i];
+      const p = a.h.player;
+      if (!m || !p || a.h.state !== 'play') {
+        this.arrivals.splice(i--, 1);
+        continue;
+      }
+      if (!m.arrivalReady(a.dim, p.posX, p.posZ, a.place && !a.entrance)) continue;
+      this.arrivals.splice(i--, 1);
+      const w = m.getWorld(a.dim)!;
+      w.spawnEntityInWorld(p);
+      w.updateEntityWithOptionalForce(p, false);
+      if (a.place) m.teleporter(a.dim).placeInPortal(p, a.fromX, a.fromY, a.fromZ, a.fromYaw);
+      if (!this.arrivals.some((o) => o.dim === a.dim)) m.releaseArrival(a.dim);
+      w.updateEntityWithOptionalForce(p, false);
+      const h = a.h;
+      h.setPlayerLocation(p.posX, p.posY, p.posZ, p.rotationYaw, p.rotationPitch);
+      // updateTimeAndWeatherForPlayer, syncPlayerInventory, the effects, a fresh status.
+      const info = w.worldInfo;
+      h.sendPacket({ type: 'UpdateTime', totalTime: info.totalTime, worldTime: info.worldTime });
+      if (w.isRaining()) h.sendPacket({ type: 'GameEvent', reason: 1, value: 0 });
+      p.sendContainerToPlayer(p.inventoryContainer);
+      h.sendPacket({ type: 'BlockItemSwitch', slot: p.inventory.currentItem });
+      p.sendPlayerAbilities();
+      p.setPlayerHealthUpdated();
+      this.sendEffects(p);
+    }
   }
 
   // ------------------------------------------------------------------ tick
@@ -464,19 +637,28 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
   tick(): void {
     if (!this.open) return;
     this.ticks++;
+    this.syncWorlds();
     for (const h of [...this.handlers]) h.networkTick();
     this.processLogins();
+    for (const r of this.travelRequests.splice(0)) this.travelGuest(r.p, r.dim);
+    this.processArrivals();
     this.updateLoadCenters();
     // Guests take turns at the front of the queue, so the compression budget is shared fairly.
     this.encodeMs = 0;
     this.encodedThisTick = 0;
+    for (const v of this.views.values()) {
+      v.encodeMs = 0;
+      v.encodedThisTick = 0;
+    }
     const n = this.handlers.length;
     for (let i = 0; i < n; i++) {
       const h = this.handlers[(i + this.ticks) % n];
       if (h.state === 'play') this.updateChunks(h);
     }
-    this.flushBlockChanges();
-    this.tracker.update(this.handlers, this.settings.viewDistance * 16 - 16);
+    for (const v of this.views.values()) {
+      v.flushBlockChanges();
+      v.tracker.update(v.handlersHere(), this.settings.viewDistance * 16 - 16);
+    }
     this.flushParticles();
     const w = this.world;
     if (this.ticks % 20 === 0) this.broadcast({ type: 'UpdateTime', totalTime: w.worldInfo.totalTime, worldTime: w.worldInfo.worldTime });
@@ -486,7 +668,7 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
       this.broadcast({ type: 'GameEvent', reason: raining ? 1 : 2, value: 0 });
     }
     if (this.ticks % 100 === 0) for (const entry of this.playerList()) this.broadcast({ type: 'PlayerInfo', name: entry.name, connected: true, ping: entry.responseTime });
-    if (this.ticks % 200 === 0) for (const [k, v] of this.chunkCache) if (this.ticks - v.tick > 200) this.chunkCache.delete(k);
+    if (this.ticks % 200 === 0) for (const v of this.views.values()) v.pruneCache(this.ticks);
     this.skins.tick(this.ticks);
     for (const h of this.handlers) h.flush();
   }
@@ -494,14 +676,14 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
   /** The host keeps the spawn and every guest's surroundings loaded. */
   private updateLoadCenters(): void {
     const info = this.world.worldInfo;
-    const centers = [{ x: info.spawnX, z: info.spawnZ, radius: SPAWN_RADIUS + 1 }];
+    const centers: { x: number; z: number; radius: number; dim: number }[] = [{ x: info.spawnX, z: info.spawnZ, radius: SPAWN_RADIUS + 1, dim: 0 }];
     for (const h of this.handlers) {
       const p = h.player;
-      if (h.state === 'play' && p) centers.push({ x: p.posX, z: p.posZ, radius: this.radiusFor(p) });
+      if (h.state === 'play' && p) centers.push({ x: p.posX, z: p.posZ, radius: this.radiusFor(p), dim: p.worldObj.provider.dimensionId });
     }
     for (const { h } of this.pendingLogins) {
       const s = this.saved.get(h.username.toLowerCase());
-      if (s && !s.dead) centers.push({ x: s.x, z: s.z, radius: 1 });
+      if (s && !s.dead) centers.push({ x: s.x, z: s.z, radius: 1, dim: s.dim });
     }
     this.host.setExtraLoadCenters(centers);
   }
@@ -513,7 +695,9 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
   /** PlayerManager: chunks enter and leave the guest's view as its player moves, nearest first. */
   private updateChunks(h: NetServerHandler): void {
     const p = h.player!;
-    const w = this.world;
+    const view = this.viewOf(p.worldObj);
+    if (!view || this.isTravelling(p)) return;
+    const w = view.world;
     const cx = MathHelper.floor_double(p.posX) >> 4;
     const cz = MathHelper.floor_double(p.posZ) >> 4;
     const r = this.radiusFor(p);
@@ -535,8 +719,12 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
           const kz = cz + dz;
           const k = World.chunkKey(kx, kz);
           if (h.loadedChunks.has(k) || !w.chunkExists(kx, kz)) continue;
-          if (!this.chunkCache.has(k) && this.encodedThisTick > 0 && this.encodeMs >= ENCODE_BUDGET_MS) return;
-          h.sendPacket(this.mapChunkPacket(w.getChunkFromChunkCoords(kx, kz)));
+          if (!view.chunkCache.has(k) && this.encodedThisTick > 0 && this.encodeMs >= ENCODE_BUDGET_MS) return;
+          const before = view.encodeMs;
+          const encoded = view.encodedThisTick;
+          h.sendPacket(view.mapChunkPacket(w.getChunkFromChunkCoords(kx, kz)));
+          this.encodeMs += view.encodeMs - before;
+          this.encodedThisTick += view.encodedThisTick - encoded;
           h.loadedChunks.add(k);
           sent++;
         }
@@ -544,208 +732,11 @@ export class LanServer implements PlayerServer, WorldNetListener, IWorldAccess {
     }
   }
 
-  /** Packet51MapChunk of a whole chunk (cached until a block in it changes). */
-  private mapChunkPacket(c: Chunk): Packet {
-    const k = World.chunkKey(c.xPosition, c.zPosition);
-    let cached = this.chunkCache.get(k);
-    if (!cached) {
-      const t0 = performance.now();
-      const sections = [];
-      for (let i = 0; i < 16; i++) {
-        const s = c.sections[i];
-        if (s && !s.isEmpty()) sections.push({ index: i, blocks: s.blocks, meta: s.meta, skyLight: s.skyLight, blockLight: s.blockLight });
-      }
-      cached = { data: encodeChunkData({ sections, biomes: c.biomes }), tick: this.ticks };
-      this.chunkCache.set(k, cached);
-      this.encodeMs += performance.now() - t0;
-      this.encodedThisTick++;
-    }
-    const tiles = [...c.chunkTileEntityMap.values()].filter((te) => !te.isInvalid()).map((te) => describeTileEntity(te.toDescriptor()));
-    return { type: 'MapChunk', cx: c.xPosition, cz: c.zPosition, data: cached.data, tileEntities: tiles };
-  }
-
-  /** PlayerInstance.sendChunkUpdate: one change, a few, or the whole chunk again. */
-  private flushBlockChanges(): void {
-    const w = this.world;
-    for (const [k, set] of this.changedBlocks) {
-      const kx = Math.floor(k / 0x400000) - 0x200000;
-      const kz = (k % 0x400000) - 0x200000;
-      const watchers = this.handlers.filter((h) => h.state === 'play' && h.loadedChunks.has(k));
-      if (watchers.length === 0 || !w.chunkExists(kx, kz)) continue;
-      let packet: Packet;
-      if (set.size === 1) {
-        const pos = set.values().next().value!;
-        const x = (kx << 4) + ((pos >> 12) & 15);
-        const z = (kz << 4) + ((pos >> 8) & 15);
-        const y = pos & 255;
-        packet = { type: 'BlockChange', x, y, z, id: w.getBlockId(x, y, z), meta: w.getBlockMetadata(x, y, z) };
-      } else if (set.size < 64) {
-        const records: number[] = [];
-        for (const pos of set) {
-          const lx = (pos >> 12) & 15;
-          const lz = (pos >> 8) & 15;
-          const y = pos & 255;
-          const x = (kx << 4) + lx;
-          const z = (kz << 4) + lz;
-          records.push((lx << 28) | (lz << 24) | (y << 16) | ((w.getBlockId(x, y, z) & 4095) << 4) | (w.getBlockMetadata(x, y, z) & 15));
-        }
-        packet = { type: 'MultiBlockChange', cx: kx, cz: kz, records };
-      } else {
-        packet = this.mapChunkPacket(w.getChunkFromChunkCoords(kx, kz));
-      }
-      for (const h of watchers) h.sendPacket(packet);
-    }
-    this.changedBlocks.clear();
-    for (const key of this.changedTiles) {
-      const [x, y, z] = key.split(',').map(Number);
-      const te = w.getBlockTileEntity(x, y, z);
-      if (!te) continue;
-      const k = World.chunkKey(x >> 4, z >> 4);
-      const tag = describeTileEntity(te.toDescriptor());
-      for (const h of this.handlers) if (h.state === 'play' && h.loadedChunks.has(k)) h.sendPacket({ type: 'TileEntityData', x, y, z, tag });
-    }
-    this.changedTiles.clear();
-  }
-
   private flushParticles(): void {
     for (const [h, kinds] of this.particles) {
       for (const [name, values] of kinds) h.sendPacket({ type: 'WorldParticles', name, values });
     }
     this.particles.clear();
-  }
-
-  // ------------------------------------------------------------------ WorldNetListener
-
-  blockChanged(x: number, y: number, z: number): void {
-    if (y < 0 || y >= 256) return;
-    const k = World.chunkKey(x >> 4, z >> 4);
-    // The light of a change spreads up to 15 blocks, into the neighbouring chunks too.
-    if (this.chunkCache.size > 0) for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) this.chunkCache.delete(World.chunkKey((x >> 4) + dx, (z >> 4) + dz));
-    let set = this.changedBlocks.get(k);
-    if (!set) this.changedBlocks.set(k, (set = new Set()));
-    set.add(((x & 15) << 12) | ((z & 15) << 8) | y);
-  }
-
-  tileEntityChanged(x: number, y: number, z: number): void {
-    if (this.world.getBlockTileEntity(x, y, z)) this.changedTiles.add(`${x},${y},${z}`);
-  }
-
-  entityAnimation(e: Entity, animation: number): void {
-    this.tracker.sendToTracking(e, { type: 'Animation', entityId: e.entityId, animate: animation }, false);
-  }
-
-  entityStatus(e: Entity, status: number): void {
-    this.tracker.sendToTracking(e, { type: 'EntityStatus', entityId: e.entityId, status }, true);
-  }
-
-  itemCollected(item: Entity, collector: Entity): void {
-    this.tracker.sendToTracking(item, { type: 'Collect', collectedEntityId: item.entityId, collectorEntityId: collector.entityId }, false);
-  }
-
-  explosion(e: Explosion): void {
-    const records: number[] = [];
-    const bx = MathHelper.floor_double(e.explosionX);
-    const by = MathHelper.floor_double(e.explosionY);
-    const bz = MathHelper.floor_double(e.explosionZ);
-    for (const [x, y, z] of e.affectedBlockPositions.slice(0, 16384)) records.push(((x - bx) & 255) | (((y - by) & 255) << 8) | (((z - bz) & 255) << 16));
-    for (const h of this.handlers) {
-      const p = h.player;
-      if (h.state !== 'play' || !p || p.getDistanceSq(e.explosionX, e.explosionY, e.explosionZ) >= 4096) continue;
-      const push = e.getPlayerKnockbackMap().get(p);
-      if (push) h.allowPush(push.xCoord, push.yCoord, push.zCoord);
-      h.sendPacket({ type: 'Explosion', x: e.explosionX, y: e.explosionY, z: e.explosionZ, size: e.explosionSize, records, motionX: push?.xCoord ?? 0, motionY: push?.yCoord ?? 0, motionZ: push?.zCoord ?? 0 });
-    }
-  }
-
-  blockEvent(x: number, y: number, z: number, blockId: number, eventId: number, param: number): void {
-    this.sendNear(x, y, z, 64, { type: 'BlockEvent', x, y, z, blockId, eventId, param });
-  }
-
-  lightning(bolt: Entity): void {
-    this.sendNear(bolt.posX, bolt.posY, bolt.posZ, 512, { type: 'Weather', entityId: bolt.entityId, x: MathHelper.floor_double(bolt.posX * 32), y: MathHelper.floor_double(bolt.posY * 32), z: MathHelper.floor_double(bolt.posZ * 32) });
-  }
-
-  playerSleep(p: EntityPlayer, x: number, y: number, z: number): void {
-    const pk: Packet = { type: 'Sleep', entityId: p.entityId, x, y, z };
-    this.tracker.sendToTracking(p, pk, true);
-    if (p instanceof EntityPlayerMP) p.handler?.setPlayerLocation(p.posX, p.posY, p.posZ, p.rotationYaw, p.rotationPitch);
-  }
-
-  playerWake(p: EntityPlayer): void {
-    this.tracker.sendToTracking(p, { type: 'Animation', entityId: p.entityId, animate: 3 }, true);
-  }
-
-  playerSound(p: EntityPlayer, name: string, x: number, y: number, z: number, volume: number, pitch: number): void {
-    if (this.world.localEffectsOnly) return;
-    this.sendNear(x, y, z, volume > 1 ? 16 * volume : 16, levelSound(name, x, y, z, volume, pitch), p);
-  }
-
-  entityTickFailed(e: Entity, err: unknown): void {
-    console.error('[lan] ticking entity failed', e, err);
-    if (e instanceof EntityPlayerMP) e.handler?.kick('Internal server error');
-    else if (e !== this.host.hostPlayer()) e.setDead();
-  }
-
-  // ------------------------------------------------------------------ IWorldAccess (WorldManager)
-
-  markBlockForUpdate(): void {}
-  markBlockForRenderUpdate(): void {}
-  markBlockRangeForRenderUpdate(): void {}
-
-  playSound(name: string, x: number, y: number, z: number, volume: number, pitch: number): void {
-    if (this.world.localEffectsOnly) return;
-    this.sendNear(x, y, z, volume > 1 ? 16 * volume : 16, levelSound(name, x, y, z, volume, pitch), this.world.soundExcept);
-  }
-
-  spawnParticle(name: string, x: number, y: number, z: number, vx: number, vy: number, vz: number): void {
-    const w = this.world;
-    if (w.localEffectsOnly || this.handlers.length === 0) return;
-    const source = w.tickingEntity;
-    for (const h of this.handlers) {
-      const p = h.player;
-      if (h.state !== 'play' || !p || p === source) continue;
-      const dx = p.posX - x;
-      const dy = p.posY - y;
-      const dz = p.posZ - z;
-      if (dx * dx + dy * dy + dz * dz > 1024) continue;
-      let kinds = this.particles.get(h);
-      if (!kinds) this.particles.set(h, (kinds = new Map()));
-      let list = kinds.get(name);
-      if (!list) {
-        if (kinds.size > 32) continue;
-        kinds.set(name, (list = []));
-      }
-      if (list.length >= PARTICLES_PER_TICK * 6) continue;
-      list.push(x, y, z, vx, vy, vz);
-    }
-  }
-
-  onEntityCreate(e: Entity): void {
-    this.tracker.addEntity(e);
-  }
-
-  onEntityDestroy(e: Entity): void {
-    this.tracker.removeEntity(e);
-  }
-
-  playAuxSFX(player: EntityPlayer | null, type: number, x: number, y: number, z: number, data: number): void {
-    if (this.world.localEffectsOnly && type !== 2001) return;
-    this.sendNear(x, y, z, 64, { type: 'AuxSFX', sfxId: type, x, y, z, data, broadcast: false }, player);
-  }
-
-  broadcastSound(type: number, x: number, y: number, z: number, data: number): void {
-    this.broadcast({ type: 'AuxSFX', sfxId: type, x, y, z, data, broadcast: true });
-  }
-
-  destroyBlockPartially(entityId: number, x: number, y: number, z: number, progress: number): void {
-    for (const h of this.handlers) {
-      const p = h.player;
-      if (h.state !== 'play' || !p || p.entityId === entityId) continue;
-      const dx = x - p.posX;
-      const dy = y - p.posY;
-      const dz = z - p.posZ;
-      if (dx * dx + dy * dy + dz * dz < 1024) h.sendPacket({ type: 'BlockDestroy', entityId, x, y, z, progress });
-    }
   }
 }
 
@@ -759,8 +750,4 @@ function fromHex(hex: string): Uint8Array {
   const out = new Uint8Array(hex.length >> 1);
   for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   return out;
-}
-
-function levelSound(name: string, x: number, y: number, z: number, volume: number, pitch: number): Packet {
-  return { type: 'LevelSound', name, x: Math.trunc(x * 8), y: Math.trunc(y * 8), z: Math.trunc(z * 8), volume, pitch: Math.max(0, Math.min(255, Math.trunc(pitch * 63))) };
 }

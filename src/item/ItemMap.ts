@@ -110,6 +110,11 @@ function storage(w: IWorld): { data: Map<string, MapData>; ids: Map<string, numb
   return s;
 }
 
+/** WorldServerMulti: another dimension's world uses the overworld's map storage (maps and idcounts). */
+export function shareMapStorage(from: IWorld, to: IWorld): void {
+  worldData.set(to, storage(from));
+}
+
 /** A world's item data and id counters (MapStorage's loaded data and idcounts), for saving. */
 export function mapStorageOf(w: IWorld): { data: Map<string, MapData>; ids: Map<string, number> } {
   return storage(w);

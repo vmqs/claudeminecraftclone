@@ -1,0 +1,159 @@
+[
+ {
+  "goto": "?dev=1"
+ },
+ {
+  "eval": "mc.gameSettings.renderDistance = 2; mc.gameSettings.saveOptions(); mc.gameSettings.renderDistance"
+ },
+ {
+  "goto": "?dev=1&autostart=1&seed=dimensions&type=flat&mode=survival&mobs=0&time=6000&pack=faithful"
+ },
+ {
+  "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0",
+  "timeout": 300000
+ },
+ {
+  "eval": "(() => {\n  window.must = (ok, info) => { if (!ok) throw new Error('assert failed: ' + JSON.stringify(info)); return info; };\n  const p = mc.thePlayer, w = mc.theWorld;\n  w.worldInfo.gameRules.doMobSpawning = false;\n  for (const e of [...w.loadedEntityList]) if (e !== p) e.setDead();\n  mc.dev.survival.vulnerable && mc.dev.survival.vulnerable();\n  const x0 = Math.floor(p.posX), z0 = Math.floor(p.posZ);\n  mc.dev.dims.frame(x0 - 1, 4, z0 + 4, true);\n  const lit = mc.dev.dims.light(x0, 5, z0 + 4);\n  mc.dev.tp(x0 + 0.5, 4, z0 + 0.5, 0, 0);\n  mc.dev.setTime(6000);\n  window.dimTest = { x0, z0 };\n  return must(lit && mc.dev.dims.count(90, 8) === 6, { lit, portal: mc.dev.dims.count(90, 8), state: mc.dev.dims.state() });\n})()"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "waitFor": "mc.dev.pendingSections(2) === 0",
+  "timeout": 120000
+ },
+ {
+  "shot": "dim_1_portal_lit.png"
+ },
+ {
+  "eval": "(() => {\n  const { x0, z0 } = dimTest;\n  mc.dev.tp(x0 + 1, 5, z0 + 4.5, 0, 0);\n  mc.timer.timerSpeed = 0;\n  mc.dev.ticks(40);\n  return { ...mc.dev.dims.state() };\n})()"
+ },
+ {
+  "wait": 800
+ },
+ {
+  "shot": "dim_2_portal_swirl.png"
+ },
+ {
+  "eval": "(() => {\n  mc.dev.ticks(45);\n  mc.timer.timerSpeed = 1;\n  const s = mc.dev.dims.state();\n  return must(s.dimension === -1 && s.busy, s);\n})()"
+ },
+ {
+  "waitFor": "mc.dev.dims.arrived() && mc.dev.pendingSections(2) === 0",
+  "timeout": 300000
+ },
+ {
+  "eval": "(() => {\n  const s = mc.dev.dims.state();\n  const ach = mc.dev.stats.state();\n  dimTest.netherPortal = s.pos;\n  return must(s.dimension === -1 && s.world === 'Nether' && mc.dev.dims.count(90, 4) === 6 && mc.dev.dims.count(49, 4) >= 10 && mc.theWorld.provider.hasNoSky, { s, portal: mc.dev.dims.count(90, 4), obsidian: mc.dev.dims.count(49, 4), ach: ach.unlocked });\n})()"
+ },
+ {
+  "eval": "(() => {\n  const L = mc.dev.lib; const [x, y, z] = dimTest.netherPortal;\n  mc.dev.setStack(0, 345, 1); mc.dev.select(0);\n  const icon = mc.renderEngine.textureMapItems.getIcon('compass');\n  const frames = new Set();\n  for (let i = 0; i < 40; i++) { mc.dev.ticks(1); frames.add(icon.shownFrame); }\n  const it = mc.dev.newEntity('Item');\n  it.setEntityItemStack(new L.ItemStack(4, 7, 0));\n  it.setLocationAndAngles(x, y + 0.5, z, 0, 0);\n  mc.theWorld.spawnEntityInWorld(it);\n  mc.dev.ticks(3);\n  dimTest.itemId = it.entityId;\n  return must(frames.size >= 3 && it.isDead, { frames: [...frames], dead: it.isDead, s: mc.dev.dims.state() });\n})()"
+ },
+ {
+  "eval": "(() => {\n  const [x, y, z] = dimTest.netherPortal;\n  mc.dev.setFlying(true);\n  mc.dev.tp(x, y + 4, z, 0, 15);\n  mc.dev.ticks(2);\n  return { fog: [mc.entityRenderer.fogColorRed, mc.entityRenderer.fogColorGreen, mc.entityRenderer.fogColorBlue], state: mc.dev.dims.state() };\n})()"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "waitFor": "mc.dev.pendingSections(2) === 0",
+  "timeout": 120000
+ },
+ {
+  "shot": "dim_3_nether.png"
+ },
+ {
+  "key": "F3"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "dim_4_nether_f3.png"
+ },
+ {
+  "key": "F3"
+ },
+ {
+  "eval": "(() => {\n  const [x, y, z] = dimTest.netherPortal;\n  mc.dev.setFlying(false);\n  mc.dev.tp(x, y, z, 0, 0);\n  mc.thePlayer.timeUntilPortal = 0;\n  mc.dev.ticks(90);\n  const s = mc.dev.dims.state();\n  return must(s.dimension === 0 && s.busy, s);\n})()"
+ },
+ {
+  "waitFor": "mc.dev.dims.arrived() && mc.dev.pendingSections(2) === 0",
+  "timeout": 300000
+ },
+ {
+  "eval": "(() => {\n  const s = mc.dev.dims.state();\n  const { x0, z0 } = dimTest;\n  const d = Math.hypot(s.pos[0] - (x0 + 1), s.pos[2] - (z0 + 4.5));\n  return must(s.dimension === 0 && d < 3 && mc.dev.dims.count(90, 6) === 6, { s, d, portals: mc.dev.dims.count(90, 6) });\n})()"
+ },
+ {
+  "eval": "(() => {\n  const { x0, z0 } = dimTest;\n  const items = mc.theWorld.loadedEntityList.filter((e) => e.getEntityItem && e.getEntityItem() && e.getEntityItem().itemID === 4 && e.getEntityItem().stackSize === 7);\n  const near = items.filter((e) => Math.hypot(e.posX - (x0 + 1), e.posZ - (z0 + 4.5)) < 4);\n  const icon = mc.renderEngine.textureMapItems.getIcon('compass');\n  mc.dev.ticks(80);\n  const frames = new Set();\n  for (let i = 0; i < 12; i++) { mc.dev.ticks(1); frames.add(icon.shownFrame); }\n  const carried = mc.thePlayer.inventory.mainInventory.filter((s) => s && s.itemID === 4).reduce((n, s) => n + s.stackSize, 0);\n  return must((near.length === 1 || carried === 7) && frames.size <= 2, { items: items.map((e) => [e.posX, e.posY, e.posZ]), carried, frames: [...frames], transfers: mc.dev.dims.state().transfers });\n})()"
+ },
+ {
+  "eval": "(() => { const { x0, z0 } = dimTest; mc.dev.tp(x0 + 0.5, 4, z0 + 0.5, 0, 0); mc.dev.ticks(2); return mc.dev.dims.state(); })()"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "waitFor": "mc.dev.pendingSections(2) === 0",
+  "timeout": 120000
+ },
+ {
+  "shot": "dim_5_back_in_overworld.png"
+ },
+ {
+  "eval": "(() => {\n  const { x0, z0 } = dimTest;\n  mc.theWorld.setBlock(x0 - 4, 3, z0, 119, 0, 3);\n  mc.dev.tp(x0 - 3.5, 4, z0 + 0.5, 0, 0);\n  mc.dev.ticks(3);\n  return must(mc.dev.dims.state().busy && mc.thePlayer.dimension === 1, mc.dev.dims.state());\n})()"
+ },
+ {
+  "waitFor": "mc.dev.dims.arrived() && mc.dev.pendingSections(2) === 0",
+  "timeout": 300000
+ },
+ {
+  "eval": "(() => {\n  const s = mc.dev.dims.state(); const p = mc.thePlayer;\n  let obsidian = 0; for (let x = 98; x <= 102; x++) for (let z = -2; z <= 2; z++) if (mc.theWorld.getBlockId(x, 48, z) === 49) obsidian++;\n  return must(s.dimension === 1 && s.world === 'The End' && obsidian === 25 && Math.abs(s.pos[1] - 49) < 0.01 && p.rotationYaw === 90, { s, obsidian, yaw: p.rotationYaw, ach: mc.dev.stats.state().unlocked });\n})()"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "dim_6_end_platform.png"
+ },
+ {
+  "eval": "(() => { mc.gameSettings.renderDistance = 1; mc.renderGlobal.loadRenderers(); mc.dev.look(90, -30); mc.dev.ticks(1); return mc.dev.dims.state(); })()"
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "waitFor": "mc.dev.pendingSections(3) === 0",
+  "timeout": 240000
+ },
+ {
+  "wait": 1500
+ },
+ {
+  "shot": "dim_7_end_sky.png"
+ },
+ {
+  "eval": "(() => { mc.gameSettings.renderDistance = 2; mc.renderGlobal.loadRenderers(); return mc.gameSettings.renderDistance; })()"
+ },
+ {
+  "eval": "(async () => {\n  dimTest.folder = mc.dev.saves.state().folder;\n  await mc.dev.saves.quit();\n  await mc.dev.saves.ready();\n  const ok = await mc.dev.saves.open(dimTest.folder);\n  return must(ok, dimTest.folder);\n})()"
+ },
+ {
+  "waitFor": "mc.dev.isInGame() && mc.dev.pendingSections(2) === 0",
+  "timeout": 300000
+ },
+ {
+  "eval": "(() => {\n  const s = mc.dev.dims.state();\n  return must(s.dimension === 1 && s.world === 'The End' && Math.abs(s.pos[0] - 100) < 1 && Math.abs(s.pos[2]) < 1, s);\n})()"
+ },
+ {
+  "eval": "(() => {\n  mc.dev.survival.vulnerable && mc.dev.survival.vulnerable();\n  mc.thePlayer.attackEntityFrom(mc.dev.lib.DamageSource.outOfWorld, 1000);\n  mc.dev.ticks(25);\n  mc.respawnPlayer();\n  return mc.dev.dims.state();\n})()"
+ },
+ {
+  "waitFor": "mc.dev.dims.arrived() && mc.dev.pendingSections(2) === 0",
+  "timeout": 300000
+ },
+ {
+  "eval": "(() => {\n  const s = mc.dev.dims.state();\n  return must(s.dimension === 0 && s.world === 'Overworld' && mc.thePlayer.getHealth() === 20, s);\n})()"
+ },
+ {
+  "shot": "dim_8_respawned.png"
+ }
+]
