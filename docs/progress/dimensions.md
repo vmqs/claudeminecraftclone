@@ -32,3 +32,13 @@ Notes:
   TextureCompassClock (spawn needle / sun dial with 1.5.2's easing, random outside surface worlds).
 - Multiplayer: LanWorld per host world, protocol 3 (Login and Respawn carry the dimension),
   tests/netdimensions.test.ts.
+- Browser run 3 (final, 3 of 3): every assertion passes, now also the compass spinning in the
+  Nether (17 frames in 40 ticks) and settled in the overworld, an item thrown into the Nether
+  portal carried back to the overworld portal (picked up there on return), and the End's tunnel
+  sky at Normal render distance. Shots in scratchpad/shots-dimensions3.
+- Node: tests/dimensions.test.ts (66), tests/netdimensions.test.ts (15); the existing net,
+  survival, player, persistence, stats, dynamics, containers, mobs, worldgen, controls and items
+  tests pass unchanged.
+- Done. Hooks for the Nether/End slices: DimensionGenerators (register or the ChunkProviderHell /
+  ChunkProviderEnd classes by file name), PlayerTravel.winGameScreen or src/gui/GuiWinGame.ts,
+  BlockEndPortal.bossDefeated, Entity.travelToDimension, mc.respawnPlayer(keepEverything).
