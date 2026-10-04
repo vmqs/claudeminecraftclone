@@ -231,6 +231,10 @@ export class PlayerTravel {
     const cx = info.spawnX >> 4;
     const cz = info.spawnZ >> 4;
     for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) if (!w.chunkExists(cx + dx, cz + dz)) return;
+    // The bed's chunks from the save (the server loaded them to check the bed).
+    const bed = r.old.getBedLocation();
+    const provider = mgr.get(0)?.provider;
+    if (bed && provider && !provider.requestSavedArea(bed.posX >> 4, bed.posZ >> 4, 1)) return;
     this.respawn = null;
     mc.finishRespawn(r.old, w, r.keepEverything);
   }

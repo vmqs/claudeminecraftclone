@@ -830,7 +830,7 @@ export class Minecraft implements SettingsListener {
 
   /** Options were saved (sendSettingsToServer): the integrated server takes the difficulty. */
   onSettingsSaved(): void {
-    if (this.theWorld) PlayerSpawning.applyDifficulty(this.theWorld, this.gameSettings.difficulty);
+    for (const w of this.dimensions?.worlds() ?? (this.theWorld ? [this.theWorld] : [])) PlayerSpawning.applyDifficulty(w, this.gameSettings.difficulty);
   }
 
   /** Quit Game: closes the tab when the page was opened by a script, otherwise says it stopped. */
@@ -906,6 +906,10 @@ export class Minecraft implements SettingsListener {
         this.openingWorld = null;
         const world = new World(info);
         installWorldData(world, data);
+        // The bed's chunks stay readable at once for a respawn far from it.
+        const sx = player && 'SpawnX' in player ? Number(player.SpawnX) : null;
+        const sz = player && 'SpawnZ' in player ? Number(player.SpawnZ) : null;
+        if (sx !== null && sz !== null) for (const [dx, dz] of [[-3, -3], [3, -3], [-3, 3], [3, 3]]) void handler.keepChunk((sx + dx) >> 4, (sz + dz) >> 4);
         // The player's Dimension tag: it logs into that dimension's world (the overworld otherwise).
         const savedDim = player && 'Dimension' in player ? Number(player.Dimension) : 0;
         const dim = getProviderForDimension(savedDim) ? savedDim : 0;
@@ -929,10 +933,6 @@ export class Minecraft implements SettingsListener {
         this.chunkProvider = provider;
         this.dimensions = this.createDimensions(info, world, provider);
         this.pendingWorld = { world, provider, phase: 'terrain', player };
-        // The bed's chunks stay readable at once for a respawn far from it.
-        const sx = player && 'SpawnX' in player ? Number(player.SpawnX) : null;
-        const sz = player && 'SpawnZ' in player ? Number(player.SpawnZ) : null;
-        if (sx !== null && sz !== null) for (const [dx, dz] of [[-3, -3], [3, -3], [-3, 3], [3, 3]]) void handler.keepChunk((sx + dx) >> 4, (sz + dz) >> 4);
       },
       (e: unknown) => {
         if (this.openingWorld !== token) return;
@@ -1037,6 +1037,9 @@ export class Minecraft implements SettingsListener {
           this.thePlayer.writeToNBT(playerTag);
         }
         if (this.thePlayer) this.theWorld.removeEntity(this.thePlayer);
+        // A dimension entered a moment ago may not have its save attached yet (nothing loaded).
+        const h = this.saveController.handler;
+        if (h && !provider.saveHandler && this.dimensions?.dimensionOf(this.theWorld)) provider.saveHandler = h;
         // The other dimensions' chunks are saved with the rest (stopServer's saveAllWorlds).
         if (!this.saveController.close(this.theWorld, provider, playerTag, () => provider.dispose())) provider.dispose();
         this.dimensions?.dispose();
