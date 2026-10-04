@@ -40,10 +40,16 @@ export function isFbx(bytes: Uint8Array): boolean {
 
 // ------------------------------------------------------------------ binary reader
 
+/** Largest array in an FBX file, and all arrays together, after decompression. */
+const MAX_ARRAY_BYTES = 128 * 1024 * 1024;
+const MAX_TOTAL_ARRAY_BYTES = 384 * 1024 * 1024;
+
 class BinaryReader {
   private readonly view: DataView;
   pos = 0;
   nodes = 0;
+  /** Bytes of all arrays read so far. */
+  arrayBytes = 0;
   constructor(readonly bytes: Uint8Array) {
     this.view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   }
@@ -89,7 +95,8 @@ function readArray(r: BinaryReader, type: string): ArrayLike<number> {
   const encoding = r.u32();
   const compressed = r.u32();
   const size = type === 'd' || type === 'l' ? 8 : type === 'b' ? 1 : 4;
-  if (count * size > 512 * 1024 * 1024) throw new ModelImportError('The FBX file has an array that is too large.');
+  r.arrayBytes += count * size;
+  if (count * size > MAX_ARRAY_BYTES || r.arrayBytes > MAX_TOTAL_ARRAY_BYTES) throw new ModelImportError('The FBX file has arrays that are too large.');
   let data = r.slice(compressed);
   if (encoding === 1) {
     try {

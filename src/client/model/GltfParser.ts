@@ -110,7 +110,7 @@ export function parseGltf(bytes: Uint8Array, files: ModelFiles, path: string): S
     const comps = COMPONENTS[a.type];
     const cbytes = COMPONENT_BYTES[a.componentType];
     const count = a.count | 0;
-    if (!comps || !cbytes || count < 0 || count > IMPORT_LIMITS.maxVertices * 3) throw new ModelImportError('The glTF has an invalid accessor.');
+    if (!comps || !cbytes || count < 0 || count * comps > IMPORT_LIMITS.maxVertices * 12) throw new ModelImportError('The glTF has an invalid or too large accessor.');
     const out = new Float32Array(count * comps);
     if (a.bufferView !== undefined) {
       const bytesOf = viewBytes(a.bufferView);
